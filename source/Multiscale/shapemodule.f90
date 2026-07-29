@@ -37,6 +37,8 @@ private
 public deallocateShape, isPointInsideShape, deallocateShapeList, &
        parseShapeList, allocateShapeList, BoxShape, SphereShape,&
        ShapeList, printShapeList, isPointInsideShapeList
+
+type(ShapeList), pointer, save :: parseShapeListCtx => null()
 contains
 
 subroutine parseShapeList(fData, list)
@@ -44,41 +46,46 @@ subroutine parseShapeList(fData, list)
     use FileInput
 implicit none
     type(FileData), intent(inout) :: fData
-    type(ShapeList), intent(inout) :: list
-    
+    type(ShapeList), target, intent(inout) :: list
+
+    parseShapeListCtx => list
     if (.not. isAtEndOfLine(fData)) then
-        call tryToParseFromExternalFile(fData, parseList)
+        call tryToParseFromExternalFile(fData, parseShapeListCallback)
         if (fData%ierr /= 0) return
     else
         call readNextLine(fData)
         if (fData%ierr /= 0) return
-        call parseList(fData)
+        call parseShapeListCallback(fData)
     end if
-  contains
-    subroutine parseList(fData)
-    implicit none
-        type(FileData), intent(inout) :: fData
-    
-        do while (.true.)
-            call toLowerCase(fData%word)
-            select case (trim(fData%word))
-            case('sphere')
-                call appendNewShape(list)
-                call readNextWord(fData)
-                call parseSphere(fData, list%lastElement)
-                if (fData%ierr /= 0) return
-            case('box')
-                call appendNewShape(list)
-                call readNextWord(fData)
-                call parseBox(fData, list%lastElement)
-                if (fData%ierr /= 0) return
-            case default
-                exit
-            end select
-            if (fData%ierr /= 0) exit
-        enddo
-    end subroutine
+
+    nullify(parseShapeListCtx)
 end subroutine parseShapeList
+
+subroutine parseShapeListCallback(fData)
+use MultiscaleFileParser
+use FileInput
+implicit none
+    type(FileData), intent(inout) :: fData
+
+    do while (.true.)
+        call toLowerCase(fData%word)
+        select case (trim(fData%word))
+        case('sphere')
+            call appendNewShape(parseShapeListCtx)
+            call readNextWord(fData)
+            call parseSphere(fData, parseShapeListCtx%lastElement)
+            if (fData%ierr /= 0) return
+        case('box')
+            call appendNewShape(parseShapeListCtx)
+            call readNextWord(fData)
+            call parseBox(fData, parseShapeListCtx%lastElement)
+            if (fData%ierr /= 0) return
+        case default
+            exit
+        end select
+        if (fData%ierr /= 0) exit
+    enddo
+end subroutine parseShapeListCallback
 
 subroutine parseSphere(fData, shape)
     use MultiscaleFileParser

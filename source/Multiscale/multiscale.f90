@@ -58,6 +58,12 @@ module Multiscale
   real(dblprec), dimension(:,:,:,:), allocatable :: multiscaleBackbuffer
   integer :: multiscaleBackbufferHead
 
+     ! Context used by module-level interaction law callbacks in setupLinks.
+     type(MultiscaleOptions), pointer, save :: setupLinksOpts => null()
+     type(AtomSetupInfo), pointer, save :: setupLinksAtomSetup => null()
+     real(dblprec), dimension(:, :), pointer, save :: setupLinksAtomPositions => null()
+     integer, dimension(3), save :: setupLinksMaxNrOfUnitcellLocations = 1
+
 
   private
   public &
@@ -288,15 +294,15 @@ contains
   !! @param[in] finiteDiffIndices
   !! @param[in] atomRegions Delimiters for different regions inside realAtoms
   !! @param[out] atomsExchange Sparse matrix defining exchanges between pairs of atoms.
-  subroutine setupLinks(opts, mesh, atomPositions, atomSetup, finiteDiffIndices, atomRegions, atomsExchange, atomsDm)
+     subroutine setupLinks(opts, mesh, atomPositions, atomSetup, finiteDiffIndices, atomRegions, atomsExchange, atomsDm)
     use AtomLinker
     use DM
     implicit none
 
-    type(MultiscaleOptions) , intent(inout)                  :: opts
+     type(MultiscaleOptions) , intent(inout), target          :: opts
     type(FiniteDiffMesh)    , intent(in)                     :: mesh
-    real(dblprec)           , intent(in), dimension(:, :)    :: atomPositions
-    type(AtomSetupInfo)     , intent(in)                     :: atomSetup
+     real(dblprec)           , intent(in), target, dimension(:, :)    :: atomPositions
+     type(AtomSetupInfo)     , intent(in), target             :: atomSetup
     integer                 , intent(in), dimension(:, :, :) :: finiteDiffIndices
     type(MultiscaleRegions) , intent(in)                     :: atomRegions    
     type(SpMatrix)          , intent(out)                    :: atomsExchange
@@ -313,6 +319,12 @@ contains
     maxNrOfUnitcellLocations = 1
     maxNrOfUnitcellLocations(1:dim) = &
          floor(mesh%space%universeSize(1:dim)/opts%unitcell%size(1:dim) + 0.5d0)
+
+    setupLinksOpts => opts
+    setupLinksAtomSetup => atomSetup
+    setupLinksAtomPositions => atomPositions
+    setupLinksMaxNrOfUnitcellLocations = maxNrOfUnitcellLocations
+
     allocate(atomIndices(atomSetup%nrOfAtoms))
     atomIndices = (/ (i, i = 1, atomSetup%nrOfAtoms) /)
     call buildKdTree(totalTree, atomPositions, atomIndices)
@@ -341,7 +353,7 @@ contains
 
     call createExchangeMatrix(opts%space, atomPositions, opts%linkErrorTolerance,&
          totalTree, realTree, partTree, coarseTree, &
-         realExchangeLaw, realMaxRadius, coarseExchangeLaw, coarseMaxRadius, &
+         realExchangeLawMs, realMaxRadius, coarseExchangeLawMs, coarseMaxRadius, &
          atomsExchange)
 
     realMaxRadius = &
@@ -354,7 +366,7 @@ contains
     
     call createDmMatrix(opts%space, atomPositions,opts%linkErrorTolerance,&
          totalTree, realTree, partTree, coarseTree, &
-         realDmLaw, realMaxRadius, coarseDmLaw, coarseMaxRadius, &
+         realDmLawMs, realMaxRadius, coarseDmLawMs, coarseMaxRadius, &
          atomsDm)
 
     
@@ -363,56 +375,59 @@ contains
     call deallocTree(partTree)
     call deallocTree(coarseTree)
 
-  contains
+          nullify(setupLinksOpts)
+          nullify(setupLinksAtomSetup)
+          nullify(setupLinksAtomPositions)
 
-    pure real(dblprec) function realExchangeLaw(atomI, atomJ)
-      use InteractionInput
-      integer, intent(in) :: atomI, atomJ
-
-      real(dblprec), dimension(1) :: iv
-
-      iv = getInteractionValue(opts%realExchange, opts%space, &
-           maxNrOfUnitcellLocations, atomPositions, atomSetup, atomI, atomJ, &
-           opts%linkErrorTolerance)
-      realExchangeLaw = iv(1)
-      
-    end function realExchangeLaw
-    pure real(dblprec) function coarseExchangeLaw(atomI, atomJ)
-      use InteractionInput
-      integer, intent(in) :: atomI, atomJ
-
-      real(dblprec), dimension(1) :: iv
-
-      iv = getInteractionValue(opts%coarseExchange, opts%space, &
-           maxNrOfUnitcellLocations, atomPositions, atomSetup, atomI, atomJ, &
-           opts%linkErrorTolerance)
-      coarseExchangeLaw = iv(1)
-      
-    end function coarseExchangeLaw
-    
-    pure function realDmLaw(atomI, atomJ) result(v)
-      use InteractionInput
-      integer, intent(in) :: atomI, atomJ
-      real(dblprec), dimension(3) :: v
-
-      v = getInteractionValue(opts%realDm, opts%space, &
-           maxNrOfUnitcellLocations, atomPositions, atomSetup, atomI, atomJ, &
-           opts%linkErrorTolerance)
-            
-    end function realDmLaw
-    pure function coarseDmLaw(atomI, atomJ) result(v)
-      use InteractionInput
-      integer, intent(in) :: atomI, atomJ
-      real(dblprec), dimension(3) :: v
-
-      v = getInteractionValue(opts%coarseDm, opts%space, &
-           maxNrOfUnitcellLocations, atomPositions, atomSetup, atomI, atomJ, &
-           opts%linkErrorTolerance)
-      
-    end function coarseDmLaw
-    
-    
   end subroutine setupLinks
+
+     pure real(dblprec) function realExchangeLawMs(atomI, atomJ)
+          use InteractionInput
+          integer, intent(in) :: atomI, atomJ
+
+          real(dblprec), dimension(1) :: iv
+
+          iv = getInteractionValue(setupLinksOpts%realExchange, setupLinksOpts%space, &
+                     setupLinksMaxNrOfUnitcellLocations, setupLinksAtomPositions, setupLinksAtomSetup, atomI, atomJ, &
+                     setupLinksOpts%linkErrorTolerance)
+          realExchangeLawMs = iv(1)
+
+     end function realExchangeLawMs
+
+     pure real(dblprec) function coarseExchangeLawMs(atomI, atomJ)
+          use InteractionInput
+          integer, intent(in) :: atomI, atomJ
+
+          real(dblprec), dimension(1) :: iv
+
+          iv = getInteractionValue(setupLinksOpts%coarseExchange, setupLinksOpts%space, &
+                     setupLinksMaxNrOfUnitcellLocations, setupLinksAtomPositions, setupLinksAtomSetup, atomI, atomJ, &
+                     setupLinksOpts%linkErrorTolerance)
+          coarseExchangeLawMs = iv(1)
+
+     end function coarseExchangeLawMs
+
+     pure function realDmLawMs(atomI, atomJ) result(v)
+          use InteractionInput
+          integer, intent(in) :: atomI, atomJ
+          real(dblprec), dimension(3) :: v
+
+          v = getInteractionValue(setupLinksOpts%realDm, setupLinksOpts%space, &
+                     setupLinksMaxNrOfUnitcellLocations, setupLinksAtomPositions, setupLinksAtomSetup, atomI, atomJ, &
+                     setupLinksOpts%linkErrorTolerance)
+
+     end function realDmLawMs
+
+     pure function coarseDmLawMs(atomI, atomJ) result(v)
+          use InteractionInput
+          integer, intent(in) :: atomI, atomJ
+          real(dblprec), dimension(3) :: v
+
+          v = getInteractionValue(setupLinksOpts%coarseDm, setupLinksOpts%space, &
+                     setupLinksMaxNrOfUnitcellLocations, setupLinksAtomPositions, setupLinksAtomSetup, atomI, atomJ, &
+                     setupLinksOpts%linkErrorTolerance)
+
+     end function coarseDmLawMs
 
   !> Calculates weights used to calculate two interpolations in the interface between atomistic and continuum domains. All results are stored in files.
   !! These interpolations are used to compute the magnetic moment of padding atoms and interface nodes.

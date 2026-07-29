@@ -14,6 +14,8 @@ implicit none
         type(DynArrayInt) :: col
     endtype
 
+    type(SpMatrix), pointer, save :: sortMatrixCtx => null()
+
 public SpMatrix, addMatrixVectorProduct, addTransposedMatrixVectorProduct, &
      allocSpMatrix, deallocSpMatrix, sortMatrixByRow, sortMatrixByRowAndColumn, &
      addMatrixEntry, removeZeros
@@ -103,80 +105,62 @@ end subroutine deallocSpMatrix
 
 subroutine sortMatrixByRowAndColumn(matrix)
 implicit none
-    type(SpMatrix), intent(inout) :: matrix
+        type(SpMatrix), target, intent(inout) :: matrix
 
-    call sort(compareEntries, swapEntries, 1, matrix%entries%length)
-contains
-  pure integer function compareEntries(entry1, entry2)
-    implicit none
-    integer, intent(in) :: entry1
-    integer, intent(in) :: entry2
-    
-    compareEntries = matrix%row%values(entry2) - matrix%row%values(entry1)
-    if (compareEntries == 0) then
-       compareEntries = matrix%col%values(entry2) - matrix%col%values(entry1)
-    end if
-  end function compareEntries
-    
-  subroutine swapEntries(entry1, entry2)
-    implicit none
-    integer, intent(in) :: entry1
-    integer, intent(in) :: entry2
-        
-    real(dblprec) :: tmpEntry
-    integer :: tmpRow
-    integer :: tmpCol
-    
-    tmpEntry = matrix%entries%values(entry1)
-        tmpRow = matrix%row%values(entry1)
-        tmpCol = matrix%col%values(entry1)
-        
-        matrix%entries%values(entry1) = matrix%entries%values(entry2)
-        matrix%row%values(entry1) = matrix%row%values(entry2)
-        matrix%col%values(entry1) = matrix%col%values(entry2)
-        
-        matrix%entries%values(entry2) = tmpEntry
-        matrix%row%values(entry2) = tmpRow
-        matrix%col%values(entry2) = tmpCol
-      end subroutine swapEntries
-  end subroutine sortMatrixByRowAndColumn
+        sortMatrixCtx => matrix
+        call sort(compareEntriesByRowAndColumn, swapMatrixEntries, 1, matrix%entries%length)
+        nullify(sortMatrixCtx)
+end subroutine sortMatrixByRowAndColumn
 
 
 subroutine sortMatrixByRow(matrix)
 implicit none
-    type(SpMatrix), intent(inout) :: matrix
+    type(SpMatrix), target, intent(inout) :: matrix
 
-    call sort(compareEntries, swapEntries, 1, matrix%entries%length)
-contains
-    pure integer function compareEntries(entry1, entry2)
-    implicit none
-        integer, intent(in) :: entry1
-        integer, intent(in) :: entry2
-    
-        compareEntries = matrix%row%values(entry2) - matrix%row%values(entry1)
-    end function compareEntries
-    
-    subroutine swapEntries(entry1, entry2)
-    implicit none
-        integer, intent(in) :: entry1
-        integer, intent(in) :: entry2
-        
-        real(dblprec) :: tmpEntry
-        integer :: tmpRow
-        integer :: tmpCol
-        
-        tmpEntry = matrix%entries%values(entry1)
-        tmpRow = matrix%row%values(entry1)
-        tmpCol = matrix%col%values(entry1)
-        
-        matrix%entries%values(entry1) = matrix%entries%values(entry2)
-        matrix%row%values(entry1) = matrix%row%values(entry2)
-        matrix%col%values(entry1) = matrix%col%values(entry2)
-        
-        matrix%entries%values(entry2) = tmpEntry
-        matrix%row%values(entry2) = tmpRow
-        matrix%col%values(entry2) = tmpCol
-    end subroutine swapEntries
+    sortMatrixCtx => matrix
+    call sort(compareEntriesByRow, swapMatrixEntries, 1, matrix%entries%length)
+    nullify(sortMatrixCtx)
 end subroutine sortMatrixByRow
+
+integer function compareEntriesByRowAndColumn(entry1, entry2)
+implicit none
+    integer, intent(in) :: entry1
+    integer, intent(in) :: entry2
+
+    compareEntriesByRowAndColumn = sortMatrixCtx%row%values(entry2) - sortMatrixCtx%row%values(entry1)
+    if (compareEntriesByRowAndColumn == 0) then
+       compareEntriesByRowAndColumn = sortMatrixCtx%col%values(entry2) - sortMatrixCtx%col%values(entry1)
+    end if
+end function compareEntriesByRowAndColumn
+
+integer function compareEntriesByRow(entry1, entry2)
+implicit none
+    integer, intent(in) :: entry1
+    integer, intent(in) :: entry2
+
+    compareEntriesByRow = sortMatrixCtx%row%values(entry2) - sortMatrixCtx%row%values(entry1)
+end function compareEntriesByRow
+
+subroutine swapMatrixEntries(entry1, entry2)
+implicit none
+    integer, intent(in) :: entry1
+    integer, intent(in) :: entry2
+
+    real(dblprec) :: tmpEntry
+    integer :: tmpRow
+    integer :: tmpCol
+
+    tmpEntry = sortMatrixCtx%entries%values(entry1)
+    tmpRow = sortMatrixCtx%row%values(entry1)
+    tmpCol = sortMatrixCtx%col%values(entry1)
+
+    sortMatrixCtx%entries%values(entry1) = sortMatrixCtx%entries%values(entry2)
+    sortMatrixCtx%row%values(entry1) = sortMatrixCtx%row%values(entry2)
+    sortMatrixCtx%col%values(entry1) = sortMatrixCtx%col%values(entry2)
+
+    sortMatrixCtx%entries%values(entry2) = tmpEntry
+    sortMatrixCtx%row%values(entry2) = tmpRow
+    sortMatrixCtx%col%values(entry2) = tmpCol
+end subroutine swapMatrixEntries
 
 end module SparseMatrix

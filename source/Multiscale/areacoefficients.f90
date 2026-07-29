@@ -18,6 +18,18 @@ module areaCoefficients
   real(dblprec), dimension(3,CACHE_SIZE) :: closest_cache_point
   integer, dimension(CACHE_SIZE) :: closest_cache_value
 
+   type(FiniteDiffMesh), pointer, save :: boxesAreaMeshCtx => null()
+   real(dblprec), pointer, save :: boxesAreaPositionsCtx(:, :) => null()
+   type(DynArrayReal), pointer, save :: boxesAreaAreasCtx => null()
+   integer, pointer, save :: boxesAreaAtomisticCtx(:) => null()
+   integer, pointer, save :: boxesAreaContinuousCtx(:) => null()
+   integer, save :: boxesAreaFirstAtomCtx = 1
+   integer, save :: boxesAreaFirstContCtx = 1
+   real(dblprec), save :: boxesAreaLatSpCtx = 0.0_dblprec
+
+   type(FiniteDiffMesh), pointer, save :: splitBoxByDomainMeshCtx => null()
+   procedure(SubboxHandler), pointer, save :: splitBoxByDomainHandlerCtx => null()
+
 
   abstract interface
      subroutine SubboxPeriodicHandler(subbox, wrapped)
@@ -52,13 +64,13 @@ contains
   !! @param[out] areas area affected by each atom listed in atoms (same order)
   subroutine boxesAreaCoefficients(mesh, box, latSp, positions, tree, atoms, areas)
     implicit none
-    type(FiniteDiffMesh), intent(in) :: mesh
+      type(FiniteDiffMesh), target, intent(in) :: mesh
     type(BoxShape), intent(in) :: box
     real(dblprec),  intent(in) :: latSp
-    real(dblprec), dimension(:, :), intent(in) :: positions
+      real(dblprec), dimension(:, :), target, intent(in) :: positions
     type(KdTree),   intent(in)    :: tree
     type(DynArrayInt),  intent(inout) :: atoms
-    type(DynArrayReal), intent(inout) :: areas
+      type(DynArrayReal), target, intent(inout) :: areas
 
     type(BoxShape) :: exp_box, atom_bbox
     integer, pointer,dimension(:) :: atomistic,continuous
@@ -78,83 +90,94 @@ contains
          atoms)
 
  
-    call splitIndicesByDomain(mesh,positions,atoms, atomistic,continuous, &
+   call splitIndicesByDomain(mesh,positions,atoms, atomistic,continuous, &
          first_atom, first_cont)
     
     call ensureAllocLength(areas,atoms%length)
     areas%values = 0
     areas%length = atoms%length
 
-    call splitBoxByDomain(mesh,box,boxesByDomain)
-
-  contains
-
-    !> Gives two pointers, one containing the set of atom indices
-    !! in the atomistic domain and the other in the continuous.
-    !! For that purpose the indices are reordered in atoms,
-    !! so that all atoms come after first_atom and all continuous nodes
-    !! are after first_cont.
-    subroutine splitIndicesByDomain(mesh,positions,atoms,&
-         atomistic,continuous, first_atom, first_cont)
-      implicit none
-      type(FiniteDiffMesh), intent(in) :: mesh
-      real(dblprec), dimension(:, :), intent(in) :: positions
-      type(DynArrayInt),  intent(inout) :: atoms
-      integer, dimension(:), pointer, intent(inout) :: atomistic, continuous
-      integer, intent(inout) :: first_atom, first_cont
-      integer :: i,j, swap_tmp
-
-      j = atoms%length
-      i = 1
-      do while(i<j)
-         if(isPointInsideAtomisticBox(mesh,positions(:,atoms%values(i)))) then
-            swap_tmp = atoms%values(i)
-            atoms%values(i) = atoms%values(j)
-            atoms%values(j) = swap_tmp
-            j = j - 1
-         else
-            i = i + 1
-         end if
-      end do
-      if(isPointInsideAtomisticBox(mesh,positions(:,atoms%values(i)))) then
-         first_atom = i
-         first_cont = 1
-         continuous => atoms%values(1:i-1)
-         atomistic => atoms%values(i:atoms%length)
-      else
-         first_atom = i+1
-         first_cont = 1
-         continuous => atoms%values(1:i)
-         atomistic => atoms%values(i+1:atoms%length)
-      end if      
-    end subroutine splitIndicesByDomain
-
-    !! Callback that receives each subbox
-    subroutine boxesByDomain(box,isAtom)
-      implicit none      
-      type(BoxShape), intent(in) :: box
-      logical, intent(in) :: isAtom
-      
-      integer :: i, off
-      integer, pointer,dimension(:) :: atom_set
-
-      if(isAtom) then
-         atom_bbox%sizes = latSp
-         off = first_atom - 1 
-         atom_set => atomistic
-      else
-         atom_bbox%sizes = mesh%boxSize
-         off = first_cont - 1
-         atom_set => continuous
-      end if
-      do i=1,ubound(atom_set,1)
-         atom_bbox%corner = positions(:,atom_set(i)) - atom_bbox%sizes*5d-1
-         areas%values(i+off) = areas%values(i+off) +&
-              intersectVolumeBC(atom_bbox,box,mesh%space)
-      end do
-    end subroutine boxesByDomain
-    
+    boxesAreaMeshCtx => mesh
+    boxesAreaPositionsCtx => positions
+    boxesAreaAreasCtx => areas
+    boxesAreaAtomisticCtx => atomistic
+    boxesAreaContinuousCtx => continuous
+    boxesAreaFirstAtomCtx = first_atom
+    boxesAreaFirstContCtx = first_cont
+    boxesAreaLatSpCtx = latSp
+    call splitBoxByDomain(mesh,box,boxesByDomainCallback)
+    nullify(boxesAreaMeshCtx)
+    nullify(boxesAreaPositionsCtx)
+    nullify(boxesAreaAreasCtx)
+    nullify(boxesAreaAtomisticCtx)
+    nullify(boxesAreaContinuousCtx)
   end subroutine boxesAreaCoefficients
+
+  !> Gives two pointers, one containing the set of atom indices
+  !! in the atomistic domain and the other in the continuous.
+  !! For that purpose the indices are reordered in atoms,
+  !! so that all atoms come after first_atom and all continuous nodes
+  !! are after first_cont.
+  subroutine splitIndicesByDomain(mesh,positions,atoms,&
+       atomistic,continuous, first_atom, first_cont)
+    implicit none
+    type(FiniteDiffMesh), intent(in) :: mesh
+    real(dblprec), dimension(:, :), intent(in) :: positions
+    type(DynArrayInt),  intent(inout) :: atoms
+    integer, dimension(:), pointer, intent(inout) :: atomistic, continuous
+    integer, intent(inout) :: first_atom, first_cont
+    integer :: i,j, swap_tmp
+
+    j = atoms%length
+    i = 1
+    do while(i<j)
+       if(isPointInsideAtomisticBox(mesh,positions(:,atoms%values(i)))) then
+          swap_tmp = atoms%values(i)
+          atoms%values(i) = atoms%values(j)
+          atoms%values(j) = swap_tmp
+          j = j - 1
+       else
+          i = i + 1
+       end if
+    end do
+    if(isPointInsideAtomisticBox(mesh,positions(:,atoms%values(i)))) then
+       first_atom = i
+       first_cont = 1
+       continuous => atoms%values(1:i-1)
+       atomistic => atoms%values(i:atoms%length)
+    else
+       first_atom = i+1
+       first_cont = 1
+       continuous => atoms%values(1:i)
+       atomistic => atoms%values(i+1:atoms%length)
+    end if
+  end subroutine splitIndicesByDomain
+
+  !! Callback that receives each subbox
+  subroutine boxesByDomainCallback(box,isAtom)
+    implicit none
+    type(BoxShape), intent(in) :: box
+    logical, intent(in) :: isAtom
+
+    integer :: i, off
+    integer, pointer,dimension(:) :: atom_set
+    type(BoxShape) :: atom_bbox
+
+    if(isAtom) then
+       atom_bbox%sizes = boxesAreaLatSpCtx
+       off = boxesAreaFirstAtomCtx - 1
+       atom_set => boxesAreaAtomisticCtx
+    else
+       atom_bbox%sizes = boxesAreaMeshCtx%boxSize
+       off = boxesAreaFirstContCtx - 1
+       atom_set => boxesAreaContinuousCtx
+    end if
+    do i=1,ubound(atom_set,1)
+       atom_bbox%corner = boxesAreaPositionsCtx(:,atom_set(i)) - atom_bbox%sizes*5d-1
+       boxesAreaAreasCtx%values(i+off) = boxesAreaAreasCtx%values(i+off) +&
+            intersectVolumeBC(atom_bbox,box,boxesAreaMeshCtx%space)
+    end do
+  end subroutine boxesByDomainCallback
 
 
   
@@ -214,50 +237,53 @@ contains
   !! @parameter handler Function called for every subbox.
   subroutine splitBoxByDomain(mesh, box, handler)
     implicit none
-    type(FiniteDiffMesh), intent(in) :: mesh
+    type(FiniteDiffMesh), target, intent(in) :: mesh
     type(BoxShape), intent(in) :: box
     procedure(SubboxHandler) :: handler
 
-    call splitBoxByPbc(mesh%space, box, nonperiodic)
-  contains
-    subroutine nonperiodic(box, wrapped)
-      implicit none
-      type(BoxShape),intent(in) :: box      
-      logical, intent(in) :: wrapped
-
-      integer :: i,j,k, dim 
-      integer,dimension(3) :: nbox
-      type(BoxShape) :: fdbox, candidate
-      real(dblprec), dimension(3) :: corner
-
-      if(1==0) print *,wrapped !Suppress waring for unused parameter
-      
-      dim = mesh%space%spatDimension
-      
-      ! Span of fdiff boxes of box
-      nbox = 0
-      nbox(1:dim) = floor(box%sizes(1:dim) / mesh%boxSize(1:dim)) + 1
-      ! Top-left corner of the first fdiff box
-      corner = 0 
-      corner(1:dim) = floor(box%corner(1:dim) / mesh%boxSize(1:dim)) * mesh%boxSize(1:dim)
-      
-      fdbox%sizes = mesh%boxSize
-      do i=0,nbox(1)
-         do j=0,nbox(2)
-            do k=0,nbox(3)
-               fdbox%corner = corner + mesh%boxSize*(/i,j,k/) ! Shift to the current fdiff box
-               candidate = intersectBoxes(box,fdbox,dim)
-
-               if (all(abs(candidate%sizes(1:dim)) > 1d-10)) then
-                  call handler(candidate, &
-                       isPointInsideAtomisticBox(mesh,fdbox%corner + 0.5*fdbox%sizes))
-               end if               
-            end do
-         end do
-      end do
-      
-    end subroutine nonperiodic
+    splitBoxByDomainMeshCtx => mesh
+    splitBoxByDomainHandlerCtx => handler
+    call splitBoxByPbc(mesh%space, box, splitBoxByDomainNonPeriodic)
+    nullify(splitBoxByDomainMeshCtx)
+    nullify(splitBoxByDomainHandlerCtx)
   end subroutine splitBoxByDomain
+
+  subroutine splitBoxByDomainNonPeriodic(box, wrapped)
+    implicit none
+    type(BoxShape),intent(in) :: box
+    logical, intent(in) :: wrapped
+
+    integer :: i,j,k, dim
+    integer,dimension(3) :: nbox
+    type(BoxShape) :: fdbox, candidate
+    real(dblprec), dimension(3) :: corner
+
+    if(1==0) print *,wrapped !Suppress waring for unused parameter
+
+    dim = splitBoxByDomainMeshCtx%space%spatDimension
+
+    ! Span of fdiff boxes of box
+    nbox = 0
+    nbox(1:dim) = floor(box%sizes(1:dim) / splitBoxByDomainMeshCtx%boxSize(1:dim)) + 1
+    ! Top-left corner of the first fdiff box
+    corner = 0
+    corner(1:dim) = floor(box%corner(1:dim) / splitBoxByDomainMeshCtx%boxSize(1:dim)) * splitBoxByDomainMeshCtx%boxSize(1:dim)
+
+    fdbox%sizes = splitBoxByDomainMeshCtx%boxSize
+    do i=0,nbox(1)
+       do j=0,nbox(2)
+          do k=0,nbox(3)
+             fdbox%corner = corner + splitBoxByDomainMeshCtx%boxSize*(/i,j,k/) ! Shift to the current fdiff box
+             candidate = intersectBoxes(box,fdbox,dim)
+
+             if (all(abs(candidate%sizes(1:dim)) > 1d-10)) then
+                call splitBoxByDomainHandlerCtx(candidate, &
+                     isPointInsideAtomisticBox(splitBoxByDomainMeshCtx,fdbox%corner + 0.5*fdbox%sizes))
+             end if
+          end do
+       end do
+    end do
+  end subroutine splitBoxByDomainNonPeriodic
 
   !> Given two boxes calculates the box result of their intersection.
   !! If the boxes do not intersect, a box of size 0,0,0 and corner 0,0,0 is

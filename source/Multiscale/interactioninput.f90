@@ -31,6 +31,9 @@ implicit none
        getMaxInteractionRadius, &
        AtomSetupInfo, allocateAtomSetupInfo, deallocateAtomSetupInfo
 
+   type(InteractionInfo), pointer, save :: parseInteractionListCtx => null()
+   integer, save :: parseInteractionComponentsCtx = 0
+
 contains
 
   subroutine initialiseInteractionInfo(info)
@@ -85,15 +88,18 @@ contains
   implicit none
     type(FileData), intent(inout) :: fData
     integer, intent(in) :: components
-    type(InteractionInfo), intent(out) :: interactionList
+      type(InteractionInfo), target, intent(out) :: interactionList
 
     procedure(parserFunction), pointer :: listParser
-    
+
+    parseInteractionListCtx => interactionList
+    parseInteractionComponentsCtx = components
+
     if (trim(fData%word) == 'unitcell') then
-       listParser => parseUnitcellList
+       listParser => parseUnitcellListCallback
        call readNextWord(fData)
     else
-       listParser => parseList
+       listParser => parseListCallback
     end if
     if (isAtEndOfLine(fData)) then
        call readNextLine(fData)
@@ -103,99 +109,9 @@ contains
        call tryToParseFromExternalFile(fData, listParser)
        if (fData%ierr /= 0) return
     end if
-  contains
 
-    subroutine parseList(fData)
-      implicit none
-      type(FileData), intent(inout) :: fData
-
-      integer :: i, j
-      integer :: nrOfLinks
-
-      nrOfLinks = countLinesStartWithInteger(fData)
-      allocate(interactionList%atomType1(nrOfLinks))
-      allocate(interactionList%atomType2(nrOfLinks))
-      allocate(interactionList%dirVect(3, nrOfLinks))
-      allocate(interactionList%interactionValue(components, nrOfLinks))
-      do i = 1, nrOfLinks
-         call parseInt(fData, interactionList%atomType1(i))
-         if (fData%ierr /= 0) return
-         call readNextWord(fData)
-         
-         call skipOptionalDelimiter(fData)
-         
-         call parseInt(fData, interactionList%atomType2(i))
-         if (fData%ierr /= 0) return
-         call readNextWord(fData)
-         
-         call skipOptionalDelimiter(fData)
-         
-         do j = 1, 3
-            call parseReal(fData, interactionList%dirVect(j, i))
-            if (fData%ierr /= 0) return
-            call readNextWord(fData)
-         enddo
-
-         call skipOptionalDelimiter(fData)
-
-         do j = 1, components
-            call parseReal(fData, interactionList%interactionValue(j,i))
-            if (fData%ierr /= 0) return
-            if (j /= components) then
-               call readNextWord(fData)
-            end if
-         end do
-         
-         call readNextLine(fData)
-         if (fData%ierr /= 0) return
-      enddo
-    end subroutine parseList
-
-    subroutine parseUnitcellList(fData)
-      implicit none
-      type(FileData), intent(inout) :: fData
-
-      integer :: i, j
-      integer :: nrOfLinks
-
-      nrOfLinks = countLinesStartWithInteger(fData)
-      allocate(interactionList%atomType1(nrOfLinks))
-      allocate(interactionList%atomType2(nrOfLinks))
-      allocate(interactionList%unitcellDirection(3, nrOfLinks))
-      allocate(interactionList%interactionValue(components,nrOfLinks))
-      do i = 1, nrOfLinks
-         call parseInt(fData, interactionList%atomType1(i))
-         if (fData%ierr /= 0) return
-         call readNextWord(fData)
-
-         call skipOptionalDelimiter(fData)
-
-         call parseInt(fData, interactionList%atomType2(i))
-         if (fData%ierr /= 0) return
-         call readNextWord(fData)
-
-         call skipOptionalDelimiter(fData)
-
-         do j = 1, 3
-            call parseInt(fData, interactionList%unitcellDirection(j, i))
-            if (fData%ierr /= 0) return
-            call readNextWord(fData)
-         enddo
-
-         call skipOptionalDelimiter(fData)
-
-         do j = 1, components
-            call parseReal(fData, interactionList%interactionValue(j,i))
-            if (fData%ierr /= 0) return
-            if (j /= components) then
-               call readNextWord(fData)
-            end if
-         end do
-
-         call readNextLine(fData)
-         if (fData%ierr /= 0) return
-      enddo
-    end subroutine parseUnitcellList
+    nullify(parseInteractionListCtx)
+    parseInteractionComponentsCtx = 0
   end subroutine parseInteractionList
 
 
@@ -238,72 +154,137 @@ contains
     integer, dimension(3), intent(in) :: maxNrOfUnitcells
     real(dblprec), dimension(:, :), intent(in) :: atomPositions
     type(AtomSetupInfo), intent(in) :: atomInfo
-    real(dblprec),dimension(ubound(excInfo%interactionValue,1)) :: coeff
-    
     integer, intent(in) :: atomI
     integer, intent(in) :: atomJ
     real(dblprec), intent(in) :: tolerance
+    real(dblprec),dimension(ubound(excInfo%interactionValue,1)) :: coeff
 
     integer :: i
+    real(dblprec), dimension(3) :: dirVect
+    integer, dimension(3) :: location
+    logical :: inside
 
     coeff = 0d0
     if (allocated(excInfo%dirVect)) then
        do i = 1, ubound(excInfo%dirVect, 2)
-          if (atomTypesMatch(i, atomI, atomJ) &
-               .and. directionalVectorMatch(i, atomI, atomJ,tolerance)) then
-             coeff = excInfo%interactionValue(:,i)
-             return
+          if (excInfo%atomType1(i) == atomInfo%atomTypes(atomI) .and. &
+               excInfo%atomType2(i) == atomInfo%atomTypes(atomJ)) then
+             call getDirectionalVector(space, atomPositions(:, atomI), atomPositions(:, atomJ), dirVect)
+             if (maxval(abs(dirVect - excInfo%dirVect(:, i))) < tolerance) then
+                coeff = excInfo%interactionValue(:,i)
+                return
+             end if
           endif
        end do
-    elseif (allocated(excInfo%unitcellDirection)) then
-       do i = 1, ubound(excInfo%unitcellDirection, 2)
-          if (atomTypesMatch(i, atomI, atomJ) &
-             .and. unitcellDirectionMatch(i, atomI, atomJ)) then             
-             coeff = excInfo%interactionValue(:,i)
-             return             
+    elseif (allocated(excInfo%unitCellDirection)) then
+       do i = 1, ubound(excInfo%unitCellDirection, 2)
+          if (excInfo%atomType1(i) == atomInfo%atomTypes(atomI) .and. &
+              excInfo%atomType2(i) == atomInfo%atomTypes(atomJ)) then
+             call modularGrid(maxNrOfUnitcells, space%periodicBoundary, &
+                  atomInfo%fromUnitcellLocation(:, atomI) + excInfo%unitcellDirection(:, i), &
+                  location, inside)
+
+             if (.not. inside) cycle
+             if (all(location == atomInfo%fromUnitcellLocation(:, atomJ))) then
+                coeff = excInfo%interactionValue(:,i)
+                return
+             end if
           end if
        end do
     end if
-  contains
-    pure logical function atomTypesMatch(i, atomI, atomJ)
-      implicit none
-      integer, intent(in) :: i, atomI, atomJ
-
-      atomTypesMatch = excInfo%atomType1(i) == atomInfo%atomTypes(atomI) .and. &
-           excInfo%atomType2(i) == atomInfo%atomTypes(atomJ)
-    end function atomTypesMatch
-
-    pure logical function directionalVectorMatch(i, atomI, atomJ, tolerance)
-      implicit none
-      integer, intent(in) :: i, atomI, atomJ
-      real(dblprec), intent(in) :: tolerance
-      
-      real(dblprec), dimension(3) :: dirVect
-
-      call getDirectionalVector(space, &
-           atomPositions(:, atomI), atomPositions(:, atomJ), dirVect)        
-      directionalVectorMatch = (maxval(abs(dirVect - excInfo%dirVect(:, i))) < tolerance)
-      
-    end function directionalVectorMatch
-
-    pure logical function unitcellDirectionMatch(i, atomI, atomJ)
-      implicit none
-      integer, intent(in) :: i, atomI, atomJ
-
-      integer, dimension(3) :: location
-      logical :: inside
-      call modularGrid(maxNrOfUnitcells, space%periodicBoundary, &
-           atomInfo%fromUnitcellLocation(:, atomI) + excInfo%unitcellDirection(:, i),&
-           location, inside)
-
-      if (.not. inside) then
-         unitcellDirectionMatch = .false.
-         return
-      end if
-
-      unitcellDirectionMatch = all(location == atomInfo%fromUnitcellLocation(:, atomJ))
-    end function unitcellDirectionMatch
   end function getInteractionValue
+
+  subroutine parseListCallback(fData)
+    implicit none
+    type(FileData), intent(inout) :: fData
+
+    integer :: i, j
+    integer :: nrOfLinks
+
+    nrOfLinks = countLinesStartWithInteger(fData)
+    allocate(parseInteractionListCtx%atomType1(nrOfLinks))
+    allocate(parseInteractionListCtx%atomType2(nrOfLinks))
+    allocate(parseInteractionListCtx%dirVect(3, nrOfLinks))
+    allocate(parseInteractionListCtx%interactionValue(parseInteractionComponentsCtx, nrOfLinks))
+    do i = 1, nrOfLinks
+       call parseInt(fData, parseInteractionListCtx%atomType1(i))
+       if (fData%ierr /= 0) return
+       call readNextWord(fData)
+
+       call skipOptionalDelimiter(fData)
+
+       call parseInt(fData, parseInteractionListCtx%atomType2(i))
+       if (fData%ierr /= 0) return
+       call readNextWord(fData)
+
+       call skipOptionalDelimiter(fData)
+
+       do j = 1, 3
+          call parseReal(fData, parseInteractionListCtx%dirVect(j, i))
+          if (fData%ierr /= 0) return
+          call readNextWord(fData)
+       enddo
+
+       call skipOptionalDelimiter(fData)
+
+       do j = 1, parseInteractionComponentsCtx
+          call parseReal(fData, parseInteractionListCtx%interactionValue(j,i))
+          if (fData%ierr /= 0) return
+          if (j /= parseInteractionComponentsCtx) then
+             call readNextWord(fData)
+          end if
+       end do
+
+       call readNextLine(fData)
+       if (fData%ierr /= 0) return
+    enddo
+  end subroutine parseListCallback
+
+  subroutine parseUnitcellListCallback(fData)
+    implicit none
+    type(FileData), intent(inout) :: fData
+
+    integer :: i, j
+    integer :: nrOfLinks
+
+    nrOfLinks = countLinesStartWithInteger(fData)
+    allocate(parseInteractionListCtx%atomType1(nrOfLinks))
+    allocate(parseInteractionListCtx%atomType2(nrOfLinks))
+    allocate(parseInteractionListCtx%unitcellDirection(3, nrOfLinks))
+    allocate(parseInteractionListCtx%interactionValue(parseInteractionComponentsCtx,nrOfLinks))
+    do i = 1, nrOfLinks
+       call parseInt(fData, parseInteractionListCtx%atomType1(i))
+       if (fData%ierr /= 0) return
+       call readNextWord(fData)
+
+       call skipOptionalDelimiter(fData)
+
+       call parseInt(fData, parseInteractionListCtx%atomType2(i))
+       if (fData%ierr /= 0) return
+       call readNextWord(fData)
+
+       call skipOptionalDelimiter(fData)
+
+       do j = 1, 3
+          call parseInt(fData, parseInteractionListCtx%unitcellDirection(j, i))
+          if (fData%ierr /= 0) return
+          call readNextWord(fData)
+       enddo
+
+       call skipOptionalDelimiter(fData)
+
+       do j = 1, parseInteractionComponentsCtx
+          call parseReal(fData, parseInteractionListCtx%interactionValue(j,i))
+          if (fData%ierr /= 0) return
+          if (j /= parseInteractionComponentsCtx) then
+             call readNextWord(fData)
+          end if
+       end do
+
+       call readNextLine(fData)
+       if (fData%ierr /= 0) return
+    enddo
+  end subroutine parseUnitcellListCallback
 
 
 

@@ -53,6 +53,16 @@ public AtomZoneList, deallocateZoneList, parseZoneList, &
 
 private 
 
+integer, save :: countAtomsInCellCtx = 0
+type(AtomCell), pointer, save :: parseAtomCellCtx => null()
+type(FiniteDiffMesh), pointer, save :: generateAtomsMeshCtx => null()
+type(ShapeList), pointer, save :: generateAtomsHoleShapesCtx => null()
+type(AtomZoneList), pointer, save :: generateAtomsZonesCtx => null()
+type(FiniteDiffMesh), pointer, save :: paddingMeshCtx => null()
+real(dblprec), pointer, save :: paddingAtomPositionsCtx(:, :) => null()
+type(KdTree), pointer, save :: paddingTreeCtx => null()
+real(dblprec), save :: paddingWidthCtx = 0.0_dblprec
+
 contains
 
 !< Releases an AtomZoneList
@@ -147,34 +157,9 @@ function countAtomsInCell(fData) result(natoms)
 implicit none
   type(FileData), intent(inout) :: fData
   integer :: natoms
-  natoms = 0
-  call peekFile(fData, countAtoms)
-contains
-  subroutine countAtoms(fData)
-    use MultiscaleFileParser
-  implicit none
-    type(FileData), intent(inout) :: fData
-    integer :: testAtomType
-    integer :: errVal
-    
-    do while (.true.)
-       read(fData%word, *, iostat=errVal) testAtomType
-       if (errVal /= 0) then
-          if (trim(fData%word) .ne. 'zone') then
-             exit
-          end if
-       else
-          natoms = natoms + 1
-       end if
-       
-       call skipToNextLine(fData)
-       if (fData%ierr /= 0) then
-          fData%ierr = 0
-          exit
-       endif
-
-    enddo
-  end subroutine countAtoms
+    countAtomsInCellCtx = 0
+    call peekFile(fData, countAtomsInCellCallback)
+    natoms = countAtomsInCellCtx
 end function countAtomsInCell
   
 
@@ -185,11 +170,9 @@ subroutine parseAtomCell(fData, cell)
     use FileInput
 implicit none
     type(FileData), intent(inout) :: fData
-    type(AtomCell), intent(inout) :: cell
+    type(AtomCell), target, intent(inout) :: cell
     
-    integer :: i, j
-    real(dblprec) :: tmpMag
-    integer :: nrOfAtoms
+    integer :: i
 
     do i = 1, 3
         call parseReal(fData, cell%size(i))
@@ -199,75 +182,14 @@ implicit none
     if (isAtEndOfLine(fData)) then
         call readNextLine(fData)
         if (fData%ierr /= 0) return
-        call atomListParser(fData)
+          parseAtomCellCtx => cell
+          call atomListParserCallback(fData)
+          nullify(parseAtomCellCtx)
     else
-        call tryToParseFromExternalFile(fData, atomListParser)
+          parseAtomCellCtx => cell
+          call tryToParseFromExternalFile(fData, atomListParserCallback)
+          nullify(parseAtomCellCtx)
     end if
-
-  contains
-    subroutine atomListParser(fData)
-    implicit none
-        type(FileData), intent(inout) :: fData
-        integer :: zone, i
-        zone = 0
-        nrOfAtoms = countAtomsInCell(fData)
-        
-        call allocateAtomCell(cell, nrOfAtoms)
-        
-        i = 1
-        do while(i <= nrOfAtoms)
-           if (trim(fData%word) == 'zone') then
-              call readNextWord(fData)
-              call parseInt(fData, zone)
-              if (zone < 0) then
-                 call createErrorMsg(fData, 1, 'The zone identifier must be positive')
-                 return 
-              end if
-           else
-              call parseInt(fData, cell%chemicalTypes(i))
-              if (fData%ierr /= 0) return
-              call readNextWord(fData)
-
-              call skipOptionalDelimiter(fData)
-            
-              do j = 1, 3
-                 call parseReal(fData, cell%positions(j, i))
-                 if (fData%ierr /= 0) return
-                 call readNextWord(fData)
-              enddo
-              
-              call skipOptionalDelimiter(fData)
-              
-              call parseReal(fData, cell%momentMagnitudes(i))
-              if (fData%ierr /= 0) return
-              call readNextWord(fData)
-              
-              call skipOptionalDelimiter(fData)
-              
-              do j = 1, 3
-                 call parseReal(fData, cell%moments(j, i))
-                 if (fData%ierr /= 0) return
-                 call readNextWord(fData)
-              enddo
-              tmpMag = sqrt(sum(cell%moments(:, i)**2))
-              if (tmpMag < 1d-3) then
-                 call createErrorMsg(fData, 1, 'The directional moment have too small magnitude.')
-                 return
-              endif
-              cell%moments(:, i) = cell%moments(:, i)/tmpMag
-              cell%zones(i) = zone
-              i = i + 1
-           end if
-
-           call readNextLine(fData)
-           if (fData%ierr /= 0) return              
-
-        enddo
-      end subroutine atomListParser
-
-        
-        
-      
 end subroutine parseAtomCell
 
 subroutine allocateAtomCell(atoms, nrOfAtoms)
@@ -311,27 +233,22 @@ end subroutine deallocateAtomCell
 !! @param[out] nrOfAtoms The number of atoms that were generated.
 subroutine generateAtoms(mesh, unitCell, holeShapes, atomZones, atoms, nrOfAtoms)
 implicit none
-    type(FiniteDiffMesh), intent(in) :: mesh
+    type(FiniteDiffMesh), target, intent(in) :: mesh
     type(AtomCell), intent(in) :: unitCell
-    type(ShapeList), intent(in) :: holeShapes
+    type(ShapeList), target, intent(in) :: holeShapes
     type(AtomZoneList), pointer, intent(in) :: atomZones
     type(AtomLinkedList), intent(inout) :: atoms
     integer, intent(out) :: nrOfAtoms
-    
-    call generatePositions(mesh%space, unitCell, isPointInAtomZone, nrOfAtoms, atoms)
+
+    generateAtomsMeshCtx => mesh
+    generateAtomsHoleShapesCtx => holeShapes
+    generateAtomsZonesCtx => atomZones
+    call generatePositions(mesh%space, unitCell, isPointInAtomZoneCallback, nrOfAtoms, atoms)
+    nullify(generateAtomsMeshCtx)
+    nullify(generateAtomsHoleShapesCtx)
+    nullify(generateAtomsZonesCtx)
     call initializeMoments(atoms, unitCell)
     call initializeAtomType(atoms, unitCell)
-contains
-    logical function isPointInAtomZone(point, zone)
-    implicit none
-        real(dblprec), dimension(3), intent(in) :: point
-        integer, intent(in) :: zone
-        isPointInAtomZone = &
-             isPointInsideAtomisticBox(mesh, point) &
-             .and. .not. isPointInsideShape(holeShapes, point) &
-             .and. atomZoneFromPoint(atomZones, point) == zone
-        
-    end function isPointInAtomZone
 end subroutine generateAtoms
 
 !> Generates the padding atoms. The unit cell is repeated over the universe.
@@ -346,34 +263,24 @@ end subroutine generateAtoms
 !! @param[out] nrOfAtoms The number of atoms that were generated.
 subroutine generatePaddingAtoms(mesh, unitCell, atomPositions, atomTree, paddingWidth, paddingAtoms, nrOfAtoms)
 implicit none
-    type(FiniteDiffMesh), intent(in) :: mesh
+    type(FiniteDiffMesh), target, intent(in) :: mesh
     type(AtomCell), intent(in) :: unitCell
-    real(dblprec), dimension(:, :), intent(in) :: atomPositions
-    type(KdTree), intent(in) :: atomTree
+    real(dblprec), dimension(:, :), target, intent(in) :: atomPositions
+    type(KdTree), target, intent(in) :: atomTree
     real(dblprec), intent(in) :: paddingWidth
     type(AtomLinkedList), intent(inout) :: paddingAtoms
     integer, intent(out) :: nrOfAtoms
-    
-    call generatePositions(mesh%space, unitCell, isInsidePaddingRegion, nrOfAtoms, paddingAtoms)
+
+    paddingMeshCtx => mesh
+    paddingAtomPositionsCtx => atomPositions
+    paddingTreeCtx => atomTree
+    paddingWidthCtx = paddingWidth
+    call generatePositions(mesh%space, unitCell, isInsidePaddingRegionCallback, nrOfAtoms, paddingAtoms)
+    nullify(paddingMeshCtx)
+    nullify(paddingAtomPositionsCtx)
+    nullify(paddingTreeCtx)
     call initializeMoments(paddingAtoms, unitcell)
     call initializeAtomType(paddingAtoms, unitcell)
-
-  contains
-    
-    logical function isInsidePaddingRegion(point, zone)
-    implicit none
-        real(dblprec), dimension(3), intent(in) :: point
-        integer, intent(in) :: zone
-        
-        real(dblprec) :: dist
-
-        if (isPointInsideAtomisticBox(mesh, point) .or. getBoundaryDistanceAt(mesh, point) > paddingWidth) then
-            isInsidePaddingRegion = .false.
-        else
-            call distToClosest(mesh%space, atomPositions, atomTree, point, distance = dist)
-            isInsidePaddingRegion = dist < paddingWidth .and. zone == 0
-        end if
-    end function isInsidePaddingRegion
 end subroutine generatePaddingAtoms
 
 !< Generates positions for the atoms by repeating the unit cell.
@@ -404,6 +311,7 @@ implicit none
     logical :: done
     
     type(AtomLinkedListNode), pointer :: currentAtom
+    integer :: i
     
     nrOfAtomsGenerated = 0
     do atomInUnitCell = 1, unitcell%nrOfAtoms
@@ -429,38 +337,6 @@ implicit none
             endif
         end do
     end do
-  contains
-    
-    subroutine nextUnitCellLocation(space, startPoint, stepSize, unitCellLocation, pos, done)
-    implicit none
-        type(SpaceStruct), intent(in) :: space
-        real(dblprec), dimension(3), intent(in) :: startPoint
-        real(dblprec), dimension(3), intent(in) :: stepSize
-        integer, dimension(3), intent(inout) :: unitCellLocation
-        real(dblprec), dimension(3), intent(out) :: pos
-        logical, intent(out) :: done
-    
-        integer :: i
-        
-        pos = 0
-        done = .false.
-        do i = 1, space%spatDimension
-            unitCellLocation(i) = unitCellLocation(i) + 1
-            pos(i) = (unitCellLocation(i) - 1) * stepSize(i) + startPoint(i)
-            if (pos(i) >= space%universeSize(i) - 1d-6) then
-                if (i >= space%spatDimension) then
-                    done = .true.
-                    exit
-                else
-                    pos(i) = startPoint(i)
-                    unitCellLocation(i) = 1
-                endif
-            else
-                exit
-            end if
-        enddo
-        pos = (unitcellLocation - 1) * stepSize + startPoint
-    end subroutine nextUnitCellLocation
 end subroutine generatePositions
 
 !< Initializes the moments from the unit cell.
@@ -470,19 +346,19 @@ subroutine initializeMoments(atomList, unitcell)
 implicit none
     type(AtomLinkedList), intent(in) :: atomList
     type(AtomCell), intent(in) :: unitcell
-    
-    call traverseAtomLinkedList(atomList, setMoment)
-  contains
-    subroutine setMoment(atom, i)
-    implicit none
-        type(AtomLinkedListNode), pointer, intent(in) :: atom
-        integer, intent(in) :: i
-        
+    type(AtomLinkedListNode), pointer :: currentAtom
+    integer :: i
+
+    currentAtom => atomList%dummyElementBeforeFirst%nextAtom
+    i = 1
+    do while (associated(currentAtom))
         if (.false.) print *, i !Hacky solution to prevent warning about unused
-        atom%moment = unitcell%moments(:, atom%fromAtomInUnitCell)
-        atom%moment = atom%moment / sqrt(sum(atom%moment**2))
-        atom%moment = atom%moment * unitcell%momentMagnitudes(atom%fromAtomInUnitCell)
-    end subroutine setMoment
+        currentAtom%moment = unitcell%moments(:, currentAtom%fromAtomInUnitCell)
+        currentAtom%moment = currentAtom%moment / sqrt(sum(currentAtom%moment**2))
+        currentAtom%moment = currentAtom%moment * unitcell%momentMagnitudes(currentAtom%fromAtomInUnitCell)
+        i = i + 1
+        currentAtom => currentAtom%nextAtom
+    end do
 end subroutine initializeMoments
 
 !< Initializes the atom types
@@ -492,17 +368,17 @@ subroutine initializeAtomType(atomList, unitcell)
 implicit none
     type(AtomLinkedList), intent(in) :: atomList
     type(AtomCell), intent(in) :: unitcell
-    
-    call traverseAtomLinkedList(atomList, setAtomType)
-  contains
-    subroutine setAtomType(atom, i)
-    implicit none
-        type(AtomLinkedListNode), pointer, intent(in) :: atom
-        integer, intent(in) :: i
-        
+    type(AtomLinkedListNode), pointer :: currentAtom
+    integer :: i
+
+    currentAtom => atomList%dummyElementBeforeFirst%nextAtom
+    i = 1
+    do while (associated(currentAtom))
         if (.false.) print *, i !Hacky solution to prevent warning about unused
-        atom%atomType = unitcell%chemicalTypes(atom%fromAtomInUnitCell)
-    end subroutine
+        currentAtom%atomType = unitcell%chemicalTypes(currentAtom%fromAtomInUnitCell)
+        i = i + 1
+        currentAtom => currentAtom%nextAtom
+    end do
 end subroutine initializeAtomType
 
 !> Generates the atoms in the finite differences mesh. The indices for the atoms will also be generated, a negative index indicates that the
@@ -523,6 +399,7 @@ implicit none
     integer, intent(out) :: nrOfAtoms
     
     integer :: i, j, k
+    integer, dimension(3) :: ind
     type(AtomLinkedListNode), pointer :: currentAtom
     
     allocate(atomIndices(mesh%nrOfGridPoints(1), mesh%nrOfGridPoints(2), mesh%nrOfGridPoints(3)))
@@ -531,19 +408,20 @@ implicit none
     do k = 1, mesh%nrOfGridPoints(3)
         do j = 1, mesh%nrOfGridPoints(2)
             do i = 1, mesh%nrOfGridPoints(1)
-                if (shouldPlaceFiniteDiffAtom(mesh, (/i, j, k/))) then
+                ind = (/i, j, k/)
+                if (isFiniteDiffGridPoint(mesh, ind) .or. isInterpolationGridPoint(mesh, ind)) then
                     allocate(currentAtom)
                     nullify(currentAtom%nextAtom)
 
                     nrOfAtoms = nrOfAtoms + 1
-                    currentAtom%positions = ((/ i, j, k /) - 1)*mesh%boxSize
+                    currentAtom%positions = (ind - 1)*mesh%boxSize
                     currentAtom%moment = (/ moment_magnitude, 0.0_dblprec, 0.0_dblprec /)
                     currentAtom%fromAtomInUnitCell = -1
                     currentAtom%unitcellLocation = -1
                     call insertElement(generatedAtoms, currentAtom)
                     nullify(currentAtom)
                     
-                    if (isFiniteDiffGridPoint(mesh, (/i, j, k/))) then
+                    if (isFiniteDiffGridPoint(mesh, ind)) then
                         atomIndices(i, j, k) = nrOfAtoms + nrOfAtomsBefore
                     else
                         atomIndices(i, j, k) = -(nrOfAtoms + nrOfAtomsBefore)
@@ -554,17 +432,6 @@ implicit none
             enddo
         enddo
     enddo
-    
-  contains
-    
-    logical function shouldPlaceFiniteDiffAtom(mesh, ind)
-    implicit none
-        type(FiniteDiffMesh), intent(in) :: mesh
-        integer, dimension(3) :: ind
-        
-        shouldPlaceFiniteDiffAtom = isFiniteDiffGridPoint(mesh, ind) .or. &
-                                    isInterpolationGridPoint(mesh, ind)
-    end function shouldPlaceFiniteDiffAtom
 end subroutine generateFiniteDifferenceAtoms
 
 !< Extract all the positions from atomList
@@ -574,15 +441,16 @@ subroutine extractPositions(atomList, positions)
 implicit none
     type(AtomLinkedList), intent(in) :: atomList
     real(dblprec), dimension(:, :), intent(inout) :: positions
-    
-    call traverseAtomLinkedList(atomList, storePosition)
-  contains
-    subroutine storePosition(atom, i)
-    implicit none
-        type(AtomLinkedListNode), pointer, intent(in) :: atom
-        integer, intent(in) :: i
-        positions(:, i) = atom%positions
-    end subroutine
+    type(AtomLinkedListNode), pointer :: currentAtom
+    integer :: i
+
+    currentAtom => atomList%dummyElementBeforeFirst%nextAtom
+    i = 1
+    do while (associated(currentAtom))
+        positions(:, i) = currentAtom%positions
+        i = i + 1
+        currentAtom => currentAtom%nextAtom
+    end do
 end subroutine extractPositions
 
 !< Extracts the moments from the atom list.
@@ -592,15 +460,16 @@ subroutine extractMoments(atomList, moments)
 implicit none
     type(AtomLinkedList), intent(in) :: atomList
     real(dblprec), dimension(:, :), intent(inout) :: moments
-    
-    call traverseAtomLinkedList(atomList, storeMoments)
-  contains
-    subroutine storeMoments(atom, i)
-    implicit none
-        type(AtomLinkedListNode), pointer, intent(in) :: atom
-        integer, intent(in) :: i
-        moments(:, i) = atom%moment
-    end subroutine
+    type(AtomLinkedListNode), pointer :: currentAtom
+    integer :: i
+
+    currentAtom => atomList%dummyElementBeforeFirst%nextAtom
+    i = 1
+    do while (associated(currentAtom))
+        moments(:, i) = currentAtom%moment
+        i = i + 1
+        currentAtom => currentAtom%nextAtom
+    end do
 end subroutine extractMoments
 
 !< Extracts the types of the in the atom list
@@ -610,33 +479,180 @@ subroutine extractTypes(atomList, types)
 implicit none
     type(AtomLinkedList), intent(in) :: atomList
     integer, dimension(:), intent(inout) :: types
-    
-    call traverseAtomLinkedList(atomList, storeTypes)
-  contains
-    subroutine storeTypes(atom, i)
-    implicit none
-        type(AtomLinkedListNode), pointer, intent(in) :: atom
-        integer, intent(in) :: i
-        
-        types(i) = atom%atomType
-    end subroutine
+    type(AtomLinkedListNode), pointer :: currentAtom
+    integer :: i
+
+    currentAtom => atomList%dummyElementBeforeFirst%nextAtom
+    i = 1
+    do while (associated(currentAtom))
+        types(i) = currentAtom%atomType
+        i = i + 1
+        currentAtom => currentAtom%nextAtom
+    end do
 end subroutine extractTypes
 
 subroutine extractFromUnitcellLocation(atomList, unitcellLocation)
 implicit none
     type(AtomLinkedList), intent(in) :: atomList
     integer, dimension(:, :), intent(inout) :: unitcellLocation
-    
-    call traverseAtomLinkedList(atomList, storeUnitcellLocation)
-  contains
-    subroutine storeUnitcellLocation(atom, i)
-    implicit none
-        type(AtomLinkedListNode), pointer, intent(in) :: atom
-        integer, intent(in) :: i
-        
-        unitcellLocation(:, i) = atom%unitcellLocation
-    end subroutine
+    type(AtomLinkedListNode), pointer :: currentAtom
+    integer :: i
+
+    currentAtom => atomList%dummyElementBeforeFirst%nextAtom
+    i = 1
+    do while (associated(currentAtom))
+        unitcellLocation(:, i) = currentAtom%unitcellLocation
+        i = i + 1
+        currentAtom => currentAtom%nextAtom
+    end do
 end subroutine extractFromUnitcellLocation
+
+subroutine countAtomsInCellCallback(fData)
+  use MultiscaleFileParser
+    use FileInput
+implicit none
+  type(FileData), intent(inout) :: fData
+  integer :: testAtomType
+  integer :: errVal
+
+  do while (.true.)
+     read(fData%word, *, iostat=errVal) testAtomType
+     if (errVal /= 0) then
+        if (trim(fData%word) .ne. 'zone') then
+           exit
+        end if
+     else
+        countAtomsInCellCtx = countAtomsInCellCtx + 1
+     end if
+
+     call skipToNextLine(fData)
+     if (fData%ierr /= 0) then
+        fData%ierr = 0
+        exit
+     endif
+  enddo
+end subroutine countAtomsInCellCallback
+
+subroutine atomListParserCallback(fData)
+use MultiscaleFileParser
+use FileInput
+implicit none
+    type(FileData), intent(inout) :: fData
+    integer :: zone, i, j
+    real(dblprec) :: tmpMag
+    integer :: nrOfAtoms
+
+    zone = 0
+    nrOfAtoms = countAtomsInCell(fData)
+
+    call allocateAtomCell(parseAtomCellCtx, nrOfAtoms)
+
+    i = 1
+    do while(i <= nrOfAtoms)
+       if (trim(fData%word) == 'zone') then
+          call readNextWord(fData)
+          call parseInt(fData, zone)
+          if (zone < 0) then
+             call createErrorMsg(fData, 1, 'The zone identifier must be positive')
+             return
+          end if
+       else
+          call parseInt(fData, parseAtomCellCtx%chemicalTypes(i))
+          if (fData%ierr /= 0) return
+          call readNextWord(fData)
+
+          call skipOptionalDelimiter(fData)
+
+          do j = 1, 3
+             call parseReal(fData, parseAtomCellCtx%positions(j, i))
+             if (fData%ierr /= 0) return
+             call readNextWord(fData)
+          enddo
+
+          call skipOptionalDelimiter(fData)
+
+          call parseReal(fData, parseAtomCellCtx%momentMagnitudes(i))
+          if (fData%ierr /= 0) return
+          call readNextWord(fData)
+
+          call skipOptionalDelimiter(fData)
+
+          do j = 1, 3
+             call parseReal(fData, parseAtomCellCtx%moments(j, i))
+             if (fData%ierr /= 0) return
+             call readNextWord(fData)
+          enddo
+          tmpMag = sqrt(sum(parseAtomCellCtx%moments(:, i)**2))
+          if (tmpMag < 1d-3) then
+             call createErrorMsg(fData, 1, 'The directional moment have too small magnitude.')
+             return
+          endif
+          parseAtomCellCtx%moments(:, i) = parseAtomCellCtx%moments(:, i)/tmpMag
+          parseAtomCellCtx%zones(i) = zone
+          i = i + 1
+       end if
+
+       call readNextLine(fData)
+       if (fData%ierr /= 0) return
+    enddo
+end subroutine atomListParserCallback
+
+logical function isPointInAtomZoneCallback(point, zone)
+implicit none
+    real(dblprec), dimension(3), intent(in) :: point
+    integer, intent(in) :: zone
+
+    isPointInAtomZoneCallback = &
+         isPointInsideAtomisticBox(generateAtomsMeshCtx, point) &
+         .and. .not. isPointInsideShape(generateAtomsHoleShapesCtx, point) &
+         .and. atomZoneFromPoint(generateAtomsZonesCtx, point) == zone
+end function isPointInAtomZoneCallback
+
+logical function isInsidePaddingRegionCallback(point, zone)
+implicit none
+    real(dblprec), dimension(3), intent(in) :: point
+    integer, intent(in) :: zone
+
+    real(dblprec) :: dist
+
+    if (isPointInsideAtomisticBox(paddingMeshCtx, point) .or. getBoundaryDistanceAt(paddingMeshCtx, point) > paddingWidthCtx) then
+        isInsidePaddingRegionCallback = .false.
+    else
+        call distToClosest(paddingMeshCtx%space, paddingAtomPositionsCtx, paddingTreeCtx, point, distance = dist)
+        isInsidePaddingRegionCallback = dist < paddingWidthCtx .and. zone == 0
+    end if
+end function isInsidePaddingRegionCallback
+
+subroutine nextUnitCellLocation(space, startPoint, stepSize, unitCellLocation, pos, done)
+implicit none
+    type(SpaceStruct), intent(in) :: space
+    real(dblprec), dimension(3), intent(in) :: startPoint
+    real(dblprec), dimension(3), intent(in) :: stepSize
+    integer, dimension(3), intent(inout) :: unitCellLocation
+    real(dblprec), dimension(3), intent(out) :: pos
+    logical, intent(out) :: done
+
+    integer :: i
+
+    pos = 0
+    done = .false.
+    do i = 1, space%spatDimension
+        unitCellLocation(i) = unitCellLocation(i) + 1
+        pos(i) = (unitCellLocation(i) - 1) * stepSize(i) + startPoint(i)
+        if (pos(i) >= space%universeSize(i) - 1d-6) then
+            if (i >= space%spatDimension) then
+                done = .true.
+                exit
+            else
+                pos(i) = startPoint(i)
+                unitCellLocation(i) = 1
+            endif
+        else
+            exit
+        end if
+    enddo
+    pos = (unitcellLocation - 1) * stepSize + startPoint
+end subroutine nextUnitCellLocation
 
 subroutine traverseAtomLinkedList(atomList, func)
 implicit none

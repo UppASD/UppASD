@@ -49,6 +49,7 @@ module Configuration
   public MultiscaleOptions, readMultiscaleOptions, deallocateOptions
 
   type(InputFields) :: fields
+     type(MultiscaleOptions), pointer, save :: setupInputOptsCtx => null()
 contains
 
   subroutine readMultiscaleOptions(configFile, options)
@@ -261,11 +262,13 @@ contains
     use InteractionInput
     implicit none
     type(InputFields), intent(inout) :: fields
-    type(MultiscaleOptions), intent(inout) :: opts
+          type(MultiscaleOptions), target, intent(inout) :: opts
 
     character(len=*), intent(in) :: configFile
     integer,intent (out) :: ierr
     character(len=*), intent(out) :: errMsg
+
+     setupInputOptsCtx => opts
     
     call addField(fields, 'dimension', opts%space%spatDimension, .true., &
          "Syntax: dimension (1 | 2 | 3)" // NEW_LINE('A') // "Specifies the dimensionality of the simulation.")
@@ -388,154 +391,149 @@ contains
          "NaN weights could be introduced due to having a too small window.")
     
     call loadInputFile(trim(configFile), fields, ierr, errMsg)
-
-  contains
-
-    subroutine unitcellParser(fData)
-      use MultiscaleFileParser
-      implicit none
-      type(FileData), intent(inout) :: fData
-
-      call parseAtomCell(fData, opts%unitCell)
-    end subroutine unitcellParser
-
-    subroutine atomZoneParser(fData)
-      use MultiscaleFileParser
-      use AtomGenerator, only: parseZoneList
-      implicit none
-      type(FileData), intent(inout) :: fData
-
-      call parseZoneList(fData, opts%atomZones)
-    end subroutine atomZoneParser
-    
-    subroutine atomisticShapeListParser(fData)
-      use MultiscaleFileParser
-      implicit none
-      type(FileData), intent(inout) :: fData
-
-      call parseShapeList(fData, opts%atomisticShapes)
-    end subroutine atomisticShapeListParser
-
-    subroutine holeShapeListParser(fData)
-      use MultiscaleFileParser
-      implicit none
-      type(FileData), intent(inout) :: fData
-
-      call parseShapeList(fData, opts%holeShapes)
-    end subroutine holeShapeListParser
-
-    subroutine realExchangeParser(fData)
-      use MultiscaleFileParser
-      implicit none
-      type(FileData), intent(inout) :: fData
-
-      call parseInteractionList(fData, 1, opts%realExchange) 
-    end subroutine realExchangeParser
-
-    subroutine coarseExchangeParser(fData)
-      use MultiscaleFileParser
-      implicit none
-      type(FileData), intent(inout) :: fData
-
-      call parseInteractionList(fData, 1, opts%coarseExchange) 
-    end subroutine coarseExchangeParser
-
-
-    subroutine realDmParser(fData)
-      use MultiscaleFileParser
-      implicit none
-      type(FileData), intent(inout) :: fData
-
-      call parseInteractionList(fData, 3, opts%realDm) 
-    end subroutine realDmParser
-
-    subroutine coarseDmParser(fData)
-      use MultiscaleFileParser
-      implicit none
-      type(FileData), intent(inout) :: fData
-
-      call parseInteractionList(fData, 3, opts%coarseDm) 
-    end subroutine coarseDmParser
-
-
-
-    subroutine anisotropyParser(fData)
-      use MultiscaleFileParser
-      use Anisotropy
-      implicit none
-      type(FileData), intent(inout) :: fData
-
-      call parseAnisotropyList(fData, opts%anisotropies) 
-    end subroutine anisotropyParser
-
-    subroutine momentRegionsParser(fData)
-      use MultiscaleFileParser
-      use MomentRegions
-      implicit none
-      type(FileData), intent(inout) :: fData
-
-      call parseMomentList(fData, opts%momentRegions) 
-    end subroutine momentRegionsParser
-
-
-    subroutine continuumExchangeParser(fData)
-      use MultiscaleFileParser
-      implicit none
-      type(FileData), intent(inout) :: fData
-      
-      integer :: component, i
-      
-      do component = 1,3
-         if (isAtEndOfLine(fData)) then
-            if (component .eq. 1) then               
-               call createErrorMsg(fData,1,'At least one exchange component must be specified')
-               return
-            else
-               do i = component,3
-                  opts%continuumExchangeCoef(i) = &
-                       opts%continuumExchangeCoef(component-1)
-               end do
-               call readNextLine(fData)
-               return
-            end if
-         else
-            call parseReal(fData, opts%continuumExchangeCoef(component))
-            if (fData%ierr /= 0) return
-            call readNextWord(fData)
-         end if
-      end do      
-      call readNextLine(fData)
-
-    end subroutine continuumExchangeParser
-    
-    subroutine continuumDmParser(fData)
-      use MultiscaleFileParser
-      implicit none
-      type(FileData), intent(inout) :: fData
-
-      integer :: vector, component
-
-      do vector = 1, 3
-         do component = 1,3
-            if (isAtEndOfLine(fData)) then
-               call createErrorMsg(fData,1,'Incomplete DM vector')
-               return
-            else
-               call parseReal(fData, opts%continuumDm(component,vector))
-               if (fData%ierr /= 0) return
-               call readNextWord(fData)
-            end if
-         end do
-         if (isAtEndOfLine(fData)) then
-            call readNextLine(fData)
-            return
-         end if
-         call skipOptionalDelimiter(fData)
-      end do
-      
-      call readNextLine(fData)
-
-    end subroutine continuumDmParser
+          nullify(setupInputOptsCtx)
 
   end subroutine setup_inputfields
+
+     subroutine unitcellParser(fData)
+          use MultiscaleFileParser
+          implicit none
+          type(FileData), intent(inout) :: fData
+
+          call parseAtomCell(fData, setupInputOptsCtx%unitCell)
+     end subroutine unitcellParser
+
+     subroutine atomZoneParser(fData)
+          use MultiscaleFileParser
+          use AtomGenerator, only: parseZoneList
+          implicit none
+          type(FileData), intent(inout) :: fData
+
+          call parseZoneList(fData, setupInputOptsCtx%atomZones)
+     end subroutine atomZoneParser
+
+     subroutine atomisticShapeListParser(fData)
+          use MultiscaleFileParser
+          implicit none
+          type(FileData), intent(inout) :: fData
+
+          call parseShapeList(fData, setupInputOptsCtx%atomisticShapes)
+     end subroutine atomisticShapeListParser
+
+     subroutine holeShapeListParser(fData)
+          use MultiscaleFileParser
+          implicit none
+          type(FileData), intent(inout) :: fData
+
+          call parseShapeList(fData, setupInputOptsCtx%holeShapes)
+     end subroutine holeShapeListParser
+
+     subroutine realExchangeParser(fData)
+          use MultiscaleFileParser
+          implicit none
+          type(FileData), intent(inout) :: fData
+
+          call parseInteractionList(fData, 1, setupInputOptsCtx%realExchange)
+     end subroutine realExchangeParser
+
+     subroutine coarseExchangeParser(fData)
+          use MultiscaleFileParser
+          implicit none
+          type(FileData), intent(inout) :: fData
+
+          call parseInteractionList(fData, 1, setupInputOptsCtx%coarseExchange)
+     end subroutine coarseExchangeParser
+
+     subroutine realDmParser(fData)
+          use MultiscaleFileParser
+          implicit none
+          type(FileData), intent(inout) :: fData
+
+          call parseInteractionList(fData, 3, setupInputOptsCtx%realDm)
+     end subroutine realDmParser
+
+     subroutine coarseDmParser(fData)
+          use MultiscaleFileParser
+          implicit none
+          type(FileData), intent(inout) :: fData
+
+          call parseInteractionList(fData, 3, setupInputOptsCtx%coarseDm)
+     end subroutine coarseDmParser
+
+     subroutine anisotropyParser(fData)
+          use MultiscaleFileParser
+          use Anisotropy
+          implicit none
+          type(FileData), intent(inout) :: fData
+
+          call parseAnisotropyList(fData, setupInputOptsCtx%anisotropies)
+     end subroutine anisotropyParser
+
+     subroutine momentRegionsParser(fData)
+          use MultiscaleFileParser
+          use MomentRegions
+          implicit none
+          type(FileData), intent(inout) :: fData
+
+          call parseMomentList(fData, setupInputOptsCtx%momentRegions)
+     end subroutine momentRegionsParser
+
+     subroutine continuumExchangeParser(fData)
+          use MultiscaleFileParser
+          implicit none
+          type(FileData), intent(inout) :: fData
+
+          integer :: component, i
+
+          do component = 1,3
+                if (isAtEndOfLine(fData)) then
+                         if (component .eq. 1) then
+                               call createErrorMsg(fData,1,'At least one exchange component must be specified')
+                               return
+                         else
+                               do i = component,3
+                                        setupInputOptsCtx%continuumExchangeCoef(i) = &
+                                                   setupInputOptsCtx%continuumExchangeCoef(component-1)
+                               end do
+                               call readNextLine(fData)
+                               return
+                         end if
+                else
+                         call parseReal(fData, setupInputOptsCtx%continuumExchangeCoef(component))
+                         if (fData%ierr /= 0) return
+                         call readNextWord(fData)
+                end if
+          end do
+          call readNextLine(fData)
+
+     end subroutine continuumExchangeParser
+
+     subroutine continuumDmParser(fData)
+          use MultiscaleFileParser
+          implicit none
+          type(FileData), intent(inout) :: fData
+
+          integer :: vector, component
+
+          do vector = 1, 3
+                do component = 1,3
+                         if (isAtEndOfLine(fData)) then
+                               call createErrorMsg(fData,1,'Incomplete DM vector')
+                               return
+                         else
+                               call parseReal(fData, setupInputOptsCtx%continuumDm(component,vector))
+                               if (fData%ierr /= 0) return
+                               call readNextWord(fData)
+                         end if
+                end do
+                if (isAtEndOfLine(fData)) then
+                         call readNextLine(fData)
+                         return
+                end if
+                call skipOptionalDelimiter(fData)
+          end do
+
+          call readNextLine(fData)
+
+     end subroutine continuumDmParser
 end module Configuration

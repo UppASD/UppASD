@@ -10,6 +10,7 @@ module AtomLinker
     use SparseMatrix
     use DynamicArray
 implicit none
+    type(SpMatrix), pointer, save :: weightedConstraintMatrixCtx => null()
     
     interface
         pure real(dblprec) function exchangeLaw(atomI, atomJ)
@@ -451,7 +452,7 @@ subroutine weightedMinimizationWithConstraints(preferedResult, weights, constrai
 implicit none
     real(dblprec), dimension(:), intent(in) :: preferedResult
     real(dblprec), dimension(:), intent(in) :: weights
-    type(SpMatrix), intent(inout) :: constraintMatrix
+    type(SpMatrix), target, intent(inout) :: constraintMatrix
     real(dblprec), dimension(:), intent(in) :: constraintVector
     real(dblprec), dimension(:), allocatable, intent(out) :: result
     
@@ -470,10 +471,12 @@ implicit none
     call multMatrixWithInvertedDiagonalMatrix(constraintMatrix, weights) ! results in that constraintMatrix is M_w = M*W^(-1)
     
     result = preferedResult
+    weightedConstraintMatrixCtx => constraintMatrix
     call lsqr(ubound(constraintVector, 1), ubound(result, 1), addWeightedConstraintVectorProduct, &
             addTransposedWeightedConstraintVectorProduct, tempVector, 0.0_dblprec, .false., result, se, &
             1d-12, 1d-12, 10d12, 40*ubound(constraintVector, 1), -1, istop, itn, Anorm, Acond, &
             rnorm, Arnorm, xnorm)
+    nullify(weightedConstraintMatrixCtx)
 
     if(istop >= 4) then
        print *, "WARNING: The least-squares problem of partial coarse-grained atoms"
@@ -483,41 +486,40 @@ implicit none
     
     result = result/weights + preferedResult
     deallocate(tempVector)
-  contains
-    
-    !> Computes M*W^(-1) where W is view as the diagonal of a diagonal matrix.
-    subroutine multMatrixWithInvertedDiagonalMatrix(matrix, diagonalMatrix)
-    implicit none
-        type(SpMatrix), intent(inout) :: matrix
-        real(dblprec), dimension(:), intent(in) :: diagonalMatrix
-        
-        integer :: i
-        do i = 1, matrix%entries%length
-            matrix%entries%values(i) = matrix%entries%values(i) / diagonalMatrix(matrix%col%values(i))
-        end do
-    end subroutine multMatrixWithInvertedDiagonalMatrix
-    
-    !> Computes accum = accum + M_w * x
-    subroutine addWeightedConstraintVectorProduct(rows, columns, x, accum)
-    implicit none
-        integer, intent(in) :: rows
-        integer, intent(in) :: columns
-        real(dblprec), dimension(columns), intent(in) :: x
-        real(dblprec), dimension(rows), intent(inout) :: accum
-        
-        call addMatrixVectorProduct(constraintMatrix, x, accum)
-    end subroutine
-    
-    !> Computes result = result + M_w^t * x
-    subroutine addTransposedWeightedConstraintVectorProduct(rows, columns, result, x)
-    implicit none
-        integer, intent(in) :: rows
-        integer, intent(in) :: columns
-        real(dblprec), dimension(columns), intent(inout) :: result
-        real(dblprec), dimension(rows), intent(in) :: x
-        
-        call addTransposedMatrixVectorProduct(constraintMatrix, x, result)
-    end subroutine 
 end subroutine weightedMinimizationWithConstraints
+
+!> Computes M*W^(-1) where W is view as the diagonal of a diagonal matrix.
+subroutine multMatrixWithInvertedDiagonalMatrix(matrix, diagonalMatrix)
+implicit none
+    type(SpMatrix), intent(inout) :: matrix
+    real(dblprec), dimension(:), intent(in) :: diagonalMatrix
+
+    integer :: i
+    do i = 1, matrix%entries%length
+        matrix%entries%values(i) = matrix%entries%values(i) / diagonalMatrix(matrix%col%values(i))
+    end do
+end subroutine multMatrixWithInvertedDiagonalMatrix
+
+!> Computes accum = accum + M_w * x
+subroutine addWeightedConstraintVectorProduct(rows, columns, x, accum)
+implicit none
+    integer, intent(in) :: rows
+    integer, intent(in) :: columns
+    real(dblprec), dimension(columns), intent(in) :: x
+    real(dblprec), dimension(rows), intent(inout) :: accum
+
+    call addMatrixVectorProduct(weightedConstraintMatrixCtx, x, accum)
+end subroutine addWeightedConstraintVectorProduct
+
+!> Computes result = result + M_w^t * x
+subroutine addTransposedWeightedConstraintVectorProduct(rows, columns, result, x)
+implicit none
+    integer, intent(in) :: rows
+    integer, intent(in) :: columns
+    real(dblprec), dimension(columns), intent(inout) :: result
+    real(dblprec), dimension(rows), intent(in) :: x
+
+    call addTransposedMatrixVectorProduct(weightedConstraintMatrixCtx, x, result)
+end subroutine addTransposedWeightedConstraintVectorProduct
 
 end module
