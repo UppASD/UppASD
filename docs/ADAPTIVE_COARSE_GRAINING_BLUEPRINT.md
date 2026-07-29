@@ -1537,16 +1537,26 @@ refinement.  The complete CG-02 through CG-06 CPU CTest set passes.
 
 #### Checklist
 
-- [ ] Criterion and state mutation APIs are separate.
-- [ ] Hysteresis and dwell tests pass.
-- [ ] Buffer dilation tests cover boundaries and periodic wrapping.
-- [ ] Unsupported blocks remain atomistic.
-- [ ] Multiple criteria combine as specified.
-- [ ] Static mask works without selector evaluation.
-- [ ] Synthetic chatter sequences do not chatter.
-- [ ] Transition decisions are reproducible.
-- [ ] Logs contain reason and score data.
-- [ ] No integrator or Hamiltonian code is embedded in the selector module.
+- [x] Criterion and state mutation APIs are separate.
+- [x] Hysteresis and dwell tests pass.
+- [x] Buffer dilation tests cover boundaries and periodic wrapping.
+- [x] Unsupported blocks remain atomistic.
+- [x] Multiple criteria combine as specified.
+- [x] Static mask works without selector evaluation.
+- [x] Synthetic chatter sequences do not chatter.
+- [x] Transition decisions are reproducible.
+- [x] Logs contain reason and score data.
+- [x] No integrator or Hamiltonian code is embedded in the selector module.
+
+**CG-07 evidence:** `source/CoarseGraining/blockselector.f90` provides a
+read-only criterion registry (maximum neighbour misalignment and static
+atomistic masks), OR-refine/AND-coarsen request combination, and the sole
+explicit state-mutation synchronization routine with hysteresis, dwell age,
+cadence, hard exclusions, deterministic per-block transition logs, and
+non-mutating periodic buffer dilation. `tests/coarse_graining/test_block_selector.f90`
+uses synthetic score sequences to cover state isolation, hysteresis/dwell,
+update cadence, chatter suppression, static masks, combination, exclusions,
+periodic/non-periodic dilation, and deterministic replay.
 
 ---
 

@@ -915,6 +915,16 @@ if(BUILD_TESTING)
    add_test(NAME coarse-graining-static-hybrid-operator
       COMMAND static_hybrid_operator_tests)
 
+   # CG-07 is deliberately independent of field operators and reconstruction:
+   # criteria only produce requests, while the explicit state-machine sync
+   # point is solely responsible for changing block resolution.
+   add_executable(block_selector_tests
+      ${CMAKE_SOURCE_DIR}/source/CoarseGraining/blockselector.f90
+      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_block_selector.f90)
+   set_target_properties(block_selector_tests PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/block_selector_tests)
+   add_test(NAME coarse-graining-block-selector COMMAND block_selector_tests)
+
    # Luna's host-only OPEN_FFT oracle has no UppASD, FFT, CUDA, or HIP
    # dependency.  Keep it runnable before the production open builder exists.
    add_test(NAME dipole-open-fft-oracle
