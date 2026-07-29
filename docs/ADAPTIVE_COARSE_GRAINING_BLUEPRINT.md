@@ -1392,17 +1392,28 @@ and human review approved the signs, prefactors, units, and conventions.
 
 #### Checklist
 
-- [ ] Uniform-state torque test passes.
-- [ ] Global exchange-rotation invariance passes.
-- [ ] Energy derivative tests pass for every term.
-- [ ] Cubic and skew-cell stencils pass.
-- [ ] Small-\(q\) dispersion matches atomistic reference.
-- [ ] DMI chirality matches the accepted convention.
-- [ ] Domain-wall energy and width converge with block refinement.
-- [ ] Block-size-one limit is understood and tested where applicable.
-- [ ] Per-term energy reporting is available.
-- [ ] Unsupported modes reject cleanly.
-- [ ] No adaptive or interface behavior is hidden in the operator.
+- [x] Uniform-state torque test passes.
+- [x] Global exchange-rotation invariance passes.
+- [x] Energy derivative tests pass for every term.
+- [x] Cubic and skew-cell stencils pass.
+- [x] Small-\(q\) dispersion matches atomistic reference.
+- [x] DMI chirality matches the accepted convention.
+- [x] Domain-wall energy and width converge with block refinement.
+- [x] Block-size-one limit is understood and tested where applicable.
+- [x] Per-term energy reporting is available.
+- [x] Unsupported modes reject cleanly.
+- [x] No adaptive or interface behavior is hidden in the operator.
+
+**CG-04 evidence:** `source/CoarseGraining/coarsetensoroperator.f90`
+implements the static single-channel CPU reference energy and its exact
+discrete derivatives in SI units on the canonical physical block metric.
+The operator reports exchange, spiralization, supported uniaxial,
+static-external, and uniformly coarse dipole energies and fields separately,
+and exposes the accepted deterministic Gilbert LLG algebra without sharing
+atomistic storage.  `tests/coarse_graining/test_coarse_tensor_operator.f90`
+covers every checklist item and every setup rejection.  All configured GNU
+CPU tests pass; the new module and fixture also compile with IntelLLVM
+Fortran.
 
 ---
 

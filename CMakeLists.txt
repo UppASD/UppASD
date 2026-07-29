@@ -886,6 +886,15 @@ if(BUILD_TESTING)
    target_link_libraries(stiffness_material_tests PRIVATE ${UppASD_LIB})
    add_test(NAME coarse-graining-stiffness-material COMMAND stiffness_material_tests)
 
+   # CG-04 CPU reference tensor operator: explicit energy/field fixtures on
+   # cubic and skew canonical grids, independent of adaptive and GPU paths.
+   add_executable(coarse_tensor_operator_tests
+      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_coarse_tensor_operator.f90)
+   set_target_properties(coarse_tensor_operator_tests PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/coarse_tensor_operator_tests)
+   target_link_libraries(coarse_tensor_operator_tests PRIVATE ${UppASD_LIB})
+   add_test(NAME coarse-graining-tensor-operator COMMAND coarse_tensor_operator_tests)
+
    # Luna's host-only OPEN_FFT oracle has no UppASD, FFT, CUDA, or HIP
    # dependency.  Keep it runnable before the production open builder exists.
    add_test(NAME dipole-open-fft-oracle
