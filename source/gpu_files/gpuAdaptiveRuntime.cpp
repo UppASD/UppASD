@@ -19,6 +19,17 @@ constexpr int bufferState = 1;
 constexpr int fineState = 2;
 constexpr std::uint64_t reconstructionModulus = 2147483647ULL;
 constexpr real piValue = real(3.141592653589793238462643383279502884L);
+constexpr unsigned int adaptiveThreads = 256;
+
+inline unsigned int adaptiveGrid(std::size_t workItems) {
+   return static_cast<unsigned int>(
+      std::max<std::size_t>(1, (workItems + adaptiveThreads - 1) /
+                               adaptiveThreads));
+}
+
+__device__ inline std::size_t adaptiveThreadIndex() {
+   return static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+}
 
 struct AdaptiveKernelDevice {
    std::size_t bonds;
@@ -463,30 +474,31 @@ __global__ void publishAdaptiveState(GpuAdaptiveDeviceTopology topology,
 __global__ void prolongateAdaptiveGhosts(GpuAdaptiveDeviceTopology topology,
                                          GpuAdaptiveDeviceRuntime runtime,
                                          AdaptiveKernelDevice kernels) {
-   if(blockIdx.x != 0 || threadIdx.x != 0) return;
-   for(std::size_t ensemble = 0; ensemble < topology.ensembles; ++ensemble) {
-      for(std::size_t atom = 0; atom < topology.atoms; ++atom) {
-         const int rawChannel = topology.atomToDynamicChannel[atom];
-         if(rawChannel <= 0) continue;
-         const std::size_t channel = static_cast<std::size_t>(rawChannel - 1);
-         real interpolated[3] = {real(0), real(0), real(0)};
-         for(int corner = 0; corner < 8; ++corner) {
-            const std::size_t block = static_cast<std::size_t>(
-               kernels.projectionBlock[corner + 8 * atom] - 1);
-            const real weight = kernels.projectionWeight[corner + 8 * atom];
-            for(int xyz = 0; xyz < 3; ++xyz)
-               interpolated[xyz] += weight *
-                  runtime.coarseDirection[coarseVectorIndex(
-                     xyz, channel, block, ensemble, topology.dynamicChannels,
-                     topology.blocks)];
-         }
-         const real length = normDevice(interpolated);
-         kernels.projectionNorm[atom + topology.atoms * ensemble] = length;
-         for(int xyz = 0; xyz < 3; ++xyz)
-            kernels.ghostDirection[atomVectorIndex(xyz, atom, ensemble, topology.atoms)] =
-               length > kernels.normalizationFloor ? interpolated[xyz] / length : real(0);
-      }
+   const std::size_t work = adaptiveThreadIndex();
+   const std::size_t count = topology.atoms * topology.ensembles;
+   if(work >= count) return;
+   const std::size_t atom = work % topology.atoms;
+   if(runtime.atomisticAtomMask[atom]) return;
+   const std::size_t ensemble = work / topology.atoms;
+   const int rawChannel = topology.atomToDynamicChannel[atom];
+   if(rawChannel <= 0) return;
+   const std::size_t channel = static_cast<std::size_t>(rawChannel - 1);
+   real interpolated[3] = {real(0), real(0), real(0)};
+   for(int corner = 0; corner < 8; ++corner) {
+      const std::size_t block = static_cast<std::size_t>(
+         kernels.projectionBlock[corner + 8 * atom] - 1);
+      const real weight = kernels.projectionWeight[corner + 8 * atom];
+      for(int xyz = 0; xyz < 3; ++xyz)
+         interpolated[xyz] += weight *
+            runtime.coarseDirection[coarseVectorIndex(
+               xyz, channel, block, ensemble, topology.dynamicChannels,
+               topology.blocks)];
    }
+   const real length = normDevice(interpolated);
+   kernels.projectionNorm[atom + topology.atoms * ensemble] = length;
+   for(int xyz = 0; xyz < 3; ++xyz)
+      kernels.ghostDirection[atomVectorIndex(xyz, atom, ensemble, topology.atoms)] =
+         length > kernels.normalizationFloor ? interpolated[xyz] / length : real(0);
 }
 
 __device__ inline void effectiveAtomDirection(
@@ -548,40 +560,47 @@ __global__ void evaluateAdaptiveAtomistic(
    }
 }
 
+__global__ void clearAdaptiveInterface(
+   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
+   AdaptiveKernelDevice kernels) {
+   const std::size_t coarseVectors =
+      3 * topology.dynamicChannels * topology.blocks * topology.ensembles;
+   const std::size_t index = adaptiveThreadIndex();
+   if(index < coarseVectors) kernels.coarseFieldScratch[index] = real(0);
+}
+
 __global__ void restrictAdaptiveInterface(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
    AdaptiveKernelDevice kernels) {
-   if(blockIdx.x != 0 || threadIdx.x != 0) return;
-   const std::size_t coarseVectors =
-      3 * topology.dynamicChannels * topology.blocks * topology.ensembles;
-   for(std::size_t i = 0; i < coarseVectors; ++i) kernels.coarseFieldScratch[i] = real(0);
-   for(std::size_t ensemble = 0; ensemble < topology.ensembles; ++ensemble) {
-      for(std::size_t atom = 0; atom < topology.atoms; ++atom) {
-         if(runtime.atomisticAtomMask[atom]) continue;
-         const int rawChannel = topology.atomToDynamicChannel[atom];
-         if(rawChannel <= 0) continue;
-         const std::size_t channel = static_cast<std::size_t>(rawChannel - 1);
-         real direction[3], field[3], tangent[3];
-         loadAtomVector(kernels.ghostDirection, topology, atom, ensemble, direction);
-         loadAtomVector(kernels.atomFieldScratch, topology, atom, ensemble, field);
-         const real projection = dotDevice(direction, field);
-         for(int xyz = 0; xyz < 3; ++xyz)
-            tangent[xyz] = field[xyz] - direction[xyz] * projection;
-         const real rawNorm = kernels.projectionNorm[atom + topology.atoms * ensemble];
-         for(int corner = 0; corner < 8; ++corner) {
-            const std::size_t block = static_cast<std::size_t>(
-               kernels.projectionBlock[corner + 8 * atom] - 1);
-            const std::size_t scalar = coarseScalarIndex(
-               channel, block, ensemble, topology.dynamicChannels, topology.blocks);
-            const real coarseMoment = runtime.channelMomentSum[scalar];
-            if(rawNorm <= kernels.normalizationFloor || coarseMoment <= real(0)) continue;
-            const real factor = kernels.atomMoment[atom] *
-               kernels.projectionWeight[corner + 8 * atom] /
-               (coarseMoment * rawNorm);
-            for(int xyz = 0; xyz < 3; ++xyz)
-               kernels.coarseFieldScratch[3 * scalar + xyz] += factor * tangent[xyz];
-         }
-      }
+   const std::size_t work = adaptiveThreadIndex();
+   const std::size_t count = topology.atoms * topology.ensembles;
+   if(work >= count) return;
+   const std::size_t atom = work % topology.atoms;
+   if(runtime.atomisticAtomMask[atom]) return;
+   const std::size_t ensemble = work / topology.atoms;
+   const int rawChannel = topology.atomToDynamicChannel[atom];
+   if(rawChannel <= 0) return;
+   const std::size_t channel = static_cast<std::size_t>(rawChannel - 1);
+   real direction[3], field[3], tangent[3];
+   loadAtomVector(kernels.ghostDirection, topology, atom, ensemble, direction);
+   loadAtomVector(kernels.atomFieldScratch, topology, atom, ensemble, field);
+   const real projection = dotDevice(direction, field);
+   for(int xyz = 0; xyz < 3; ++xyz)
+      tangent[xyz] = field[xyz] - direction[xyz] * projection;
+   const real rawNorm = kernels.projectionNorm[atom + topology.atoms * ensemble];
+   for(int corner = 0; corner < 8; ++corner) {
+      const std::size_t block = static_cast<std::size_t>(
+         kernels.projectionBlock[corner + 8 * atom] - 1);
+      const std::size_t scalar = coarseScalarIndex(
+         channel, block, ensemble, topology.dynamicChannels, topology.blocks);
+      const real coarseMoment = runtime.channelMomentSum[scalar];
+      if(rawNorm <= kernels.normalizationFloor || coarseMoment <= real(0)) continue;
+      const real factor = kernels.atomMoment[atom] *
+         kernels.projectionWeight[corner + 8 * atom] /
+         (coarseMoment * rawNorm);
+      for(int xyz = 0; xyz < 3; ++xyz)
+         atomicAdd(&kernels.coarseFieldScratch[3 * scalar + xyz],
+                   factor * tangent[xyz]);
    }
 }
 
@@ -616,7 +635,7 @@ __device__ inline bool tensorTermOwned(
    return true;
 }
 
-__device__ inline void addDerivativeStencil(
+__device__ inline void atomicAddDerivativeStencil(
    const GpuAdaptiveDeviceTopology& topology, const AdaptiveKernelDevice& kernels,
    real* derivative, std::size_t block, std::size_t ensemble,
    int physical, const real value[3], real scale) {
@@ -625,156 +644,187 @@ __device__ inline void addDerivativeStencil(
          scale * kernels.inverseBlockTranspose[physical + 3 * direction];
       const std::size_t plus = plusBlock(topology, block, direction);
       for(int xyz = 0; xyz < 3; ++xyz) {
-         derivative[coarseVectorIndex(
-            xyz, 0, plus, ensemble, topology.dynamicChannels, topology.blocks)] +=
-            coefficient * value[xyz];
-         derivative[coarseVectorIndex(
-            xyz, 0, block, ensemble, topology.dynamicChannels, topology.blocks)] -=
-            coefficient * value[xyz];
+         atomicAdd(&derivative[coarseVectorIndex(
+                      xyz, 0, plus, ensemble, topology.dynamicChannels,
+                      topology.blocks)],
+                   coefficient * value[xyz]);
+         atomicAdd(&derivative[coarseVectorIndex(
+                      xyz, 0, block, ensemble, topology.dynamicChannels,
+                      topology.blocks)],
+                   -coefficient * value[xyz]);
       }
    }
 }
 
-__global__ void evaluateAdaptiveCoarse(
+__global__ void clearAdaptiveCoarse(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
-   AdaptiveKernelDevice kernels, const real* externalField,
-   const real* fftDipoleField, real* coarseField) {
-   if(blockIdx.x != 0 || threadIdx.x != 0) return;
+   AdaptiveKernelDevice kernels, real* coarseField) {
    const std::size_t vectorCount =
       3 * topology.dynamicChannels * topology.blocks * topology.ensembles;
-   for(std::size_t i = 0; i < vectorCount; ++i) {
-      runtime.coarseField[i] = real(0);
-      coarseField[i] = real(0);
+   const std::size_t index = adaptiveThreadIndex();
+   if(index < vectorCount) {
+      runtime.coarseField[index] = real(0);
+      coarseField[index] = real(0);
    }
-   for(int term = 1; term < 7; ++term) kernels.energyTerms[term] = real(0);
+   if(index < 6) kernels.energyTerms[index + 1] = real(0);
+}
 
-   for(std::size_t ensemble = 0; ensemble < topology.ensembles; ++ensemble) {
+__global__ void evaluateAdaptiveCoarseTensor(
+   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
+   AdaptiveKernelDevice kernels) {
+   const std::size_t index = adaptiveThreadIndex();
+   const std::size_t work = index % topology.blocks;
+   const std::size_t ensemble = index / topology.blocks;
+   if(ensemble >= topology.ensembles || work >= runtime.workCounts[1]) return;
+   const std::size_t block =
+      static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
+
+   for(int p = 0; p < 3; ++p) {
+      for(int q = 0; q < 3; ++q) {
+         if(!tensorTermOwned(topology, runtime, kernels, block, p, q)) continue;
+         real gradientP[3], gradientQ[3], derivative[3];
+         physicalGradient(topology, kernels, runtime.coarseDirection,
+                          block, ensemble, p, gradientP);
+         physicalGradient(topology, kernels, runtime.coarseDirection,
+                          block, ensemble, q, gradientQ);
+         const real volume = topology.blockVolume[block];
+         const real stiffness = kernels.exchangeStiffness[p + 3 * q];
+         atomicAdd(&kernels.energyTerms[1],
+                   volume * stiffness * dotDevice(gradientP, gradientQ));
+         for(int xyz = 0; xyz < 3; ++xyz)
+            derivative[xyz] = volume * stiffness * gradientQ[xyz];
+         atomicAddDerivativeStencil(topology, kernels, runtime.coarseField,
+                                    block, ensemble, p, derivative, real(2));
+      }
+   }
+
+   real direction[3];
+   loadCoarseVector(runtime.coarseDirection, topology, 0, block,
+                    ensemble, direction);
+   for(int k = 0; k < 3; ++k) {
+      real basis[3] = {real(0), real(0), real(0)};
+      basis[k] = real(1);
       for(int p = 0; p < 3; ++p) {
-         for(int q = 0; q < 3; ++q) {
-            for(std::size_t block = 0; block < topology.blocks; ++block) {
-               if(!tensorTermOwned(topology, runtime, kernels, block, p, q)) continue;
-               real gradientP[3], gradientQ[3], work[3];
-               physicalGradient(topology, kernels, runtime.coarseDirection,
-                                block, ensemble, p, gradientP);
-               physicalGradient(topology, kernels, runtime.coarseDirection,
-                                block, ensemble, q, gradientQ);
-               const real volume = topology.blockVolume[block];
-               const real stiffness = kernels.exchangeStiffness[p + 3 * q];
-               kernels.energyTerms[1] += volume * stiffness *
-                                         dotDevice(gradientP, gradientQ);
-               for(int xyz = 0; xyz < 3; ++xyz)
-                  work[xyz] = volume * stiffness * gradientQ[xyz];
-               addDerivativeStencil(topology, kernels, runtime.coarseField,
-                                    block, ensemble, p, work, real(2));
-            }
-         }
-      }
-
-      for(int k = 0; k < 3; ++k) {
-         real basis[3] = {real(0), real(0), real(0)};
-         basis[k] = real(1);
-         for(int p = 0; p < 3; ++p) {
-            for(std::size_t block = 0; block < topology.blocks; ++block) {
-               if(!tensorTermOwned(topology, runtime, kernels, block, p, -1)) continue;
-               real direction[3], gradient[3], crossMG[3], crossBasisGradient[3];
-               real crossBasisDirection[3], work[3];
-               loadCoarseVector(runtime.coarseDirection, topology, 0, block,
-                                ensemble, direction);
-               physicalGradient(topology, kernels, runtime.coarseDirection,
-                                block, ensemble, p, gradient);
-               crossDevice(direction, gradient, crossMG);
-               crossDevice(basis, gradient, crossBasisGradient);
-               crossDevice(basis, direction, crossBasisDirection);
-               const real volume = topology.blockVolume[block];
-               const real spiral = kernels.spiralization[k + 3 * p];
-               kernels.energyTerms[2] += volume * spiral * crossMG[k];
-               for(int xyz = 0; xyz < 3; ++xyz) {
-                  runtime.coarseField[coarseVectorIndex(
-                     xyz, 0, block, ensemble, topology.dynamicChannels,
-                     topology.blocks)] -= volume * spiral *
-                                          crossBasisGradient[xyz];
-                  work[xyz] = volume * spiral * crossBasisDirection[xyz];
-               }
-               addDerivativeStencil(topology, kernels, runtime.coarseField,
-                                    block, ensemble, p, work, real(1));
-            }
-         }
-      }
-
-      for(std::size_t block = 0; block < topology.blocks; ++block) {
-         if(!runtime.coarseBlockMask[block]) continue;
-         real direction[3];
-         loadCoarseVector(runtime.coarseDirection, topology, 0, block,
-                          ensemble, direction);
-         for(int axisIndex = 0;
-             axisIndex < kernels.anisotropyAxisCount[block]; ++axisIndex) {
-            real axis[3];
-            for(int xyz = 0; xyz < 3; ++xyz)
-               axis[xyz] = kernels.anisotropyAxis[
-                  xyz + 3 * (axisIndex + 2 * block)];
-            const real c = dotDevice(direction, axis);
-            const real k1 = kernels.anisotropyK1[axisIndex + 2 * block];
-            const real k2 = kernels.anisotropyK2[axisIndex + 2 * block];
-            const real volume = topology.blockVolume[block];
-            kernels.energyTerms[3] += volume *
-               (k1 * c * c + real(2) * k2 * c * c -
-                k2 * c * c * c * c);
-            const real derivative = volume * real(2) * c *
-               (k1 + real(2) * k2 * (real(1) - c * c));
-            for(int xyz = 0; xyz < 3; ++xyz)
-               runtime.coarseField[coarseVectorIndex(
-                  xyz, 0, block, ensemble, topology.dynamicChannels,
-                  topology.blocks)] += derivative * axis[xyz];
-         }
-         const std::size_t scalar = coarseScalarIndex(
-            0, block, ensemble, topology.dynamicChannels, topology.blocks);
-         const real moment = runtime.channelMomentSum[scalar];
+         if(!tensorTermOwned(topology, runtime, kernels, block, p, -1)) continue;
+         real gradient[3], crossMG[3], crossBasisGradient[3];
+         real crossBasisDirection[3], derivative[3];
+         physicalGradient(topology, kernels, runtime.coarseDirection,
+                          block, ensemble, p, gradient);
+         crossDevice(direction, gradient, crossMG);
+         crossDevice(basis, gradient, crossBasisGradient);
+         crossDevice(basis, direction, crossBasisDirection);
+         const real volume = topology.blockVolume[block];
+         const real spiral = kernels.spiralization[k + 3 * p];
+         atomicAdd(&kernels.energyTerms[2],
+                   volume * spiral * crossMG[k]);
          for(int xyz = 0; xyz < 3; ++xyz) {
-            const std::size_t index = 3 * scalar + xyz;
-            runtime.coarseField[index] *=
-               -real(1) / (kernels.magneticMomentSi * moment);
-            if(externalField) runtime.coarseField[index] += externalField[index];
+            atomicAdd(&runtime.coarseField[coarseVectorIndex(
+                         xyz, 0, block, ensemble, topology.dynamicChannels,
+                         topology.blocks)],
+                      -volume * spiral * crossBasisGradient[xyz]);
+            derivative[xyz] = volume * spiral * crossBasisDirection[xyz];
          }
-         if(externalField) {
-            real external[3];
-            for(int xyz = 0; xyz < 3; ++xyz)
-               external[xyz] = externalField[3 * scalar + xyz];
-            kernels.energyTerms[4] -= kernels.magneticMomentSi * moment *
-                                      dotDevice(external, direction);
-         }
-      }
-
-      // Dipole is deliberately all-grid and never masked by short-range state.
-      if(fftDipoleField) {
-         for(std::size_t block = 0; block < topology.blocks; ++block) {
-            const std::size_t scalar = coarseScalarIndex(
-               0, block, ensemble, topology.dynamicChannels, topology.blocks);
-            real direction[3], dipole[3];
-            loadCoarseVector(runtime.coarseDirection, topology, 0, block,
-                             ensemble, direction);
-            for(int xyz = 0; xyz < 3; ++xyz)
-               dipole[xyz] = fftDipoleField[3 * scalar + xyz];
-            kernels.energyTerms[5] -= real(0.5) * kernels.magneticMomentSi *
-               runtime.channelMomentSum[scalar] * dotDevice(dipole, direction);
-            if(runtime.coarseBlockMask[block]) {
-               for(int xyz = 0; xyz < 3; ++xyz)
-                  runtime.coarseField[3 * scalar + xyz] += dipole[xyz];
-            }
-         }
-      }
-
-      for(unsigned int work = 0; work < runtime.workCounts[1]; ++work) {
-         const std::size_t block =
-            static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
-         const std::size_t scalar = coarseScalarIndex(
-            0, block, ensemble, topology.dynamicChannels, topology.blocks);
-         for(int xyz = 0; xyz < 3; ++xyz) {
-            const std::size_t index = 3 * scalar + xyz;
-            coarseField[index] = runtime.coarseField[index] +
-                                 kernels.coarseFieldScratch[index];
-         }
+         atomicAddDerivativeStencil(topology, kernels, runtime.coarseField,
+                                    block, ensemble, p, derivative, real(1));
       }
    }
+}
+
+__global__ void finalizeAdaptiveCoarseLocal(
+   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
+   AdaptiveKernelDevice kernels, const real* externalField) {
+   const std::size_t index = adaptiveThreadIndex();
+   const std::size_t work = index % topology.blocks;
+   const std::size_t ensemble = index / topology.blocks;
+   if(ensemble >= topology.ensembles || work >= runtime.workCounts[1]) return;
+   const std::size_t block =
+      static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
+   real direction[3];
+   loadCoarseVector(runtime.coarseDirection, topology, 0, block,
+                    ensemble, direction);
+   for(int axisIndex = 0;
+       axisIndex < kernels.anisotropyAxisCount[block]; ++axisIndex) {
+      real axis[3];
+      for(int xyz = 0; xyz < 3; ++xyz)
+         axis[xyz] = kernels.anisotropyAxis[
+            xyz + 3 * (axisIndex + 2 * block)];
+      const real c = dotDevice(direction, axis);
+      const real k1 = kernels.anisotropyK1[axisIndex + 2 * block];
+      const real k2 = kernels.anisotropyK2[axisIndex + 2 * block];
+      const real volume = topology.blockVolume[block];
+      atomicAdd(&kernels.energyTerms[3], volume *
+         (k1 * c * c + real(2) * k2 * c * c -
+          k2 * c * c * c * c));
+      const real derivative = volume * real(2) * c *
+         (k1 + real(2) * k2 * (real(1) - c * c));
+      for(int xyz = 0; xyz < 3; ++xyz)
+         runtime.coarseField[coarseVectorIndex(
+            xyz, 0, block, ensemble, topology.dynamicChannels,
+            topology.blocks)] += derivative * axis[xyz];
+   }
+   const std::size_t scalar = coarseScalarIndex(
+      0, block, ensemble, topology.dynamicChannels, topology.blocks);
+   const real moment = runtime.channelMomentSum[scalar];
+   for(int xyz = 0; xyz < 3; ++xyz) {
+      const std::size_t vector = 3 * scalar + xyz;
+      runtime.coarseField[vector] *=
+         -real(1) / (kernels.magneticMomentSi * moment);
+      if(externalField) runtime.coarseField[vector] += externalField[vector];
+   }
+   if(externalField) {
+      real external[3];
+      for(int xyz = 0; xyz < 3; ++xyz)
+         external[xyz] = externalField[3 * scalar + xyz];
+      atomicAdd(&kernels.energyTerms[4],
+                -kernels.magneticMomentSi * moment *
+                 dotDevice(external, direction));
+   }
+}
+
+__global__ void addAdaptiveDipole(
+   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
+   AdaptiveKernelDevice kernels, const real* fftDipoleField) {
+   const std::size_t index = adaptiveThreadIndex();
+   const std::size_t count = topology.blocks * topology.ensembles;
+   if(index >= count) return;
+   const std::size_t block = index % topology.blocks;
+   const std::size_t ensemble = index / topology.blocks;
+   const std::size_t scalar = coarseScalarIndex(
+      0, block, ensemble, topology.dynamicChannels, topology.blocks);
+   real direction[3], dipole[3];
+   loadCoarseVector(runtime.coarseDirection, topology, 0, block,
+                    ensemble, direction);
+   for(int xyz = 0; xyz < 3; ++xyz)
+      dipole[xyz] = fftDipoleField[3 * scalar + xyz];
+   atomicAdd(&kernels.energyTerms[5],
+             -real(0.5) * kernels.magneticMomentSi *
+              runtime.channelMomentSum[scalar] * dotDevice(dipole, direction));
+   if(runtime.coarseBlockMask[block]) {
+      for(int xyz = 0; xyz < 3; ++xyz)
+         runtime.coarseField[3 * scalar + xyz] += dipole[xyz];
+   }
+}
+
+__global__ void writeAdaptiveCoarse(
+   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
+   AdaptiveKernelDevice kernels, real* coarseField) {
+   const std::size_t index = adaptiveThreadIndex();
+   const std::size_t work = index % topology.blocks;
+   const std::size_t ensemble = index / topology.blocks;
+   if(ensemble >= topology.ensembles || work >= runtime.workCounts[1]) return;
+   const std::size_t block =
+      static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
+   const std::size_t scalar = coarseScalarIndex(
+      0, block, ensemble, topology.dynamicChannels, topology.blocks);
+   for(int xyz = 0; xyz < 3; ++xyz) {
+      const std::size_t vector = 3 * scalar + xyz;
+      coarseField[vector] = runtime.coarseField[vector] +
+                            kernels.coarseFieldScratch[vector];
+   }
+}
+
+__global__ void finalizeAdaptiveEnergy(AdaptiveKernelDevice kernels) {
+   if(blockIdx.x != 0 || threadIdx.x != 0) return;
    kernels.energyTerms[6] = kernels.energyTerms[0] + kernels.energyTerms[1] +
       kernels.energyTerms[2] + kernels.energyTerms[3] +
       kernels.energyTerms[4] + kernels.energyTerms[5];
@@ -1780,11 +1830,14 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
    };
    ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
 #if defined(CUDA_V)
-   prolongateAdaptiveGhosts<<<1, 1, 0, stream_>>>(
+   prolongateAdaptiveGhosts<<<
+      adaptiveGrid(atoms_ * ensembles_), adaptiveThreads, 0, stream_>>>(
       deviceTopology_, deviceRuntime_, kernels);
 #else
-   hipLaunchKernelGGL(prolongateAdaptiveGhosts, dim3(1), dim3(1), 0, stream_,
-                      deviceTopology_, deviceRuntime_, kernels);
+   hipLaunchKernelGGL(
+      prolongateAdaptiveGhosts, dim3(adaptiveGrid(atoms_ * ensembles_)),
+      dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
+      kernels);
 #endif
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.interfaceMilliseconds);
@@ -1803,24 +1856,73 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
 
    ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
 #if defined(CUDA_V)
-   restrictAdaptiveInterface<<<1, 1, 0, stream_>>>(
+   clearAdaptiveInterface<<<
+      adaptiveGrid(3 * dynamicChannels_ * blocks_ * ensembles_),
+      adaptiveThreads, 0, stream_>>>(
+      deviceTopology_, deviceRuntime_, kernels);
+   restrictAdaptiveInterface<<<
+      adaptiveGrid(atoms_ * ensembles_), adaptiveThreads, 0, stream_>>>(
       deviceTopology_, deviceRuntime_, kernels);
 #else
-   hipLaunchKernelGGL(restrictAdaptiveInterface, dim3(1), dim3(1), 0, stream_,
-                      deviceTopology_, deviceRuntime_, kernels);
+   hipLaunchKernelGGL(
+      clearAdaptiveInterface,
+      dim3(adaptiveGrid(3 * dynamicChannels_ * blocks_ * ensembles_)),
+      dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
+      kernels);
+   hipLaunchKernelGGL(
+      restrictAdaptiveInterface, dim3(adaptiveGrid(atoms_ * ensembles_)),
+      dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
+      kernels);
 #endif
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.interfaceMilliseconds);
 
    ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
 #if defined(CUDA_V)
-   evaluateAdaptiveCoarse<<<1, 1, 0, stream_>>>(
-      deviceTopology_, deviceRuntime_, kernels, externalCoarseField,
-      uniformFftDipoleField, coarseField);
+   clearAdaptiveCoarse<<<
+      adaptiveGrid(3 * dynamicChannels_ * blocks_ * ensembles_),
+      adaptiveThreads, 0, stream_>>>(
+      deviceTopology_, deviceRuntime_, kernels, coarseField);
+   evaluateAdaptiveCoarseTensor<<<
+      adaptiveGrid(blocks_ * ensembles_), adaptiveThreads, 0, stream_>>>(
+      deviceTopology_, deviceRuntime_, kernels);
+   finalizeAdaptiveCoarseLocal<<<
+      adaptiveGrid(blocks_ * ensembles_), adaptiveThreads, 0, stream_>>>(
+      deviceTopology_, deviceRuntime_, kernels, externalCoarseField);
+   if(uniformFftDipoleField)
+      addAdaptiveDipole<<<
+         adaptiveGrid(blocks_ * ensembles_), adaptiveThreads, 0, stream_>>>(
+         deviceTopology_, deviceRuntime_, kernels, uniformFftDipoleField);
+   writeAdaptiveCoarse<<<
+      adaptiveGrid(blocks_ * ensembles_), adaptiveThreads, 0, stream_>>>(
+      deviceTopology_, deviceRuntime_, kernels, coarseField);
+   finalizeAdaptiveEnergy<<<1, 1, 0, stream_>>>(kernels);
 #else
-   hipLaunchKernelGGL(evaluateAdaptiveCoarse, dim3(1), dim3(1), 0, stream_,
-                      deviceTopology_, deviceRuntime_, kernels,
-                      externalCoarseField, uniformFftDipoleField, coarseField);
+   hipLaunchKernelGGL(
+      clearAdaptiveCoarse,
+      dim3(adaptiveGrid(3 * dynamicChannels_ * blocks_ * ensembles_)),
+      dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
+      kernels, coarseField);
+   hipLaunchKernelGGL(
+      evaluateAdaptiveCoarseTensor,
+      dim3(adaptiveGrid(blocks_ * ensembles_)), dim3(adaptiveThreads), 0,
+      stream_, deviceTopology_, deviceRuntime_, kernels);
+   hipLaunchKernelGGL(
+      finalizeAdaptiveCoarseLocal,
+      dim3(adaptiveGrid(blocks_ * ensembles_)), dim3(adaptiveThreads), 0,
+      stream_, deviceTopology_, deviceRuntime_, kernels,
+      externalCoarseField);
+   if(uniformFftDipoleField)
+      hipLaunchKernelGGL(
+         addAdaptiveDipole, dim3(adaptiveGrid(blocks_ * ensembles_)),
+         dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
+         kernels, uniformFftDipoleField);
+   hipLaunchKernelGGL(
+      writeAdaptiveCoarse, dim3(adaptiveGrid(blocks_ * ensembles_)),
+      dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
+      kernels, coarseField);
+   hipLaunchKernelGGL(finalizeAdaptiveEnergy, dim3(1), dim3(1), 0, stream_,
+                      kernels);
 #endif
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.coarseMilliseconds);

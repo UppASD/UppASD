@@ -27,6 +27,14 @@ writeback and integration, while the accepted interface adjoint retains its
 complete immutable projection stencil.  This establishes fp64 correctness
 before scan/reduction and launch-shape tuning.
 
+After fp64 acceptance, the hot prolongation and interface work was split
+across atom/ensemble work items, and coarse tensor, local, dipole, and
+writeback work was split across the compact active-block list.  Coarse
+derivative and energy collisions use the backend's existing real-valued
+atomic additions.  Ordered launches separate zeroing, derivative assembly,
+local field conversion, all-grid dipole addition, and writeback so no
+cross-grid synchronization is assumed.
+
 ## Physics and state contracts
 
 The device implementation retains the CPU definitions:
@@ -149,12 +157,12 @@ The FFT run reports a maximum periodic two-basis field error of
 and energy maxima of `3.8858e-16` and `1.8041e-16`, respectively.  The
 projected-block field and energy errors are both `4.8573e-17`.
 
-## Remaining hardware gates
+## Hardware gates and performance protocol
 
-HIP execution, feature-off noise measurements, phase overhead, and the
-active-DOF crossover still require suitable hardware runs.  The
+CUDA feature-off noise, phase overhead, and active-DOF crossover measurements
+are recorded below.  HIP execution remains a separate hardware gate.  The
 implementation does not substitute host wall time or a modelled crossover
-for those measurements.
+for hardware measurements.
 
 ### Performance acceptance harness
 
@@ -203,20 +211,27 @@ protocol in fp64 and fp32 builds.
 
 The fp64 acceptance command above was run on an NVIDIA RTX A4000 with driver
 610.43.02 using 2048 blocks, four atoms per block, two warmups, ten measured
-iterations, and seven repetitions.  The paired feature-off medians were
-38.113 us baseline and 38.103 us with the inactive runtime present, a
--0.027% delta with zero inventory change.  This passes the 3%/three-MAD
-feature-off budget.
+iterations, and seven repetitions.  Before tuning, the robust sweep returned
+`NOT_OBSERVED`: its all-atomistic median was 58568.20 us and medians increased
+to 166315.81 us at a 0.250 active-DOF ratio.  This negative result triggered
+the compact parallel coarse/interface work described above.
 
-At the 50% requested fine fraction, selector wall time was 6107.30 us and
-compaction wall time was 727.83 us per update, together 6.22% of the
-109845.87 us mixed field step.  Compaction transferred 8192 mask bytes per
-update.  Selector device time was 6097.34 us; compaction device time was
-721.73 us, including 719.07 us of localized host wait.
+On the post-optimization acceptance run, paired feature-off medians were
+38.349 us baseline and 38.357 us with the inactive runtime present, a +0.023%
+delta with zero inventory change.  This passes the 3%/three-MAD feature-off
+budget.
 
-The active-DOF crossover was not observed.  The all-atomistic median was
-58568.20 us.  Medians increased monotonically from 84560.47 us at a 0.813
-active-DOF ratio to 166315.81 us at a 0.250 ratio.  This is accepted negative
-evidence, not a crossover acceptance: the crossover checklist item remains
-open pending compact parallel kernel optimization and a repeat of the same
-measurement.
+At the 50% requested fine fraction, selector wall time was 6028.28 us and
+compaction wall time was 720.69 us per update.  Their absolute costs remain
+separately visible; together they are 31.15% of the now-faster 21664.54 us
+mixed field step.  Compaction transferred 8192 mask bytes per update.
+Selector device time was 6019.22 us; compaction device time was 714.21 us,
+including 711.97 us of localized host wait.
+
+The post-optimization crossover is accepted at a 0.813232 active-DOF ratio.
+The all-atomistic median was 40705.61 us with a 2.81 us MAD; the crossover
+median was 31274.23 us with a 2.93 us MAD.  This is a 1.3016x speedup and is
+well separated from the required 2% plus three-combined-MAD margin.  The
+zero-fine median was 2368.32 us.  The optimized fp64 and fp32 parity fixtures
+pass, Compute Sanitizer reports zero errors, and the fp64 FFT dipole suite
+continues to pass.

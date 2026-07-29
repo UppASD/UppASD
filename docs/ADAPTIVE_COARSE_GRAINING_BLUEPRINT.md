@@ -1689,7 +1689,7 @@ initial kernel; Luna/Sonnet for parity harness
 - [x] Existing FFT dipole tests still pass.
 - [x] Feature-off performance is unchanged within noise.
 - [x] Selector/compaction overhead is reported.
-- [ ] A real active-DOF crossover is measured.
+- [x] A real active-DOF crossover is measured.
 - [x] FP32 error budgets are documented separately.
 - [x] No untracked device allocations bypass memory accounting.
 
@@ -1715,17 +1715,22 @@ existing fp64 FFT dipole suite; Compute Sanitizer reports zero errors for the
 adaptive fp64 fixture.  No HIP device/toolchain was available, so the shared
 HIP path remains an execution gate.
 
-The fp64 `gpu_adaptive_runtime_benchmark` run on an NVIDIA RTX A4000 with
-driver 610.43.02 measured a -0.027% paired feature-off delta with zero
-inventory change, inside its 3%/three-MAD noise budget.  At the 50% requested
-fine fraction, selector plus compaction took 6.22% of the mixed field step
-(6107.30 us selector wall time and 727.83 us compaction wall time per
-update).  The robust active-fraction sweep did not observe a crossover:
-the all-atomistic median was 58568.20 us and every coarsened point was slower.
-The crossover box therefore remains unchecked.  The benchmark provides the
-paired control, separate overhead report, phase timings, robust sweep, and
-optional acceptance exit status needed to repeat that gate after performance
-work.
+The first fp64 `gpu_adaptive_runtime_benchmark` run on an NVIDIA RTX A4000
+with driver 610.43.02 measured feature-off and overhead successfully but
+returned `NOT_OBSERVED` for crossover: the 58568.20 us atomistic median grew
+at every coarsened point.  After fp64-accepted parallelization of
+prolongation, interface restriction, and compact active-block coarse work, the
+same command passed.  The atomistic median was 40705.61 us; the first accepted
+crossover was 31274.23 us at a 0.813232 active-DOF ratio, a 1.3016x speedup
+with the three-MAD uncertainty well inside the 2% acceptance margin.  The
+zero-fine median was 2368.32 us.
+
+The accepted rerun measured a +0.023% paired feature-off delta with zero
+inventory change.  At the 50% requested fine fraction, selector plus
+compaction took 31.15% of the now-faster mixed field step (6028.28 us
+selector wall time and 720.69 us compaction wall time per update).  Optimized
+fp64 and fp32 parity fixtures pass, Compute Sanitizer reports zero errors, and
+the fp64 FFT dipole suite still passes.
 
 ---
 
