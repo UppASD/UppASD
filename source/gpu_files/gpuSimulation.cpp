@@ -13,6 +13,7 @@
 #include "tensor.hpp"
 #include "gpu_wrappers.h"
 #include "gpuDepondtIntegrator.hpp"
+#include "gpuAdaptiveRuntime.hpp"
 #include "gpuLatticeConvolutionHamiltonian.hpp"
 #include "gpuDipoleConvolution.hpp"
 #include "measurement/gpuMeasurement.hpp"
@@ -456,6 +457,74 @@ std::size_t cv6DipoleBytes(const SimulationParameters& P) {
    return convolution + macroMoments;
 }
 
+GpuAdaptiveTopologyInput adaptiveTopologyInput() {
+   GpuAdaptiveTopologyInput t;
+   if(!FortranData::adaptive_geometry_mode) return t;
+   t.geometryMode = *FortranData::adaptive_geometry_mode;
+   t.atoms = *FortranData::adaptive_atoms;
+   t.blocks = *FortranData::adaptive_blocks;
+   t.basis = *FortranData::adaptive_basis;
+   t.fftChannelsPerBlock = *FortranData::adaptive_fft_channels;
+   t.fftGridChannels = *FortranData::adaptive_fft_grid_channels;
+   t.dynamicChannels = *FortranData::adaptive_dynamic_channels;
+   t.ensembles = *FortranData::adaptive_ensembles;
+   t.repetitionShape = FortranData::adaptive_repetition_shape;
+   t.blockShape = FortranData::adaptive_block_shape;
+   t.blockGrid = FortranData::adaptive_block_grid;
+   t.cellVectors = FortranData::adaptive_cell_vectors;
+   t.blockVectors = FortranData::adaptive_block_vectors;
+   t.atomToBlock = FortranData::adaptive_atom_to_block;
+   t.atomToBasis = FortranData::adaptive_atom_to_basis;
+   t.atomToDynamicChannel = FortranData::adaptive_atom_to_dynamic_channel;
+   t.atomToFftChannel = FortranData::adaptive_atom_to_fft_channel;
+   t.atomToFftGridIndex = FortranData::adaptive_atom_to_fft_grid_index;
+   t.basisToDynamicChannel = FortranData::adaptive_basis_to_dynamic_channel;
+   t.basisToFftChannel = FortranData::adaptive_basis_to_fft_channel;
+   t.blockAtomCount = FortranData::adaptive_block_atom_count;
+   t.blockAtomOffset = FortranData::adaptive_block_atom_offset;
+   t.blockAtoms = FortranData::adaptive_block_atoms;
+   t.blockGridCoordinate = FortranData::adaptive_block_grid_coordinate;
+   t.blockBasisPopulation = FortranData::adaptive_block_basis_population;
+   t.blockFftChannelPopulation = FortranData::adaptive_block_fft_population;
+   t.blockDynamicChannelPopulation = FortranData::adaptive_block_dynamic_population;
+   t.blockCenter = FortranData::adaptive_block_center;
+   t.blockVolume = FortranData::adaptive_block_volume;
+   return t;
+}
+
+GpuAdaptiveRuntimeInput adaptiveRuntimeInput() {
+   GpuAdaptiveRuntimeInput r;
+   if(!FortranData::adaptive_geometry_mode) return r;
+   r.blockState = FortranData::adaptive_block_state;
+   r.pendingState = FortranData::adaptive_pending_state;
+   r.stateAge = FortranData::adaptive_state_age;
+   r.transitionEpoch = FortranData::adaptive_transition_epoch;
+   r.selectorCriteria = *FortranData::adaptive_selector_criteria;
+   r.selectorScores = FortranData::adaptive_selector_scores;
+   r.coarseMoment = FortranData::adaptive_coarse_moment;
+   r.coarseDirection = FortranData::adaptive_coarse_direction;
+   r.coarseField = FortranData::adaptive_coarse_field;
+   r.channelMomentSum = FortranData::adaptive_channel_moment_sum;
+   return r;
+}
+
+std::size_t adaptiveRuntimeBytes(const SimulationParameters& parameters) {
+   if(!FortranData::adaptive_geometry_mode) return 0;
+   if(!FortranData::adaptive_atoms || !FortranData::adaptive_blocks ||
+      !FortranData::adaptive_basis || !FortranData::adaptive_fft_channels ||
+      !FortranData::adaptive_fft_grid_channels ||
+      !FortranData::adaptive_dynamic_channels || !FortranData::adaptive_ensembles ||
+      !FortranData::adaptive_selector_criteria) {
+      throw std::runtime_error("GPU adaptive topology staging is missing scalar counts");
+   }
+   const auto topology = adaptiveTopologyInput();
+   const auto runtime = adaptiveRuntimeInput();
+   std::string diagnostic;
+   if(!GpuAdaptiveRuntime::validate(topology, runtime, parameters.N, parameters.M, diagnostic))
+      throw std::runtime_error(diagnostic + " (adaptive preflight; no device allocation attempted)");
+   return GpuAdaptiveRuntime::estimateBytes(topology, runtime);
+}
+
 // Sum every device allocation the run will make, compare to free VRAM, and abort
 // with a table before the first Allocate if it will not fit. Returns the total.
 std::size_t computeAndCheckDeviceBudget(const Flag& F, const SimulationParameters& P, bool is_mc) {
@@ -468,6 +537,7 @@ std::size_t computeAndCheckDeviceBudget(const Flag& F, const SimulationParameter
       {"FFT convolution",                        willUseConvolution(P) ? GpuLatticeConvolutionHamiltonian::estimateBytes(P) : static_cast<std::size_t>(0)},
       {"CV6 dipole FFT, macro moments + staging", cv6DipoleBytes(P)},
       {"Correlations",                           (FortranData::do_gpu_correlations && *FortranData::do_gpu_correlations == 'Y') ? GpuCorrelations::estimateBytes(F, P) : static_cast<std::size_t>(0)},
+      {"Adaptive CG topology + runtime",          adaptiveRuntimeBytes(P)},
    };
    std::size_t total = 0;
    for(const auto& l : lines) {
@@ -679,6 +749,10 @@ bool GpuSimulation::initiateMatrices(int is_mc) {
 
     //gpuLattice.temperature.initiate(N); //is initiated if we run SD or MC simulation inside corresponding classes where they are requires
     if(FortranData::btorque) {gpuLattice.btorque.Allocate(static_cast <long int>(3), N, M);}
+    if(FortranData::adaptive_geometry_mode) {
+        gpuAdaptiveRuntime.initialize(adaptiveTopologyInput(), adaptiveRuntimeInput(),
+                                      SimParam.N, SimParam.M);
+    }
     //e.Allocate( static_cast <long int>(3), N, M);} 
 
    /* if (Flags.do_mphase_now != 0){
@@ -745,6 +819,7 @@ bool GpuSimulation::gpuHasNoData(){
                     gpuLattice.mmomi.empty() ||
                    // gpuLattice.ipTemp.empty()||
                     (gpuLattice.btorque.empty()&& (FortranData::btorque != nullptr)));
+    if(FortranData::adaptive_geometry_mode) check = check || !gpuAdaptiveRuntime.ready();
     //TODO: add measurables
     return check;
 }
@@ -754,6 +829,7 @@ void GpuSimulation::release() {
     isInitiated = false;
     isFreed = true;
     gpuHamiltonian.neighbourListsPrepared = false;
+    if(gpuAdaptiveRuntime.ready()) gpuAdaptiveRuntime.release();
     gpuHamiltonian.aHam.Free();
          
     gpuHamiltonian.nlist.Free();  
@@ -835,6 +911,16 @@ void GpuSimulation::release() {
     }
     // TensorMemoryTracker::saveToFile();
     TensorDataMovementTracker::printResults();
+}
+
+void GpuSimulation::updateAdaptiveBlockState(const int* blockState, std::size_t count) {
+   gpuAdaptiveRuntime.updateBlockState(blockState, count);
+   const auto& metrics = gpuAdaptiveRuntime.compactionMetrics();
+   std::printf("Gpu: adaptive selector compaction sync #%llu: %zu block bytes, "
+               "%.3f ms wall / %.3f ms host wait / %.3f ms device cumulative.\n",
+               static_cast<unsigned long long>(metrics.hostSynchronizations),
+               count * sizeof(int), metrics.elapsedMilliseconds,
+               metrics.hostWaitMilliseconds, metrics.deviceMilliseconds);
 }
 
 void GpuSimulation::copyFromFortran() {

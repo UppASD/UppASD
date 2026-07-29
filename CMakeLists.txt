@@ -969,6 +969,30 @@ if(BUILD_TESTING)
    # do not recompile a driver from Python/nvcc.  It exercises the complete
    # Builder A tensor upload, batched kernel R2C, and stored-spectrum contract.
    if(USE_CUDA OR USE_HIP)
+      # CG-09 immutable topology transfer, mutable block/channel storage,
+      # compact work scheduling, measured block-mask synchronization, and
+      # cleanup accounting on the active CUDA/HIP backend.
+      add_executable(gpu_adaptive_runtime_tests
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_adaptive_runtime.cpp)
+      target_include_directories(gpu_adaptive_runtime_tests PRIVATE
+         ${CMAKE_SOURCE_DIR}/source/gpu_files
+         ${CMAKE_SOURCE_DIR}/source/gpu_files/measurement)
+      target_link_libraries(gpu_adaptive_runtime_tests PRIVATE ${UppASD_LIB})
+      if(USE_CUDA)
+         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_adaptive_runtime.cpp
+            PROPERTIES LANGUAGE CUDA)
+         target_compile_definitions(gpu_adaptive_runtime_tests PRIVATE CUDA_V)
+         target_link_libraries(gpu_adaptive_runtime_tests PRIVATE CUDA::cudart)
+      else()
+         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_adaptive_runtime.cpp
+            PROPERTIES LANGUAGE HIP)
+         target_compile_definitions(gpu_adaptive_runtime_tests PRIVATE HIP_V)
+      endif()
+      if(UPPASD_PRECISION STREQUAL "SINGLE")
+         target_compile_definitions(gpu_adaptive_runtime_tests PRIVATE SINGLE_PREC)
+      endif()
+      add_test(NAME coarse-graining-gpu-adaptive-runtime COMMAND gpu_adaptive_runtime_tests)
+
       add_executable(dipole_gpu_fft_tests
          ${CMAKE_SOURCE_DIR}/tests/dipole_validation/test_gpu_dipole_fft.cpp)
       target_include_directories(dipole_gpu_fft_tests PRIVATE

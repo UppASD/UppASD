@@ -200,6 +200,41 @@ module Chelper
 
       subroutine FortranData_clearPmeMacrocell() bind(C, name="fortrandata_clearpmemacrocell_")
       end subroutine FortranData_clearPmeMacrocell
+
+      ! CG-09 optional staging seam.  The canonical topology arrays retain
+      ! their Fortran ids; the GPU owner validates and copies them during the
+      ! normal GpuSimulation allocation lifecycle.
+      subroutine FortranData_setAdaptiveTopology(geometry_mode, atoms, blocks, basis, fft_channels, &
+            fft_grid_channels, dynamic_channels, ensembles, selector_criteria, repetition_shape, &
+            block_shape, block_grid, cell_vectors, block_vectors, atom_to_block, atom_to_basis, &
+            atom_to_dynamic_channel, atom_to_fft_channel, atom_to_fft_grid_index, &
+            basis_to_dynamic_channel, basis_to_fft_channel, block_atom_count, block_atom_offset, &
+            block_atoms, block_grid_coordinate, block_basis_population, block_fft_population, &
+            block_dynamic_population, block_center, block_volume, block_state, pending_state, &
+            state_age, transition_epoch, selector_scores, coarse_moment, coarse_direction, &
+            coarse_field, channel_moment_sum) bind(C, name="fortrandata_setadaptivetopology_")
+         import :: c_int, c_double
+         integer(c_int), intent(inout) :: geometry_mode, atoms, blocks, basis, fft_channels, fft_grid_channels
+         integer(c_int), intent(inout) :: dynamic_channels, ensembles, selector_criteria
+         integer(c_int), intent(inout) :: repetition_shape(*), block_shape(*), block_grid(*)
+         real(c_double), intent(inout) :: cell_vectors(*), block_vectors(*)
+         integer(c_int), intent(inout) :: atom_to_block(*), atom_to_basis(*)
+         integer(c_int), intent(inout) :: atom_to_dynamic_channel(*), atom_to_fft_channel(*)
+         integer(c_int), intent(inout) :: atom_to_fft_grid_index(*), basis_to_dynamic_channel(*)
+         integer(c_int), intent(inout) :: basis_to_fft_channel(*), block_atom_count(*)
+         integer(c_int), intent(inout) :: block_atom_offset(*), block_atoms(*)
+         integer(c_int), intent(inout) :: block_grid_coordinate(*), block_basis_population(*)
+         integer(c_int), intent(inout) :: block_fft_population(*), block_dynamic_population(*)
+         real(c_double), intent(inout) :: block_center(*), block_volume(*)
+         integer(c_int), intent(inout) :: block_state(*), pending_state(*)
+         integer(c_int), intent(inout) :: state_age(*), transition_epoch(*)
+         real(c_double), intent(inout) :: selector_scores(*), coarse_moment(*)
+         real(c_double), intent(inout) :: coarse_direction(*), coarse_field(*)
+         real(c_double), intent(inout) :: channel_moment_sum(*)
+      end subroutine FortranData_setAdaptiveTopology
+
+      subroutine FortranData_clearAdaptiveTopology() bind(C, name="fortrandata_clearadaptivetopology_")
+      end subroutine FortranData_clearAdaptiveTopology
    end interface
 
 
@@ -210,6 +245,7 @@ module Chelper
       fortran_calc_simulation_status_variables, fortran_print_measurables,          &
       fortran_print_correlations, fortran_measure_correlations,                     &
       fortran_measure_rest, fortran_do_correlations
+   public :: FortranData_setAdaptiveTopology, FortranData_clearAdaptiveTopology
 
 contains
 

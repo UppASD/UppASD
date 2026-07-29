@@ -138,6 +138,14 @@ void gpusim_release_(){
    }
 };
 
+void gpusim_updateadaptivemask_(int* block_state, int* block_count) {
+   try {
+      if(*block_count < 0) throw std::invalid_argument("negative adaptive block count");
+      gpuSim.updateAdaptiveBlockState(block_state, static_cast<std::size_t>(*block_count));
+   } catch(const std::exception& e) {
+      reportGpuFailureAndExit("gpusim_updateadaptivemask", e);
+   }
+}
 
 #ifdef __cplusplus
 }

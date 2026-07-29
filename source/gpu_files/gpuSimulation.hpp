@@ -8,6 +8,7 @@
 #include "c_headers.hpp"
 #include "tensor.hpp"
 #include "gpuStructures.hpp"
+#include "gpuAdaptiveRuntime.hpp"
 #include "real_type.h"
 
 class GpuSimulation {
@@ -26,6 +27,7 @@ private:
     deviceMeasurables gpuMeasurebles;//those are device matrices
     deviceHamiltonian gpuHamiltonian;//those are device matrices
     deviceEnergies gpuEnergies;
+    GpuAdaptiveRuntime gpuAdaptiveRuntime;
 
     const unsigned int maxThreads;
     const unsigned int maxBlocks;
@@ -81,6 +83,7 @@ public:
     void copyFromFortran();    // device to host 
     void copyToFortran();      // host to device
     void release();            // frees gpu matrices
+    void updateAdaptiveBlockState(const int* blockState, std::size_t count);
 
     void gpuRunSimulation(const int whichsim, const int whichphase, const char bf);
 

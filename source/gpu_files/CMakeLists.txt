@@ -14,6 +14,7 @@ gpuSimulation.cpp
 gpuParallelizationHelper.cpp
 gpuMetropolis.cpp
 gpuMetropolis_bruteforce.cpp
+gpuAdaptiveRuntime.cpp
 )
 uppasd_mark_gpu_sources(${GPU_KERNEL_SOURCES})
 
@@ -32,6 +33,7 @@ gpuDipoleConvolution.hpp
 dipoleEwaldKernel.hpp
 dipoleOpenKernel.hpp
 gpuHamiltonianDeviceOps.hpp
+gpuAdaptiveRuntime.hpp
 gpuFftWrapper.hpp
 gpuLatticeConvolutionHamiltonian.hpp
 gpuSimulation.hpp

@@ -1630,16 +1630,29 @@ a skyrmion transition.
 
 #### Checklist
 
-- [ ] Fortran and GPU topology counts match exactly.
-- [ ] Allocation preflight includes every new device buffer.
-- [ ] Cleanup restores device-memory accounting.
-- [ ] Feature-off device inventory is unchanged.
-- [ ] Compact lists contain exactly the expected work.
-- [ ] Mask changes rebuild lists safely.
-- [ ] Multiple ensembles index correctly.
-- [ ] CUDA and HIP compilation paths use the same descriptors.
-- [ ] Stream ordering is documented.
-- [ ] Host synchronization is measured and localized.
+- [x] Fortran and GPU topology counts match exactly.
+- [x] Allocation preflight includes every new device buffer.
+- [x] Cleanup restores device-memory accounting.
+- [x] Feature-off device inventory is unchanged.
+- [x] Compact lists contain exactly the expected work.
+- [x] Mask changes rebuild lists safely.
+- [x] Multiple ensembles index correctly.
+- [x] CUDA and HIP compilation paths use the same descriptors.
+- [x] Stream ordering is documented.
+- [x] Host synchronization is measured and localized.
+
+**CG-09 evidence:** `GpuAdaptiveRuntime` validates and transfers the complete
+canonical topology into immutable device storage, owns separate mutable
+block/channel state, derives four device masks and three stable compact work
+lists with a backend-neutral CUDA/HIP device scan, and exposes plain device
+descriptors without virtual dispatch.  Its allocation estimate is part of the
+normal GPU preflight; the optional Fortran staging sentinel leaves the
+feature-off inventory and execution unchanged.  The focused backend test
+checks count/CSR rejection before allocation, exact allocation accounting and
+cleanup, feature-off zero allocation, multi-ensemble layout, list rebuilding,
+and rejection without mutation.  CPU-selector updates transfer only the
+block-state array on the runtime-owned stream; their single end-event
+synchronization, byte count, and elapsed time are recorded explicitly.
 
 ---
 

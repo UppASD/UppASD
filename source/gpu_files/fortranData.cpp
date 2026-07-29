@@ -58,6 +58,45 @@ unsigned int* FortranData::pme_macro_nlistsize = nullptr;
 real* FortranData::pme_macro_center = nullptr;
 real* FortranData::pme_macro_min_coord = nullptr;
 real* FortranData::pme_macro_max_coord = nullptr;
+int* FortranData::adaptive_geometry_mode = nullptr;
+unsigned int* FortranData::adaptive_atoms = nullptr;
+unsigned int* FortranData::adaptive_blocks = nullptr;
+unsigned int* FortranData::adaptive_basis = nullptr;
+unsigned int* FortranData::adaptive_fft_channels = nullptr;
+unsigned int* FortranData::adaptive_fft_grid_channels = nullptr;
+unsigned int* FortranData::adaptive_dynamic_channels = nullptr;
+unsigned int* FortranData::adaptive_ensembles = nullptr;
+unsigned int* FortranData::adaptive_selector_criteria = nullptr;
+int* FortranData::adaptive_repetition_shape = nullptr;
+int* FortranData::adaptive_block_shape = nullptr;
+int* FortranData::adaptive_block_grid = nullptr;
+real* FortranData::adaptive_cell_vectors = nullptr;
+real* FortranData::adaptive_block_vectors = nullptr;
+int* FortranData::adaptive_atom_to_block = nullptr;
+int* FortranData::adaptive_atom_to_basis = nullptr;
+int* FortranData::adaptive_atom_to_dynamic_channel = nullptr;
+int* FortranData::adaptive_atom_to_fft_channel = nullptr;
+int* FortranData::adaptive_atom_to_fft_grid_index = nullptr;
+int* FortranData::adaptive_basis_to_dynamic_channel = nullptr;
+int* FortranData::adaptive_basis_to_fft_channel = nullptr;
+int* FortranData::adaptive_block_atom_count = nullptr;
+int* FortranData::adaptive_block_atom_offset = nullptr;
+int* FortranData::adaptive_block_atoms = nullptr;
+int* FortranData::adaptive_block_grid_coordinate = nullptr;
+int* FortranData::adaptive_block_basis_population = nullptr;
+int* FortranData::adaptive_block_fft_population = nullptr;
+int* FortranData::adaptive_block_dynamic_population = nullptr;
+real* FortranData::adaptive_block_center = nullptr;
+real* FortranData::adaptive_block_volume = nullptr;
+int* FortranData::adaptive_block_state = nullptr;
+int* FortranData::adaptive_pending_state = nullptr;
+unsigned int* FortranData::adaptive_state_age = nullptr;
+unsigned int* FortranData::adaptive_transition_epoch = nullptr;
+real* FortranData::adaptive_selector_scores = nullptr;
+real* FortranData::adaptive_coarse_moment = nullptr;
+real* FortranData::adaptive_coarse_direction = nullptr;
+real* FortranData::adaptive_coarse_field = nullptr;
+real* FortranData::adaptive_channel_moment_sum = nullptr;
 
 unsigned int* FortranData::nq;
 unsigned int* FortranData::sc_step;
@@ -370,6 +409,107 @@ void FortranData::clearPmeMacrocellPointers() {
    pme_macro_max_coord = nullptr;
 }
 
+void FortranData::setAdaptivePointers(
+   int* geometry_mode, unsigned int* atoms, unsigned int* blocks,
+   unsigned int* basis, unsigned int* fft_channels,
+   unsigned int* fft_grid_channels,
+   unsigned int* dynamic_channels, unsigned int* ensembles,
+   unsigned int* selector_criteria, int* repetition_shape, int* block_shape,
+   int* block_grid, real* cell_vectors, real* block_vectors,
+   int* atom_to_block, int* atom_to_basis,
+   int* atom_to_dynamic_channel, int* atom_to_fft_channel,
+   int* atom_to_fft_grid_index, int* basis_to_dynamic_channel,
+   int* basis_to_fft_channel, int* block_atom_count, int* block_atom_offset,
+   int* block_atoms, int* block_grid_coordinate, int* block_basis_population,
+   int* block_fft_population, int* block_dynamic_population,
+   real* block_center, real* block_volume, int* block_state,
+   int* pending_state, unsigned int* state_age,
+   unsigned int* transition_epoch, real* selector_scores,
+   real* coarse_moment, real* coarse_direction, real* coarse_field,
+   real* channel_moment_sum) {
+   adaptive_geometry_mode = geometry_mode;
+   adaptive_atoms = atoms;
+   adaptive_blocks = blocks;
+   adaptive_basis = basis;
+   adaptive_fft_channels = fft_channels;
+   adaptive_fft_grid_channels = fft_grid_channels;
+   adaptive_dynamic_channels = dynamic_channels;
+   adaptive_ensembles = ensembles;
+   adaptive_selector_criteria = selector_criteria;
+   adaptive_repetition_shape = repetition_shape;
+   adaptive_block_shape = block_shape;
+   adaptive_block_grid = block_grid;
+   adaptive_cell_vectors = cell_vectors;
+   adaptive_block_vectors = block_vectors;
+   adaptive_atom_to_block = atom_to_block;
+   adaptive_atom_to_basis = atom_to_basis;
+   adaptive_atom_to_dynamic_channel = atom_to_dynamic_channel;
+   adaptive_atom_to_fft_channel = atom_to_fft_channel;
+   adaptive_atom_to_fft_grid_index = atom_to_fft_grid_index;
+   adaptive_basis_to_dynamic_channel = basis_to_dynamic_channel;
+   adaptive_basis_to_fft_channel = basis_to_fft_channel;
+   adaptive_block_atom_count = block_atom_count;
+   adaptive_block_atom_offset = block_atom_offset;
+   adaptive_block_atoms = block_atoms;
+   adaptive_block_grid_coordinate = block_grid_coordinate;
+   adaptive_block_basis_population = block_basis_population;
+   adaptive_block_fft_population = block_fft_population;
+   adaptive_block_dynamic_population = block_dynamic_population;
+   adaptive_block_center = block_center;
+   adaptive_block_volume = block_volume;
+   adaptive_block_state = block_state;
+   adaptive_pending_state = pending_state;
+   adaptive_state_age = state_age;
+   adaptive_transition_epoch = transition_epoch;
+   adaptive_selector_scores = selector_scores;
+   adaptive_coarse_moment = coarse_moment;
+   adaptive_coarse_direction = coarse_direction;
+   adaptive_coarse_field = coarse_field;
+   adaptive_channel_moment_sum = channel_moment_sum;
+}
+
+void FortranData::clearAdaptivePointers() {
+   adaptive_geometry_mode = nullptr;
+   adaptive_atoms = nullptr;
+   adaptive_blocks = nullptr;
+   adaptive_basis = nullptr;
+   adaptive_fft_channels = nullptr;
+   adaptive_fft_grid_channels = nullptr;
+   adaptive_dynamic_channels = nullptr;
+   adaptive_ensembles = nullptr;
+   adaptive_selector_criteria = nullptr;
+   adaptive_repetition_shape = nullptr;
+   adaptive_block_shape = nullptr;
+   adaptive_block_grid = nullptr;
+   adaptive_cell_vectors = nullptr;
+   adaptive_block_vectors = nullptr;
+   adaptive_atom_to_block = nullptr;
+   adaptive_atom_to_basis = nullptr;
+   adaptive_atom_to_dynamic_channel = nullptr;
+   adaptive_atom_to_fft_channel = nullptr;
+   adaptive_atom_to_fft_grid_index = nullptr;
+   adaptive_basis_to_dynamic_channel = nullptr;
+   adaptive_basis_to_fft_channel = nullptr;
+   adaptive_block_atom_count = nullptr;
+   adaptive_block_atom_offset = nullptr;
+   adaptive_block_atoms = nullptr;
+   adaptive_block_grid_coordinate = nullptr;
+   adaptive_block_basis_population = nullptr;
+   adaptive_block_fft_population = nullptr;
+   adaptive_block_dynamic_population = nullptr;
+   adaptive_block_center = nullptr;
+   adaptive_block_volume = nullptr;
+   adaptive_block_state = nullptr;
+   adaptive_pending_state = nullptr;
+   adaptive_state_age = nullptr;
+   adaptive_transition_epoch = nullptr;
+   adaptive_selector_scores = nullptr;
+   adaptive_coarse_moment = nullptr;
+   adaptive_coarse_direction = nullptr;
+   adaptive_coarse_field = nullptr;
+   adaptive_channel_moment_sum = nullptr;
+}
+
 void FortranData::setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
                                          real* p_dmvect, unsigned int* p_dmlist, unsigned int* p_dmlistsize,
                                          real* p_kaniso, real* p_eaniso, unsigned int* p_taniso, real* p_sb,
@@ -625,6 +765,41 @@ extern "C" void fortrandata_setpmemacrocell_(unsigned int* p_num_macro, unsigned
 
 extern "C" void fortrandata_clearpmemacrocell_() {
    FortranData::clearPmeMacrocellPointers();
+}
+
+extern "C" void fortrandata_setadaptivetopology_(
+   int* geometry_mode, unsigned int* atoms, unsigned int* blocks,
+   unsigned int* basis, unsigned int* fft_channels,
+   unsigned int* fft_grid_channels,
+   unsigned int* dynamic_channels, unsigned int* ensembles,
+   unsigned int* selector_criteria, int* repetition_shape, int* block_shape,
+   int* block_grid, real* cell_vectors, real* block_vectors,
+   int* atom_to_block, int* atom_to_basis,
+   int* atom_to_dynamic_channel, int* atom_to_fft_channel,
+   int* atom_to_fft_grid_index, int* basis_to_dynamic_channel,
+   int* basis_to_fft_channel, int* block_atom_count, int* block_atom_offset,
+   int* block_atoms, int* block_grid_coordinate, int* block_basis_population,
+   int* block_fft_population, int* block_dynamic_population,
+   real* block_center, real* block_volume, int* block_state,
+   int* pending_state, unsigned int* state_age,
+   unsigned int* transition_epoch, real* selector_scores,
+   real* coarse_moment, real* coarse_direction, real* coarse_field,
+   real* channel_moment_sum) {
+   FortranData::setAdaptivePointers(
+      geometry_mode, atoms, blocks, basis, fft_channels, fft_grid_channels,
+      dynamic_channels, ensembles, selector_criteria, repetition_shape,
+      block_shape, block_grid, cell_vectors, block_vectors, atom_to_block, atom_to_basis,
+      atom_to_dynamic_channel, atom_to_fft_channel, atom_to_fft_grid_index,
+      basis_to_dynamic_channel, basis_to_fft_channel, block_atom_count,
+      block_atom_offset, block_atoms, block_grid_coordinate,
+      block_basis_population, block_fft_population, block_dynamic_population,
+      block_center, block_volume, block_state, pending_state, state_age,
+      transition_epoch, selector_scores, coarse_moment, coarse_direction,
+      coarse_field, channel_moment_sum);
+}
+
+extern "C" void fortrandata_clearadaptivetopology_() {
+   FortranData::clearAdaptivePointers();
 }
 
 extern "C" void fortrandata_sethamiltonian_(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
