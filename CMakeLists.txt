@@ -895,6 +895,16 @@ if(BUILD_TESTING)
    target_link_libraries(coarse_tensor_operator_tests PRIVATE ${UppASD_LIB})
    add_test(NAME coarse-graining-tensor-operator COMMAND coarse_tensor_operator_tests)
 
+   # CG-05 CPU smooth projection: normalized trilinear prolongation, exact
+   # adjoint restriction, read-only atomistic bilinear bonds, and spiral checks.
+   add_executable(smooth_projected_operator_tests
+      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_smooth_projected_operator.f90)
+   set_target_properties(smooth_projected_operator_tests PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/smooth_projected_operator_tests)
+   target_link_libraries(smooth_projected_operator_tests PRIVATE ${UppASD_LIB})
+   add_test(NAME coarse-graining-smooth-projected-operator
+      COMMAND smooth_projected_operator_tests)
+
    # Luna's host-only OPEN_FFT oracle has no UppASD, FFT, CUDA, or HIP
    # dependency.  Keep it runnable before the production open builder exists.
    add_test(NAME dipole-open-fft-oracle

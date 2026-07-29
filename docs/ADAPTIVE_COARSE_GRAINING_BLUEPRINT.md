@@ -1440,17 +1440,28 @@ Fortran.
 
 #### Checklist
 
-- [ ] Shape weights form the required partition of unity.
-- [ ] Boundary handling is explicit.
-- [ ] Normalization derivative is implemented or approximation bounds are
+- [x] Shape weights form the required partition of unity.
+- [x] Boundary handling is explicit.
+- [x] Normalization derivative is implemented or approximation bounds are
       documented.
-- [ ] Adjoint energy/field tests pass.
-- [ ] Block-size-one behavior is tested.
-- [ ] Smooth spin-spiral energy has correct mesh scaling.
-- [ ] Rigid projection failure is captured by a regression/diagnostic test.
-- [ ] Tensor and projected long-wavelength results agree within an explained
+- [x] Adjoint energy/field tests pass.
+- [x] Block-size-one behavior is tested.
+- [x] Smooth spin-spiral energy has correct mesh scaling.
+- [x] Rigid projection failure is captured by a regression/diagnostic test.
+- [x] Tensor and projected long-wavelength results agree within an explained
       discretization error.
-- [ ] General atom ordering remains unchanged.
+- [x] General atom ordering remains unchanged.
+
+**CG-05 evidence:** `source/CoarseGraining/smoothprojectedoperator.f90`
+implements periodic trilinear block/channel prolongation, exact pointwise
+normalization and its moment-weighted derivative adjoint, and read-only
+unique-pair bilinear matrix evaluation in double precision on the CPU.
+`docs/CG-05_SMOOTH_PROJECTED_OPERATOR.md` fixes the coordinate, boundary,
+normalization, bond-energy, and tangent-field comparison conventions.
+`tests/coarse_graining/test_smooth_projected_operator.f90` covers the complete
+checklist, including finite differences, block-size one, preserved shuffled
+atom order, multiple channels, smooth/tensor long-wave spirals, and the
+test-only piecewise-constant scaling failure.
 
 ---
 
