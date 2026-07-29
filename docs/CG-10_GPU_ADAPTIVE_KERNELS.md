@@ -135,9 +135,23 @@ FP32 state fixtures must remain at least `2e-4` away from either threshold.
 HIP fp32 remains an independent execution-acceptance gate even though the
 common source compiles through the HIP path.
 
-## Hardware gates
+## CUDA execution acceptance
 
-CUDA/HIP execution, feature-off noise measurements, phase overhead, and the
-active-DOF crossover must be recorded on an available device.  The
+The CUDA hardware run accepts:
+
+- the fp64 `gpu_adaptive_runtime_tests` parity fixture;
+- the fp32 `gpu_adaptive_runtime_tests` budget fixture;
+- the existing fp64 `dipole_gpu_fft_tests` suite; and
+- Compute Sanitizer memcheck of the fp64 adaptive fixture with zero errors.
+
+The FFT run reports a maximum periodic two-basis field error of
+`1.7764e-14`, maximum energy error of `1.1369e-13`, and direct-oracle field
+and energy maxima of `3.8858e-16` and `1.8041e-16`, respectively.  The
+projected-block field and energy errors are both `4.8573e-17`.
+
+## Remaining hardware gates
+
+HIP execution, feature-off noise measurements, phase overhead, and the
+active-DOF crossover still require suitable hardware runs.  The
 implementation does not substitute host wall time or a modelled crossover
 for those measurements.

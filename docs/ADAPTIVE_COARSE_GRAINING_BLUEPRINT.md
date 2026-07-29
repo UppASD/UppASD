@@ -1681,12 +1681,12 @@ initial kernel; Luna/Sonnet for parity harness
 
 #### Checklist
 
-- [ ] FP64 CPU/GPU fields and energies agree.
-- [ ] CUDA and HIP parity tests pass where hardware is available.
-- [ ] State decisions match for non-threshold-tie fixtures.
+- [x] FP64 CPU/GPU fields and energies agree.
+- [x] CUDA and HIP parity tests pass where hardware is available.
+- [x] State decisions match for non-threshold-tie fixtures.
 - [x] Restriction and reconstruction are deterministic as specified.
-- [ ] Energy derivative fixtures agree with CPU reference.
-- [ ] Existing FFT dipole tests still pass.
+- [x] Energy derivative fixtures agree with CPU reference.
+- [x] Existing FFT dipole tests still pass.
 - [ ] Feature-off performance is unchanged within noise.
 - [ ] Selector/compaction overhead is reported.
 - [ ] A real active-DOF crossover is measured.
@@ -1710,12 +1710,12 @@ resolution parity fixture for fields, per-term energies, a directional energy
 derivative, non-tie decisions, accepted/rejected transitions, both
 reconstruction schemes, phase separation, and exact memory cleanup.
 `docs/CG-10_GPU_ADAPTIVE_KERNELS.md` records fp64 acceptance and separate fp32
-budgets.  Both CUDA fp64 and fp32 targets compile on the current host, and the
-accepted CPU reference tests pass.  This host has no CUDA-capable device and
-no HIP toolchain/device, so GPU execution parity, FFT execution regression,
-feature-off noise, measured selector/compaction overhead, and a real
-active-DOF crossover remain hardware acceptance gates and are intentionally
-not checked above.
+budgets.  CUDA execution accepts the adaptive fp64 and fp32 fixtures and the
+existing fp64 FFT dipole suite; Compute Sanitizer reports zero errors for the
+adaptive fp64 fixture.  No HIP device/toolchain was available, so the shared
+HIP path remains an execution gate.  Feature-off noise, measured
+selector/compaction overhead, and a real active-DOF crossover were not part
+of these correctness runs and remain intentionally unchecked above.
 
 ---
 
