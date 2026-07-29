@@ -868,6 +868,15 @@ if (RUN_CUDA_TESTS)
 add_test(NAME cuda-tests  COMMAND python3 -u bergtest.py --file cudatests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
 endif (RUN_CUDA_TESTS)
 if(BUILD_TESTING)
+   # Canonical adaptive coarse-graining topology tests are deliberately
+   # independent of the dipole numerical kernels and the UppASD executable.
+   add_executable(block_topology_tests
+      ${CMAKE_SOURCE_DIR}/source/CoarseGraining/blocktopology.f90
+      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_block_topology.f90)
+   set_target_properties(block_topology_tests PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/block_topology_tests)
+   add_test(NAME coarse-graining-block-topology COMMAND block_topology_tests)
+
    # Luna's host-only OPEN_FFT oracle has no UppASD, FFT, CUDA, or HIP
    # dependency.  Keep it runnable before the production open builder exists.
    add_test(NAME dipole-open-fft-oracle

@@ -14,6 +14,7 @@ module macrocells
 
    use Parameters
    use Profiling
+   use BlockTopology, only : regular_spatial_block_id, regular_fft_grid_channel
 
    implicit none
 
@@ -245,13 +246,13 @@ contains
       do ib3=0,nb3-1
          do ib2=0,nb2-1
             do ib1=0,nb1-1
-               icell=1+ib1+nb1*(ib2+nb2*ib3)
+               icell=regular_spatial_block_id((/ib1,ib2,ib3/),(/nb1,nb2,nb3/))
                do ii3=ib3*block_size_z,min((ib3+1)*block_size_z-1,N3-1)
                   do ii2=ib2*block_size_y,min((ib2+1)*block_size_y-1,N2-1)
                      do ii1=ib1*block_size_x,min((ib1+1)*block_size_x-1,N1-1)
                         do ibasis=1,NA
                            iatom=iatom+1
-                           imacro=ibasis+NA*(icell-1)
+                           imacro=regular_fft_grid_channel(ibasis,icell,NA)
                            pme_cell_index(iatom)=imacro
                            pme_macro_nlistsize(imacro)=pme_macro_nlistsize(imacro)+1
                            pme_macro_center(:,imacro)=pme_macro_center(:,imacro)+coord(:,iatom)

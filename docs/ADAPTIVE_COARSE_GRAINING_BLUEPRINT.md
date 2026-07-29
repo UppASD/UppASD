@@ -1288,19 +1288,26 @@ this task.
 
 #### Checklist
 
-- [ ] Spatial block ids match the FFT block grid.
-- [ ] `atom_to_basis`, `atom_to_dynamic_channel`, and
+- [x] Spatial block ids match the FFT block grid.
+- [x] `atom_to_basis`, `atom_to_dynamic_channel`, and
       `atom_to_fft_channel` are distinct.
-- [ ] CSR membership covers every atom exactly once.
-- [ ] `NA=1`, `NA=2`, and `NA>2` tests pass.
-- [ ] Non-cubic block tests pass.
-- [ ] Block-size-one mapping is exact.
-- [ ] Skew-cell geometry is stored correctly.
-- [ ] Invalid/nondivisible cases fail before allocation.
-- [ ] Explicit-device geometry fails with a capability message.
-- [ ] Existing CPU/GPU dipole tests remain unchanged.
-- [ ] Feature-off path allocates no new topology unless another active feature
+- [x] CSR membership covers every atom exactly once.
+- [x] `NA=1`, `NA=2`, and `NA>2` tests pass.
+- [x] Non-cubic block tests pass.
+- [x] Block-size-one mapping is exact.
+- [x] Skew-cell geometry is stored correctly.
+- [x] Invalid/nondivisible cases fail before allocation.
+- [x] Explicit-device geometry fails with a capability message.
+- [x] Existing CPU/GPU dipole tests remain unchanged.
+- [x] Feature-off path allocates no new topology unless another active feature
       requests it.
+
+**CG-02 evidence:** `BlockTopology` provides construction-only
+`REGULAR_REPLICATED_CELL` metadata, C-compatible integer/real kinds, the
+existing FFT block/channel identities, separate basis/FFT/dynamical maps,
+physical block geometry, and exact CSR membership.  The focused
+`coarse-graining-block-topology` test passes with GNU and Intel Fortran; all
+four CPU and all eight CUDA dipole tests pass unchanged.
 
 ---
 

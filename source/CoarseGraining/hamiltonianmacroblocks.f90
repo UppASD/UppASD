@@ -7,12 +7,15 @@
 !> entries by (source block, destination block), with an additional span for
 !> every source atom.  CPU, HIP/CUDA, FFT, or future reordered-storage backends
 !> can therefore use the same metadata without changing the physical ordering
-!> selected by the regular or SFC neighbour mapper.
+!> selected by the regular or SFC neighbour mapper.  The optional canonical
+!> topology argument adapts the same interaction metadata to BlockTopology;
+!> omitting it preserves the active legacy macrocell path.
 !-------------------------------------------------------------------------------
 module HamiltonianMacroBlocks
 
    use Parameters
    use macrocells, only : Num_macro, cell_index, macro_nlistsize, macro_atom_nlist
+   use BlockTopology, only : block_topology_type
 
    implicit none
    private
@@ -95,11 +98,12 @@ contains
       end if
    end function macroblock_layout_is_ready
 
-   subroutine build_macroblock_layout(layout, Natom, nlist, nlistsize, aHam)
+   subroutine build_macroblock_layout(layout, Natom, nlist, nlistsize, aHam, topology)
       type(macroblock_layout_type), intent(inout) :: layout
       integer, intent(in) :: Natom
       integer, dimension(:,:), intent(in) :: nlist
       integer, dimension(:), intent(in) :: nlistsize, aHam
+      type(block_topology_type), intent(in), optional :: topology
 
       integer :: bi, bj, iat, jat, ih, slot, group, entry, atom_pos, local
       integer :: nblocks, n_pairs, n_entries, n_pair_src_atoms
@@ -108,21 +112,32 @@ contains
       logical, allocatable :: seen_target(:)
 
       call destroy_macroblock_layout(layout)
-      if (Natom <= 0 .or. Num_macro <= 0) return
-      if (.not. allocated(cell_index) .or. .not. allocated(macro_nlistsize) .or. &
-          .not. allocated(macro_atom_nlist)) return
-      if (size(cell_index) < Natom .or. size(aHam) < Natom) return
-
-      nblocks = Num_macro
+      if (Natom <= 0 .or. size(aHam) < Natom) return
+      if (present(topology)) then
+         if (.not. topology%ready .or. topology%n_atoms /= Natom) return
+         nblocks = topology%n_spatial_blocks
+      else
+         if (Num_macro <= 0) return
+         if (.not. allocated(cell_index) .or. .not. allocated(macro_nlistsize) .or. &
+             .not. allocated(macro_atom_nlist)) return
+         if (size(cell_index) < Natom) return
+         nblocks = Num_macro
+      end if
       allocate(layout%atom_to_block(Natom), layout%atom_to_local(Natom))
       allocate(layout%block_atom_count(nblocks), layout%block_atom_offset(nblocks + 1))
-      layout%atom_to_block = cell_index(1:Natom)
       layout%atom_to_local = -1
-      layout%block_atom_count = macro_nlistsize(1:nblocks)
-      layout%block_atom_offset(1) = 0
-      do bi = 1, nblocks
-         layout%block_atom_offset(bi + 1) = layout%block_atom_offset(bi) + layout%block_atom_count(bi)
-      end do
+      if (present(topology)) then
+         layout%atom_to_block = topology%atom_to_block
+         layout%block_atom_count = topology%block_atom_count
+         layout%block_atom_offset = topology%block_atom_offset
+      else
+         layout%atom_to_block = cell_index(1:Natom)
+         layout%block_atom_count = macro_nlistsize(1:nblocks)
+         layout%block_atom_offset(1) = 0
+         do bi = 1, nblocks
+            layout%block_atom_offset(bi + 1) = layout%block_atom_offset(bi) + layout%block_atom_count(bi)
+         end do
+      end if
       if (layout%block_atom_offset(nblocks + 1) /= Natom) then
          call destroy_macroblock_layout(layout)
          return
@@ -132,7 +147,11 @@ contains
       atom_pos = 1
       do bi = 1, nblocks
          do local = 1, layout%block_atom_count(bi)
-            iat = macro_atom_nlist(bi, local)
+            if (present(topology)) then
+               iat = topology%block_atoms(topology%block_atom_offset(bi) + local)
+            else
+               iat = macro_atom_nlist(bi, local)
+            end if
             if (iat < 1 .or. iat > Natom) then
                call destroy_macroblock_layout(layout)
                return
