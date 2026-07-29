@@ -184,74 +184,111 @@ __global__ void restrictAdaptiveMoments(GpuAdaptiveDeviceTopology topology,
    }
 }
 
+__device__ inline void atomicMaxSelector(real* address, real value) {
+#ifdef SINGLE_PREC
+   auto* bits = reinterpret_cast<unsigned int*>(address);
+   unsigned int observed = *bits;
+   while(value > __uint_as_float(observed)) {
+      const unsigned int assumed = observed;
+      observed = atomicCAS(bits, assumed, __float_as_uint(value));
+      if(observed == assumed) break;
+   }
+#else
+   auto* bits = reinterpret_cast<unsigned long long*>(address);
+   unsigned long long observed = *bits;
+   while(value > __longlong_as_double(static_cast<long long>(observed))) {
+      const unsigned long long assumed = observed;
+      observed = atomicCAS(
+         bits, assumed,
+         static_cast<unsigned long long>(__double_as_longlong(value)));
+      if(observed == assumed) break;
+   }
+#endif
+}
+
+__global__ void clearSelectorAdaptiveScores(
+   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime) {
+   const std::size_t block = adaptiveThreadIndex();
+   if(block < topology.blocks)
+      runtime.selectorScores[runtime.selectorCriteria * block] = real(0);
+}
+
 __global__ void selectorAdaptiveScores(GpuAdaptiveDeviceTopology topology,
                                        GpuAdaptiveDeviceRuntime runtime,
                                        AdaptiveKernelDevice kernels,
                                        const real* atomDirection) {
-   if(blockIdx.x != 0 || threadIdx.x != 0) return;
-   for(std::size_t block = 0; block < topology.blocks; ++block)
-      runtime.selectorScores[runtime.selectorCriteria * block] = real(0);
-   for(std::size_t edge = 0; edge < kernels.selectorEdges; ++edge) {
-      const std::size_t atomI = static_cast<std::size_t>(kernels.selectorEdge[2 * edge] - 1);
-      const std::size_t atomJ = static_cast<std::size_t>(kernels.selectorEdge[2 * edge + 1] - 1);
-      for(std::size_t ensemble = 0; ensemble < topology.ensembles; ++ensemble) {
-         real si[3], sj[3];
-         loadAtomVector(atomDirection, topology, atomI, ensemble, si);
-         loadAtomVector(atomDirection, topology, atomJ, ensemble, sj);
-         const real q = real(1) - dotDevice(si, sj);
-         const real score = q > real(0) ? q : real(0);
-         const std::size_t blockI = static_cast<std::size_t>(topology.atomToBlock[atomI] - 1);
-         const std::size_t blockJ = static_cast<std::size_t>(topology.atomToBlock[atomJ] - 1);
-         real& scoreI = runtime.selectorScores[runtime.selectorCriteria * blockI];
-         real& scoreJ = runtime.selectorScores[runtime.selectorCriteria * blockJ];
-         if(score > scoreI) scoreI = score;
-         if(score > scoreJ) scoreJ = score;
-      }
-   }
+   const std::size_t work = adaptiveThreadIndex();
+   const std::size_t count = kernels.selectorEdges * topology.ensembles;
+   if(work >= count) return;
+   const std::size_t edge = work % kernels.selectorEdges;
+   const std::size_t ensemble = work / kernels.selectorEdges;
+   const std::size_t atomI =
+      static_cast<std::size_t>(kernels.selectorEdge[2 * edge] - 1);
+   const std::size_t atomJ =
+      static_cast<std::size_t>(kernels.selectorEdge[2 * edge + 1] - 1);
+   real si[3], sj[3];
+   loadAtomVector(atomDirection, topology, atomI, ensemble, si);
+   loadAtomVector(atomDirection, topology, atomJ, ensemble, sj);
+   const real q = real(1) - dotDevice(si, sj);
+   const real score = q > real(0) ? q : real(0);
+   const std::size_t blockI =
+      static_cast<std::size_t>(topology.atomToBlock[atomI] - 1);
+   const std::size_t blockJ =
+      static_cast<std::size_t>(topology.atomToBlock[atomJ] - 1);
+   atomicMaxSelector(
+      &runtime.selectorScores[runtime.selectorCriteria * blockI], score);
+   atomicMaxSelector(
+      &runtime.selectorScores[runtime.selectorCriteria * blockJ], score);
 }
 
 __global__ void proposeAdaptiveState(GpuAdaptiveDeviceTopology topology,
                                      GpuAdaptiveDeviceRuntime runtime,
                                      GpuAdaptiveSelectorPolicy policy,
                                      const unsigned char* hardMask) {
-   if(blockIdx.x != 0 || threadIdx.x != 0) return;
-   for(std::size_t block = 0; block < topology.blocks; ++block) {
-      int proposed = runtime.blockState[block];
-      const real score =
-         runtime.selectorScores[runtime.selectorCriteria * block];
-      const bool dwellReady = runtime.stateAge[block] >= policy.minimumDwellUpdates;
-      if(hardMask && hardMask[block]) proposed = fineState;
-      else if(runtime.blockState[block] == coarseState &&
-              score >= policy.refineThreshold && dwellReady)
-         proposed = fineState;
-      else if(runtime.blockState[block] != coarseState &&
-              score <= policy.coarsenThreshold && dwellReady)
-         proposed = coarseState;
-      runtime.pendingState[block] = proposed;
-   }
+   const std::size_t block = adaptiveThreadIndex();
+   if(block >= topology.blocks) return;
+   int proposed = runtime.blockState[block];
+   const real score =
+      runtime.selectorScores[runtime.selectorCriteria * block];
+   const bool dwellReady = runtime.stateAge[block] >= policy.minimumDwellUpdates;
+   if(hardMask && hardMask[block]) proposed = fineState;
+   else if(runtime.blockState[block] == coarseState &&
+           score >= policy.refineThreshold && dwellReady)
+      proposed = fineState;
+   else if(runtime.blockState[block] != coarseState &&
+           score <= policy.coarsenThreshold && dwellReady)
+      proposed = coarseState;
+   runtime.pendingState[block] = proposed;
+}
+
+__global__ void dilateAdaptiveState(GpuAdaptiveDeviceTopology topology,
+                                    GpuAdaptiveDeviceRuntime runtime,
+                                    GpuAdaptiveSelectorPolicy policy) {
+   const std::size_t target = adaptiveThreadIndex();
+   if(target >= topology.blocks ||
+      runtime.pendingState[target] != coarseState) return;
    const int width = static_cast<int>(policy.bufferDilationBlocks);
    if(width == 0) return;
-   for(std::size_t source = 0; source < topology.blocks; ++source) {
-      if(runtime.pendingState[source] != fineState) continue;
-      const int sx = topology.blockGridCoordinate[3 * source];
-      const int sy = topology.blockGridCoordinate[3 * source + 1];
-      const int sz = topology.blockGridCoordinate[3 * source + 2];
-      for(int dz = -width; dz <= width; ++dz)
-         for(int dy = -width; dy <= width; ++dy)
-            for(int dx = -width; dx <= width; ++dx) {
-               const int x = (sx + dx % topology.blockGrid[0] +
-                              topology.blockGrid[0]) % topology.blockGrid[0];
-               const int y = (sy + dy % topology.blockGrid[1] +
-                              topology.blockGrid[1]) % topology.blockGrid[1];
-               const int z = (sz + dz % topology.blockGrid[2] +
-                              topology.blockGrid[2]) % topology.blockGrid[2];
-               const std::size_t target = static_cast<std::size_t>(
-                  x + topology.blockGrid[0] *
-                  (y + topology.blockGrid[1] * z));
-               if(runtime.pendingState[target] == coarseState)
-                  runtime.pendingState[target] = bufferState;
+   const int tx = topology.blockGridCoordinate[3 * target];
+   const int ty = topology.blockGridCoordinate[3 * target + 1];
+   const int tz = topology.blockGridCoordinate[3 * target + 2];
+   for(int dz = -width; dz <= width; ++dz)
+      for(int dy = -width; dy <= width; ++dy)
+         for(int dx = -width; dx <= width; ++dx) {
+            const int x = (tx + dx % topology.blockGrid[0] +
+                           topology.blockGrid[0]) % topology.blockGrid[0];
+            const int y = (ty + dy % topology.blockGrid[1] +
+                           topology.blockGrid[1]) % topology.blockGrid[1];
+            const int z = (tz + dz % topology.blockGrid[2] +
+                           topology.blockGrid[2]) % topology.blockGrid[2];
+            const std::size_t source = static_cast<std::size_t>(
+               x + topology.blockGrid[0] *
+               (y + topology.blockGrid[1] * z));
+            if(runtime.pendingState[source] == fineState) {
+               runtime.pendingState[target] = bufferState;
+               return;
             }
-   }
+         }
 }
 
 __device__ inline std::uint64_t tupleSeed(std::uint64_t globalSeed, std::size_t block,
@@ -991,36 +1028,75 @@ void freeIfAllocated(GpuTensor<real, 1>& tensor) {
    if(!tensor.empty()) tensor.Free();
 }
 
-__global__ void compactAdaptiveWork(GpuAdaptiveDeviceTopology topology,
-                                    GpuAdaptiveDeviceRuntime runtime) {
-   // CG-09 intentionally chooses the accepted simple device scan.  One thread
-   // gives stable Fortran ordering without atomics or a host mask round trip.
-   if(blockIdx.x != 0 || threadIdx.x != 0) return;
-
-   unsigned int activeAtoms = 0;
-   unsigned int activeBlocks = 0;
-   unsigned int interfaceAtoms = 0;
-   for(std::size_t block = 0; block < topology.blocks; ++block) {
+__global__ void initializeAdaptiveWorkScan(
+   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
+   unsigned int* scan, std::size_t scanItems) {
+   const std::size_t index = adaptiveThreadIndex();
+   if(index >= scanItems) return;
+   unsigned int activeAtom = 0;
+   unsigned int activeBlock = 0;
+   unsigned int interfaceAtom = 0;
+   if(index < topology.blocks) {
+      const std::size_t block = index;
       const int state = runtime.blockState[block];
       const bool atomistic = state != coarseState;
       const bool coarse = state == coarseState;
       runtime.atomisticBlockMask[block] = static_cast<unsigned char>(atomistic);
       runtime.coarseBlockMask[block] = static_cast<unsigned char>(coarse);
-      if(coarse) runtime.activeBlockList[activeBlocks++] = static_cast<int>(block + 1);
+      activeBlock = static_cast<unsigned int>(coarse);
    }
-   for(std::size_t atom = 0; atom < topology.atoms; ++atom) {
+   if(index < topology.atoms) {
+      const std::size_t atom = index;
       const int block = topology.atomToBlock[atom] - 1;
       const int state = runtime.blockState[block];
       const bool atomistic = state != coarseState;
-      const bool interfaceAtom = state == bufferState;
+      const bool interface = state == bufferState;
       runtime.atomisticAtomMask[atom] = static_cast<unsigned char>(atomistic);
-      runtime.interfaceAtomMask[atom] = static_cast<unsigned char>(interfaceAtom);
-      if(atomistic) runtime.activeAtomList[activeAtoms++] = static_cast<int>(atom + 1);
-      if(interfaceAtom) runtime.interfaceAtomList[interfaceAtoms++] = static_cast<int>(atom + 1);
+      runtime.interfaceAtomMask[atom] = static_cast<unsigned char>(interface);
+      activeAtom = static_cast<unsigned int>(atomistic);
+      interfaceAtom = static_cast<unsigned int>(interface);
    }
-   runtime.workCounts[0] = activeAtoms;
-   runtime.workCounts[1] = activeBlocks;
-   runtime.workCounts[2] = interfaceAtoms;
+   scan[index] = activeAtom;
+   scan[scanItems + index] = activeBlock;
+   scan[2 * scanItems + index] = interfaceAtom;
+}
+
+__global__ void scanAdaptiveWorkStep(
+   const unsigned int* input, unsigned int* output,
+   std::size_t scanItems, std::size_t offset) {
+   const std::size_t flat = adaptiveThreadIndex();
+   const std::size_t count = 3 * scanItems;
+   if(flat >= count) return;
+   const std::size_t component = flat / scanItems;
+   const std::size_t index = flat - component * scanItems;
+   unsigned int value = input[flat];
+   if(index >= offset)
+      value += input[component * scanItems + index - offset];
+   output[flat] = value;
+}
+
+__global__ void scatterAdaptiveWork(
+   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
+   const unsigned int* inclusiveScan, std::size_t scanItems) {
+   const std::size_t index = adaptiveThreadIndex();
+   if(index >= scanItems) return;
+   if(index < topology.atoms && runtime.atomisticAtomMask[index]) {
+      const unsigned int position = inclusiveScan[index] - 1;
+      runtime.activeAtomList[position] = static_cast<int>(index + 1);
+   }
+   if(index < topology.blocks && runtime.coarseBlockMask[index]) {
+      const unsigned int position = inclusiveScan[scanItems + index] - 1;
+      runtime.activeBlockList[position] = static_cast<int>(index + 1);
+   }
+   if(index < topology.atoms && runtime.interfaceAtomMask[index]) {
+      const unsigned int position = inclusiveScan[2 * scanItems + index] - 1;
+      runtime.interfaceAtomList[position] = static_cast<int>(index + 1);
+   }
+   if(index == 0) {
+      runtime.workCounts[0] = inclusiveScan[scanItems - 1];
+      runtime.workCounts[1] = inclusiveScan[2 * scanItems - 1];
+      runtime.workCounts[2] = inclusiveScan[3 * scanItems - 1];
+   }
 }
 
 } // namespace
@@ -1370,7 +1446,9 @@ std::size_t GpuAdaptiveRuntime::estimateBytes(const GpuAdaptiveTopologyInput& t,
       checkedAdd(total, r.selectorCriteria * t.blocks, sizeof(real)) &&
       checkedAdd(total, 3 * vectorState + scalarState, sizeof(real)) &&
       checkedAdd(total, 2 * t.atoms + t.blocks, sizeof(int)) &&
-      checkedAdd(total, 3, sizeof(unsigned int));
+      checkedAdd(total, 3, sizeof(unsigned int)) &&
+      checkedAdd(total, 6 * std::max(t.atoms, t.blocks),
+                 sizeof(unsigned int));
    if(!ok) throw std::overflow_error("GPU adaptive runtime memory estimate overflow");
    if(r.kernels.atomMoment) {
       std::size_t atomEnsembles = 0;
@@ -1484,6 +1562,9 @@ void GpuAdaptiveRuntime::allocate(const GpuAdaptiveTopologyInput& t,
    activeBlockList_.Allocate(b);
    interfaceAtomList_.Allocate(n);
    workCounts_.Allocate(3);
+   const auto scanItems = std::max(n, b);
+   compactionScanA_.Allocate(3 * scanItems);
+   compactionScanB_.Allocate(3 * scanItems);
    if(r.kernels.atomMoment) {
       const auto atomEnsembles = n * ensembles;
       const auto vectorState = 3 * channels * b * ensembles;
@@ -1644,11 +1725,42 @@ void GpuAdaptiveRuntime::refreshDeviceDescriptors() {
 }
 
 void GpuAdaptiveRuntime::launchCompaction() {
+   const std::size_t scanItems = std::max(atoms_, blocks_);
+   unsigned int* input = compactionScanA_.data();
+   unsigned int* output = compactionScanB_.data();
 #if defined(CUDA_V)
-   compactAdaptiveWork<<<1, 1, 0, stream_>>>(deviceTopology_, deviceRuntime_);
+   initializeAdaptiveWorkScan<<<
+      adaptiveGrid(scanItems), adaptiveThreads, 0, stream_>>>(
+      deviceTopology_, deviceRuntime_, input, scanItems);
 #elif defined(HIP_V)
-   hipLaunchKernelGGL(compactAdaptiveWork, dim3(1), dim3(1), 0, stream_,
-                      deviceTopology_, deviceRuntime_);
+   hipLaunchKernelGGL(
+      initializeAdaptiveWorkScan, dim3(adaptiveGrid(scanItems)),
+      dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
+      input, scanItems);
+#endif
+   for(std::size_t offset = 1; offset < scanItems;) {
+#if defined(CUDA_V)
+      scanAdaptiveWorkStep<<<
+         adaptiveGrid(3 * scanItems), adaptiveThreads, 0, stream_>>>(
+         input, output, scanItems, offset);
+#elif defined(HIP_V)
+      hipLaunchKernelGGL(
+         scanAdaptiveWorkStep, dim3(adaptiveGrid(3 * scanItems)),
+         dim3(adaptiveThreads), 0, stream_, input, output, scanItems, offset);
+#endif
+      std::swap(input, output);
+      if(offset > scanItems / 2) break;
+      offset *= 2;
+   }
+#if defined(CUDA_V)
+   scatterAdaptiveWork<<<
+      adaptiveGrid(scanItems), adaptiveThreads, 0, stream_>>>(
+      deviceTopology_, deviceRuntime_, input, scanItems);
+#elif defined(HIP_V)
+   hipLaunchKernelGGL(
+      scatterAdaptiveWork, dim3(adaptiveGrid(scanItems)),
+      dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
+      input, scanItems);
 #endif
    ASSERT_GPU(GPU_GET_LAST_ERROR());
 }
@@ -1736,11 +1848,21 @@ void GpuAdaptiveRuntime::evaluateSelectorScores(const real* atomDirection) {
    };
    ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
 #if defined(CUDA_V)
-   selectorAdaptiveScores<<<1, 1, 0, stream_>>>(
+   clearSelectorAdaptiveScores<<<
+      adaptiveGrid(blocks_), adaptiveThreads, 0, stream_>>>(
+      deviceTopology_, deviceRuntime_);
+   selectorAdaptiveScores<<<
+      adaptiveGrid(selectorEdges_ * ensembles_), adaptiveThreads, 0, stream_>>>(
       deviceTopology_, deviceRuntime_, kernels, atomDirection);
 #else
-   hipLaunchKernelGGL(selectorAdaptiveScores, dim3(1), dim3(1), 0, stream_,
-                      deviceTopology_, deviceRuntime_, kernels, atomDirection);
+   hipLaunchKernelGGL(
+      clearSelectorAdaptiveScores, dim3(adaptiveGrid(blocks_)),
+      dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_);
+   hipLaunchKernelGGL(
+      selectorAdaptiveScores,
+      dim3(adaptiveGrid(selectorEdges_ * ensembles_)),
+      dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
+      kernels, atomDirection);
 #endif
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.selectorMilliseconds);
@@ -1755,12 +1877,23 @@ void GpuAdaptiveRuntime::proposeSelectorState(
       throw std::invalid_argument("GPU adaptive selector coarsen threshold exceeds refine threshold");
    ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
 #if defined(CUDA_V)
-   proposeAdaptiveState<<<1, 1, 0, stream_>>>(
+   proposeAdaptiveState<<<
+      adaptiveGrid(blocks_), adaptiveThreads, 0, stream_>>>(
       deviceTopology_, deviceRuntime_, policy, hardAtomisticBlockMask);
+   if(policy.bufferDilationBlocks > 0)
+      dilateAdaptiveState<<<
+         adaptiveGrid(blocks_), adaptiveThreads, 0, stream_>>>(
+         deviceTopology_, deviceRuntime_, policy);
 #else
-   hipLaunchKernelGGL(proposeAdaptiveState, dim3(1), dim3(1), 0, stream_,
-                      deviceTopology_, deviceRuntime_, policy,
-                      hardAtomisticBlockMask);
+   hipLaunchKernelGGL(
+      proposeAdaptiveState, dim3(adaptiveGrid(blocks_)),
+      dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
+      policy, hardAtomisticBlockMask);
+   if(policy.bufferDilationBlocks > 0)
+      hipLaunchKernelGGL(
+         dilateAdaptiveState, dim3(adaptiveGrid(blocks_)),
+         dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
+         policy);
 #endif
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.selectorMilliseconds);
@@ -2059,6 +2192,8 @@ void GpuAdaptiveRuntime::release() {
    freeIfAllocated(projectionWeight_);
    freeIfAllocated(projectionBlock_);
    freeIfAllocated(atomMoment_);
+   freeIfAllocated(compactionScanB_);
+   freeIfAllocated(compactionScanA_);
    freeIfAllocated(workCounts_);
    freeIfAllocated(interfaceAtomList_);
    freeIfAllocated(activeBlockList_);

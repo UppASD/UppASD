@@ -318,7 +318,7 @@ private:
    GpuTensor<real, 1> coarseMoment_, coarseDirection_, coarseField_;
    GpuTensor<real, 1> channelMomentSum_;
    GpuTensor<int, 1> activeAtomList_, activeBlockList_, interfaceAtomList_;
-   GpuTensor<unsigned int, 1> workCounts_;
+   GpuTensor<unsigned int, 1> workCounts_, compactionScanA_, compactionScanB_;
 
    // CG-10 immutable operator data and preflight-visible scratch.
    std::size_t bonds_ = 0;

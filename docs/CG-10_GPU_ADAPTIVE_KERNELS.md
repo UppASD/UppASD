@@ -35,6 +35,14 @@ atomic additions.  Ordered launches separate zeroing, derivative assembly,
 local field conversion, all-grid dipole addition, and writeback so no
 cross-grid synchronization is assumed.
 
+Selector scoring now clears scores in parallel and evaluates
+edge/ensemble work items with an exact nonnegative atomic maximum.  State
+proposal and target-centric buffer dilation use separate ordered launches,
+preserving the serial proposal/dilation semantics without write races.
+Compaction uses a stable three-channel inclusive scan for active atoms,
+active blocks, and interface atoms followed by ordered one-based scatter.
+Both scan buffers are tracked allocations included in memory preflight.
+
 ## Physics and state contracts
 
 The device implementation retains the CPU definitions:
@@ -221,12 +229,15 @@ On the post-optimization acceptance run, paired feature-off medians were
 delta with zero inventory change.  This passes the 3%/three-MAD feature-off
 budget.
 
-At the 50% requested fine fraction, selector wall time was 6028.28 us and
-compaction wall time was 720.69 us per update.  Their absolute costs remain
-separately visible; together they are 31.15% of the now-faster 21664.54 us
-mixed field step.  Compaction transferred 8192 mask bytes per update.
-Selector device time was 6019.22 us; compaction device time was 714.21 us,
-including 711.97 us of localized host wait.
+Before control-phase tuning, at the 50% requested fine fraction selector wall
+time was 5990.19 us and compaction wall time was 725.77 us per update,
+together 31.00% of the mixed field step.  After parallel selector and stable
+scan compaction, selector wall time is 25.05 us and compaction wall time is
+41.58 us: approximately 239x and 17.5x faster, respectively.  Their combined
+overhead is 0.308% of the 21668.22 us mixed field step.  Selector device time
+is 15.96 us; compaction device time is 35.56 us, including 14.56 us of
+localized host wait.  Compaction still transfers exactly 8192 mask bytes per
+update.
 
 The post-optimization crossover is accepted at a 0.813232 active-DOF ratio.
 The all-atomistic median was 40705.61 us with a 2.81 us MAD; the crossover

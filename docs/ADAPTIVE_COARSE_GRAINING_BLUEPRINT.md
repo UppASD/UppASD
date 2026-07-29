@@ -1726,11 +1726,13 @@ with the three-MAD uncertainty well inside the 2% acceptance margin.  The
 zero-fine median was 2368.32 us.
 
 The accepted rerun measured a +0.023% paired feature-off delta with zero
-inventory change.  At the 50% requested fine fraction, selector plus
-compaction took 31.15% of the now-faster mixed field step (6028.28 us
-selector wall time and 720.69 us compaction wall time per update).  Optimized
-fp64 and fp32 parity fixtures pass, Compute Sanitizer reports zero errors, and
-the fp64 FFT dipole suite still passes.
+inventory change.  A subsequent parallel selector and stable scan compaction
+pass reduced selector wall time from 5990.19 us to 25.05 us and compaction
+wall time from 725.77 us to 41.58 us.  Together they take 0.308% of the mixed
+field step instead of 31.00%, while preserving the 1.3017x active-DOF
+crossover.  The scan buffers are tracked by memory preflight.  Optimized fp64
+and fp32 parity fixtures pass, Compute Sanitizer reports zero errors, and the
+fp64 FFT dipole suite still passes.
 
 ---
 
