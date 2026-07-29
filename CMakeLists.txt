@@ -895,6 +895,17 @@ if(BUILD_TESTING)
    target_link_libraries(coarse_tensor_operator_tests PRIVATE ${UppASD_LIB})
    add_test(NAME coarse-graining-tensor-operator COMMAND coarse_tensor_operator_tests)
 
+   # CG-11 controlled two-sublattice CPU reference.  This target intentionally
+   # has no GPU dependency: GPU enablement remains blocked on this diagnostic
+   # gate and an independent physics review.
+   add_executable(multichannel_coarse_tensor_operator_tests
+      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_multichannel_coarse_tensor_operator.f90)
+   set_target_properties(multichannel_coarse_tensor_operator_tests PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/multichannel_coarse_tensor_operator_tests)
+   target_link_libraries(multichannel_coarse_tensor_operator_tests PRIVATE ${UppASD_LIB})
+   add_test(NAME coarse-graining-multichannel-tensor-operator
+      COMMAND multichannel_coarse_tensor_operator_tests)
+
    # CG-05 CPU smooth projection: normalized trilinear prolongation, exact
    # adjoint restriction, read-only atomistic bilinear bonds, and spiral checks.
    add_executable(smooth_projected_operator_tests

@@ -197,6 +197,7 @@ module stiffness
    public :: extract_coarse_material
    public :: extract_coarse_material_from_uppasd
    public :: validate_coarse_material_small_q
+   public :: validate_coarse_material_two_sublattice_modes
    public :: coarse_material_runtime_status
    public
 
@@ -1201,6 +1202,80 @@ contains
    end subroutine validate_coarse_material_small_q
 
    !---------------------------------------------------------------------------
+   !> Validate the q=0 acoustic and optical frequencies of the deliberately
+   !> limited two-sublattice reference model.  The caller supplies frequencies
+   !> independently obtained from an atomistic Hamiltonian or an accepted
+   !> small-q dynamical matrix.  For E_loc=L_12 m_1.m_2 the reference has a
+   !> zero acoustic frequency and
+   !>
+   !> |L_12| V_cell/mu_B (gamma_1/M_1 + gamma_2/M_2)
+   !>
+   !> for the relative (optical) rotation.  This is intentionally not a
+   !> general alloy or finite-temperature reduction.
+   !---------------------------------------------------------------------------
+   subroutine validate_coarse_material_two_sublattice_modes(material, &
+         atomistic_acoustic_frequency_per_s, atomistic_optical_frequency_per_s, &
+         relative_tolerance, status, diagnostic)
+      type(coarse_material_type), intent(inout) :: material
+      real(dblprec), intent(in) :: atomistic_acoustic_frequency_per_s
+      real(dblprec), intent(in) :: atomistic_optical_frequency_per_s
+      real(dblprec), intent(in) :: relative_tolerance
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: diagnostic
+
+      real(dblprec) :: expected_optical, acoustic_scale, optical_scale
+
+      status = COARSE_MATERIAL_INVALID_INPUT
+      diagnostic = ''
+      if (.not. material%ready .or. material%n_channels /= 2 .or. &
+          .not. allocated(material%local_exchange) .or. &
+          .not. allocated(material%channel_moment_mub) .or. &
+          .not. allocated(material%channel_gamma) .or. &
+          .not. allocated(material%channel_damping)) then
+         diagnostic = 'Two-sublattice mode validation requires a ready two-channel material'
+         return
+      end if
+      if (.not. material%diagnostics%channel_dynamics_parameters_validated .or. &
+          .not. all(ieee_is_finite(material%local_exchange)) .or. &
+          .not. ieee_is_finite(atomistic_acoustic_frequency_per_s) .or. &
+          .not. ieee_is_finite(atomistic_optical_frequency_per_s) .or. &
+          .not. ieee_is_finite(relative_tolerance) .or. relative_tolerance < 0.0_dblprec) then
+         diagnostic = 'Two-sublattice mode inputs must be finite and dynamics parameters accepted'
+         return
+      end if
+      if (any(material%channel_moment_mub <= 0.0_dblprec) .or. &
+          any(material%channel_gamma <= 0.0_dblprec) .or. &
+          any(material%channel_damping < 0.0_dblprec)) then
+         diagnostic = 'Two-sublattice mode validation requires positive moments/gamma and nonnegative damping'
+         return
+      end if
+
+      expected_optical = abs(material%local_exchange(1,2)) * material%cell_volume_m3 / &
+         COARSE_MUB_SI * (material%channel_gamma(1)/material%channel_moment_mub(1) + &
+                          material%channel_gamma(2)/material%channel_moment_mub(2))
+      acoustic_scale = max(1.0_dblprec,abs(atomistic_optical_frequency_per_s))
+      optical_scale = max(1.0_dblprec,abs(expected_optical), &
+         abs(atomistic_optical_frequency_per_s))
+      material%diagnostics%acoustic_mode_extraction_validated = &
+         abs(atomistic_acoustic_frequency_per_s) <= relative_tolerance*acoustic_scale
+      material%diagnostics%optical_mode_extraction_validated = &
+         abs(atomistic_optical_frequency_per_s-expected_optical) <= &
+         relative_tolerance*optical_scale
+      material%diagnostics%mode_extraction = COARSE_MODE_EXTRACTION_UNVALIDATED
+      if (material%diagnostics%acoustic_mode_extraction_validated .and. &
+          material%diagnostics%optical_mode_extraction_validated) then
+         material%diagnostics%mode_extraction = COARSE_MODE_EXTRACTION_ACOUSTIC_OPTICAL
+         material%diagnostics%runtime_gate_reason = ''
+         status = COARSE_MATERIAL_OK
+      else
+         material%diagnostics%runtime_gate_reason = &
+            'two-sublattice atomistic acoustic/optical frequencies disagree with local-exchange dynamics'
+         status = COARSE_MATERIAL_VALIDATION_FAILED
+         diagnostic = material%diagnostics%runtime_gate_reason
+      end if
+   end subroutine validate_coarse_material_two_sublattice_modes
+
+   !---------------------------------------------------------------------------
    !> Explicit runtime capability gate.  CG-03 intentionally has no operation
    !> that marks acoustic/optical extraction as validated; that belongs to the
    !> later reviewed multi-channel task.
@@ -1232,6 +1307,8 @@ contains
       case (COARSE_RUNTIME_FERRI_AFM)
          if (material%n_channels < 2) then
             diagnostic = 'Ferri/AFM runtime requires at least two explicit dynamical channels'
+         else if (.not. material%diagnostics%channel_dynamics_parameters_validated) then
+            diagnostic = 'Ferri/AFM runtime requires positive channel gamma and nonnegative damping'
          else if (material%diagnostics%mode_extraction /= &
                   COARSE_MODE_EXTRACTION_ACOUSTIC_OPTICAL .or. &
                   .not. material%diagnostics%acoustic_mode_extraction_validated .or. &

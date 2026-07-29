@@ -1762,16 +1762,28 @@ fp64 FFT dipole suite still passes.
 
 #### Checklist
 
-- [ ] Channel map can merge multiple basis sites explicitly.
-- [ ] Nonmagnetic basis sites are excluded.
-- [ ] Intersublattice exchange sign and field derivative pass.
-- [ ] AFM zero-net-moment blocks remain numerically valid.
-- [ ] Acoustic and optical modes match atomistic results.
-- [ ] Per-channel \(\gamma\) and damping are defined.
+- [x] Channel map can merge multiple basis sites explicitly.
+- [x] Nonmagnetic basis sites are excluded.
+- [x] Intersublattice exchange sign and field derivative pass.
+- [x] AFM zero-net-moment blocks remain numerically valid.
+- [x] Acoustic and optical modes match atomistic results.
+- [x] Per-channel \(\gamma\) and damping are defined.
 - [ ] FFT source moment equals channel sum under its mapping.
-- [ ] CPU reference passes before GPU enablement.
-- [ ] At least one ferri/AFM texture benchmark passes.
+- [x] CPU reference passes before GPU enablement.
+- [x] At least one ferri/AFM texture benchmark passes.
 - [ ] Human physics acceptance is recorded.
+
+**CG-11 evidence (controlled two-sublattice CPU reference):**
+`MultiChannelCoarseTensorOperator` retains directions, block moments, gamma,
+and damping as independent `(channel,block)` quantities.  Its setup is gated
+by an explicit two-sublattice acoustic/optical diagnostic; it does not enable
+GPU, adaptive, finite-temperature, interface, restart, dipole, or general
+alloy paths.  `multichannel_coarse_tensor_operator_tests` covers the signed
+local field derivative, finite zero-net AFM blocks and torques, accepted
+acoustic/optical reference frequencies, and a channel-resolved AFM wall
+texture.  The FFT channel-sum contract and independent human physics
+acceptance remain required before a production multi-channel runtime is
+enabled.
 
 ---
 
