@@ -1927,7 +1927,7 @@ input and end-to-end tests; Human for the exposed capability boundary
       all-coarse, static mixed, and adaptive mixed input files.
 - [ ] Negative executable tests cover malformed auxiliary files and every
       unsupported capability class exposed by the input surface.
-- [ ] At least one executable CPU case and one available GPU-backend case
+- [x] At least one executable CPU case and one available GPU-backend case
       demonstrate reduced active integration and short-range Hamiltonian work,
       rather than only successful adaptive allocation.
 - [x] Existing feature-off CPU/GPU, FFT dipole, and μASD regression results
@@ -1941,9 +1941,11 @@ CPU dispatch live in `adaptivecgproduction.f90`, `uppasd.f90`, and
 `sd_driver.f90`; GPU staging and real-loop dispatch live in `chelper.f90`,
 `fortranData.*`, `gpuSimulation.*`, and `gpuSDSimulation.cpp`. The normal
 binary cases under `tests/coarse_graining/e2e` prove CPU active-work
-reduction. CUDA fp64/fp32 production builds and the CUDA regression suite pass
-on the validation host; executable device cases skip with an explicit reason
-when no CUDA device is installed. Boxes requiring measured device
+reduction. On 2026-07-29 the CUDA production executable cases ran on the
+validation host (without taking the no-device skip), proved compact static
+work and a decreasing adaptive active-atom count, and emitted
+`CG-10.5 GPU production executable tests passed`; the device adaptive-runtime
+test and all 21 CUDA CTests also passed. Boxes requiring measured device
 trajectories/parity, enabled FFT coupling, exhaustive negative fixtures, or
 full timing/energy-jump observability remain open rather than being inferred
 from compilation.
