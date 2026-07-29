@@ -15,8 +15,9 @@
 !> * a tensor gradient density is owned iff its complete stencil is coarse;
 !> * an on-site term is owned by the active representation of its block.
 !>
-!> The regular-grid FFT dipole remains an independent all-grid owner.  Dynamic
-!> mask switching is outside this module.
+!> The regular-grid FFT dipole remains an independent all-grid owner.  A
+!> validated mask may be rebuilt between complete integration steps by the
+!> adaptive CPU orchestration layer.
 !-------------------------------------------------------------------------------
 module StaticHybridOperator
 
@@ -73,6 +74,7 @@ module StaticHybridOperator
    end type static_hybrid_operator_type
 
    public :: setup_static_hybrid_operator
+   public :: rebuild_static_hybrid_ownership
    public :: evaluate_static_hybrid_operator
 
 contains
@@ -92,8 +94,7 @@ contains
       character(len=*), intent(out) :: diagnostic
       logical, intent(in), optional :: active_bond(:)
 
-      integer :: atom, block, bond, seed
-      integer :: delta(3), periodic_delta(3)
+      integer :: block, bond
       real(dblprec) :: inverse_block_m1(3,3), fractional_radius
 
       operator%ready = .false.
@@ -185,9 +186,53 @@ contains
             safety_dilation_blocks
       end do
 
-      operator%atomistic_block = operator%fine_seed
+      operator%ready = .true.
+      call rebuild_static_hybrid_ownership(operator,topology,fine_mask,status,diagnostic)
+      if (status /= STATIC_HYBRID_OK) operator%ready = .false.
+   end subroutine setup_static_hybrid_operator
+
+   !> Rebuild all mask-derived work ownership without changing immutable
+   !> interaction/operator data.  The caller applies this only to a temporary
+   !> operator and publishes that copy after a transition has passed its energy
+   !> check, so a rejected transition cannot corrupt the active dispatch.
+   subroutine rebuild_static_hybrid_ownership(operator,topology,fine_mask,status,diagnostic)
+      type(static_hybrid_operator_type), intent(inout) :: operator
+      type(block_topology_type), intent(in) :: topology
+      logical, intent(in) :: fine_mask(:)
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: diagnostic
+
+      integer :: atom, block, bond, seed
+      integer :: delta(3), periodic_delta(3)
+
+      status = STATIC_HYBRID_INVALID_STATE
+      diagnostic = ''
+      if (.not. operator%ready .or. .not. topology%ready .or. &
+          topology%geometry_mode /= REGULAR_REPLICATED_CELL .or. &
+          topology%n_atoms /= operator%n_atoms .or. &
+          topology%n_spatial_blocks /= operator%n_blocks) then
+         diagnostic = 'Hybrid ownership rebuild requires matching ready operator and topology'
+         return
+      end if
+      if (size(fine_mask) /= operator%n_blocks) then
+         status = STATIC_HYBRID_INVALID_MASK
+         diagnostic = 'Adaptive fine mask must have length nblocks'
+         return
+      end if
+      if (.not. allocated(operator%fine_seed) .or. &
+          .not. allocated(operator%atomistic_block) .or. &
+          .not. allocated(operator%coarse_block) .or. &
+          .not. allocated(operator%block_state) .or. &
+          .not. allocated(operator%atomistic_atom) .or. &
+          .not. allocated(operator%atomistic_bond_owner)) then
+         diagnostic = 'Hybrid ownership arrays are not initialized'
+         return
+      end if
+
+      operator%fine_seed = fine_mask
+      operator%atomistic_block = fine_mask
       do seed = 1, operator%n_blocks
-         if (.not. operator%fine_seed(seed)) cycle
+         if (.not. fine_mask(seed)) cycle
          do block = 1, operator%n_blocks
             delta = abs(topology%block_grid_coordinate(:,block) - &
                topology%block_grid_coordinate(:,seed))
@@ -200,7 +245,7 @@ contains
       operator%coarse_block = .not. operator%atomistic_block
       operator%block_state = STATIC_HYBRID_COARSE
       where (operator%atomistic_block) operator%block_state = STATIC_HYBRID_BUFFER
-      where (operator%fine_seed) operator%block_state = STATIC_HYBRID_FINE
+      where (fine_mask) operator%block_state = STATIC_HYBRID_FINE
 
       do atom = 1, operator%n_atoms
          operator%atomistic_atom(atom) = operator%atomistic_block( &
@@ -211,10 +256,8 @@ contains
             (operator%atomistic_atom(operator%bond_atom(1,bond)) .or. &
              operator%atomistic_atom(operator%bond_atom(2,bond)))
       end do
-
-      operator%ready = .true.
       status = STATIC_HYBRID_OK
-   end subroutine setup_static_hybrid_operator
+   end subroutine rebuild_static_hybrid_ownership
 
    subroutine evaluate_static_hybrid_operator(operator,fine_direction,coarse_direction, &
          bond_matrix_j,fine_field_t,coarse_field_t,energies,status,diagnostic, &

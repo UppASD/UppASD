@@ -1584,17 +1584,25 @@ periodic/non-periodic dilation, and deterministic replay.
 
 #### Checklist
 
-- [ ] Restriction conserves channel moment vector.
-- [ ] Compensated multi-channel data does not normalize a net zero vector.
-- [ ] Aligned reconstruction is exact.
-- [ ] Cone reconstruction matches the requested resultant.
-- [ ] Seeds and replay are deterministic.
-- [ ] Failed transitions leave the previous state intact.
-- [ ] Energy jumps are measured and logged.
-- [ ] Repeated transitions preserve topology invariants.
-- [ ] Domain-wall adaptive benchmark passes.
-- [ ] Skyrmion adaptive benchmark passes.
-- [ ] No transition occurs inside predictor/corrector stages.
+- [x] Restriction conserves channel moment vector.
+- [x] Compensated multi-channel data does not normalize a net zero vector.
+- [x] Aligned reconstruction is exact.
+- [x] Cone reconstruction matches the requested resultant.
+- [x] Seeds and replay are deterministic.
+- [x] Failed transitions leave the previous state intact.
+- [x] Energy jumps are measured and logged.
+- [x] Repeated transitions preserve topology invariants.
+- [x] Domain-wall adaptive benchmark passes.
+- [x] Skyrmion adaptive benchmark passes.
+- [x] No transition occurs inside predictor/corrector stages.
+
+**CG-08 evidence:** `AdaptiveHybridSolver` applies selector proposals
+transactionally at complete-step synchronization points, rebuilds the CG-06
+mask-derived lists and ownership after acceptance, and energy-gates every
+candidate.  Its focused CPU test covers channel-resolved restriction,
+compensation, aligned and constrained-cone reconstruction, deterministic
+tuple-derived seeds, rollback, energy logging, repeated wall transitions, and
+a skyrmion transition.
 
 ---
 

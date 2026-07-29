@@ -46,7 +46,7 @@ contains
          'maximum neighbour misalignment contributes to both endpoint blocks')
       call check(all(runtime%resolution_state == before), &
          'criteria do not mutate the block runtime')
-      call check(all(evaluation%refine == .false.) .and. all(evaluation%coarsen), &
+      call check(all(.not. evaluation%refine) .and. all(evaluation%coarsen), &
          'score criterion returns data rather than state requests')
    end subroutine test_misalignment_registry_is_read_only
 
@@ -129,15 +129,16 @@ contains
          transition_log, status, diagnostic)
       call check(status == SELECTOR_OK .and. all(runtime%resolution_state == &
          (/RESOLUTION_ATOMISTIC,RESOLUTION_COARSE/)), 'static mask works without score evaluation')
-      call check(all(requests%refine == (/.true.,.false./)) .and. all(requests%coarsen == (/.false.,.true./)), &
+      call check(all(requests%refine .eqv. (/.true.,.false./)) .and. &
+         all(requests%coarsen .eqv. (/.false.,.true./)), &
          'static criterion participates in OR-refine and AND-coarsen policy')
 
       ! An additional high score can request refinement, but static exclusion
       ! still vetoes coarsening only where its mask is set.
       call append_synthetic_row(evaluation, (/0.10_c_double,0.90_c_double/))
       call combine_selector_requests(evaluation, configuration, requests, status, diagnostic)
-      call check(all(requests%refine == (/.true.,.true./)) .and. &
-         all(requests%coarsen == (/.false.,.false./)), 'multiple criteria combine as specified')
+      call check(all(requests%refine .eqv. (/.true.,.true./)) .and. &
+         all(requests%coarsen .eqv. (/.false.,.false./)), 'multiple criteria combine as specified')
    end subroutine test_static_mask_and_combination
 
    subroutine test_hard_exclusion_and_buffer_dilation()

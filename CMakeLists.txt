@@ -925,6 +925,17 @@ if(BUILD_TESTING)
       Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/block_selector_tests)
    add_test(NAME coarse-graining-block-selector COMMAND block_selector_tests)
 
+   # CG-08 transactional adaptive CPU orchestration: channel restriction,
+   # deterministic reconstruction, energy-gated rollback, safe compaction,
+   # complete-step timing, and representative texture transitions.
+   add_executable(adaptive_hybrid_solver_tests
+      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_adaptive_hybrid_solver.f90)
+   set_target_properties(adaptive_hybrid_solver_tests PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/adaptive_hybrid_solver_tests)
+   target_link_libraries(adaptive_hybrid_solver_tests PRIVATE ${UppASD_LIB})
+   add_test(NAME coarse-graining-adaptive-hybrid-solver
+      COMMAND adaptive_hybrid_solver_tests)
+
    # Luna's host-only OPEN_FFT oracle has no UppASD, FFT, CUDA, or HIP
    # dependency.  Keep it runnable before the production open builder exists.
    add_test(NAME dipole-open-fft-oracle
