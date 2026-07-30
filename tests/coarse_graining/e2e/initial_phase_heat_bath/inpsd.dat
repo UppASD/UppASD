@@ -1,4 +1,4 @@
-simid cg105badip
+simid cg105hb
 ncell 6 2 2
 BC P P P
 cell 1.0 0.0 0.0
@@ -10,14 +10,15 @@ momfile ../momfile
 exchange ../jfile
 SDEalgh 1
 Initmag 3
+mseed 48117
 Mensemble 1
-ip_mode M
-ip_temp 100.0
-ip_mcnstep 1
+ip_mode H
+ip_mcanneal 1
+40 100.0
 mode S
 temp 0.0
 damping 0.05
-Nstep 1
+Nstep 2
 do_avrg N
 do_cumu N
 do_tottraj N
@@ -28,4 +29,12 @@ block_size_y 2
 block_size_z 2
 cg_operator PROJECTED
 cg_mask_mode ADAPTIVE
-cg_diagnostics 1
+cg_selector MAX_ANGLE
+cg_refine_threshold 2.00
+cg_coarsen_threshold 1.99
+cg_update_interval 1
+cg_minimum_dwell_updates 0
+cg_buffer_blocks 0
+cg_reconstruction ALIGNED
+cg_energy_jump_limit 1.0e9
+cg_diagnostics 3

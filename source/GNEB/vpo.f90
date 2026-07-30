@@ -331,7 +331,7 @@ contains
 
       fv = sum(vel(:)*f(:))
       fd = sum(f(:)*f(:))
-      if (fv<0.0_dblprec) then
+      if (fv<0.0_dblprec .or. fd<=tiny(1.0_dblprec)) then
          vel(:)=0.0_dblprec
       else
          vel(:)=f(:)*fv/fd
@@ -366,7 +366,7 @@ contains
          end do
       end do
       !$omp end parallel do
-      if (fv<0.0_dblprec) then
+      if (fv<0.0_dblprec .or. fd<=tiny(1.0_dblprec)) then
          vel(:,:,:) = 0.0_dblprec
       else
          vel(:,:,:) = f(:,:,:)*fv/fd

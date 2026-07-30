@@ -1,0 +1,46 @@
+simid cg105qg
+ncell 6 2 2
+BC P P P
+cell 1.0 0.0 0.0
+     0.0 1.0 0.0
+     0.0 0.0 1.0
+Sym 1
+posfile ../posfile
+momfile ../momfile
+exchange ../jfile
+SDEalgh 1
+Initmag 3
+Mensemble 1
+ip_mode Q
+qpoints F
+qfile ../initial_phase_q/qfile
+qm_svec 0.0 1.0 0.0
+qm_nvec 0.0 0.0 1.0
+mode S
+temp 0.0
+damping 0.05
+Nstep 2
+do_avrg N
+do_cumu N
+do_tottraj N
+plotenergy 0
+gpu_mode 1
+do_gpu Y
+do_gpu_llg Y
+do_gpu_measurements N
+do_gpu_correlations N
+do_adaptive_cg Y
+block_size_x 1
+block_size_y 2
+block_size_z 2
+cg_operator PROJECTED
+cg_mask_mode ADAPTIVE
+cg_selector MAX_ANGLE
+cg_refine_threshold 0.80
+cg_coarsen_threshold 0.20
+cg_update_interval 1
+cg_minimum_dwell_updates 0
+cg_buffer_blocks 0
+cg_reconstruction ALIGNED
+cg_energy_jump_limit 1.0e9
+cg_diagnostics 3

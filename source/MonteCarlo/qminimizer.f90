@@ -1103,7 +1103,7 @@ contains
       end do
       close(ofileno)
       !
-      10003 format(es16.8,i8,i8,2x,es16.8,es16.8,es16.8,es16.8)
+      10003 format(i8,i8,i8,2x,es16.8,es16.8,es16.8,es16.8)
       !
       !
    end subroutine plot_cube

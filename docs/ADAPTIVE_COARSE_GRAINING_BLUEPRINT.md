@@ -1958,6 +1958,10 @@ initialization plus CPU/GPU `ip_mode S` handoff: capability preflight occurs
 before the atomistic initial phase, while topology/material/runtime
 construction consumes its completed moment state immediately before the
 measurement phase.
+The same post-initial-phase seam now validates and canonicalizes atomistic
+handoffs from `ip_mode M/H/Q/Y/Z/G`; executable fixtures retain nonuniform
+Q/Y/Z textures, cover GPU-MC-to-GPU-CG ownership transfer, and reject `X`
+before replica exchange begins.
 Exhaustive unsupported-capability negative fixtures remain open.
 
 ---

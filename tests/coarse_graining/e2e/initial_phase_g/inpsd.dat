@@ -1,0 +1,43 @@
+simid cg105g
+ncell 6 2 2
+BC P P P
+cell 1.0 0.0 0.0
+     0.0 1.0 0.0
+     0.0 0.0 1.0
+Sym 1
+posfile ../posfile
+momfile ../momfile
+exchange ../jfile
+SDEalgh 1
+Initmag 2
+mseed 48117
+theta0 1.2
+phi0 6.283185307179586
+Mensemble 1
+ip_mode G
+min_itrmax 4
+mintraj_step 1
+min_ftol 1.0e-20
+mode S
+temp 0.0
+damping 0.05
+Nstep 2
+do_avrg N
+do_cumu N
+do_tottraj N
+plotenergy 0
+do_adaptive_cg Y
+block_size_x 1
+block_size_y 2
+block_size_z 2
+cg_operator PROJECTED
+cg_mask_mode ADAPTIVE
+cg_selector MAX_ANGLE
+cg_refine_threshold 2.00
+cg_coarsen_threshold 1.99
+cg_update_interval 1
+cg_minimum_dwell_updates 0
+cg_buffer_blocks 0
+cg_reconstruction ALIGNED
+cg_energy_jump_limit 1.0e9
+cg_diagnostics 3

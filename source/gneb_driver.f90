@@ -77,13 +77,20 @@ contains
          !!!    macro_nlistsize,mmom(:,1:Mensemble:(Mensemble-1)),                          &
          !!!    emom(:,:,1:Mensemble:(Mensemble-1)),emomM_macro,                            &
          !!!    emomM(:,:,1:Mensemble:(Mensemble-1)),NA,N1,N2,N3,mode,do_mom_legacy)
-         call vpo_min(nHam,mintraj_step,Natom,Nchmax,minitrmax,conf_num,2,     &
-            Num_macro,plotenergy,minftol,vpomass,vpodt,           &
-            simid,do_lsf,lsf_field,lsf_interpolate,cell_index,                          &
-            macro_nlistsize,mmom(:,1:Mensemble:(Mensemble-1)),                          &
-            emom(:,:,1:Mensemble:(Mensemble-1)),emomM_macro,                            &
-            external_field(:,:,1:Mensemble:(Mensemble-1)),energy,                  &
-            emomM(:,:,1:Mensemble:(Mensemble-1)),NA,N1,N2,N3,mode,do_mom_legacy)
+         if (Mensemble == 1) then
+            call vpo_min(nHam,mintraj_step,Natom,Nchmax,minitrmax,conf_num,1, &
+               Num_macro,plotenergy,minftol,vpomass,vpodt,simid,do_lsf,lsf_field, &
+               lsf_interpolate,cell_index,macro_nlistsize,mmom,emom,emomM_macro, &
+               external_field,energy,emomM,NA,N1,N2,N3,mode,do_mom_legacy)
+         else
+            call vpo_min(nHam,mintraj_step,Natom,Nchmax,minitrmax,conf_num,2, &
+               Num_macro,plotenergy,minftol,vpomass,vpodt,simid,do_lsf,lsf_field, &
+               lsf_interpolate,cell_index,macro_nlistsize, &
+               mmom(:,1:Mensemble:(Mensemble-1)), &
+               emom(:,:,1:Mensemble:(Mensemble-1)),emomM_macro, &
+               external_field(:,:,1:Mensemble:(Mensemble-1)),energy, &
+               emomM(:,:,1:Mensemble:(Mensemble-1)),NA,N1,N2,N3,mode,do_mom_legacy)
+         end if
 
       end if
       write (*,'(1x,a)') "Done"

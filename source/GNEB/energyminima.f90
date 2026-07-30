@@ -271,11 +271,19 @@ contains
       !------------------------------------------------------------------------------
       if (do_mom_legacy.ne.'Y') then
          if (prn_mode==0) then
-            call prn_mag_conf(Natom,0,2,'M',simid,mmom(:,1:Mensemble:(Mensemble-1)),&
-               emom(:,:,1:Mensemble:(Mensemble-1)),'_if_in',mode)
+            if (Mensemble == 1) then
+               call prn_mag_conf(Natom,0,1,'M',simid,mmom,emom,'_if_in',mode)
+            else
+               call prn_mag_conf(Natom,0,2,'M',simid,mmom(:,1:Mensemble:(Mensemble-1)),&
+                  emom(:,:,1:Mensemble:(Mensemble-1)),'_if_in',mode)
+            end if
          elseif (prn_mode==1) then
-            call prn_mag_conf(Natom,0,2,'M',simid,mmom(:,1:Mensemble:(Mensemble-1)),&
-               emom(:,:,1:Mensemble:(Mensemble-1)),'_if',mode)
+            if (Mensemble == 1) then
+               call prn_mag_conf(Natom,0,1,'M',simid,mmom,emom,'_if',mode)
+            else
+               call prn_mag_conf(Natom,0,2,'M',simid,mmom(:,1:Mensemble:(Mensemble-1)),&
+                  emom(:,:,1:Mensemble:(Mensemble-1)),'_if',mode)
+            end if
          else
             write (*,*) "Error writing initial and final states to file"
             stop
@@ -293,7 +301,7 @@ contains
             stop
          end if
          open(ofileno, file=filn, access = 'sequential',action = 'write', status = 'replace')
-         do i=1, Mensemble,(Mensemble-1)
+         do i=1,Mensemble,max(1,Mensemble-1)
             do j=1, Natom
                write (ofileno,10002) i, j, emom(1,j,i), emom(2,j,i), emom(3,j,i), mmom(j,i)
             end do

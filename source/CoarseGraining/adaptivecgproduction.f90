@@ -12,7 +12,7 @@ module AdaptiveCGProduction
    use Constants, only : gama, mub, pi
    use InputData
    use SystemData, only : coord, anumb, Landeg
-   use MomentData, only : emom, mmom, emomM
+   use MomentData, only : emom, emom2, mmom, mmom2, mmomi, emomM
    use HamiltonianData, only : ham
    use Damping, only : lambda1_array
    use macrocells, only : block_size_x, block_size_y, block_size_z
@@ -154,6 +154,8 @@ contains
       if (same_word(adaptive_cg%enabled,'N')) return
 
       call preflight_adaptive_cg_production(status,diagnostic)
+      if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
+      call validate_and_canonicalize_handoff(status,diagnostic)
       if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
       adaptive_cg_state%gpu_requested = affirmative(do_gpu) .and. affirmative(do_gpu_llg)
       adaptive_cg_state%adaptive_mask = same_word(adaptive_cg%mask_mode,'ADAPTIVE')
@@ -412,8 +414,8 @@ contains
       if (mode /= 'S') then
          call reject('mode: adaptive coarse graining supports spin dynamics (S) only',status,diagnostic); return
       end if
-      if (ipmode /= 'N' .and. ipmode /= 'S') then
-         call reject('ip_mode: adaptive coarse graining supports N or an atomistic SD handoff (S) only', &
+      if (.not. supported_initial_phase(ipmode)) then
+         call reject('ip_mode: adaptive CG supports N, S, M, H, Q, Y, Z, or G; X/SX and lattice/multiscale runners remain unsupported', &
             status,diagnostic); return
       end if
       if (initmag == 4) then
@@ -490,6 +492,83 @@ contains
          call reject('Landeg/do_site_damping: the single-FM path requires uniform gamma and damping',status,diagnostic); return
       end if
    end subroutine validate_configuration
+
+   subroutine validate_and_canonicalize_handoff(status,diagnostic)
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: diagnostic
+
+      real(dblprec), parameter :: norm_tolerance = 1.0d-5
+      real(dblprec), parameter :: vector_tolerance = 1.0d-5
+      real(dblprec) :: direction_norm, vector_error, vector_scale
+      real(dblprec) :: max_norm_error, max_vector_error
+      integer :: atom, ensemble
+
+      status = ADAPTIVE_CG_PRODUCTION_OK
+      diagnostic = ''
+      max_norm_error = 0.0_dblprec
+      max_vector_error = 0.0_dblprec
+      do ensemble = 1, Mensemble
+         do atom = 1, Natom
+            if (.not. ieee_is_finite(mmom(atom,ensemble)) .or. &
+                mmom(atom,ensemble) <= tiny(1.0_dblprec)) then
+               write(diagnostic,'(a,i0,a,i0)') &
+                  'initial-phase handoff has non-finite or non-positive mmom at atom ', &
+                  atom,' ensemble ',ensemble
+               status = ADAPTIVE_CG_PRODUCTION_REJECTED
+               return
+            end if
+            if (.not. all(ieee_is_finite(emom(:,atom,ensemble))) .or. &
+                .not. all(ieee_is_finite(emomM(:,atom,ensemble)))) then
+               write(diagnostic,'(a,i0,a,i0)') &
+                  'initial-phase handoff has non-finite moment components at atom ', &
+                  atom,' ensemble ',ensemble
+               status = ADAPTIVE_CG_PRODUCTION_REJECTED
+               return
+            end if
+            direction_norm = sqrt(sum(emom(:,atom,ensemble)**2))
+            if (.not. ieee_is_finite(direction_norm) .or. &
+                direction_norm <= tiny(1.0_dblprec)) then
+               write(diagnostic,'(a,i0,a,i0)') &
+                  'initial-phase handoff has a zero direction at atom ',atom, &
+                  ' ensemble ',ensemble
+               status = ADAPTIVE_CG_PRODUCTION_REJECTED
+               return
+            end if
+            max_norm_error = max(max_norm_error,abs(direction_norm-1.0_dblprec))
+            vector_error = sqrt(sum((emomM(:,atom,ensemble)- &
+               mmom(atom,ensemble)*emom(:,atom,ensemble))**2))
+            vector_scale = max(1.0_dblprec,abs(mmom(atom,ensemble)))
+            max_vector_error = max(max_vector_error,vector_error)
+            if (abs(direction_norm-1.0_dblprec) > norm_tolerance .or. &
+                vector_error > vector_tolerance*vector_scale) then
+               write(diagnostic,'(a,i0,a,i0,a,es12.4,a,es12.4)') &
+                  'initial-phase handoff violates fixed-length moment consistency at atom ', &
+                  atom,' ensemble ',ensemble,' norm_error=',abs(direction_norm-1.0_dblprec), &
+                  ' vector_error_mub=',vector_error
+               status = ADAPTIVE_CG_PRODUCTION_REJECTED
+               return
+            end if
+            emom(:,atom,ensemble) = emom(:,atom,ensemble)/direction_norm
+            emomM(:,atom,ensemble) = mmom(atom,ensemble)*emom(:,atom,ensemble)
+            mmomi(atom,ensemble) = 1.0_dblprec/mmom(atom,ensemble)
+         end do
+      end do
+      emom2 = emom
+      mmom2 = mmom
+      if (adaptive_cg%diagnostics >= 1) then
+         write(*,'(a,a,a,es12.4,a,es12.4)') &
+            'AdaptiveCG: handoff_state_validated mode=',trim(ipmode), &
+            ' max_norm_error=',max_norm_error, &
+            ' max_vector_error_mub=',max_vector_error
+      end if
+   end subroutine validate_and_canonicalize_handoff
+
+   logical function supported_initial_phase(candidate)
+      character(len=*), intent(in) :: candidate
+      supported_initial_phase = candidate == 'N' .or. candidate == 'S' .or. &
+         candidate == 'M' .or. candidate == 'H' .or. candidate == 'Q' .or. &
+         candidate == 'Y' .or. candidate == 'Z' .or. candidate == 'G'
+   end function supported_initial_phase
 
    subroutine adaptive_cg_cpu_step(step,atom_direction,atom_magnitude,atom_moment,status,diagnostic)
       integer, intent(in) :: step
@@ -915,11 +994,14 @@ contains
       write(*,'(a,a,a,a)') 'AdaptiveCG: channel_mode=',trim(adaptive_cg%channel_mode), &
          ' fft_source_mapping=basis-resolved-to-single-dynamical-channel'
       write(*,'(a,a)') 'AdaptiveCG: gpu_dipole_mode=',trim(gpu_dipole_mode)
-      if (ipmode == 'S') then
+      if (ipmode == 'N') then
+         write(*,'(a,i0)') 'AdaptiveCG: initial_state_source=initmag mode=',initmag
+      else if (ipmode == 'S') then
          write(*,'(a,i0,a)') 'AdaptiveCG: initial_state_source=completed_atomistic_sd phases=', &
             ipnphase,' (CG ownership begins after the initial phase)'
       else
-         write(*,'(a,i0)') 'AdaptiveCG: initial_state_source=initmag mode=',initmag
+         write(*,'(a,a,a)') 'AdaptiveCG: initial_state_source=completed_atomistic_', &
+            trim(ipmode),' (CG ownership begins after the initial phase)'
       end if
       write(*,'(a,3(i0,1x),a,3(i0,1x))') 'AdaptiveCG: block_size=',block_size_x,block_size_y,block_size_z, &
          ' block_grid=',adaptive_cg_state%topology%block_grid

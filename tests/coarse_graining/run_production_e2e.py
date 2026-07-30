@@ -110,10 +110,10 @@ def main() -> None:
     bad_temp = run_case(binary, root / "unsupported_temperature")
     assert bad_temp.returncode != 0
     assert "Temp/do_qhb/do_3tm" in bad_temp.stdout
-    bad_initial_phase = run_case(binary, root / "unsupported_initial_phase_mc")
+    bad_initial_phase = run_case(binary, root / "unsupported_initial_phase_x")
     assert bad_initial_phase.returncode != 0
     assert "ip_mode" in bad_initial_phase.stdout
-    assert "Performing MC initial phase" not in bad_initial_phase.stdout
+    assert "Calls parallel tempering" not in bad_initial_phase.stdout
 
     parity_cpu: dict[str, str] = {}
     for mode in ("static", "adaptive"):
@@ -142,6 +142,35 @@ def main() -> None:
         2.0e-12,
     )
     print("CG-10.5 Initmag=2 atomistic SD initial-phase handoff passed")
+
+    atomistic_initial_phases = {
+        "initial_phase_mc": ("M", "Performing MC initial phase:"),
+        "initial_phase_heat_bath": ("H", "Performing MC initial phase:"),
+        "initial_phase_q": ("Q", "Line search minimization done"),
+        "initial_phase_y": ("Y", "Line search minimization done"),
+        "initial_phase_z": ("Z", "Line search minimization done"),
+        "initial_phase_g": ("G", "Performing initial phase: energy minimization"),
+    }
+    atomistic_outputs: dict[str, str] = {}
+    for name, (ip_mode, runner_banner) in atomistic_initial_phases.items():
+        result = run_case(binary, root / name)
+        assert result.returncode == 0, f"{name}\n{result.stdout}"
+        assert runner_banner.lower() in result.stdout.lower()
+        assert f"handoff_state_validated mode={ip_mode}" in result.stdout
+        assert f"initial_state_source=completed_atomistic_{ip_mode}" in result.stdout
+        assert result.stdout.index("Enter initial phase:") < result.stdout.index(
+            "AdaptiveCG: capability accepted"
+        )
+        assert close(
+            float_metric(result.stdout, "direction_norm2"),
+            48.0,
+            2.0e-12,
+            2.0e-12,
+        )
+        atomistic_outputs[ip_mode] = result.stdout
+    for ip_mode in ("Q", "Y", "Z"):
+        assert abs(float_metric(atomistic_outputs[ip_mode], "direction_sum")) < 40.0
+    print("CG-10.5 M/H/Q/Y/Z/G validated atomistic handoffs passed")
 
     spiral = run_case(binary, root / "initmag_spin_spiral")
     assert spiral.returncode == 0, spiral.stdout
@@ -179,6 +208,32 @@ def main() -> None:
                 "GpuSDSimulation: SD initial phase starting"
             ) < initial_phase_gpu.stdout.index("AdaptiveCG: capability accepted")
             assert metric(initial_phase_gpu.stdout, "accepted_transitions") > 0
+            mc_initial_phase_gpu = run_case(
+                gpu_binary, root / "initial_phase_mc_gpu"
+            )
+            assert mc_initial_phase_gpu.returncode == 0, mc_initial_phase_gpu.stdout
+            assert "GpuMCSimulation: MC initial phase starting" in (
+                mc_initial_phase_gpu.stdout
+            )
+            assert "handoff_state_validated mode=M" in mc_initial_phase_gpu.stdout
+            assert "initial_state_source=completed_atomistic_M" in (
+                mc_initial_phase_gpu.stdout
+            )
+            assert mc_initial_phase_gpu.stdout.index(
+                "GpuMCSimulation: MC initial phase starting"
+            ) < mc_initial_phase_gpu.stdout.index("AdaptiveCG: capability accepted")
+            q_initial_phase_gpu = run_case(
+                gpu_binary, root / "initial_phase_q_gpu"
+            )
+            assert q_initial_phase_gpu.returncode == 0, q_initial_phase_gpu.stdout
+            assert "line search minimization done" in q_initial_phase_gpu.stdout.lower()
+            assert "handoff_state_validated mode=Q" in q_initial_phase_gpu.stdout
+            assert "initial_state_source=completed_atomistic_Q" in (
+                q_initial_phase_gpu.stdout
+            )
+            assert q_initial_phase_gpu.stdout.index(
+                "Enter initial phase:"
+            ) < q_initial_phase_gpu.stdout.index("AdaptiveCG: capability accepted")
             static_active = metric(gpu_outputs["gpu_static_mixed"], "active_atoms")
             adaptive_counts = [
                 int(value)

@@ -53,12 +53,44 @@ Supported starting-state modes are `Initmag 1` (random), `2` (random cone),
 `Initmag 4` remains a restart and is rejected until adaptive state
 serialization exists.
 
-`ip_mode S` is also supported as an atomistic preparation stage. Its
-`ip_nphase` rows use the ordinary `steps, temperature, timestep, damping`
-format. Adaptive ownership is not active during this stage: the final atomic
-moments are handed off at the start of the measurement phase, when CG derives
-its coarse moments and initial selector state. Other `ip_mode` runners remain
-outside the accepted boundary.
+Spin-only atomistic preparation accepts `ip_mode S`, `M`, `H`, `Q`, `Y`, `Z`,
+and `G`. Adaptive ownership is not active during these stages: the final
+atomic moments are validated and handed off at the start of the measurement
+phase, when CG derives its coarse moments and initial selector state.
+
+For SD preparation, `ip_nphase` rows use the ordinary
+`steps, temperature, timestep, damping` format:
+
+```text
+ip_mode S
+ip_nphase 1
+1000 300.0 1.0e-16 0.15
+```
+
+Metropolis and heat-bath preparation use the MC annealing rows:
+
+```text
+ip_mode M
+ip_mcanneal 2
+1000 300.0
+1000 50.0
+```
+
+Change `M` to `H` for heat-bath updates. `Q`, `Y`, and `Z` use the ordinary
+q-point and q-minimizer keywords; for example:
+
+```text
+ip_mode Q
+qpoints F
+qfile qfile
+qm_svec 0.0 1.0 0.0
+qm_nvec 0.0 0.0 1.0
+```
+
+Use `G` for VPO energy minimization, with controls such as `min_itrmax`,
+`mintraj_step`, `min_ftol`, `vpodt`, and `vpomass`. `X` and `SX`
+replica-exchange runners, lattice/spin-lattice runners, and multiscale
+preparation remain outside the accepted boundary.
 
 The current production boundary requires periodic boundaries, scalar
 Heisenberg exchange, zero temperature, fixed-length deterministic Heun
