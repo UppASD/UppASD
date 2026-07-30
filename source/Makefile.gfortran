@@ -57,7 +57,12 @@ OBJS=   parameters.o constants.o profiling.o stdtypes.o mtprng.o inputdata.o ran
 	latticeinit.o latticeprinthamiltonian.o latticehamiltonianinit.o latticefielddata.o \
 	latticehamiltonianactions.o latticespectra.o verlet.o \
 	hamiltonianinit.o updatemoments.o energy.o calculatefields.o evolution.o applyhamiltonian.o \
-	damping.o printinput.o hamiltonianactions.o qminimizer.o tools.o vpo.o pathinit.o energyminima.o gneb.o hermitelib.o 0sd.o 
+	damping.o printinput.o hamiltonianactions.o qminimizer.o tools.o vpo.o pathinit.o energyminima.o gneb.o hermitelib.o \
+	CoarseGraining/blocktopology.o CoarseGraining/blockselector.o \
+	CoarseGraining/coarsetensoroperator.o CoarseGraining/multichannelcoarsetensoroperator.o \
+	CoarseGraining/smoothprojectedoperator.o CoarseGraining/statichybridoperator.o \
+	CoarseGraining/adaptivehybridsolver.o CoarseGraining/macrocells.o \
+	CoarseGraining/hamiltonianmacroblocks.o CoarseGraining/adaptivecgproduction.o 0sd.o
 
 
 $(PROG): $(OBJS) 
@@ -69,6 +74,9 @@ $(PROG): $(OBJS)
 
 %.o : %.f90
 	$(FC) $(FFLAGS) -c $^
+
+CoarseGraining/%.o : CoarseGraining/%.f90
+	$(FC) $(FFLAGS) -c $< -o $@
 
 %.f90 : %.F90
 	cpp $(PARALLEL) -P -C $^ $@

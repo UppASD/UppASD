@@ -1,0 +1,56 @@
+name: Adaptive CG clean CPU build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  clean-cpu:
+    name: Clean CPU configure and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            cmake gfortran make libopenblas-dev liblapack-dev libfftw3-dev
+
+      - name: Verify tracked clean checkout
+        run: |
+          test -z "$(git status --porcelain)"
+          test -z "$(git ls-files --others --exclude-standard)"
+
+      - name: Configure in a per-commit out-of-tree directory
+        env:
+          CLEAN_BUILD_DIR: ${{ runner.temp }}/uppasd-cg-${{ github.sha }}
+        run: |
+          rm -rf "$CLEAN_BUILD_DIR"
+          cmake -S . -B "$CLEAN_BUILD_DIR" -G "Unix Makefiles" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DUPPASD_GPU_BACKEND=OFF \
+            -DUPPASD_PRECISION=DOUBLE \
+            -DBUILD_TESTING=ON \
+            -DRUN_ASD_TESTS=OFF \
+            -DRUN_REG_TESTS=OFF \
+            -DUSE_OPENMP=ON \
+            -DUSE_MKL=OFF \
+            -DUSE_FFTW=OFF
+
+      - name: Build from tracked source
+        env:
+          CLEAN_BUILD_DIR: ${{ runner.temp }}/uppasd-cg-${{ github.sha }}
+        run: cmake --build "$CLEAN_BUILD_DIR" --parallel 2
+
+      - name: Run packaging and feature-off production checks
+        env:
+          CLEAN_BUILD_DIR: ${{ runner.temp }}/uppasd-cg-${{ github.sha }}
+        run: |
+          ctest --test-dir "$CLEAN_BUILD_DIR" --output-on-failure \
+            -R 'adaptive-cg-fixture-dependencies|adaptive-cg-production-e2e'

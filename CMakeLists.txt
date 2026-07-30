@@ -1000,6 +1000,11 @@ if(BUILD_TESTING)
       COMMAND python3
          ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_setup_rejection_matrix.py
          --binary $<TARGET_FILE:${UppASD_EXE}>)
+   add_test(NAME adaptive-cg-fixture-dependencies
+      COMMAND python3
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/audit_fixture_dependencies.py)
+   set_tests_properties(adaptive-cg-fixture-dependencies
+      PROPERTIES LABELS "coarse-graining;cg13;packaging")
    set_tests_properties(adaptive-cg-setup-rejection-matrix
       PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;rejection"
                  ENVIRONMENT "OMP_NUM_THREADS=1")

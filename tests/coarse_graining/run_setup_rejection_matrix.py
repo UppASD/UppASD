@@ -10,6 +10,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from fixture_dependencies import STATIC_MIXED_CASE
+
 
 def replace_line(text: str, keyword: str, value: str) -> str:
     pattern = re.compile(rf"(?im)^{re.escape(keyword)}\s+.*$")
@@ -31,7 +33,7 @@ def main() -> None:
     parser.add_argument("--binary", type=Path, required=True)
     args = parser.parse_args()
     root = Path(__file__).with_name("e2e")
-    base = root / "static_mixed"
+    base = root / STATIC_MIXED_CASE
     source = (base / "inpsd.dat").read_text()
 
     cases = {

@@ -9,6 +9,26 @@ import re
 import subprocess
 from pathlib import Path
 
+from fixture_dependencies import (
+    ADAPTIVE_MIXED_CASE,
+    CPU_ANISOTROPY_CASES,
+    CPU_INITIAL_PHASE_CASES,
+    CPU_INITIAL_PHASE_SD_CASE,
+    CPU_PARITY_CASES,
+    CPU_REJECTION_CASES,
+    EXAMPLE_CASES,
+    FEATURE_OFF_CASE,
+    GPU_DMI_CASE,
+    GPU_EXECUTABLE_CASES,
+    GPU_FFT_CASE,
+    GPU_PARITY_CASES,
+    GPU_INITIAL_PHASE_CASES,
+    SPIN_SPIRAL_CASE,
+    STATIC_ALL_COARSE_CASE,
+    STATIC_ALL_FINE_CASE,
+    STATIC_MIXED_CASE,
+)
+
 
 def run_case(binary: Path, case: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
@@ -72,28 +92,33 @@ def main() -> None:
     root = Path(__file__).with_name("e2e")
     examples = Path(__file__).resolve().parents[2] / "examples" / "AdaptiveCoarseGraining"
 
-    off = run_case(binary, root / "feature_off")
+    off = run_case(binary, root / FEATURE_OFF_CASE)
     assert off.returncode == 0, off.stdout
     assert "AdaptiveCG:" not in off.stdout, off.stdout
 
     outputs: dict[str, str] = {}
-    for name in ("static_all_fine", "static_all_coarse", "static_mixed", "adaptive_mixed"):
+    for name in (
+        STATIC_ALL_FINE_CASE,
+        STATIC_ALL_COARSE_CASE,
+        STATIC_MIXED_CASE,
+        ADAPTIVE_MIXED_CASE,
+    ):
         result = run_case(binary, root / name)
         assert result.returncode == 0, f"{name}\n{result.stdout}"
         assert "AdaptiveCG: capability accepted" in result.stdout
         outputs[name] = result.stdout
 
-    fine_updates = metric(outputs["static_all_fine"], "active_atom_updates")
-    coarse_updates = metric(outputs["static_all_coarse"], "active_atom_updates")
-    mixed_updates = metric(outputs["static_mixed"], "active_atom_updates")
-    baseline = metric(outputs["static_all_coarse"], "baseline_atom_updates")
-    reduced = metric(outputs["static_all_coarse"], "reduced_atom_updates")
+    fine_updates = metric(outputs[STATIC_ALL_FINE_CASE], "active_atom_updates")
+    coarse_updates = metric(outputs[STATIC_ALL_COARSE_CASE], "active_atom_updates")
+    mixed_updates = metric(outputs[STATIC_MIXED_CASE], "active_atom_updates")
+    baseline = metric(outputs[STATIC_ALL_COARSE_CASE], "baseline_atom_updates")
+    reduced = metric(outputs[STATIC_ALL_COARSE_CASE], "reduced_atom_updates")
     assert fine_updates == baseline
     assert coarse_updates < mixed_updates < fine_updates
     assert reduced > 0
-    assert metric(outputs["adaptive_mixed"], "accepted_transitions") > 0
-    off_state = restart_state(root / "feature_off")
-    fine_state = restart_state(root / "static_all_fine")
+    assert metric(outputs[ADAPTIVE_MIXED_CASE], "accepted_transitions") > 0
+    off_state = restart_state(root / FEATURE_OFF_CASE)
+    fine_state = restart_state(root / STATIC_ALL_FINE_CASE)
     assert len(off_state) == len(fine_state) == 48
     assert max(
         abs(reference - adaptive)
@@ -101,24 +126,24 @@ def main() -> None:
         for reference, adaptive in zip(reference_row, adaptive_row)
     ) <= 1.0e-10
 
-    bad = run_case(binary, root / "invalid_partial_block")
+    bad = run_case(binary, root / CPU_REJECTION_CASES[0])
     assert bad.returncode != 0
     assert "block_size_x/y/z" in bad.stdout
-    bad_mask = run_case(binary, root / "invalid_mask")
+    bad_mask = run_case(binary, root / CPU_REJECTION_CASES[1])
     assert bad_mask.returncode != 0
     assert "duplicate block id" in bad_mask.stdout
-    bad_temp = run_case(binary, root / "unsupported_temperature")
+    bad_temp = run_case(binary, root / CPU_REJECTION_CASES[2])
     assert bad_temp.returncode != 0
     assert "Temp/do_qhb/do_3tm" in bad_temp.stdout
-    bad_initial_phase = run_case(binary, root / "unsupported_initial_phase_x")
+    bad_initial_phase = run_case(binary, root / CPU_REJECTION_CASES[3])
     assert bad_initial_phase.returncode != 0
     assert "ip_mode" in bad_initial_phase.stdout
     assert "Calls parallel tempering" not in bad_initial_phase.stdout
-    missing_alat = run_case(binary, root / "missing_alat")
+    missing_alat = run_case(binary, root / CPU_REJECTION_CASES[4])
     assert missing_alat.returncode != 0
     assert "explicit positive SI lattice parameter in metres" in missing_alat.stdout
 
-    chiral = run_case(binary, root / "dmi_anisotropy_mixed")
+    chiral = run_case(binary, root / CPU_ANISOTROPY_CASES[0])
     assert chiral.returncode == 0, chiral.stdout
     assert "AdaptiveCG: capability accepted" in chiral.stdout
     for term in (
@@ -131,8 +156,8 @@ def main() -> None:
         )
     print("CG-10.5 mixed DMI/anisotropy production path and SI alat guard passed")
 
-    anisotropy_fine = run_case(binary, root / "anisotropy_uniform_fine")
-    anisotropy_coarse = run_case(binary, root / "anisotropy_uniform_coarse")
+    anisotropy_fine = run_case(binary, root / CPU_ANISOTROPY_CASES[1])
+    anisotropy_coarse = run_case(binary, root / CPU_ANISOTROPY_CASES[2])
     assert anisotropy_fine.returncode == 0, anisotropy_fine.stdout
     assert anisotropy_coarse.returncode == 0, anisotropy_coarse.stdout
     expected_anisotropy_j = 24.0 * (-0.002 - 0.003) * 2.179872325e-21
@@ -153,8 +178,7 @@ def main() -> None:
     print("CG-10.5 uniaxial mRy-to-J and atomistic/coarse ownership passed")
 
     parity_cpu: dict[str, str] = {}
-    for mode in ("static", "adaptive"):
-        name = f"parity_{mode}_cpu"
+    for mode, name in CPU_PARITY_CASES.items():
         result = run_case(binary, root / name)
         assert result.returncode == 0, f"{name}\n{result.stdout}"
         assert "last_energy_j atomistic_bilinear=" in result.stdout
@@ -164,7 +188,7 @@ def main() -> None:
     assert abs(float_metric(parity_cpu["static"], "direction_sum")) < 40.0
     assert metric(parity_cpu["adaptive"], "accepted_transitions") > 0
 
-    initial_phase_cpu = run_case(binary, root / "initial_phase_sd_cpu")
+    initial_phase_cpu = run_case(binary, root / CPU_INITIAL_PHASE_SD_CASE)
     assert initial_phase_cpu.returncode == 0, initial_phase_cpu.stdout
     assert "Performing initial phase:" in initial_phase_cpu.stdout
     assert "initial_state_source=completed_atomistic_sd" in initial_phase_cpu.stdout
@@ -181,12 +205,8 @@ def main() -> None:
     print("CG-10.5 Initmag=2 atomistic SD initial-phase handoff passed")
 
     atomistic_initial_phases = {
-        "initial_phase_mc": ("M", "Performing MC initial phase:"),
-        "initial_phase_heat_bath": ("H", "Performing MC initial phase:"),
-        "initial_phase_q": ("Q", "Line search minimization done"),
-        "initial_phase_y": ("Y", "Line search minimization done"),
-        "initial_phase_z": ("Z", "Line search minimization done"),
-        "initial_phase_g": ("G", "Performing initial phase: energy minimization"),
+        case: (mode, banner)
+        for mode, (case, banner) in CPU_INITIAL_PHASE_CASES.items()
     }
     atomistic_outputs: dict[str, str] = {}
     for name, (ip_mode, runner_banner) in atomistic_initial_phases.items():
@@ -209,14 +229,14 @@ def main() -> None:
         assert abs(float_metric(atomistic_outputs[ip_mode], "direction_sum")) < 40.0
     print("CG-10.5 M/H/Q/Y/Z/G validated atomistic handoffs passed")
 
-    spiral = run_case(binary, root / "initmag_spin_spiral")
+    spiral = run_case(binary, root / SPIN_SPIRAL_CASE)
     assert spiral.returncode == 0, spiral.stdout
     assert "spin spiral modulation" in spiral.stdout
     assert "initial_state_source=initmag mode=8" in spiral.stdout
     assert abs(float_metric(spiral.stdout, "direction_sum")) < 20.0
     print("CG-10.5 Initmag=8 inhomogeneous spin-spiral seed passed")
 
-    for name in ("static_mixed", "adaptive", "initial_phase_texture"):
+    for name in EXAMPLE_CASES:
         result = run_case(binary, examples / name)
         assert result.returncode == 0, f"example {name}\n{result.stdout}"
         assert "AdaptiveCG: capability accepted" in result.stdout
@@ -228,7 +248,7 @@ def main() -> None:
     if args.gpu_binary:
         gpu_binary = args.gpu_binary.resolve()
         gpu_outputs: dict[str, str] = {}
-        for name in ("gpu_static_mixed", "gpu_adaptive_mixed"):
+        for name in GPU_EXECUTABLE_CASES:
             result = run_case(gpu_binary, root / name)
             if "no CUDA-capable device" in result.stdout or "no HIP-capable device" in result.stdout:
                 print("CG-10.5 GPU executable cases skipped: no backend device")
@@ -237,7 +257,7 @@ def main() -> None:
             assert "Gpu: AdaptiveCG initial active_atoms=" in result.stdout
             gpu_outputs[name] = result.stdout
         if len(gpu_outputs) == 2:
-            initial_phase_gpu = run_case(gpu_binary, root / "initial_phase_sd_gpu")
+            initial_phase_gpu = run_case(gpu_binary, root / GPU_INITIAL_PHASE_CASES[0])
             assert initial_phase_gpu.returncode == 0, initial_phase_gpu.stdout
             assert "GpuSDSimulation: SD initial phase starting" in initial_phase_gpu.stdout
             assert "initial_state_source=completed_atomistic_sd" in initial_phase_gpu.stdout
@@ -246,7 +266,7 @@ def main() -> None:
             ) < initial_phase_gpu.stdout.index("AdaptiveCG: capability accepted")
             assert metric(initial_phase_gpu.stdout, "accepted_transitions") > 0
             mc_initial_phase_gpu = run_case(
-                gpu_binary, root / "initial_phase_mc_gpu"
+                gpu_binary, root / GPU_INITIAL_PHASE_CASES[1]
             )
             assert mc_initial_phase_gpu.returncode == 0, mc_initial_phase_gpu.stdout
             assert "GpuMCSimulation: MC initial phase starting" in (
@@ -260,7 +280,7 @@ def main() -> None:
                 "GpuMCSimulation: MC initial phase starting"
             ) < mc_initial_phase_gpu.stdout.index("AdaptiveCG: capability accepted")
             q_initial_phase_gpu = run_case(
-                gpu_binary, root / "initial_phase_q_gpu"
+                gpu_binary, root / GPU_INITIAL_PHASE_CASES[2]
             )
             assert q_initial_phase_gpu.returncode == 0, q_initial_phase_gpu.stdout
             assert "line search minimization done" in q_initial_phase_gpu.stdout.lower()
@@ -281,8 +301,7 @@ def main() -> None:
             ]
             assert 0 < static_active < 48
             assert len(adaptive_counts) == 2 and adaptive_counts[1] < adaptive_counts[0]
-            for mode in ("static", "adaptive"):
-                name = f"parity_{mode}_gpu"
+            for mode, name in GPU_PARITY_CASES.items():
                 result = run_case(gpu_binary, root / name)
                 assert result.returncode == 0, f"{name}\n{result.stdout}"
                 assert "Gpu: AdaptiveCG last_energy_j" in result.stdout
@@ -329,7 +348,7 @@ def main() -> None:
                     assert metric(cpu, "accepted_transitions") == metric(
                         gpu, "accepted_transitions"
                     )
-            chiral_gpu = run_case(gpu_binary, root / "dmi_anisotropy_mixed_gpu")
+            chiral_gpu = run_case(gpu_binary, root / GPU_DMI_CASE)
             assert chiral_gpu.returncode == 0, chiral_gpu.stdout
             assert final_state(chiral.stdout) == final_state(chiral_gpu.stdout)
             for key in (
@@ -357,7 +376,7 @@ def main() -> None:
                     f"{reference} vs {candidate}"
                 )
             print("CG-10.5 DMI/anisotropy CPU/GPU production parity passed")
-            fft = run_case(gpu_binary, root / "gpu_fft_static_mixed")
+            fft = run_case(gpu_binary, root / GPU_FFT_CASE)
             assert fft.returncode == 0, f"gpu_fft_static_mixed\n{fft.stdout}"
             assert "EWALD3D_FFT production field/energy operator ready" in fft.stdout
             assert abs(float_metric(fft.stdout, "coarse_dipole")) > 0.0

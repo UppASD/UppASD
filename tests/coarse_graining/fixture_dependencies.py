@@ -1,0 +1,52 @@
+"""Source-of-truth fixture names shared by the adaptive-CG harnesses."""
+
+FEATURE_OFF_CASE = "feature_off"
+STATIC_ALL_FINE_CASE = "static_all_fine"
+STATIC_ALL_COARSE_CASE = "static_all_coarse"
+STATIC_MIXED_CASE = "static_mixed"
+ADAPTIVE_MIXED_CASE = "adaptive_mixed"
+
+CPU_REJECTION_CASES = (
+    "invalid_partial_block",
+    "invalid_mask",
+    "unsupported_temperature",
+    "unsupported_initial_phase_x",
+    "missing_alat",
+)
+CPU_ANISOTROPY_CASES = (
+    "dmi_anisotropy_mixed",
+    "anisotropy_uniform_fine",
+    "anisotropy_uniform_coarse",
+)
+CPU_PARITY_CASES = {"static": "parity_static_cpu", "adaptive": "parity_adaptive_cpu"}
+CPU_INITIAL_PHASE_CASES = {
+    "M": ("initial_phase_mc", "Performing MC initial phase:"),
+    "H": ("initial_phase_heat_bath", "Performing MC initial phase:"),
+    "Q": ("initial_phase_q", "Line search minimization done"),
+    "Y": ("initial_phase_y", "Line search minimization done"),
+    "Z": ("initial_phase_z", "Line search minimization done"),
+    "G": ("initial_phase_g", "Performing initial phase: energy minimization"),
+}
+GPU_EXECUTABLE_CASES = ("gpu_static_mixed", "gpu_adaptive_mixed")
+GPU_INITIAL_PHASE_CASES = (
+    "initial_phase_sd_gpu", "initial_phase_mc_gpu", "initial_phase_q_gpu"
+)
+GPU_PARITY_CASES = {"static": "parity_static_gpu", "adaptive": "parity_adaptive_gpu"}
+GPU_DMI_CASE = "dmi_anisotropy_mixed_gpu"
+GPU_FFT_CASE = "gpu_fft_static_mixed"
+CPU_INITIAL_PHASE_SD_CASE = "initial_phase_sd_cpu"
+SPIN_SPIRAL_CASE = "initmag_spin_spiral"
+EXAMPLE_CASES = ("static_mixed", "adaptive", "initial_phase_texture")
+
+
+def all_e2e_cases() -> tuple[str, ...]:
+    """Return every e2e directory referenced by either executable harness."""
+    names = {
+        FEATURE_OFF_CASE, STATIC_ALL_FINE_CASE, STATIC_ALL_COARSE_CASE,
+        STATIC_MIXED_CASE, ADAPTIVE_MIXED_CASE, *CPU_REJECTION_CASES,
+        *CPU_ANISOTROPY_CASES, *CPU_PARITY_CASES.values(),
+        CPU_INITIAL_PHASE_SD_CASE, *[case for case, _ in CPU_INITIAL_PHASE_CASES.values()],
+        SPIN_SPIRAL_CASE, *GPU_EXECUTABLE_CASES, *GPU_INITIAL_PHASE_CASES,
+        *GPU_PARITY_CASES.values(), GPU_DMI_CASE, GPU_FFT_CASE,
+    }
+    return tuple(sorted(names))

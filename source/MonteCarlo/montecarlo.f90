@@ -55,7 +55,6 @@ contains
       use InducedMoments, only : mc_update_ind_mom
       use Constants, only : mub,k_bolt
       use FieldData !,             only : allocation_field_time
-      use AdaptiveTimeStepping
       use HamiltonianActions, only : effective_field
       use InputData, only : NA, N1, N2, N3, demag, ham_inp
       use DemagField
