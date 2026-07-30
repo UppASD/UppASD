@@ -2079,16 +2079,26 @@ UppASD release claim
 
 #### Checklist
 
-- [ ] Validation suite is documented and automated.
-- [ ] Reference data provenance is recorded.
-- [ ] CPU/CUDA/HIP matrices are explicit.
-- [ ] Precision-specific tolerances are explicit.
-- [ ] User input documentation is complete.
-- [ ] Model limitations are prominent.
-- [ ] Restart support or rejection is documented.
-- [ ] Performance reports include active fractions and overhead.
-- [ ] No finite-temperature claim exceeds the implemented model.
+- [x] Validation suite is documented and automated.
+- [x] Reference data provenance is recorded.
+- [x] CPU/CUDA/HIP matrices are explicit.
+- [x] Precision-specific tolerances are explicit.
+- [x] User input documentation is complete.
+- [x] Model limitations are prominent.
+- [x] Restart support or rejection is documented.
+- [x] Performance reports include active fractions and overhead.
+- [x] No finite-temperature claim exceeds the implemented model.
 - [ ] Human approves release wording.
+
+**CG-13 evidence:** `docs/CG-13_RELEASE_VALIDATION.md` is the user-facing
+scope and release-validation contract. The `cg13-cpu`, `cg13-cuda`, and
+`cg13-hip` CTest labels assemble the accepted analytic, production, parity,
+and dipole checks for the configured backend. The setup-rejection matrix runs
+input-reachable unsupported combinations in isolated temporary cases and
+requires the named setup diagnostic. The GPU adaptive benchmark reports
+active atom/block/interface fractions, phase timings, selector/compaction
+device and host-wait costs, uploaded mask bytes, allocation, and unaccounted
+wall time alongside the speedup/crossover measurement.
 
 ---
 

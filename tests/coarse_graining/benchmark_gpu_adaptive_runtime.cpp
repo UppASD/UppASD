@@ -363,12 +363,22 @@ struct AdaptiveFixture {
 struct SweepSample {
    double requestedFraction = 0.0;
    double activeDofRatio = 0.0;
+   double activeAtomFraction = 0.0;
+   double activeBlockFraction = 0.0;
+   double interfaceFraction = 0.0;
    std::size_t activeAtoms = 0;
    std::size_t activeBlocks = 0;
+   std::size_t interfaceAtoms = 0;
+   std::size_t allocatedBytes = 0;
    std::vector<double> wallUs;
    std::vector<double> atomisticUs;
    std::vector<double> coarseUs;
    std::vector<double> interfaceUs;
+   std::vector<double> selectorUs;
+   std::vector<double> compactionUs;
+   std::vector<double> fftUs;
+   std::vector<double> integrationUs;
+   std::vector<double> unaccountedUs;
    double wallMedian = 0.0;
    double wallMad = 0.0;
 };
@@ -387,9 +397,17 @@ SweepSample measureFraction(GpuAdaptiveRuntime& runtime,
    const auto snapshot = runtime.downloadWorkSnapshot();
    result.activeAtoms = snapshot.activeAtoms.size();
    result.activeBlocks = snapshot.activeBlocks.size();
+   result.interfaceAtoms = snapshot.interfaceAtoms.size();
+   result.activeAtomFraction = static_cast<double>(result.activeAtoms) /
+      static_cast<double>(fixture.atoms);
+   result.activeBlockFraction = static_cast<double>(result.activeBlocks) /
+      static_cast<double>(fixture.blocks);
+   result.interfaceFraction = static_cast<double>(result.interfaceAtoms) /
+      static_cast<double>(fixture.atoms);
    result.activeDofRatio =
       static_cast<double>(result.activeAtoms + result.activeBlocks) /
       static_cast<double>(fixture.atoms);
+   result.allocatedBytes = runtime.allocatedBytes();
    for(unsigned int repetition = 0; repetition < options.repetitions; ++repetition) {
       runtime.resetPhaseMetrics();
       const auto begin = std::chrono::steady_clock::now();
@@ -407,6 +425,20 @@ SweepSample measureFraction(GpuAdaptiveRuntime& runtime,
          1000.0 * phases.coarseMilliseconds / options.iterations);
       result.interfaceUs.push_back(
          1000.0 * phases.interfaceMilliseconds / options.iterations);
+      result.selectorUs.push_back(
+         1000.0 * phases.selectorMilliseconds / options.iterations);
+      result.compactionUs.push_back(
+         1000.0 * phases.compactionMilliseconds / options.iterations);
+      result.fftUs.push_back(
+         1000.0 * phases.fftMilliseconds / options.iterations);
+      result.integrationUs.push_back(
+         1000.0 * phases.integrationMilliseconds / options.iterations);
+      result.unaccountedUs.push_back(
+         wallUs - 1000.0 * (phases.atomisticMilliseconds +
+            phases.coarseMilliseconds + phases.interfaceMilliseconds +
+            phases.selectorMilliseconds + phases.compactionMilliseconds +
+            phases.fftMilliseconds + phases.integrationMilliseconds) /
+            options.iterations);
    }
    result.wallMedian = median(result.wallUs);
    result.wallMad = medianAbsoluteDeviation(result.wallUs);
@@ -416,12 +448,20 @@ SweepSample measureFraction(GpuAdaptiveRuntime& runtime,
 void printSweep(const SweepSample& sample) {
    std::printf(
       "adaptive-sweep requested_fraction=%.6f active_atoms=%zu "
-      "active_blocks=%zu active_dof_ratio=%.6f wall_us=%.6f wall_mad_us=%.6f "
-      "atomistic_us=%.6f coarse_us=%.6f interface_us=%.6f\n",
+      "active_blocks=%zu interface_atoms=%zu active_atom_fraction=%.6f "
+      "active_block_fraction=%.6f interface_fraction=%.6f active_dof_ratio=%.6f "
+      "wall_us=%.6f wall_mad_us=%.6f atomistic_us=%.6f coarse_us=%.6f "
+      "interface_us=%.6f selector_us=%.6f compaction_us=%.6f fft_us=%.6f "
+      "integration_us=%.6f unaccounted_us=%.6f device_bytes=%zu\n",
       sample.requestedFraction, sample.activeAtoms, sample.activeBlocks,
+      sample.interfaceAtoms, sample.activeAtomFraction,
+      sample.activeBlockFraction, sample.interfaceFraction,
       sample.activeDofRatio, sample.wallMedian, sample.wallMad,
       median(sample.atomisticUs), median(sample.coarseUs),
-      median(sample.interfaceUs));
+      median(sample.interfaceUs), median(sample.selectorUs),
+      median(sample.compactionUs), median(sample.fftUs),
+      median(sample.integrationUs), median(sample.unaccountedUs),
+      sample.allocatedBytes);
 }
 
 } // namespace
@@ -564,11 +604,46 @@ int main(int argc, char** argv) {
          "adaptive-overhead selector_device_us=%.6f selector_wall_us=%.6f "
          "compaction_device_us=%.6f compaction_host_wait_us=%.6f "
          "compaction_wall_us=%.6f block_bytes_per_update=%zu "
+         "device_bytes=%zu mixed_unaccounted_us=%.6f "
          "overhead_percent_of_mixed_step=%.6f\n",
          selectorDeviceUs, selectorWallUs, compactionDeviceUs,
          compactionHostWaitUs, compactionWallUs,
          fixture.blocks * sizeof(int),
+         runtime.allocatedBytes(), sweep[2].unaccountedUs.empty() ? 0.0 :
+            median(sweep[2].unaccountedUs),
          100.0 * (selectorWallUs + compactionWallUs) / mixedWallUs);
+
+      // The fraction sweep is a field-evaluation benchmark.  Also measure a
+      // complete two-stage Heun call so integration/reconstruction overhead is
+      // visible in the same artifact instead of being inferred from speedup.
+      for(unsigned int iteration = 0; iteration < options.warmup; ++iteration)
+         runtime.integrateHeun(real(1.0e-6), atomDirection.data());
+      runtime.resetPhaseMetrics();
+      const auto stepBegin = std::chrono::steady_clock::now();
+      for(unsigned int iteration = 0; iteration < options.iterations; ++iteration)
+         runtime.integrateHeun(real(1.0e-6), atomDirection.data());
+      const double stepWallUs = 1.0e6 *
+         std::chrono::duration<double>(
+            std::chrono::steady_clock::now() - stepBegin).count() /
+         options.iterations;
+      const auto stepPhase = runtime.phaseMetrics();
+      const double stepDeviceUs = 1000.0 *
+         (stepPhase.atomisticMilliseconds + stepPhase.coarseMilliseconds +
+          stepPhase.interfaceMilliseconds + stepPhase.selectorMilliseconds +
+          stepPhase.compactionMilliseconds + stepPhase.fftMilliseconds +
+          stepPhase.integrationMilliseconds) / options.iterations;
+      std::printf(
+         "adaptive-step wall_us=%.6f phase_us(atomistic=%.6f coarse=%.6f "
+         "interface=%.6f selector=%.6f compaction=%.6f fft=%.6f "
+         "integration=%.6f) device_phase_sum_us=%.6f unaccounted_us=%.6f\n",
+         stepWallUs, 1000.0 * stepPhase.atomisticMilliseconds / options.iterations,
+         1000.0 * stepPhase.coarseMilliseconds / options.iterations,
+         1000.0 * stepPhase.interfaceMilliseconds / options.iterations,
+         1000.0 * stepPhase.selectorMilliseconds / options.iterations,
+         1000.0 * stepPhase.compactionMilliseconds / options.iterations,
+         1000.0 * stepPhase.fftMilliseconds / options.iterations,
+         1000.0 * stepPhase.integrationMilliseconds / options.iterations,
+         stepDeviceUs, stepWallUs - stepDeviceUs);
 
       const SweepSample& atomistic = sweep.front();
       const SweepSample* crossover = nullptr;

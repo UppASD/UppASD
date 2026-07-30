@@ -947,6 +947,43 @@ if(BUILD_TESTING)
    add_test(NAME coarse-graining-adaptive-hybrid-solver
       COMMAND adaptive_hybrid_solver_tests)
 
+   # CG-13 labels are the repeatable suite interface.  Keep the focused
+   # analytic/reference tests in the CPU suite even in a GPU build; the
+   # production and backend tests below add the matching CUDA/HIP label.
+   set_tests_properties(
+      coarse-graining-block-topology
+      coarse-graining-stiffness-material
+      coarse-graining-tensor-operator
+      coarse-graining-multichannel-tensor-operator
+      coarse-graining-smooth-projected-operator
+      coarse-graining-static-hybrid-operator
+      coarse-graining-block-selector
+      coarse-graining-adaptive-hybrid-solver
+      PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;reference")
+   if(USE_CUDA)
+      set_property(TEST
+         coarse-graining-block-topology
+         coarse-graining-stiffness-material
+         coarse-graining-tensor-operator
+         coarse-graining-multichannel-tensor-operator
+         coarse-graining-smooth-projected-operator
+         coarse-graining-static-hybrid-operator
+         coarse-graining-block-selector
+         coarse-graining-adaptive-hybrid-solver
+         APPEND PROPERTY LABELS cg13-cuda)
+   elseif(USE_HIP)
+      set_property(TEST
+         coarse-graining-block-topology
+         coarse-graining-stiffness-material
+         coarse-graining-tensor-operator
+         coarse-graining-multichannel-tensor-operator
+         coarse-graining-smooth-projected-operator
+         coarse-graining-static-hybrid-operator
+         coarse-graining-block-selector
+         coarse-graining-adaptive-hybrid-solver
+         APPEND PROPERTY LABELS cg13-hip)
+   endif()
+
    # CG-10.5 must be exercised through the ordinary executable and ordinary
    # inpsd.dat files; focused operator calls are insufficient evidence.
    set(ADAPTIVE_CG_GPU_TEST_ARGS)
@@ -959,6 +996,25 @@ if(BUILD_TESTING)
          ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_production_e2e.py
          --binary $<TARGET_FILE:${UppASD_EXE}>
          ${ADAPTIVE_CG_GPU_TEST_ARGS})
+   add_test(NAME adaptive-cg-setup-rejection-matrix
+      COMMAND python3
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_setup_rejection_matrix.py
+         --binary $<TARGET_FILE:${UppASD_EXE}>)
+   set_tests_properties(adaptive-cg-setup-rejection-matrix
+      PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;rejection"
+                 ENVIRONMENT "OMP_NUM_THREADS=1")
+   if(USE_CUDA)
+      set(CG13_PRODUCTION_LABEL cg13-cuda)
+   elseif(USE_HIP)
+      set(CG13_PRODUCTION_LABEL cg13-hip)
+   else()
+      set(CG13_PRODUCTION_LABEL cg13-cpu)
+   endif()
+   set_tests_properties(adaptive-cg-setup-rejection-matrix
+      PROPERTIES LABELS "coarse-graining;cg13;${CG13_PRODUCTION_LABEL};rejection")
+   set_tests_properties(adaptive-cg-production-e2e
+      PROPERTIES LABELS "coarse-graining;cg13;${CG13_PRODUCTION_LABEL};production"
+                 ENVIRONMENT "OMP_NUM_THREADS=1")
 
    # Luna's host-only OPEN_FFT oracle has no UppASD, FFT, CUDA, or HIP
    # dependency.  Keep it runnable before the production open builder exists.
@@ -1017,6 +1073,13 @@ if(BUILD_TESTING)
          target_compile_definitions(gpu_adaptive_runtime_tests PRIVATE SINGLE_PREC)
       endif()
       add_test(NAME coarse-graining-gpu-adaptive-runtime COMMAND gpu_adaptive_runtime_tests)
+      if(USE_CUDA)
+         set(CG13_GPU_LABEL cg13-cuda)
+      else()
+         set(CG13_GPU_LABEL cg13-hip)
+      endif()
+      set_tests_properties(coarse-graining-gpu-adaptive-runtime
+         PROPERTIES LABELS "coarse-graining;cg13;${CG13_GPU_LABEL};reference")
 
       # Hardware-dependent CG-10 acceptance harness.  This is intentionally
       # not a CTest: it reports paired feature-off noise, selector/compaction
@@ -1062,6 +1125,8 @@ if(BUILD_TESTING)
          target_link_libraries(dipole_gpu_fft_tests PRIVATE ${HIPFFT_LIBRARY})
       endif()
       add_test(NAME dipole-gpu-fft-convolution COMMAND dipole_gpu_fft_tests)
+      set_tests_properties(dipole-gpu-fft-convolution
+         PROPERTIES LABELS "coarse-graining;cg13;${CG13_GPU_LABEL};dipole")
       # Test-only OPEN_FFT E2E seam.  It has no production selector, but
       # exercises both the explicit-tensor diagnostics and the production
       # finite-kernel construction/upload through active-to-padded field and
@@ -1089,6 +1154,8 @@ if(BUILD_TESTING)
          target_compile_definitions(dipole_open_fft_layout_tests PRIVATE SINGLE_PREC)
       endif()
       add_test(NAME dipole-open-fft-layout COMMAND dipole_open_fft_layout_tests)
+      set_tests_properties(dipole-open-fft-layout
+         PROPERTIES LABELS "coarse-graining;cg13;${CG13_GPU_LABEL};dipole")
       # Explicit performance harness.  It is a build target rather than a
       # CTest because timings are hardware-dependent and are recorded by WP9
       # sweep jobs, not used as pass/fail correctness expectations.

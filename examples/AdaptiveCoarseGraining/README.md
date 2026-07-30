@@ -1,5 +1,9 @@
 # Adaptive coarse graining examples
 
+The complete user scope, input contract, limitations, diagnostics, validation
+matrix, and benchmark procedure are documented in
+[`docs/CG-13_RELEASE_VALIDATION.md`](../../docs/CG-13_RELEASE_VALIDATION.md).
+
 These are ordinary UppASD text-input runs for the accepted deterministic,
 single-ferromagnetic-channel production model. They use a 6 x 2 x 2
 body-centred-cubic cell split into six 1 x 2 x 2 coarse blocks.
