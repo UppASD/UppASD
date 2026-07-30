@@ -39,6 +39,10 @@ struct AdaptiveKernelDevice {
    real gammaPerTs;
    real damping;
    const real* atomMoment;
+   const int* atomAnisotropyAxisCount;
+   const real* atomAnisotropyAxis;
+   const real* atomAnisotropyK1;
+   const real* atomAnisotropyK2;
    const int* projectionBlock;
    const real* projectionWeight;
    const int* bondAtom;
@@ -586,6 +590,7 @@ __global__ void evaluateAdaptiveAtomistic(
       atomField[i] = real(0);
    }
    kernels.energyTerms[0] = real(0);
+   kernels.energyTerms[1] = real(0);
    for(std::size_t ensemble = 0; ensemble < topology.ensembles; ++ensemble) {
       for(std::size_t bond = 0; bond < kernels.bonds; ++bond) {
          const std::size_t atomI = static_cast<std::size_t>(kernels.bondAtom[2 * bond] - 1);
@@ -609,6 +614,31 @@ __global__ void evaluateAdaptiveAtomistic(
             kernels.atomFieldScratch[atomVectorIndex(
                xyz, atomJ, ensemble, topology.atoms)] +=
                ktSi[xyz] / (kernels.magneticMomentSi * kernels.atomMoment[atomJ]);
+         }
+      }
+      for(unsigned int work = 0; work < runtime.workCounts[0]; ++work) {
+         const std::size_t atom =
+            static_cast<std::size_t>(runtime.activeAtomList[work] - 1);
+         real direction[3];
+         loadAtomVector(atomDirection, topology, atom, ensemble, direction);
+         for(int axisIndex = 0;
+             axisIndex < kernels.atomAnisotropyAxisCount[atom]; ++axisIndex) {
+            real axis[3];
+            for(int xyz = 0; xyz < 3; ++xyz)
+               axis[xyz] = kernels.atomAnisotropyAxis[
+                  xyz + 3 * (axisIndex + 2 * atom)];
+            const real c = dotDevice(direction, axis);
+            const real k1 = kernels.atomAnisotropyK1[axisIndex + 2 * atom];
+            const real k2 = kernels.atomAnisotropyK2[axisIndex + 2 * atom];
+            kernels.energyTerms[1] +=
+               k1 * c * c + k2 * (real(2) * c * c - c * c * c * c);
+            const real derivative = real(2) * c *
+               (k1 + real(2) * k2 * (real(1) - c * c));
+            for(int xyz = 0; xyz < 3; ++xyz)
+               kernels.atomFieldScratch[atomVectorIndex(
+                  xyz, atom, ensemble, topology.atoms)] -=
+                  derivative * axis[xyz] /
+                  (kernels.magneticMomentSi * kernels.atomMoment[atom]);
          }
       }
       // The writeback traverses the compact active-atom list.  Coarse ghosts
@@ -730,7 +760,7 @@ __global__ void clearAdaptiveCoarse(
       runtime.coarseField[index] = real(0);
       coarseField[index] = real(0);
    }
-   if(index < 6) kernels.energyTerms[index + 1] = real(0);
+   if(index < 6) kernels.energyTerms[index + 2] = real(0);
 }
 
 __global__ void evaluateAdaptiveCoarseTensor(
@@ -753,7 +783,7 @@ __global__ void evaluateAdaptiveCoarseTensor(
                           block, ensemble, q, gradientQ);
          const real volume = topology.blockVolume[block];
          const real stiffness = kernels.exchangeStiffness[p + 3 * q];
-         atomicAdd(&kernels.energyTerms[1],
+         atomicAdd(&kernels.energyTerms[2],
                    volume * stiffness * dotDevice(gradientP, gradientQ));
          for(int xyz = 0; xyz < 3; ++xyz)
             derivative[xyz] = volume * stiffness * gradientQ[xyz];
@@ -779,7 +809,7 @@ __global__ void evaluateAdaptiveCoarseTensor(
          crossDevice(basis, direction, crossBasisDirection);
          const real volume = topology.blockVolume[block];
          const real spiral = kernels.spiralization[k + 3 * p];
-         atomicAdd(&kernels.energyTerms[2],
+         atomicAdd(&kernels.energyTerms[3],
                    volume * spiral * crossMG[k]);
          for(int xyz = 0; xyz < 3; ++xyz) {
             atomicAdd(&runtime.coarseField[coarseVectorIndex(
@@ -816,7 +846,7 @@ __global__ void finalizeAdaptiveCoarseLocal(
       const real k1 = kernels.anisotropyK1[axisIndex + 2 * block];
       const real k2 = kernels.anisotropyK2[axisIndex + 2 * block];
       const real volume = topology.blockVolume[block];
-      atomicAdd(&kernels.energyTerms[3], volume *
+      atomicAdd(&kernels.energyTerms[4], volume *
          (k1 * c * c + real(2) * k2 * c * c -
           k2 * c * c * c * c));
       const real derivative = volume * real(2) * c *
@@ -839,7 +869,7 @@ __global__ void finalizeAdaptiveCoarseLocal(
       real external[3];
       for(int xyz = 0; xyz < 3; ++xyz)
          external[xyz] = externalField[3 * scalar + xyz];
-      atomicAdd(&kernels.energyTerms[4],
+      atomicAdd(&kernels.energyTerms[5],
                 -kernels.magneticMomentSi * moment *
                  dotDevice(external, direction));
    }
@@ -879,7 +909,7 @@ __global__ void addAdaptiveDipole(
          }
       }
    }
-   atomicAdd(&kernels.energyTerms[5],
+   atomicAdd(&kernels.energyTerms[6],
              -real(0.5) * kernels.magneticMomentSi *
               dotDevice(dipole, source));
    if(runtime.coarseBlockMask[block]) {
@@ -950,7 +980,7 @@ __global__ void addAdaptiveBasisResolvedDipole(
       for(int xyz = 0; xyz < 3; ++xyz)
          coarseWeightedField[xyz] += moment * field[xyz];
    }
-   atomicAdd(&kernels.energyTerms[5], dipoleEnergy);
+   atomicAdd(&kernels.energyTerms[6], dipoleEnergy);
    if(runtime.coarseBlockMask[block]) {
       const real inverseMoment = real(1) / runtime.channelMomentSum[scalar];
       for(int xyz = 0; xyz < 3; ++xyz)
@@ -979,9 +1009,10 @@ __global__ void writeAdaptiveCoarse(
 
 __global__ void finalizeAdaptiveEnergy(AdaptiveKernelDevice kernels) {
    if(blockIdx.x != 0 || threadIdx.x != 0) return;
-   kernels.energyTerms[6] = kernels.energyTerms[0] + kernels.energyTerms[1] +
+   kernels.energyTerms[7] = kernels.energyTerms[0] + kernels.energyTerms[1] +
       kernels.energyTerms[2] + kernels.energyTerms[3] +
-      kernels.energyTerms[4] + kernels.energyTerms[5];
+      kernels.energyTerms[4] + kernels.energyTerms[5] +
+      kernels.energyTerms[6];
 }
 
 __device__ inline void llgRhs(const real direction[3], const real field[3],
@@ -1413,6 +1444,8 @@ bool GpuAdaptiveRuntime::validate(const GpuAdaptiveTopologyInput& t,
    const auto& k = r.kernels;
    if(k.atomMoment) {
       if(t.dynamicChannels != 1 || r.selectorCriteria == 0 ||
+         !required(k.atomAnisotropyAxisCount) || !required(k.atomAnisotropyAxis) ||
+         !required(k.atomAnisotropyK1) || !required(k.atomAnisotropyK2) ||
          !required(k.projectionBlock) || !required(k.projectionWeight) ||
          !required(k.inverseBlockTranspose) || !required(k.exchangeStiffness) ||
          !required(k.spiralization) || !required(k.anisotropyAxisCount) ||
@@ -1439,6 +1472,33 @@ bool GpuAdaptiveRuntime::validate(const GpuAdaptiveTopologyInput& t,
             (t.atomToDynamicChannel[atom] > 0 && k.atomMoment[atom] <= 0.0)) {
             diagnostic = "GPU adaptive kernel atom moments must be finite and positive for magnetic atoms";
             return false;
+         }
+         if(k.atomAnisotropyAxisCount[atom] < 0 ||
+            k.atomAnisotropyAxisCount[atom] > 2) {
+            diagnostic = "GPU adaptive atomistic anisotropy supports zero, one, or two axes";
+            return false;
+         }
+         for(int axis = 0; axis < 2; ++axis) {
+            double norm2 = 0.0;
+            for(int xyz = 0; xyz < 3; ++xyz) {
+               const double value =
+                  k.atomAnisotropyAxis[xyz + 3 * (axis + 2 * atom)];
+               if(!std::isfinite(value)) {
+                  diagnostic = "GPU adaptive atomistic anisotropy axes must be finite";
+                  return false;
+               }
+               norm2 += value * value;
+            }
+            if(axis < k.atomAnisotropyAxisCount[atom] &&
+               std::abs(norm2 - 1.0) > 1.0e-10) {
+               diagnostic = "GPU adaptive active atomistic anisotropy axes must be normalized";
+               return false;
+            }
+            if(!std::isfinite(k.atomAnisotropyK1[axis + 2 * atom]) ||
+               !std::isfinite(k.atomAnisotropyK2[axis + 2 * atom])) {
+               diagnostic = "GPU adaptive atomistic anisotropy coefficients must be finite";
+               return false;
+            }
          }
          double weightSum = 0.0;
          for(int corner = 0; corner < 8; ++corner) {
@@ -1576,11 +1636,11 @@ std::size_t GpuAdaptiveRuntime::estimateBytes(const GpuAdaptiveTopologyInput& t,
       if(!checkedProduct({t.atoms, t.ensembles}, atomEnsembles))
          throw std::overflow_error("GPU adaptive kernel memory estimate overflow");
       const bool kernelOk =
-         checkedAdd(total, 8 * t.atoms + 2 * r.kernels.bonds +
+         checkedAdd(total, 9 * t.atoms + 2 * r.kernels.bonds +
                            2 * r.kernels.selectorEdges + t.blocks, sizeof(int)) &&
-         checkedAdd(total, t.atoms + 8 * t.atoms + 9 * r.kernels.bonds + 27 +
+         checkedAdd(total, 11 * t.atoms + 8 * t.atoms + 9 * r.kernels.bonds + 27 +
                            10 * t.blocks + 13 * atomEnsembles +
-                           4 * vectorState + 7, sizeof(real)) &&
+                           4 * vectorState + 8, sizeof(real)) &&
          checkedAdd(total, t.blocks, sizeof(unsigned char));
       if(!kernelOk)
          throw std::overflow_error("GPU adaptive kernel memory estimate overflow");
@@ -1692,6 +1752,10 @@ void GpuAdaptiveRuntime::allocate(const GpuAdaptiveTopologyInput& t,
       bonds_ = r.kernels.bonds;
       selectorEdges_ = r.kernels.selectorEdges;
       atomMoment_.Allocate(n);
+      atomAnisotropyAxisCount_.Allocate(n);
+      atomAnisotropyAxis_.Allocate(6 * n);
+      atomAnisotropyK1_.Allocate(2 * n);
+      atomAnisotropyK2_.Allocate(2 * n);
       projectionBlock_.Allocate(8 * n);
       projectionWeight_.Allocate(8 * n);
       if(bonds_ > 0) {
@@ -1716,7 +1780,7 @@ void GpuAdaptiveRuntime::allocate(const GpuAdaptiveTopologyInput& t,
       initialAtomField_.Allocate(3 * atomEnsembles);
       initialCoarseField_.Allocate(vectorState);
       predictorCoarseField_.Allocate(vectorState);
-      energyTerms_.Allocate(7);
+      energyTerms_.Allocate(8);
       acceptedBlockMask_.Allocate(b);
       // Make zero-step diagnostics deterministic before the first field
       // evaluation; normal kernels overwrite these buffers thereafter.
@@ -1772,6 +1836,13 @@ void GpuAdaptiveRuntime::uploadRuntime(const GpuAdaptiveTopologyInput& t,
    if(r.kernels.atomMoment) {
       const auto& k = r.kernels;
       uploadReal(atomMoment_, k.atomMoment, t.atoms, stream_, convertedStaging_);
+      uploadNative(atomAnisotropyAxisCount_, k.atomAnisotropyAxisCount, t.atoms, stream_);
+      uploadReal(atomAnisotropyAxis_, k.atomAnisotropyAxis, 6 * t.atoms, stream_,
+                 convertedStaging_);
+      uploadReal(atomAnisotropyK1_, k.atomAnisotropyK1, 2 * t.atoms, stream_,
+                 convertedStaging_);
+      uploadReal(atomAnisotropyK2_, k.atomAnisotropyK2, 2 * t.atoms, stream_,
+                 convertedStaging_);
       uploadNative(projectionBlock_, k.projectionBlock, 8 * t.atoms, stream_);
       uploadReal(projectionWeight_, k.projectionWeight, 8 * t.atoms, stream_,
                  convertedStaging_);
@@ -1936,7 +2007,9 @@ void GpuAdaptiveRuntime::restrictMoments(const real* atomDirection) {
    if(!atomDirection) throw std::invalid_argument("GPU adaptive restriction requires device directions");
    AdaptiveKernelDevice kernels{
       bonds_, selectorEdges_, normalizationFloor_, magneticMomentSi_,
-      gammaPerTs_, damping_, atomMoment_.data(), projectionBlock_.data(),
+      gammaPerTs_, damping_, atomMoment_.data(), atomAnisotropyAxisCount_.data(),
+      atomAnisotropyAxis_.data(), atomAnisotropyK1_.data(), atomAnisotropyK2_.data(),
+      projectionBlock_.data(),
       projectionWeight_.data(), bondAtom_.data(), bondMatrix_.data(),
       selectorEdge_.data(), inverseBlockTranspose_.data(),
       exchangeStiffness_.data(), spiralization_.data(),
@@ -1963,7 +2036,9 @@ void GpuAdaptiveRuntime::evaluateSelectorScores(const real* atomDirection) {
    if(!atomDirection) throw std::invalid_argument("GPU adaptive selector requires device directions");
    AdaptiveKernelDevice kernels{
       bonds_, selectorEdges_, normalizationFloor_, magneticMomentSi_,
-      gammaPerTs_, damping_, atomMoment_.data(), projectionBlock_.data(),
+      gammaPerTs_, damping_, atomMoment_.data(), atomAnisotropyAxisCount_.data(),
+      atomAnisotropyAxis_.data(), atomAnisotropyK1_.data(), atomAnisotropyK2_.data(),
+      projectionBlock_.data(),
       projectionWeight_.data(), bondAtom_.data(), bondMatrix_.data(),
       selectorEdge_.data(), inverseBlockTranspose_.data(),
       exchangeStiffness_.data(), spiralization_.data(),
@@ -2043,7 +2118,9 @@ void GpuAdaptiveRuntime::publishProposedState(
       throw std::invalid_argument("GPU adaptive reconstruction tolerance or cone angle is invalid");
    AdaptiveKernelDevice kernels{
       bonds_, selectorEdges_, normalizationFloor_, magneticMomentSi_,
-      gammaPerTs_, damping_, atomMoment_.data(), projectionBlock_.data(),
+      gammaPerTs_, damping_, atomMoment_.data(), atomAnisotropyAxisCount_.data(),
+      atomAnisotropyAxis_.data(), atomAnisotropyK1_.data(), atomAnisotropyK2_.data(),
+      projectionBlock_.data(),
       projectionWeight_.data(), bondAtom_.data(), bondMatrix_.data(),
       selectorEdge_.data(), inverseBlockTranspose_.data(),
       exchangeStiffness_.data(), spiralization_.data(),
@@ -2092,7 +2169,9 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
    }
    AdaptiveKernelDevice kernels{
       bonds_, selectorEdges_, normalizationFloor_, magneticMomentSi_,
-      gammaPerTs_, damping_, atomMoment_.data(), projectionBlock_.data(),
+      gammaPerTs_, damping_, atomMoment_.data(), atomAnisotropyAxisCount_.data(),
+      atomAnisotropyAxis_.data(), atomAnisotropyK1_.data(), atomAnisotropyK2_.data(),
+      projectionBlock_.data(),
       projectionWeight_.data(), bondAtom_.data(), bondMatrix_.data(),
       selectorEdge_.data(), inverseBlockTranspose_.data(),
       exchangeStiffness_.data(), spiralization_.data(),
@@ -2212,18 +2291,19 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.coarseMilliseconds);
 
-   real terms[7] = {};
+   real terms[8] = {};
    TensorDataMovementTracker::add_d2h(sizeof(terms));
    ASSERT_GPU(GPU_MEMCPY(terms, energyTerms_.data(), sizeof(terms),
                          GPU_MEMCPY_DEVICE_TO_HOST));
    GpuAdaptiveEnergy result;
    result.atomisticBilinearJ = static_cast<double>(terms[0]);
-   result.coarseExchangeJ = static_cast<double>(terms[1]);
-   result.coarseSpiralizationJ = static_cast<double>(terms[2]);
-   result.coarseAnisotropyJ = static_cast<double>(terms[3]);
-   result.coarseExternalJ = static_cast<double>(terms[4]);
-   result.dipoleJ = static_cast<double>(terms[5]);
-   result.totalJ = static_cast<double>(terms[6]);
+   result.atomisticOnsiteJ = static_cast<double>(terms[1]);
+   result.coarseExchangeJ = static_cast<double>(terms[2]);
+   result.coarseSpiralizationJ = static_cast<double>(terms[3]);
+   result.coarseAnisotropyJ = static_cast<double>(terms[4]);
+   result.coarseExternalJ = static_cast<double>(terms[5]);
+   result.dipoleJ = static_cast<double>(terms[6]);
+   result.totalJ = static_cast<double>(terms[7]);
    lastEnergy_ = result;
    return result;
 }
@@ -2239,7 +2319,9 @@ void GpuAdaptiveRuntime::integrateHeun(
       throw std::invalid_argument("GPU adaptive Heun step requires positive dt and device directions");
    AdaptiveKernelDevice kernels{
       bonds_, selectorEdges_, normalizationFloor_, magneticMomentSi_,
-      gammaPerTs_, damping_, atomMoment_.data(), projectionBlock_.data(),
+      gammaPerTs_, damping_, atomMoment_.data(), atomAnisotropyAxisCount_.data(),
+      atomAnisotropyAxis_.data(), atomAnisotropyK1_.data(), atomAnisotropyK2_.data(),
+      projectionBlock_.data(),
       projectionWeight_.data(), bondAtom_.data(), bondMatrix_.data(),
       selectorEdge_.data(), inverseBlockTranspose_.data(),
       exchangeStiffness_.data(), spiralization_.data(),
@@ -2305,7 +2387,9 @@ void GpuAdaptiveRuntime::synchronizeAtomicState(
       throw std::logic_error("GPU adaptive reconstruction requires initialized state");
    AdaptiveKernelDevice kernels{
       bonds_, selectorEdges_, normalizationFloor_, magneticMomentSi_,
-      gammaPerTs_, damping_, atomMoment_.data(), projectionBlock_.data(),
+      gammaPerTs_, damping_, atomMoment_.data(), atomAnisotropyAxisCount_.data(),
+      atomAnisotropyAxis_.data(), atomAnisotropyK1_.data(), atomAnisotropyK2_.data(),
+      projectionBlock_.data(),
       projectionWeight_.data(), bondAtom_.data(), bondMatrix_.data(),
       selectorEdge_.data(), inverseBlockTranspose_.data(),
       exchangeStiffness_.data(), spiralization_.data(),
@@ -2459,6 +2543,10 @@ void GpuAdaptiveRuntime::release() {
    freeIfAllocated(bondAtom_);
    freeIfAllocated(projectionWeight_);
    freeIfAllocated(projectionBlock_);
+   freeIfAllocated(atomAnisotropyK2_);
+   freeIfAllocated(atomAnisotropyK1_);
+   freeIfAllocated(atomAnisotropyAxis_);
+   freeIfAllocated(atomAnisotropyAxisCount_);
    freeIfAllocated(atomMoment_);
    freeIfAllocated(compactionScanB_);
    freeIfAllocated(compactionScanA_);

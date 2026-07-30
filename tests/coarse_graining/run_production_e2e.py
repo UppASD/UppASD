@@ -114,6 +114,43 @@ def main() -> None:
     assert bad_initial_phase.returncode != 0
     assert "ip_mode" in bad_initial_phase.stdout
     assert "Calls parallel tempering" not in bad_initial_phase.stdout
+    missing_alat = run_case(binary, root / "missing_alat")
+    assert missing_alat.returncode != 0
+    assert "explicit positive SI lattice parameter in metres" in missing_alat.stdout
+
+    chiral = run_case(binary, root / "dmi_anisotropy_mixed")
+    assert chiral.returncode == 0, chiral.stdout
+    assert "AdaptiveCG: capability accepted" in chiral.stdout
+    for term in (
+        "atomistic_onsite",
+        "coarse_spiralization",
+        "coarse_anisotropy",
+    ):
+        assert abs(float_metric(chiral.stdout, term)) > 1.0e-30, (
+            f"adaptive DMI/anisotropy term {term} was not exercised\n{chiral.stdout}"
+        )
+    print("CG-10.5 mixed DMI/anisotropy production path and SI alat guard passed")
+
+    anisotropy_fine = run_case(binary, root / "anisotropy_uniform_fine")
+    anisotropy_coarse = run_case(binary, root / "anisotropy_uniform_coarse")
+    assert anisotropy_fine.returncode == 0, anisotropy_fine.stdout
+    assert anisotropy_coarse.returncode == 0, anisotropy_coarse.stdout
+    expected_anisotropy_j = 24.0 * (-0.002 - 0.003) * 2.179872325e-21
+    assert close(
+        float_metric(anisotropy_fine.stdout, "atomistic_onsite"),
+        expected_anisotropy_j,
+        2.0e-12,
+        1.0e-32,
+    )
+    assert close(
+        float_metric(anisotropy_coarse.stdout, "coarse_anisotropy"),
+        expected_anisotropy_j,
+        2.0e-12,
+        1.0e-32,
+    )
+    assert abs(float_metric(anisotropy_fine.stdout, "coarse_anisotropy")) < 1.0e-32
+    assert abs(float_metric(anisotropy_coarse.stdout, "atomistic_onsite")) < 1.0e-32
+    print("CG-10.5 uniaxial mRy-to-J and atomistic/coarse ownership passed")
 
     parity_cpu: dict[str, str] = {}
     for mode in ("static", "adaptive"):
@@ -258,6 +295,7 @@ def main() -> None:
                 )
                 for key in (
                     "atomistic_bilinear",
+                    "atomistic_onsite",
                     "coarse_exchange",
                     "coarse_spiralization",
                     "coarse_anisotropy",
@@ -291,6 +329,34 @@ def main() -> None:
                     assert metric(cpu, "accepted_transitions") == metric(
                         gpu, "accepted_transitions"
                     )
+            chiral_gpu = run_case(gpu_binary, root / "dmi_anisotropy_mixed_gpu")
+            assert chiral_gpu.returncode == 0, chiral_gpu.stdout
+            assert final_state(chiral.stdout) == final_state(chiral_gpu.stdout)
+            for key in (
+                "atomistic_bilinear",
+                "atomistic_onsite",
+                "coarse_exchange",
+                "coarse_spiralization",
+                "coarse_anisotropy",
+                "coarse_external",
+                "coarse_dipole",
+                "total",
+            ):
+                cpu_key = "last_total_energy_j" if key == "total" else key
+                reference = float_metric(chiral.stdout, cpu_key)
+                candidate = float_metric(chiral_gpu.stdout, key)
+                assert close(reference, candidate, 5.0e-4, 2.0e-24), (
+                    f"DMI/anisotropy CPU/GPU {key} differs: "
+                    f"{reference} vs {candidate}"
+                )
+            for key in ("atom_sum", "atom_norm2", "coarse_sum", "coarse_norm2"):
+                reference = float_metric(chiral.stdout, key)
+                candidate = float_metric(chiral_gpu.stdout, key)
+                assert close(reference, candidate, 8.0e-4, 2.0e-6), (
+                    f"DMI/anisotropy CPU/GPU {key} differs: "
+                    f"{reference} vs {candidate}"
+                )
+            print("CG-10.5 DMI/anisotropy CPU/GPU production parity passed")
             fft = run_case(gpu_binary, root / "gpu_fft_static_mixed")
             assert fft.returncode == 0, f"gpu_fft_static_mixed\n{fft.stdout}"
             assert "EWALD3D_FFT production field/energy operator ready" in fft.stdout

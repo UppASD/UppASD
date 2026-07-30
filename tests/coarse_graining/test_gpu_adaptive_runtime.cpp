@@ -144,6 +144,10 @@ struct KernelFixture {
    int state[blocks] = {0, 1, 2, 0};
    double scores[blocks] = {};
    double atomMoment[atoms] = {1, 1, 1, 1, 1, 1, 1, 1};
+   int atomAxisCount[atoms] = {};
+   double atomAxis[6 * atoms] = {};
+   double atomK1[2 * atoms] = {};
+   double atomK2[2 * atoms] = {};
    int projectionBlock[8 * atoms] = {};
    double projectionWeight[8 * atoms] = {};
    int bondAtom[2 * bonds] = {
@@ -188,6 +192,9 @@ struct KernelFixture {
          coarseMoment[2 + 3 * block] = 2.0;
          coarseDirection[2 + 3 * block] = 1.0;
       }
+      atomAxisCount[2] = 1;
+      atomAxis[2 + 3 * (2 * 2)] = 1.0;
+      atomK1[2 * 2] = 0.25;
    }
 
    GpuAdaptiveTopologyInput topology() const {
@@ -234,6 +241,10 @@ struct KernelFixture {
       r.coarseField = coarseField.data();
       r.channelMomentSum = momentSum.data();
       r.kernels.atomMoment = atomMoment;
+      r.kernels.atomAnisotropyAxisCount = atomAxisCount;
+      r.kernels.atomAnisotropyAxis = atomAxis;
+      r.kernels.atomAnisotropyK1 = atomK1;
+      r.kernels.atomAnisotropyK2 = atomK2;
       r.kernels.projectionBlock = projectionBlock;
       r.kernels.projectionWeight = projectionWeight;
       r.kernels.bonds = bonds;
@@ -335,6 +346,8 @@ void testKernelParityAndWorkflow() {
    const double tolerance = sizeof(real) == sizeof(double) ? 2.0e-12 : 2.0e-5;
    require(std::abs(energy.atomisticBilinearJ + 2.0) < tolerance,
            "GPU atomistic unique-pair energy violates the CPU sign contract");
+   require(std::abs(energy.atomisticOnsiteJ - 0.25) < tolerance,
+           "GPU atomistic anisotropy energy violates the CPU onsite contract");
    require(std::abs(energy.coarseExchangeJ) < tolerance &&
            std::abs(energy.coarseSpiralizationJ) < tolerance,
            "uniform state produced a coarse gradient energy");
@@ -344,12 +357,13 @@ void testKernelParityAndWorkflow() {
            "orthogonal external field produced energy");
    require(std::abs(energy.dipoleJ + 0.4) < tolerance,
            "all-grid FFT dipole energy was adaptively masked");
-   require(std::abs(energy.totalJ - 2.6) < 5.0 * tolerance,
+   require(std::abs(energy.totalJ - 2.85) < 5.0 * tolerance,
            "GPU hybrid total energy does not equal the CPU reference");
 
    const auto fineField = download(atomField.data(), atomVectors);
    for(std::size_t atom = 2; atom <= 5; ++atom)
-      require(std::abs(static_cast<double>(fineField[2 + 3 * atom]) - 0.9) < tolerance,
+      require(std::abs(static_cast<double>(fineField[2 + 3 * atom]) -
+                       (atom == 2 ? 0.4 : 0.9)) < tolerance,
               "GPU atomistic/interface field does not contain the FFT dipole exactly once");
    const auto blockField = download(coarseField.data(), coarseVectors);
    for(const std::size_t block : {std::size_t(0), std::size_t(3)}) {
@@ -393,7 +407,7 @@ void testKernelParityAndWorkflow() {
            "basis-resolved FFT dipole energy was not counted exactly once");
    const auto basisAtomField = download(atomField.data(), atomVectors);
    for(std::size_t atom = 2; atom <= 5; ++atom) {
-      const double expected = atom % 2 == 0 ? 1.0 : 1.4;
+      const double expected = atom == 2 ? 0.5 : (atom % 2 == 0 ? 1.0 : 1.4);
       require(std::abs(
                  static_cast<double>(basisAtomField[2 + 3 * atom]) -
                  expected) < 5.0 * tolerance,

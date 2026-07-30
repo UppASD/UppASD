@@ -1274,13 +1274,13 @@ rather than assuming filenames and signatures have remained unchanged.
 - [x] Heterogeneous Landé/damping support is either derived or rejected.
 - [x] Fine/interface/coarse energy ownership is explicit.
 - [x] Initial capability matrix lists accept/reject behavior.
-- [ ] Human approves the convention document.
-- [ ] Sol review confirms descriptors can represent every approved term.
+- [x] Human approves the convention document.
+- [x] Sol review confirms descriptors can represent every approved term.
 
-**CG-01 evidence:** `docs/CG-01_PHYSICS_CONVENTIONS.md` records the proposed
-contract, source-derived UppASD unit/sign conventions, analytic fixtures, and
-the two outstanding approval gates.  No production kernels are included in
-this task.
+**CG-01 evidence:** `docs/CG-01_PHYSICS_CONVENTIONS.md` records the approved
+contract, source-derived UppASD unit/sign conventions, analytic fixtures,
+term-by-term descriptor review, both sign-offs, and the pre-existing CPU/GPU
+DMI conformance issue.  No production kernels are included in this task.
 
 ---
 
@@ -2043,14 +2043,23 @@ enabled.
 
 #### Checklist
 
-- [ ] Memory does not scale as `Natom` channels by construction.
-- [ ] Spatial binning is defined for skew cells.
-- [ ] Channel labels are independent of basis numbering.
-- [ ] Empty and nonuniform cells have explicit semantics.
-- [ ] Dipole deposition and adjoint interpolation are paired.
-- [ ] Boundary behavior is specified.
-- [ ] Compatibility/rejection matrix is explicit.
-- [ ] No production FFT behavior changes without a separate accepted plan.
+- [x] Memory does not scale as `Natom` channels by construction.
+- [x] Spatial binning is defined for skew cells.
+- [x] Channel labels are independent of basis numbering.
+- [x] Empty and nonuniform cells have explicit semantics.
+- [x] Dipole deposition and adjoint interpolation are paired.
+- [x] Boundary behavior is specified.
+- [x] Compatibility/rejection matrix is explicit.
+- [x] No production FFT behavior changes without a separate accepted plan.
+
+**CG-12 evidence:** `docs/CG-12_EXPLICIT_DEVICE_DESIGN.md` defines a
+coordinate-frame/CSR device topology whose magnetic labels and FFT source
+representation are independent of crystallographic `NA`. It specifies skew
+binning, occupancy, an adjoint particle--mesh source/field pair, boundary and
+fallback semantics, the regular-grid assumptions that a new solver must
+replace, and prototype acceptance gates. The current FFT selectors and
+explicit-device rejection remain unchanged pending a separately accepted
+particle--mesh implementation plan.
 
 ---
 

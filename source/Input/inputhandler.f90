@@ -180,6 +180,7 @@ contains
 
             case('alat')
                read(ifile,*,iostat=i_err) alat
+               if (i_err == 0) alat_is_explicit = .true.
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             case('scalefac')

@@ -1,4 +1,5 @@
 simid adaptive_cg_initial_phase
+alat 1.0e-10
 ncell 6 2 2
 BC P P P
 cell 1.0 0.0 0.0

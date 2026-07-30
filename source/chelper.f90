@@ -237,7 +237,9 @@ module Chelper
       subroutine FortranData_clearAdaptiveTopology() bind(C, name="fortrandata_clearadaptivetopology_")
       end subroutine FortranData_clearAdaptiveTopology
 
-      subroutine FortranData_setAdaptiveKernels(atom_moment, projection_block, projection_weight, &
+      subroutine FortranData_setAdaptiveKernels(atom_moment, atom_anisotropy_axis_count, &
+            atom_anisotropy_axis, atom_anisotropy_k1, atom_anisotropy_k2, &
+            projection_block, projection_weight, &
             bonds, bond_atom, bond_matrix, selector_edges, selector_edge, inverse_block_transpose, &
             exchange_stiffness, spiralization, anisotropy_axis_count, anisotropy_axis, &
             anisotropy_k1, anisotropy_k2, normalization_floor, magnetic_moment_si, gamma_per_ts, &
@@ -246,13 +248,16 @@ module Chelper
             energy_jump_limit_j, diagnostics) &
             bind(C, name="fortrandata_setadaptivekernels_")
          import :: c_int, c_double
-         real(c_double), intent(inout) :: atom_moment(*), projection_weight(*), bond_matrix(*)
+         real(c_double), intent(inout) :: atom_moment(*), atom_anisotropy_axis(*)
+         real(c_double), intent(inout) :: atom_anisotropy_k1(*), atom_anisotropy_k2(*)
+         real(c_double), intent(inout) :: projection_weight(*), bond_matrix(*)
          real(c_double), intent(inout) :: inverse_block_transpose(*), exchange_stiffness(*)
          real(c_double), intent(inout) :: spiralization(*), anisotropy_axis(*)
          real(c_double), intent(inout) :: anisotropy_k1(*), anisotropy_k2(*)
          real(c_double), intent(inout) :: normalization_floor, magnetic_moment_si, gamma_per_ts, damping
          real(c_double), intent(inout) :: refine_threshold, coarsen_threshold, cone_angle_rad
          real(c_double), intent(inout) :: energy_jump_limit_j
+         integer(c_int), intent(inout) :: atom_anisotropy_axis_count(*)
          integer(c_int), intent(inout) :: projection_block(*), bonds, bond_atom(*)
          integer(c_int), intent(inout) :: selector_edges, selector_edge(*), anisotropy_axis_count(*)
          integer(c_int), intent(inout) :: adaptive_mask, update_interval, minimum_dwell
@@ -748,7 +753,9 @@ contains
             adaptive_cg_state%runtime%coarse_resultant_mub,adaptive_cg_state%coarse_direction, &
             adaptive_cg_state%gpu_coarse_field,adaptive_cg_state%runtime%channel_moment_sum_mub)
          call FortranData_setAdaptiveKernels( &
-            adaptive_cg_state%atom_moment_mub,adaptive_cg_state%projection%stencil_block, &
+            adaptive_cg_state%atom_moment_mub,adaptive_cg_state%atom_anisotropy_axis_count, &
+            adaptive_cg_state%atom_anisotropy_axis,adaptive_cg_state%atom_anisotropy_k1_j, &
+            adaptive_cg_state%atom_anisotropy_k2_j,adaptive_cg_state%projection%stencil_block, &
             adaptive_cg_state%projection%shape_weight,adaptive_cg_state%gpu_bonds, &
             adaptive_cg_state%bond_atom,adaptive_cg_state%bond_matrix_j, &
             adaptive_cg_state%gpu_selector_edges, &

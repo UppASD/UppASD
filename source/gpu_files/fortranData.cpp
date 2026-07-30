@@ -98,6 +98,10 @@ real* FortranData::adaptive_coarse_direction = nullptr;
 real* FortranData::adaptive_coarse_field = nullptr;
 real* FortranData::adaptive_channel_moment_sum = nullptr;
 real* FortranData::adaptive_atom_moment = nullptr;
+int* FortranData::adaptive_atom_anisotropy_axis_count = nullptr;
+real* FortranData::adaptive_atom_anisotropy_axis = nullptr;
+real* FortranData::adaptive_atom_anisotropy_k1 = nullptr;
+real* FortranData::adaptive_atom_anisotropy_k2 = nullptr;
 int* FortranData::adaptive_projection_block = nullptr;
 real* FortranData::adaptive_projection_weight = nullptr;
 unsigned int* FortranData::adaptive_bonds = nullptr;
@@ -538,6 +542,10 @@ void FortranData::clearAdaptivePointers() {
    adaptive_coarse_field = nullptr;
    adaptive_channel_moment_sum = nullptr;
    adaptive_atom_moment = nullptr;
+   adaptive_atom_anisotropy_axis_count = nullptr;
+   adaptive_atom_anisotropy_axis = nullptr;
+   adaptive_atom_anisotropy_k1 = nullptr;
+   adaptive_atom_anisotropy_k2 = nullptr;
    adaptive_projection_block = nullptr;
    adaptive_projection_weight = nullptr;
    adaptive_bonds = nullptr;
@@ -569,7 +577,9 @@ void FortranData::clearAdaptivePointers() {
 }
 
 void FortranData::setAdaptiveKernelPointers(
-   real* atom_moment, int* projection_block, real* projection_weight,
+   real* atom_moment, int* atom_anisotropy_axis_count,
+   real* atom_anisotropy_axis, real* atom_anisotropy_k1, real* atom_anisotropy_k2,
+   int* projection_block, real* projection_weight,
    unsigned int* bonds, int* bond_atom, real* bond_matrix,
    unsigned int* selector_edges, int* selector_edge,
    real* inverse_block_transpose, real* exchange_stiffness,
@@ -582,6 +592,10 @@ void FortranData::setAdaptiveKernelPointers(
    unsigned int* buffer_dilation, int* reconstruction_scheme,
    real* cone_angle_rad, real* energy_jump_limit_j, int* diagnostics) {
    adaptive_atom_moment = atom_moment;
+   adaptive_atom_anisotropy_axis_count = atom_anisotropy_axis_count;
+   adaptive_atom_anisotropy_axis = atom_anisotropy_axis;
+   adaptive_atom_anisotropy_k1 = atom_anisotropy_k1;
+   adaptive_atom_anisotropy_k2 = atom_anisotropy_k2;
    adaptive_projection_block = projection_block;
    adaptive_projection_weight = projection_weight;
    adaptive_bonds = bonds;
@@ -905,7 +919,9 @@ extern "C" void fortrandata_clearadaptivetopology_() {
 }
 
 extern "C" void fortrandata_setadaptivekernels_(
-   real* atom_moment, int* projection_block, real* projection_weight,
+   real* atom_moment, int* atom_anisotropy_axis_count,
+   real* atom_anisotropy_axis, real* atom_anisotropy_k1, real* atom_anisotropy_k2,
+   int* projection_block, real* projection_weight,
    unsigned int* bonds, int* bond_atom, real* bond_matrix,
    unsigned int* selector_edges, int* selector_edge,
    real* inverse_block_transpose, real* exchange_stiffness,
@@ -918,7 +934,9 @@ extern "C" void fortrandata_setadaptivekernels_(
    unsigned int* buffer_dilation, int* reconstruction_scheme,
    real* cone_angle_rad, real* energy_jump_limit_j, int* diagnostics) {
    FortranData::setAdaptiveKernelPointers(
-      atom_moment, projection_block, projection_weight, bonds, bond_atom,
+      atom_moment, atom_anisotropy_axis_count, atom_anisotropy_axis,
+      atom_anisotropy_k1, atom_anisotropy_k2,
+      projection_block, projection_weight, bonds, bond_atom,
       bond_matrix, selector_edges, selector_edge, inverse_block_transpose,
       exchange_stiffness, spiralization, anisotropy_axis_count,
       anisotropy_axis, anisotropy_k1, anisotropy_k2, normalization_floor,

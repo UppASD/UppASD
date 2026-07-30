@@ -1,8 +1,9 @@
 # CG-01: initial adaptive coarse-graining physics conventions
 
-**Status:** proposed implementation contract; requires the two approvals at
-the end before any physics implementation is enabled.  This document freezes
-the conventions used by CG-02 onward, not a claim that the operators exist.
+**Status:** approved implementation contract.  Human physics approval and the
+descriptor implementability review are recorded at the end.  This document
+freezes the conventions used by CG-02 onward; it is not a claim that the
+operators exist or that every current atomistic backend already conforms.
 
 ## 1. Canonical atomic convention and units
 
@@ -26,14 +27,26 @@ D_{ij}\).  Thus
  =\sum_j J_{ij}\mathbf M_j+\sum_j\mathbf D_{ij}\times\mathbf M_j.
 \]
 
-This is the convention implemented by `heisenberg_field` and
-`dzyaloshinskii_moriya_field`.  `Energy:update_ene` reports
+This is the approved public convention.  The scalar `heisenberg_field`
+implements its exchange part.  `Energy:update_ene` reports
 \(-f\,\mathbf M\cdot\mathbf B\): use \(f=1/2\) for a reciprocal pair
-term, dipole, or DMI, and \(f=1\) for Zeeman.  It subsequently multiplies by
-`mub/mry`, so an energy written in field-times-\(\mu_B\) units is converted
-to mRy by \(\mu_B/\mathrm{mRy}\).  A coarse implementation shall use SI
-joules internally for material energies and tesla for fields; it shall *not*
-insert `mub/mry` in a field kernel.
+term, dipole, or DMI, and \(f=1\) for Zeeman.  The surrounding energy code
+subsequently multiplies by `mub/mry`, so an energy written in
+field-times-\(\mu_B\) units is converted to mRy by
+\(\mu_B/\mathrm{mRy}\).  A coarse implementation shall use SI joules
+internally for material energies and tesla for fields; it shall *not* insert
+`mub/mry` in a field kernel.
+
+There is one pre-existing atomistic conformance issue that later tasks must
+not mistake for a convention choice.  DMI input is copied into `dm_vect`
+without a sign change, and the GPU `hamdev::dm_field`, GPU lattice-convolution
+DMI tensor, and `applyhamiltonian` evaluate
+\(\mathbf D_{ij}\times\mathbf M_j\), as specified above.  The current CPU
+`HamiltonianActions:dzyaloshinskii_moriya_field` evaluates the opposite cross
+product, \(\mathbf M_j\times\mathbf D_{ij}\).  The dimer fixture in section 4
+is authoritative; CPU/GPU conformance must be fixed and tested before a
+coarse DMI operator is accepted.  CG-01 itself does not alter production
+kernels.
 
 The field identity for every coarse term is consequently
 
@@ -230,12 +243,19 @@ is diagnostic-only.
 Feature-off behavior remains exactly atomistic.  An enabled input outside this
 matrix must fail during setup with the violated capability named.
 
-## 7. Multi-channel storage contract (allocated before multi-channel physics)
+## 7. Multi-channel descriptor and storage contract
 
 Topology and runtime must keep spatial blocks, basis sites, FFT source
-channels, and dynamical channels distinct.  The conceptual arrays are
+channels, and dynamical channels distinct.  A conforming descriptor contains
+the following logical fields; an implementation may use sparse stencils or
+opaque handles instead of the dense notation, but the Fortran and C views
+must have identical meaning.
 
 ```text
+n_spatial_blocks, n_basis, n_fft_channels, n_dynamic_channels, n_ensembles
+block_shape(3), block_vectors(3,3), block_volume(block), boundary_mode(3)
+derivative_operator(physical_space,...), derivative_transpose(physical_space,...)
+
 atom_to_block(atom), atom_to_basis(atom), atom_to_fft_channel(atom)
 atom_to_dynamic_channel(atom)        ! -1 only for nonmagnetic atoms
 block_channel_population(channel, block)
@@ -243,32 +263,99 @@ moment(3, channel, block, ensemble)  ! R before normalization
 moment_sum(channel, block)           ! mu in muB
 direction(3, channel, block, ensemble), field(3, channel, block, ensemble)
 g_factor(channel, block), damping(channel, block), polarization(channel, block)
+static_external_field(3, channel, block, ensemble)
+
+fft_channel_weight(fft_channel, channel, block) ! muB mapped to each FFT source
+fft_moment(3, fft_channel, block, ensemble)     ! deposited source in muB
+
 exchange_stiffness(3,3,channel,channel)
 spiralization(3,3,channel,channel)
-local_exchange(channel,channel), anisotropy_descriptor(channel,...)
+local_exchange(channel,channel)
+
+anisotropy_kind(channel,block)
+anisotropy_axis_count(channel,block)            ! 0, 1, or 2
+anisotropy_axis(3,2,channel,block)
+anisotropy_K1(2,channel,block), anisotropy_K2(2,channel,block)
+
+resolution_mask(block), energy_owner(block), channel_capability_mask(channel)
+ordering_enums, units_enums, dmi_energy_sign, field_derivative_sign
+convention_version
 ```
 
-Fortran/C descriptors must also carry `n_spatial_blocks`, `n_basis`,
-`n_fft_channels`, `n_dynamic_channels`, ordering/units enums, and a
-per-channel capability mask.  FFT sources are deposited from their own map;
-the total FFT moment is the sum of mapped channel moments only where that map
-declares it.  No code may infer a dynamic channel from basis number or use a
-net block moment as a compensated-material channel.
+`block_vectors(:,r)` is the physical vector for one block step in fractional
+direction \(r\), in metres.  `derivative_operator` is \(G_p\) from (3), and
+`derivative_transpose` is its exact discrete transpose, including boundary
+weights.  Periodic boundaries are the only initially enabled value.
 
-## 8. Decisions awaiting human approval
+`exchange_stiffness` has ordering `(derivative_p, derivative_q, left_channel,
+right_channel)` and units J m\(^{-1}\).  `spiralization` has ordering
+`(cross_product_spin_k, derivative_p, left_channel, right_channel)` and units
+J m\(^{-2}\).  `local_exchange` is the coefficient \(\Lambda_{\alpha\beta}\)
+of an energy density and has units J m\(^{-3}\).  The initial uniaxial
+anisotropy kind stores one or two normalized Cartesian axes and one `(K1,K2)`
+pair per axis, also in J m\(^{-3}\), with the energy and derivative fixed by
+(6).  `static_external_field` and `field` are in tesla.  Moment sums, raw
+moments, FFT weights, and FFT moments are numerical multiples of \(\mu_B\);
+directions, polarization, \(g\), and damping are dimensionless.
+`dmi_energy_sign` is the plus sign in (4), and `field_derivative_sign` is the
+minus sign in (1); these are validated enum values rather than comments.
 
-1. Approve the DMI energy sign and the \(q_\min=-D/(2A)\) handedness fixture
-   as the public convention, after comparing a real UppASD DMI input vector
-   with the dimer fixture.
-2. Approve that initial coarse support is limited to the matrix above,
-   particularly deferral of cubic anisotropy and time-dependent fields.
-3. Select the first approved open-boundary/FFT pairing; until then only
-   periodic derivatives are enabled.
-4. Approve the polarization threshold and resolution safety policy; these are
-   numerical acceptance criteria, not derivable constants.
-5. Approve any future heterogeneous \(g\), damping, or finite-temperature
-   reduction only with a separate angular-momentum and noise derivation.
+FFT sources are accumulated independently from dynamical channels while
+fine spins exist.  In a coarse block they obey
+
+\[
+ \mathbf M^{\rm FFT}_{bf e} =
+ \sum_\alpha w_{bf\alpha}\mathbf m_{b\alpha e},
+\]
+
+where `fft_channel_weight` is derived from `atom_to_fft_channel` and
+`atom_to_dynamic_channel`.  This explicit weighted mapping permits several
+dynamical channels to contribute to one FFT source and one dynamical channel
+to contribute to several FFT sources.  It prevents an FFT channel from being
+inferred from a basis or dynamical-channel index.
+
+The implementability review against the approved capability matrix is:
+
+| approved item | descriptor representation |
+| --- | --- |
+| scalar Heisenberg / continuum exchange | `exchange_stiffness`; channel-ready `local_exchange`; exact \(G_p,G_p^T,V\) |
+| DMI | `spiralization` plus ordering and convention metadata |
+| one- or two-axis uniaxial anisotropy | explicit kind, axis count, axes, `K1`, and `K2`; energy/derivative pair fixed by (6) |
+| static external field | `static_external_field`, separate from material tensors |
+| regular-grid FFT dipole | independent atom-to-FFT map, channel weights, and `fft_moment` |
+| fixed-length deterministic LLG | `moment_sum`, `direction`, `field`, common `g_factor`, and `damping` |
+| skew regular geometry / periodic derivatives | physical block vectors, volume, boundary enum, and adjoint operator pair |
+| static fine/interface/coarse ownership | resolution mask and explicit energy owner |
+
+Every initially approved term therefore has the state, coefficient, geometry,
+units, ordering, and convention metadata needed by both CPU and GPU
+implementations.  Deferred multi-channel physics is representable without
+collapsing a compensated material to a net macrospin.  No code may infer a
+dynamic channel from basis number, normalize a zero resultant, or enable a
+term whose capability bit is absent.
+
+## 8. Approved decisions and implementation gates
+
+1. The DMI energy sign and \(q_\min=-D/(2A)\) handedness fixture are the public
+   convention.  The no-sign-change input mapping and the source conformance
+   issue are recorded in section 1.
+2. Initial coarse support is limited to the matrix above, including deferral
+   of cubic anisotropy and time-dependent fields.
+3. Only periodic derivatives are enabled initially.  An open-boundary/FFT
+   pairing remains a later, separately reviewed extension.
+4. Polarization and resolution safety thresholds remain explicit
+   configuration/acceptance parameters; no undocumented universal value is
+   implied by this contract.
+5. Heterogeneous \(g\), heterogeneous damping, and finite-temperature
+   reduction require a separate angular-momentum/noise derivation and human
+   approval.
 
 **Required sign-off:** Human physics owner approval of sections 1--6; Sol
-review that the section 7 descriptor can represent every accepted term.  Both
-remain pending at this documentation-only milestone.
+review that the section 7 descriptor can represent every accepted term.
+
+**Sign-off:** Contract approved by human review.
+
+**Implementability sign-off:** Descriptor review complete.  The table in
+section 7 confirms representation of every initially approved term; the DMI
+backend mismatch in section 1 is a required production-conformance test, not
+a missing descriptor.

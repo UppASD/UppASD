@@ -27,7 +27,8 @@ module AdaptiveCGProduction
    use BlockTopology, only : block_topology_type, build_block_topology, &
       REGULAR_REPLICATED_CELL, BLOCK_TOPOLOGY_OK
    use CoarseTensorOperator, only : coarse_tensor_operator_type, &
-      coarse_operator_options_type, setup_coarse_tensor_operator, coarse_llg_rhs, &
+      coarse_operator_options_type, coarse_anisotropy_type, setup_coarse_tensor_operator, &
+      coarse_llg_rhs, COARSE_ANISOTROPY_NONE, COARSE_ANISOTROPY_UNIAXIAL, &
       COARSE_TENSOR_OK
    use SmoothProjectedOperator, only : smooth_projected_operator_type, &
       setup_smooth_projected_operator, SMOOTH_PROJECTED_OK
@@ -82,6 +83,10 @@ module AdaptiveCGProduction
       logical, allocatable :: initial_fine_mask(:)
       logical, allocatable :: hard_fine_mask(:)
       real(dblprec), allocatable :: atom_moment_mub(:)
+      integer, allocatable :: atom_anisotropy_axis_count(:)
+      real(dblprec), allocatable :: atom_anisotropy_axis(:,:,:)
+      real(dblprec), allocatable :: atom_anisotropy_k1_j(:,:)
+      real(dblprec), allocatable :: atom_anisotropy_k2_j(:,:)
       real(dblprec), allocatable :: coarse_direction(:,:,:,:)
       integer, allocatable :: bond_atom(:,:)
       real(dblprec), allocatable :: bond_matrix_j(:,:,:)
@@ -137,13 +142,14 @@ contains
 
       type(coarse_lattice_input_type) :: validation_input
       type(coarse_operator_options_type) :: options
+      type(coarse_anisotropy_type) :: production_anisotropy
       integer(c_int) :: topology_status, selector_status
-      integer :: local_status, basis, atom, ensemble, block
+      integer :: local_status, basis, atom, ensemble, block, production_max_dm
       integer :: basis_channel(NA)
       real(dblprec) :: cell_vectors(3,3), inverse_block(3,3)
       real(dblprec) :: fractional_block_coordinate(3,Natom)
       real(dblprec) :: channel_gamma(1), channel_damping(1)
-      real(dblprec) :: q(3,3), normal(3,3), phase(1,3)
+      real(dblprec) :: q(3,9), normal(3,9), phase(1,9)
       real(dblprec), allocatable :: production_ncoup(:,:,:,:)
       real(dblprec), allocatable :: production_dm_vect(:,:,:)
       integer, allocatable :: production_dmlist(:,:), production_dmlistsize(:)
@@ -204,11 +210,19 @@ contains
       channel_damping(1) = lambda1_array(1)
       allocate(production_ncoup(1,size(ham%ncoup,1),size(ham%ncoup,2),1))
       production_ncoup(1,:,:,1)=ham%ncoup(:,:,1)
-      allocate(production_dmlist(0,Natom),production_dmlistsize(nHam), &
-         production_dm_vect(3,0,nHam))
-      production_dmlistsize = 0
+      production_max_dm = 0
+      if (ham_inp%do_dm == 1) production_max_dm = ham%max_no_dmneigh
+      allocate(production_dmlist(production_max_dm,Natom),production_dmlistsize(nHam), &
+         production_dm_vect(3,production_max_dm,nHam))
+      if (production_max_dm > 0) then
+         production_dmlistsize = ham%dmlistsize
+         production_dmlist = ham%dmlist
+         production_dm_vect = ham%dm_vect
+      else
+         production_dmlistsize = 0
+      end if
       call extract_coarse_material_from_uppasd(NA,N1,N2,N3,Natom,nHam,1,Nchmax, &
-         ham%max_no_neigh,0,eta_min,eta_max,anumb,ham%aham,ham%nlistsize, &
+         ham%max_no_neigh,production_max_dm,eta_min,eta_max,anumb,ham%aham,ham%nlistsize, &
          ham%nlist,production_dmlistsize,production_dmlist,alat,C1,C2,C3,BC1,BC2,BC3, &
          coord,ammom_inp,production_ncoup,production_dm_vect,basis_channel, &
          adaptive_cg_state%material, &
@@ -219,11 +233,14 @@ contains
          return
       end if
       q = 0.0_dblprec
-      q(1,1) = 1.0d-6/alat
-      q(2,2) = 1.0d-6/alat
-      q(3,3) = 1.0d-6/alat
       normal = 0.0_dblprec
-      normal(3,:) = 1.0_dblprec
+      do basis = 1, 3
+         do atom = 1, 3
+            block = basis + 3*(atom-1)
+            q(basis,block) = 1.0d-6/alat
+            normal(atom,block) = 1.0_dblprec
+         end do
+      end do
       phase = 0.0_dblprec
       call validate_coarse_material_small_q(validation_input,adaptive_cg_state%material, &
          q,normal,phase,1.0d-6,1.0d-3,local_status,message)
@@ -233,17 +250,23 @@ contains
          return
       end if
 
+      allocate(adaptive_cg_state%atom_moment_mub(Natom))
+      adaptive_cg_state%atom_moment_mub = mmom(:,1)
+      call build_production_anisotropy(production_anisotropy,status,diagnostic)
+      if (status /= ADAPTIVE_CG_PRODUCTION_OK) then
+         call cleanup_adaptive_cg_production()
+         return
+      end if
+
       options%temperature_k = 0.0_dblprec
       call setup_coarse_tensor_operator(adaptive_cg_state%tensor,adaptive_cg_state%topology, &
-         adaptive_cg_state%material,options,local_status,message)
+         adaptive_cg_state%material,options,local_status,message,production_anisotropy)
       if (local_status /= COARSE_TENSOR_OK) then
          call setup_failed('coarse tensor setup: '//trim(message),status,diagnostic)
          call cleanup_adaptive_cg_production()
          return
       end if
 
-      allocate(adaptive_cg_state%atom_moment_mub(Natom))
-      adaptive_cg_state%atom_moment_mub = mmom(:,1)
       inverse_block = inverse3(adaptive_cg_state%topology%block_vectors)
       do atom = 1, Natom
          fractional_block_coordinate(:,atom) = matmul(inverse_block,alat*coord(:,atom))
@@ -317,6 +340,163 @@ contains
       call print_resolved_configuration()
    end subroutine setup_adaptive_cg_production
 
+   subroutine build_production_anisotropy(anisotropy,status,diagnostic)
+      type(coarse_anisotropy_type), intent(out) :: anisotropy
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: diagnostic
+
+      integer :: atom, basis, block, axis_count, central_atom, countstart
+      real(dblprec) :: cell_axis(3,2), cell_k1_j(2), cell_k2_j(2)
+      real(dblprec) :: moment, k1_j, k2_j
+
+      allocate(adaptive_cg_state%atom_anisotropy_axis_count(Natom), &
+         adaptive_cg_state%atom_anisotropy_axis(3,2,Natom), &
+         adaptive_cg_state%atom_anisotropy_k1_j(2,Natom), &
+         adaptive_cg_state%atom_anisotropy_k2_j(2,Natom))
+      adaptive_cg_state%atom_anisotropy_axis_count = 0
+      adaptive_cg_state%atom_anisotropy_axis = 0.0_dblprec
+      adaptive_cg_state%atom_anisotropy_k1_j = 0.0_dblprec
+      adaptive_cg_state%atom_anisotropy_k2_j = 0.0_dblprec
+
+      allocate(anisotropy%kind(adaptive_cg_state%topology%n_spatial_blocks), &
+         anisotropy%axis_count(adaptive_cg_state%topology%n_spatial_blocks), &
+         anisotropy%axis(3,2,adaptive_cg_state%topology%n_spatial_blocks), &
+         anisotropy%k1(2,adaptive_cg_state%topology%n_spatial_blocks), &
+         anisotropy%k2(2,adaptive_cg_state%topology%n_spatial_blocks))
+      anisotropy%kind = COARSE_ANISOTROPY_NONE
+      anisotropy%axis_count = 0
+      anisotropy%axis = 0.0_dblprec
+      anisotropy%k1 = 0.0_dblprec
+      anisotropy%k2 = 0.0_dblprec
+
+      status = ADAPTIVE_CG_PRODUCTION_OK
+      diagnostic = ''
+      if (ham_inp%do_anisotropy == 0) return
+      if (.not. allocated(ham%taniso) .or. .not. allocated(ham%eaniso) .or. &
+          .not. allocated(ham%kaniso)) then
+         call setup_failed('anisotropy: resolved Hamiltonian storage is unavailable',status,diagnostic)
+         return
+      end if
+      if (same_word(ham_inp%mult_axis,'Y')) then
+         if (.not. allocated(ham%taniso_diff) .or. .not. allocated(ham%eaniso_diff) .or. &
+             .not. allocated(ham%kaniso_diff)) then
+            call setup_failed('anisotropy: the requested second-axis storage is unavailable',status,diagnostic)
+            return
+         end if
+      end if
+
+      do atom = 1, Natom
+         if (ham%taniso(atom) /= 0 .and. ham%taniso(atom) /= 1) then
+            call reject('anisotropy: adaptive CG supports only type 1 uniaxial sites',status,diagnostic)
+            return
+         end if
+         moment = adaptive_cg_state%atom_moment_mub(atom)
+         if (ham%taniso(atom) == 1) then
+            k1_j = mub*ham%kaniso(1,atom)*moment**2
+            k2_j = mub*ham%kaniso(2,atom)*moment**4
+            call append_atom_anisotropy(atom,ham%eaniso(:,atom),k1_j,k2_j,status,diagnostic)
+            if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
+         end if
+         if (same_word(ham_inp%mult_axis,'Y')) then
+            if (ham%taniso_diff(atom) /= 0 .and. ham%taniso_diff(atom) /= 1) then
+               call reject('anisotropy: adaptive CG second axes must also be type 1 uniaxial', &
+                  status,diagnostic)
+               return
+            end if
+            if (ham%taniso_diff(atom) == 1) then
+               k1_j = mub*ham%kaniso_diff(1,atom)*moment**2
+               k2_j = mub*ham%kaniso_diff(2,atom)*moment**4
+               call append_atom_anisotropy(atom,ham%eaniso_diff(:,atom),k1_j,k2_j,status,diagnostic)
+               if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
+            end if
+         end if
+      end do
+
+      axis_count = 0
+      cell_axis = 0.0_dblprec
+      cell_k1_j = 0.0_dblprec
+      cell_k2_j = 0.0_dblprec
+      countstart = (N1/2)*NA + (N2/2)*N1*NA + (N3/2)*N2*N1*NA
+      do basis = 1, NA
+         central_atom = countstart+basis
+         do block = 1, adaptive_cg_state%atom_anisotropy_axis_count(central_atom)
+            call append_cell_anisotropy(adaptive_cg_state%atom_anisotropy_axis(:,block,central_atom), &
+               adaptive_cg_state%atom_anisotropy_k1_j(block,central_atom), &
+               adaptive_cg_state%atom_anisotropy_k2_j(block,central_atom),axis_count,cell_axis, &
+               cell_k1_j,cell_k2_j,status,diagnostic)
+            if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
+         end do
+      end do
+      if (axis_count == 0) return
+
+      do block = 1, adaptive_cg_state%topology%n_spatial_blocks
+         anisotropy%kind(block) = COARSE_ANISOTROPY_UNIAXIAL
+         anisotropy%axis_count(block) = axis_count
+         anisotropy%axis(:,:,block) = cell_axis
+         anisotropy%k1(:,block) = cell_k1_j/adaptive_cg_state%material%cell_volume_m3
+         anisotropy%k2(:,block) = cell_k2_j/adaptive_cg_state%material%cell_volume_m3
+      end do
+   end subroutine build_production_anisotropy
+
+   subroutine append_atom_anisotropy(atom,axis,k1_j,k2_j,status,diagnostic)
+      integer, intent(in) :: atom
+      real(dblprec), intent(in) :: axis(3), k1_j, k2_j
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: diagnostic
+      integer :: slot
+      real(dblprec) :: norm
+
+      status = ADAPTIVE_CG_PRODUCTION_REJECTED
+      diagnostic = ''
+      norm = sqrt(sum(axis*axis))
+      if (.not. ieee_is_finite(norm) .or. abs(norm-1.0_dblprec) > 1.0d-10 .or. &
+          .not. ieee_is_finite(k1_j) .or. .not. ieee_is_finite(k2_j)) then
+         diagnostic = 'anisotropy: active axes must be normalized and coefficients finite'
+         return
+      end if
+      slot = adaptive_cg_state%atom_anisotropy_axis_count(atom)+1
+      if (slot > 2) then
+         diagnostic = 'anisotropy: adaptive CG supports at most two axes per atom'
+         return
+      end if
+      adaptive_cg_state%atom_anisotropy_axis_count(atom) = slot
+      adaptive_cg_state%atom_anisotropy_axis(:,slot,atom) = axis
+      adaptive_cg_state%atom_anisotropy_k1_j(slot,atom) = k1_j
+      adaptive_cg_state%atom_anisotropy_k2_j(slot,atom) = k2_j
+      status = ADAPTIVE_CG_PRODUCTION_OK
+   end subroutine append_atom_anisotropy
+
+   subroutine append_cell_anisotropy(axis,k1_j,k2_j,axis_count,cell_axis, &
+         cell_k1_j,cell_k2_j,status,diagnostic)
+      real(dblprec), intent(in) :: axis(3), k1_j, k2_j
+      integer, intent(inout) :: axis_count
+      real(dblprec), intent(inout) :: cell_axis(3,2), cell_k1_j(2), cell_k2_j(2)
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: diagnostic
+      integer :: slot
+
+      do slot = 1, axis_count
+         if (abs(dot_product(axis,cell_axis(:,slot))) >= 1.0_dblprec-1.0d-10) then
+            cell_k1_j(slot) = cell_k1_j(slot)+k1_j
+            cell_k2_j(slot) = cell_k2_j(slot)+k2_j
+            status = ADAPTIVE_CG_PRODUCTION_OK
+            diagnostic = ''
+            return
+         end if
+      end do
+      if (axis_count == 2) then
+         call reject('anisotropy: the unit cell contains more than two inequivalent uniaxial axes', &
+            status,diagnostic)
+         return
+      end if
+      axis_count = axis_count+1
+      cell_axis(:,axis_count) = axis
+      cell_k1_j(axis_count) = k1_j
+      cell_k2_j(axis_count) = k2_j
+      status = ADAPTIVE_CG_PRODUCTION_OK
+      diagnostic = ''
+   end subroutine append_cell_anisotropy
+
    subroutine allocate_gpu_staging()
       integer :: blocks
       blocks = adaptive_cg_state%topology%n_spatial_blocks
@@ -343,12 +523,13 @@ contains
       adaptive_cg_state%gpu_state_age = adaptive_cg_state%runtime%selector%state_age
       adaptive_cg_state%gpu_transition_epoch = &
          adaptive_cg_state%runtime%selector%transition_epoch
-      adaptive_cg_state%gpu_anisotropy_axis_count = 0_c_int
+      adaptive_cg_state%gpu_anisotropy_axis_count = &
+         int(adaptive_cg_state%tensor%anisotropy%axis_count,c_int)
       adaptive_cg_state%gpu_selector_scores = 0.0_c_double
       adaptive_cg_state%gpu_coarse_field = 0.0_c_double
-      adaptive_cg_state%gpu_anisotropy_axis = 0.0_c_double
-      adaptive_cg_state%gpu_anisotropy_k1 = 0.0_c_double
-      adaptive_cg_state%gpu_anisotropy_k2 = 0.0_c_double
+      adaptive_cg_state%gpu_anisotropy_axis = adaptive_cg_state%tensor%anisotropy%axis
+      adaptive_cg_state%gpu_anisotropy_k1 = adaptive_cg_state%tensor%anisotropy%k1
+      adaptive_cg_state%gpu_anisotropy_k2 = adaptive_cg_state%tensor%anisotropy%k2
    end subroutine allocate_gpu_staging
 
    subroutine validate_configuration(status,diagnostic)
@@ -437,6 +618,11 @@ contains
       if (any((/BC1,BC2,BC3/) /= 'P')) then
          call reject('BC: adaptive coarse graining currently requires P P P',status,diagnostic); return
       end if
+      if (.not. alat_is_explicit .or. .not. ieee_is_finite(alat) .or. &
+          alat <= tiny(1.0_dblprec)) then
+         call reject('alat: adaptive coarse graining requires an explicit positive SI lattice parameter in metres', &
+            status,diagnostic); return
+      end if
       if (NA <= 0 .or. Natom /= NA*N1*N2*N3 .or. (Natom > 1 .and. NA == Natom)) then
          call reject('geometry: adaptive coarse graining requires a regular replicated cell, not an explicit device', &
             status,diagnostic); return
@@ -450,11 +636,15 @@ contains
          call reject('do_ralloy/Nchmax/do_lsf/ind_mom_flag: only one fixed-length FM channel is supported', &
             status,diagnostic); return
       end if
-      if (ham_inp%do_jtensor /= 0 .or. ham_inp%do_dm /= 0 .or. ham_inp%do_anisotropy /= 0 .or. &
+      if (ham_inp%do_jtensor /= 0 .or. &
           ham_inp%do_sa /= 0 .or. ham_inp%do_pd /= 0 .or. ham_inp%do_bq /= 0 .or. &
           ham_inp%do_biqdm /= 0 .or. ham_inp%do_ring /= 0 .or. ham_inp%do_chir /= 0 .or. &
           ham_inp%do_fourx /= 0) then
-         call reject('Hamiltonian capability: production adaptive CG currently supports scalar Heisenberg exchange only', &
+         call reject('Hamiltonian capability: adaptive CG supports scalar exchange, DMI, and deterministic uniaxial anisotropy only', &
+            status,diagnostic); return
+      end if
+      if (ham_inp%do_anisotropy == 1 .and. ham_inp%random_anisotropy) then
+         call reject('random_anisotropy: adaptive CG requires a cell-periodic deterministic anisotropy descriptor', &
             status,diagnostic); return
       end if
       if (ham_inp%do_dip /= 0) then
@@ -689,14 +879,19 @@ contains
       type(static_hybrid_energy_type) :: energy
       integer :: ensemble
       real(dblprec) :: time0, time1
+      real(dblprec) :: onsite_energy_j(Natom), onsite_field_t(3,Natom)
 
       call cpu_time(time0)
       adaptive_cg_state%last_energy = static_hybrid_energy_type()
       do ensemble = 1, Mensemble
+         call evaluate_atomistic_anisotropy(atom_direction(:,:,ensemble),onsite_energy_j, &
+            onsite_field_t,status,diagnostic)
+         if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
          call evaluate_static_hybrid_operator(adaptive_cg_state%runtime%hybrid, &
             atom_direction(:,:,ensemble),coarse_direction(:,:,:,ensemble), &
             adaptive_cg_state%bond_matrix_j,atom_field(:,:,ensemble), &
-            coarse_field(:,:,:,ensemble),energy,status,diagnostic)
+            coarse_field(:,:,:,ensemble),energy,status,diagnostic, &
+            atomistic_onsite_energy_j=onsite_energy_j,atomistic_onsite_field_t=onsite_field_t)
          if (status /= STATIC_HYBRID_OK) return
          adaptive_cg_state%field_evaluations = adaptive_cg_state%field_evaluations+1_int64
          adaptive_cg_state%last_energy%atomistic_bilinear_j = &
@@ -783,18 +978,57 @@ contains
       integer, intent(out) :: status
       character(len=*), intent(out) :: diagnostic
       real(dblprec) :: atom_field(3,Natom), coarse_field(3,1,operator%n_blocks)
+      real(dblprec) :: onsite_energy_j(Natom), onsite_field_t(3,Natom)
       type(static_hybrid_energy_type) :: energy
       integer :: ensemble
 
       energy_j = 0.0_dblprec
       do ensemble = 1, size(atom_direction,3)
+         call evaluate_atomistic_anisotropy(atom_direction(:,:,ensemble),onsite_energy_j, &
+            onsite_field_t,status,diagnostic)
+         if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
          call evaluate_static_hybrid_operator(operator,atom_direction(:,:,ensemble), &
             coarse_direction(:,:,:,ensemble),adaptive_cg_state%bond_matrix_j, &
-            atom_field,coarse_field,energy,status,diagnostic)
+            atom_field,coarse_field,energy,status,diagnostic, &
+            atomistic_onsite_energy_j=onsite_energy_j,atomistic_onsite_field_t=onsite_field_t)
          if (status /= STATIC_HYBRID_OK) return
          energy_j = energy_j+energy%total_j
       end do
    end subroutine production_energy_evaluator
+
+   subroutine evaluate_atomistic_anisotropy(direction,energy_j,field_t,status,diagnostic)
+      real(dblprec), intent(in) :: direction(:,:)
+      real(dblprec), intent(out) :: energy_j(:), field_t(:,:)
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: diagnostic
+      integer :: atom, axis
+      real(dblprec) :: c, derivative
+
+      energy_j = 0.0_dblprec
+      field_t = 0.0_dblprec
+      do atom = 1, Natom
+         do axis = 1, adaptive_cg_state%atom_anisotropy_axis_count(atom)
+            c = dot_product(direction(:,atom), &
+               adaptive_cg_state%atom_anisotropy_axis(:,axis,atom))
+            energy_j(atom) = energy_j(atom) + &
+               adaptive_cg_state%atom_anisotropy_k1_j(axis,atom)*c*c + &
+               adaptive_cg_state%atom_anisotropy_k2_j(axis,atom)*(2.0_dblprec*c*c-c**4)
+            derivative = 2.0_dblprec*c * &
+               (adaptive_cg_state%atom_anisotropy_k1_j(axis,atom) + &
+                2.0_dblprec*adaptive_cg_state%atom_anisotropy_k2_j(axis,atom)*(1.0_dblprec-c*c))
+            field_t(:,atom) = field_t(:,atom) - derivative * &
+               adaptive_cg_state%atom_anisotropy_axis(:,axis,atom) / &
+               (mub*adaptive_cg_state%atom_moment_mub(atom))
+         end do
+      end do
+      if (.not. all(ieee_is_finite(energy_j)) .or. .not. all(ieee_is_finite(field_t))) then
+         call setup_failed('anisotropy: atomistic onsite evaluation produced a non-finite value', &
+            status,diagnostic)
+         return
+      end if
+      status = ADAPTIVE_CG_PRODUCTION_OK
+      diagnostic = ''
+   end subroutine evaluate_atomistic_anisotropy
 
    subroutine reconstruct_coarse_atoms(atom_direction,status,diagnostic)
       real(dblprec), intent(inout) :: atom_direction(:,:,:)
@@ -837,9 +1071,11 @@ contains
       integer :: directed, atom, neighbour, target, iham, bond, found
       integer, allocatable :: pair_i(:), pair_j(:)
       real(dblprec), allocatable :: pair_matrix(:,:,:), pair_disp(:,:)
-      real(dblprec) :: displacement(3), coefficient
+      real(dblprec) :: displacement(3), coefficient, orientation
+      real(dblprec) :: dmi_energy_j(3), dmi_matrix(3,3)
 
       directed = sum(ham%nlistsize(ham%aham))
+      if (ham_inp%do_dm == 1) directed = directed+sum(ham%dmlistsize(ham%aham))
       allocate(pair_i(max(1,directed)),pair_j(max(1,directed)), &
          pair_matrix(3,3,max(1,directed)),pair_disp(3,max(1,directed)))
       pair_matrix = 0.0_dblprec
@@ -872,6 +1108,36 @@ contains
             pair_matrix(3,3,found) = pair_matrix(3,3,found)+coefficient
          end do
       end do
+      if (ham_inp%do_dm == 1) then
+         do atom = 1, Natom
+            iham = ham%aham(atom)
+            do neighbour = 1, ham%dmlistsize(iham)
+               target = ham%dmlist(neighbour,atom)
+               if (target < 1 .or. target > Natom .or. target == atom) cycle
+               found = 0
+               if (bond > 0) then
+                  do found = 1, bond
+                     if (pair_i(found) == min(atom,target) .and. &
+                         pair_j(found) == max(atom,target)) exit
+                  end do
+                  if (found > bond) found = 0
+               end if
+               if (found == 0) then
+                  bond = bond+1
+                  found = bond
+                  pair_i(found) = min(atom,target)
+                  pair_j(found) = max(atom,target)
+                  call wrapped_displacement(pair_i(found),pair_j(found),displacement)
+                  pair_disp(:,found) = displacement
+               end if
+               dmi_energy_j = mub*mmom(atom,1)*mmom(target,1)*ham%dm_vect(:,neighbour,iham)
+               dmi_matrix = cross_product_matrix(dmi_energy_j)
+               orientation = merge(1.0_dblprec,-1.0_dblprec,atom < target)
+               pair_matrix(:,:,found) = pair_matrix(:,:,found) + &
+                  0.5_dblprec*orientation*dmi_matrix
+            end do
+         end do
+      end if
       if (bond == 0) then
          call setup_failed('Hamiltonian contains no usable scalar exchange bonds',status,diagnostic)
          return
@@ -886,6 +1152,14 @@ contains
       status = ADAPTIVE_CG_PRODUCTION_OK
       diagnostic = ''
    end subroutine build_unique_bonds
+
+   pure function cross_product_matrix(vector) result(matrix)
+      real(dblprec), intent(in) :: vector(3)
+      real(dblprec) :: matrix(3,3)
+      matrix = reshape((/0.0_dblprec,vector(3),-vector(2), &
+         -vector(3),0.0_dblprec,vector(1), &
+         vector(2),-vector(1),0.0_dblprec/),(/3,3/))
+   end function cross_product_matrix
 
    subroutine read_mask_file(filename,mask,status,diagnostic)
       character(len=*), intent(in) :: filename
@@ -993,6 +1267,7 @@ contains
          ' buffer_blocks=',adaptive_cg%buffer_blocks
       write(*,'(a,a,a,a)') 'AdaptiveCG: channel_mode=',trim(adaptive_cg%channel_mode), &
          ' fft_source_mapping=basis-resolved-to-single-dynamical-channel'
+      write(*,'(a,es24.16)') 'AdaptiveCG: physical_alat_m=',alat
       write(*,'(a,a)') 'AdaptiveCG: gpu_dipole_mode=',trim(gpu_dipole_mode)
       if (ipmode == 'N') then
          write(*,'(a,i0)') 'AdaptiveCG: initial_state_source=initmag mode=',initmag
@@ -1110,6 +1385,14 @@ contains
          adaptive_cg_state%hard_fine_mask),int64)*storage_size(.true.)/8
       if (allocated(adaptive_cg_state%atom_moment_mub)) bytes=bytes+int(size( &
          adaptive_cg_state%atom_moment_mub),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%atom_anisotropy_axis_count)) bytes=bytes+int(size( &
+         adaptive_cg_state%atom_anisotropy_axis_count),int64)*storage_size(1)/8
+      if (allocated(adaptive_cg_state%atom_anisotropy_axis)) bytes=bytes+int(size( &
+         adaptive_cg_state%atom_anisotropy_axis),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%atom_anisotropy_k1_j)) bytes=bytes+int(size( &
+         adaptive_cg_state%atom_anisotropy_k1_j),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%atom_anisotropy_k2_j)) bytes=bytes+int(size( &
+         adaptive_cg_state%atom_anisotropy_k2_j),int64)*storage_size(1.0_dblprec)/8
       if (allocated(adaptive_cg_state%coarse_direction)) bytes=bytes+int(size( &
          adaptive_cg_state%coarse_direction),int64)*storage_size(1.0_dblprec)/8
       if (allocated(adaptive_cg_state%bond_atom)) bytes=bytes+int(size( &

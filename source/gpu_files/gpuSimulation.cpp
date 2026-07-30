@@ -507,6 +507,10 @@ GpuAdaptiveRuntimeInput adaptiveRuntimeInput() {
    r.coarseField = FortranData::adaptive_coarse_field;
    r.channelMomentSum = FortranData::adaptive_channel_moment_sum;
    r.kernels.atomMoment = FortranData::adaptive_atom_moment;
+   r.kernels.atomAnisotropyAxisCount = FortranData::adaptive_atom_anisotropy_axis_count;
+   r.kernels.atomAnisotropyAxis = FortranData::adaptive_atom_anisotropy_axis;
+   r.kernels.atomAnisotropyK1 = FortranData::adaptive_atom_anisotropy_k1;
+   r.kernels.atomAnisotropyK2 = FortranData::adaptive_atom_anisotropy_k2;
    r.kernels.projectionBlock = FortranData::adaptive_projection_block;
    r.kernels.projectionWeight = FortranData::adaptive_projection_weight;
    r.kernels.bonds = FortranData::adaptive_bonds ? *FortranData::adaptive_bonds : 0;
@@ -931,10 +935,12 @@ void GpuSimulation::release() {
                      "coarse=%llu accepted_transitions=%llu rejected_transitions=0\n",
                      countState(2), countState(1), countState(0), accepted);
          std::printf("Gpu: AdaptiveCG last_energy_j atomistic_bilinear=%.16e "
+                     "atomistic_onsite=%.16e "
                      "coarse_exchange=%.16e coarse_spiralization=%.16e "
                      "coarse_anisotropy=%.16e coarse_external=%.16e "
                      "coarse_dipole=%.16e total=%.16e\n",
                      diagnostic.energy.atomisticBilinearJ,
+                     diagnostic.energy.atomisticOnsiteJ,
                      diagnostic.energy.coarseExchangeJ,
                      diagnostic.energy.coarseSpiralizationJ,
                      diagnostic.energy.coarseAnisotropyJ,

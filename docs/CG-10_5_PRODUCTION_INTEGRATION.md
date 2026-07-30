@@ -33,8 +33,9 @@ cleared on preflight/allocation exceptions.
 The initial production model accepts regular replicated cells with exact
 positive block divisibility, `P P P` boundaries, mode `S`, deterministic Heun
 (`SDEalgh=1`), zero measurement temperature, one ensemble-compatible
-ferromagnetic dynamical channel, scalar exchange, uniform Landé factor and
-damping, and no restart. `Initmag` modes 1 (random), 2 (cone), 3 (momfile), 5
+ferromagnetic dynamical channel, scalar exchange, DMI, deterministic type-1
+uniaxial anisotropy, uniform Landé factor and damping, and no restart.
+`Initmag` modes 1 (random), 2 (cone), 3 (momfile), 5
 (random Ising seed), and 8 (spin spiral) are accepted. `ip_mode N` starts CG
 from that state. Spin-only atomistic preparation accepts `ip_mode S`
 (spin dynamics), `M` (Metropolis), `H` (heat bath), `Q` (single-Q search),
@@ -46,13 +47,25 @@ device. `X` and `SX` replica-exchange runners remain outside this boundary.
 The setup diagnostic names the offending keyword or capability when it
 rejects Monte Carlo, GNEB, spin-lattice or other measurement modes;
 unsupported initial-phase modes or restart input; stochastic/finite-temperature
-measurement dynamics; DMI, tensor exchange, anisotropy, legacy `do_dip`,
+measurement dynamics; tensor exchange, unsupported anisotropy kinds, legacy `do_dip`,
 external/time-dependent measurement fields,
 sparse/reduced/fixed moments, energy-output paths not yet connected to hybrid
 accounting, nonperiodic or explicit-device geometry, multiple channels, or
 heterogeneous Landé/damping data. The GPU periodic path accepts
 `gpu_dipole_mode EWALD3D_FFT`; CPU adaptive runs and `OPEN_FFT` remain outside
 this periodic production boundary and are rejected explicitly.
+
+The short-range capability now includes scalar exchange, DMI, and
+deterministic type-1 uniaxial anisotropy. One or two uniaxial axes per site
+are accepted; cubic/type-2, combined type-7, random, and more general
+anisotropies remain explicit rejections. Tensor exchange and the other
+higher-order pair or multisite interactions remain outside the boundary.
+
+`alat` is mandatory whenever `do_adaptive_cg=Y`. It must be explicitly
+specified in `inpsd.dat` as a finite positive length in metres. The historical
+default is not accepted because the continuum tensors have different length
+dimensions and an implicit reduced-unit lattice parameter would silently
+produce the wrong material constants.
 
 The ordinary text `inpsd.dat` reader is the runtime input frontend. It maps
 every CG keyword to `adaptive_cg_config_t`. JSON/YAML files in the repository
@@ -95,12 +108,62 @@ GPU owner has copied them.
 
 ## Field and energy ownership
 
-Short-range scalar exchange bonds are owned once: a bond touching an
+Short-range scalar exchange and DMI bonds are owned once: a bond touching an
 atomistic/interface block is evaluated by the atomistic operator with
 projected coarse ghosts, while wholly coarse stencil terms are evaluated by
-the coarse tensor operator. The reported atomistic-bilinear and coarse
+the coarse tensor operator. Deterministic uniaxial anisotropy is similarly
+evaluated per atom in atomistic/interface blocks and as an energy density in
+coarse blocks. The reported atomistic-bilinear, atomistic-onsite, and coarse
 exchange/spiralization/anisotropy/external terms therefore form one hybrid
 total rather than overlapping atomistic and continuum totals.
+
+## SI material conversion
+
+The production harness calls the typed CG-03 extractor directly on the
+resolved UppASD neighbour lists. With directed pair energies
+\(J_{ij}=\mu_B\mu_i\mu_j\,\mathtt{ncoup}_{ij}\), DMI vectors
+\(\mathbf L_{ij}=\mu_B\mu_i\mu_j\,\mathtt{dm\_vect}_{ij}\), physical
+displacements \(\mathbf r_{ij}=\mathtt{alat}\,\Delta\mathbf x_{ij}\), and
+material-cell volume \(V\), the zero-regularization limits are
+
+\[
+A_{pq}={1\over4V}\sum_{ij}J_{ij}r_{ij,p}r_{ij,q},
+\qquad
+D_{kp}={1\over2V}\sum_{ij}L_{ij,k}r_{ij,p}.
+\]
+
+Thus \(A\) is in J m\(^{-1}\) and scales as `alat^-1`, while the
+spiralization \(D\) is in J m\(^{-2}\) and scales as `alat^-2`. For each
+accepted uniaxial axis, the resolved atomistic coefficients are converted
+back to joules,
+
+\[
+K_{1,i}^{J}=\mu_B\,\mathtt{kaniso}_{1,i}\mu_i^2,\qquad
+K_{2,i}^{J}=\mu_B\,\mathtt{kaniso}_{2,i}\mu_i^4,
+\]
+
+and summed over the material cell before division by \(V\), giving coarse
+coefficients in J m\(^{-3}\), scaling as `alat^-3`. Both resolutions use
+
+\[
+E_i=K_{1,i}^{J}c_i^2+
+K_{2,i}^{J}(2c_i^2-c_i^4),\qquad c_i=\mathbf m_i\cdot\mathbf e_i,
+\]
+
+with the field obtained from
+\(\mathbf B_i=-(\mu_B\mu_i)^{-1}\partial E_i/\partial\mathbf m_i\).
+The DMI continuum density is
+\(\sum_{kp}D_{kp}[\mathbf m\times\partial_p\mathbf m]_k\), retaining the
+CG-01/CG-03 handedness convention.
+
+These long-wave moment formulas and their spin-spiral interpretation follow
+the micromagnetic multiscale derivations in Zimmermann et al.,
+*Phys. Rev. B* **99**, 214426 (2019),
+https://doi.org/10.1103/PhysRevB.99.214426, and Schweflinghaus et al.,
+*Phys. Rev. B* **94**, 024403 (2016),
+https://doi.org/10.1103/PhysRevB.94.024403. The microscopic antisymmetric
+pair interaction is the Moriya form,
+https://doi.org/10.1103/PhysRev.120.91.
 
 `EWALD3D_FFT` is deliberately independent of that short-range ownership mask.
 At each predictor and corrector evaluation, the production FFT owner reduces
@@ -134,8 +197,8 @@ Level 0 suppresses these adaptive reports.
 
 `tests/coarse_graining/run_production_e2e.py` launches the normal binary with
 real `inpsd.dat` files for feature-off, all-fine, all-coarse, static mixed,
-adaptive transition, invalid-block, CUDA/HIP static-mixed, and CUDA/HIP
-adaptive cases. Nonuniform seeded CPU/GPU fixtures compare state decisions,
+adaptive transition, mixed DMI/anisotropy, missing-`alat`, invalid-block,
+CUDA/HIP static-mixed, and CUDA/HIP adaptive cases. Nonuniform seeded CPU/GPU fixtures compare state decisions,
 per-term energies, atom/coarse field checksums, transition counts, and final
 restart trajectories. A GPU `EWALD3D_FFT` mixed-state fixture proves that the
 production convolution contributes a nonzero adaptive dipole energy and FFT

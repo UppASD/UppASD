@@ -190,6 +190,8 @@ struct AdaptiveFixture {
    std::vector<double> center, volume;
    std::vector<int> state;
    std::vector<double> scores, atomMoment;
+   std::vector<int> atomAxisCount;
+   std::vector<double> atomAxis, atomK1, atomK2;
    std::vector<int> projectionBlock, bondAtom, selectorEdge;
    std::vector<double> projectionWeight, bondMatrix;
    double inverseBlockTranspose[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
@@ -213,7 +215,8 @@ struct AdaptiveFixture {
         fftPopulation(basis * blocks, 1),
         dynamicPopulation(blocks, static_cast<int>(atomsPerBlock)),
         center(3 * blocks), volume(blocks, 1.0), state(blocks, fineState),
-        scores(blocks), atomMoment(atoms, 1.0),
+        scores(blocks), atomMoment(atoms, 1.0), atomAxisCount(atoms),
+        atomAxis(6 * atoms), atomK1(2 * atoms), atomK2(2 * atoms),
         projectionBlock(8 * atoms), projectionWeight(8 * atoms),
         axisCount(blocks), axis(6 * blocks), k1(2 * blocks),
         k2(2 * blocks), coarseMoment(3 * blocks),
@@ -327,6 +330,10 @@ struct AdaptiveFixture {
       result.coarseField = coarseField.data();
       result.channelMomentSum = momentSum.data();
       result.kernels.atomMoment = atomMoment.data();
+      result.kernels.atomAnisotropyAxisCount = atomAxisCount.data();
+      result.kernels.atomAnisotropyAxis = atomAxis.data();
+      result.kernels.atomAnisotropyK1 = atomK1.data();
+      result.kernels.atomAnisotropyK2 = atomK2.data();
       result.kernels.projectionBlock = projectionBlock.data();
       result.kernels.projectionWeight = projectionWeight.data();
       result.kernels.bonds = bonds;

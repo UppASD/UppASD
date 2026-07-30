@@ -70,6 +70,10 @@ struct GpuAdaptiveRuntimeInput {
    // preflight as the topology/runtime arrays.
    struct KernelInput {
       const double* atomMoment = nullptr;       // (atom)
+      const int* atomAnisotropyAxisCount = nullptr; // (atom), 0..2
+      const double* atomAnisotropyAxis = nullptr;   // (3,2,atom)
+      const double* atomAnisotropyK1 = nullptr;     // (2,atom), joule
+      const double* atomAnisotropyK2 = nullptr;     // (2,atom), joule
       const int* projectionBlock = nullptr;    // (8,atom), one-based
       const double* projectionWeight = nullptr;// (8,atom)
       std::size_t bonds = 0;
@@ -164,6 +168,7 @@ struct GpuAdaptiveCompactionMetrics {
 
 struct GpuAdaptiveEnergy {
    double atomisticBilinearJ = 0.0;
+   double atomisticOnsiteJ = 0.0;
    double coarseExchangeJ = 0.0;
    double coarseSpiralizationJ = 0.0;
    double coarseAnisotropyJ = 0.0;
@@ -374,6 +379,8 @@ private:
    real gammaPerTs_ = real(0);
    real damping_ = real(0);
    GpuTensor<real, 1> atomMoment_;
+   GpuTensor<int, 1> atomAnisotropyAxisCount_;
+   GpuTensor<real, 1> atomAnisotropyAxis_, atomAnisotropyK1_, atomAnisotropyK2_;
    GpuTensor<int, 1> projectionBlock_, bondAtom_, selectorEdge_;
    GpuTensor<real, 1> projectionWeight_, bondMatrix_;
    GpuTensor<real, 1> inverseBlockTranspose_, exchangeStiffness_, spiralization_;

@@ -43,7 +43,8 @@ module InputData
    character(len=1) :: BC2                                  !< Boundary conditions in y-direction
    character(len=1) :: BC3                                  !< Boundary conditions in z-direction
    character(len=35) :: posfile                             !< File name for coordinates
-   real(dblprec) :: alat                                    !< Lattice parameter
+   real(dblprec) :: alat                                    !< Lattice parameter (metres for SI-aware paths)
+   logical :: alat_is_explicit                              !< True when alat was supplied in the input
    real(dblprec) :: scalefac                                !< Lattice vector rescaling factor (for debugging)
    real(dblprec) :: Landeg_glob                             !< Gyromagnetic ratio
    real(dblprec), dimension(3) :: C1                        !< First lattice vector
@@ -333,6 +334,7 @@ contains
       posfile           = 'posfile'
       posfiletype       = 'C'
       alat              = 1.0_dblprec
+      alat_is_explicit  = .false.
       scalefac          = 1.0_dblprec
       momfile           = 'momfile'
       momfile_i         = 'momfile_i'

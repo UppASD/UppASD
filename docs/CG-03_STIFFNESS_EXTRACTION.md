@@ -121,7 +121,7 @@ but are not reported as dynamical mode extraction.
   acoustic phase-sector energies, and optical phase-sector energies;
 - explicit rejection of ferri/AFM runtime consumption.
 
-## Runtime gate and deferred physics
+## Runtime gate and production consumption
 
 A one-channel ferromagnetic descriptor passes the extraction gate only after
 direct small-\(q\) energy validation and validation of positive channel gamma
@@ -134,12 +134,18 @@ flags. Static two-basis spiral-energy agreement is useful evidence, but it is
 not a substitute for the dynamical-matrix/eigenvector work assigned to the
 later multi-channel task.
 
+The one-channel descriptor is now consumed by
+`AdaptiveCGProduction`: exchange stiffness and DMI spiralization are
+constructed during normal `do_adaptive_cg=Y` setup and passed into the
+coarse tensor operator. Production requires an explicit positive SI `alat`
+because the physical displacement and cell volume in these sums determine
+the J m\(^{-1}\) and J m\(^{-2}\) scales.
+
 The following remain deferred:
 
 - random-alloy material averaging for runtime use;
 - dynamical acoustic/optical branch extraction and normalization;
 - ferrimagnetic and antiferromagnetic runtime enablement;
-- integration of the descriptor with a coarse field operator;
 - the separately recorded atomistic CPU/GPU DMI conformance fix.
 
 ## Acceptance

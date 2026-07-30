@@ -148,6 +148,10 @@ public:
    static real* adaptive_coarse_field;
    static real* adaptive_channel_moment_sum;
    static real* adaptive_atom_moment;
+   static int* adaptive_atom_anisotropy_axis_count;
+   static real* adaptive_atom_anisotropy_axis;
+   static real* adaptive_atom_anisotropy_k1;
+   static real* adaptive_atom_anisotropy_k2;
    static int* adaptive_projection_block;
    static real* adaptive_projection_weight;
    static unsigned int* adaptive_bonds;
@@ -384,7 +388,9 @@ public:
       real* channel_moment_sum);
    static void clearAdaptivePointers();
    static void setAdaptiveKernelPointers(
-      real* atom_moment, int* projection_block, real* projection_weight,
+      real* atom_moment, int* atom_anisotropy_axis_count,
+      real* atom_anisotropy_axis, real* atom_anisotropy_k1, real* atom_anisotropy_k2,
+      int* projection_block, real* projection_weight,
       unsigned int* bonds, int* bond_atom, real* bond_matrix,
       unsigned int* selector_edges, int* selector_edge,
       real* inverse_block_transpose, real* exchange_stiffness,
