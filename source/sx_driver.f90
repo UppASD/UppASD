@@ -139,24 +139,24 @@ contains
 
       ! Write output to stdout
       write (*,'(a28,i3,a10,G11.4,a10,i10,a10,a10)') &
-         "Performing SXPT,  Replica:", irep ," Temp: ", ipTemp(1)
+         "Performing SXPT,  Replica:", 1 ," Temp: ", ipTemp(1)
 
       sx_emom(:,:,:,1)=sx_emom_1q
       sx_emom(:,:,:,2)=sx_emom_3q
       sx_emom(:,:,:,3)=sx_emom_rn
       sx_emom(:,:,:,4)=sx_emom_fm
 
-      if(Num_macro>0) then
-         sx_mmom_macro(:,:,irep)=mmom_macro
-         sx_emom_macro(:,:,:,irep)=emom_macro
-         sx_emomM_macro(:,:,:,irep)=emomM_macro
-      end if
-
       do irep=1,sx_numrep
 
          sx_mmom(:,:,irep)=mmom
          replist(irep)=irep
          templist(irep)=irep
+
+         if(Num_macro>0) then
+            sx_mmom_macro(:,:,irep)=mmom_macro
+            sx_emom_macro(:,:,:,irep)=emom_macro
+            sx_emomM_macro(:,:,:,irep)=emomM_macro
+         end if
 
          do ik=1, Mensemble
             do ia=1,Natom
@@ -372,54 +372,87 @@ contains
       close(11)
 
 
-      i_all=-product(shape(sx_emomM))*kind(sx_emomM)
-      deallocate(sx_emomM,stat=i_stat)
-      call memocc(i_stat,i_all,'sx_emomM','sx_iphase')
-      i_all=-product(shape(sx_emomM))*kind(sx_emomM)
-      deallocate(sx_emom,stat=i_stat)
-      call memocc(i_stat,i_all,'sx_emom','sx_iphase')
-      i_all=-product(shape(sx_mmom))*kind(sx_mmom)
-      deallocate(sx_mmom,stat=i_stat)
-      call memocc(i_stat,i_all,'sx_mmom','sx_iphase')
+      if (allocated(sx_emomM)) then
+         i_all=-product(shape(sx_emomM))*kind(sx_emomM)
+         deallocate(sx_emomM,stat=i_stat)
+         call memocc(i_stat,i_all,'sx_emomM','sx_iphase')
+      end if
+      if (allocated(sx_emom)) then
+         i_all=-product(shape(sx_emom))*kind(sx_emom)
+         deallocate(sx_emom,stat=i_stat)
+         call memocc(i_stat,i_all,'sx_emom','sx_iphase')
+      end if
+      if (allocated(sx_mmom)) then
+         i_all=-product(shape(sx_mmom))*kind(sx_mmom)
+         deallocate(sx_mmom,stat=i_stat)
+         call memocc(i_stat,i_all,'sx_mmom','sx_iphase')
+      end if
       !
-      i_all=-product(shape(sx_emom_1q))*kind(sx_emom_1q)
-      deallocate(sx_emom_1q,stat=i_stat)
-      call memocc(i_stat,i_all,'sx_emom_1q','sx_iphase')
-      i_all=-product(shape(sx_emom_3q))*kind(sx_emom_3q)
-      deallocate(sx_emom_3q,stat=i_stat)
-      call memocc(i_stat,i_all,'sx_emom_3q','sx_iphase')
-      i_all=-product(shape(sx_emom_rn))*kind(sx_emom_rn)
-      deallocate(sx_emom_rn,stat=i_stat)
-      call memocc(i_stat,i_all,'sx_emom_rn','sx_iphase')
-      i_all=-product(shape(sx_emom_fm))*kind(sx_emom_fm)
-      deallocate(sx_emom_fm,stat=i_stat)
-      call memocc(i_stat,i_all,'sx_emom_fm','sx_iphase')
+      if (allocated(sx_emom_1q)) then
+         i_all=-product(shape(sx_emom_1q))*kind(sx_emom_1q)
+         deallocate(sx_emom_1q,stat=i_stat)
+         call memocc(i_stat,i_all,'sx_emom_1q','sx_iphase')
+      end if
+      if (allocated(sx_emom_3q)) then
+         i_all=-product(shape(sx_emom_3q))*kind(sx_emom_3q)
+         deallocate(sx_emom_3q,stat=i_stat)
+         call memocc(i_stat,i_all,'sx_emom_3q','sx_iphase')
+      end if
+      if (allocated(sx_emom_rn)) then
+         i_all=-product(shape(sx_emom_rn))*kind(sx_emom_rn)
+         deallocate(sx_emom_rn,stat=i_stat)
+         call memocc(i_stat,i_all,'sx_emom_rn','sx_iphase')
+      end if
+      if (allocated(sx_emom_fm)) then
+         i_all=-product(shape(sx_emom_fm))*kind(sx_emom_fm)
+         deallocate(sx_emom_fm,stat=i_stat)
+         call memocc(i_stat,i_all,'sx_emom_fm','sx_iphase')
+      end if
       !
 
       if(Num_macro>0) then
-         i_all=-product(shape(sx_emomM_macro))*kind(sx_emomM_macro)
-         deallocate(sx_emomM_macro,stat=i_stat)
-         call memocc(i_stat,i_all,'sx_emomM_macro','sx_iphase')
-         i_all=-product(shape(sx_emomM_macro))*kind(sx_emomM_macro)
-         deallocate(sx_emom_macro,stat=i_stat)
-         call memocc(i_stat,i_all,'sx_emom_macro','sx_iphase')
-         i_all=-product(shape(sx_mmom_macro))*kind(sx_mmom_macro)
-         deallocate(sx_mmom_macro,stat=i_stat)
-         call memocc(i_stat,i_all,'sx_mmom_macro','sx_iphase')
+         if (allocated(sx_emomM_macro)) then
+            i_all=-product(shape(sx_emomM_macro))*kind(sx_emomM_macro)
+            deallocate(sx_emomM_macro,stat=i_stat)
+            call memocc(i_stat,i_all,'sx_emomM_macro','sx_iphase')
+         end if
+         if (allocated(sx_emom_macro)) then
+            i_all=-product(shape(sx_emom_macro))*kind(sx_emom_macro)
+            deallocate(sx_emom_macro,stat=i_stat)
+            call memocc(i_stat,i_all,'sx_emom_macro','sx_iphase')
+         end if
+         if (allocated(sx_mmom_macro)) then
+            i_all=-product(shape(sx_mmom_macro))*kind(sx_mmom_macro)
+            deallocate(sx_mmom_macro,stat=i_stat)
+            call memocc(i_stat,i_all,'sx_mmom_macro','sx_iphase')
+         end if
       end if
 
-      i_all=-product(shape(sx_flipprob))*kind(sx_flipprob)
-      deallocate(sx_flipprob,stat=i_stat)
-      call memocc(i_stat,i_all,'sx_flipprob','sx_iphase')
-      i_all=-product(shape(templist))*kind(templist)
-      deallocate(templist,stat=i_stat)
-      call memocc(i_stat,i_all,'templist','sx_iphase')
-      i_all=-product(shape(replist))*kind(replist)
-      deallocate(replist,stat=i_stat)
-      call memocc(i_stat,i_all,'replist','sx_iphase')
-      i_all=-product(shape(repene))*kind(repene)
-      deallocate(repene,stat=i_stat)
-      call memocc(i_stat,i_all,'repene','sx_iphase')
+      if (allocated(sx_flipprob)) then
+         i_all=-product(shape(sx_flipprob))*kind(sx_flipprob)
+         deallocate(sx_flipprob,stat=i_stat)
+         call memocc(i_stat,i_all,'sx_flipprob','sx_iphase')
+      end if
+      if (allocated(templist)) then
+         i_all=-product(shape(templist))*kind(templist)
+         deallocate(templist,stat=i_stat)
+         call memocc(i_stat,i_all,'templist','sx_iphase')
+      end if
+      if (allocated(replist)) then
+         i_all=-product(shape(replist))*kind(replist)
+         deallocate(replist,stat=i_stat)
+         call memocc(i_stat,i_all,'replist','sx_iphase')
+      end if
+      if (allocated(repene_sum)) then
+         i_all=-product(shape(repene_sum))*kind(repene_sum)
+         deallocate(repene_sum,stat=i_stat)
+         call memocc(i_stat,i_all,'repene_sum','sx_iphase')
+      end if
+      if (allocated(repene)) then
+         i_all=-product(shape(repene))*kind(repene)
+         deallocate(repene,stat=i_stat)
+         call memocc(i_stat,i_all,'repene','sx_iphase')
+      end if
       !
       !
       return
