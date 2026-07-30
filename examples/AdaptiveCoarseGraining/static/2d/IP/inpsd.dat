@@ -1,0 +1,53 @@
+simid adaptive
+alat 1.0e-10
+ncell 12 128 1
+BC P P P
+cell 1.0 0.0 0.0
+     0.0 1.0 0.0
+     0.0 0.0 1.0
+
+Sym 2
+posfile ../../../posfile
+momfile ../../../momfile
+exchange ../../../jfile
+do_prnstruct 1
+
+SDEalgh 1
+Initmag 1
+#restartfile ./start.af
+Mensemble 1
+
+ip_mode S
+ip_nphase 1
+1000 10.000 1.e-15 1.0
+
+!qm_svec 1 0 0
+!qm_nvec 0 0 1
+!qpoints D
+!qfile ./qfile
+
+mode S
+temp 0.0
+damping 0.15
+Nstep 10000
+timestep 1.0e-15
+hfield 0.0 0.0 0.0
+
+do_avrg Y
+do_cumu Y
+do_tottraj Y
+plotenergy 0
+
+do_adaptive_cg Y
+block_size_x 4
+block_size_y 4
+block_size_z 1
+cg_operator PROJECTED
+cg_mask_mode STATIC
+cg_buffer_blocks 0
+cg_reconstruction ALIGNED
+cg_diagnostics 3
+ 
+!do_stiffness Y
+!eta_min 14
+!eta_max 24

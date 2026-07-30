@@ -1,0 +1,3 @@
+# One-based block id followed by FINE or COARSE.
+# Omitted blocks default to COARSE.
+1 COARSE

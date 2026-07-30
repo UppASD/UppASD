@@ -1,0 +1,42 @@
+simid adaptive_cg_static_example
+alat 1.0e-10
+ncell 4 4 8
+BC P P P
+cell 1.0 0.0 0.0
+     0.0 1.0 0.0
+     0.0 0.0 1.0
+Sym 1
+posfile ../../posfile
+momfile ../../momfile
+exchange ../../jfile
+do_prnstruct 2
+
+SDEalgh 1
+Initmag 3
+restartfile ./start.af
+Mensemble 1
+
+ip_mode Q
+qpoints D
+qfile ./qfile
+
+mode S
+temp 0.0
+damping 0.05
+Nstep 1000
+
+do_avrg Y
+do_cumu Y
+do_tottraj Y
+plotenergy 0
+
+do_adaptive_cg Y
+block_size_x 4
+block_size_y 4
+block_size_z 4
+cg_operator PROJECTED
+cg_mask_mode STATIC
+!cg_static_mask_file mask.dat
+cg_buffer_blocks 0
+cg_reconstruction ALIGNED
+cg_diagnostics 3

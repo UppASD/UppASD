@@ -7,6 +7,10 @@
 **Primary scope:** Optional low-temperature two-scale spin dynamics on CPU and GPU  
 **Explicitly out of scope:** Reimplementation, integration, or redesign of the existing μASD package
 
+**Active review remediation:** `docs/ADAPTIVE_COARSE_GRAINING_REMEDIATION_BLUEPRINT.md`;
+acceptance claims contradicted by that review are provisionally reopened until
+its RCG-10 handback is complete
+
 ---
 
 ## 1. Executive decision

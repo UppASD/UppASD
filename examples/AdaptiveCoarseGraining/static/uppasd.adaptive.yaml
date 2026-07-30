@@ -1,0 +1,21 @@
+simid: adaptive
+date: 2026-07-30
+git_revision: v6.0.2-429-g3b9d-dirty
+siminfo:
+    temperature:    0.0000000         
+    timestep:       0.10000000E-15    
+    damping:        0.50000000E-01    
+    nstep:          1000    
+    mode:           LLG
+    alat:           1.0000000         
+    qfile:          ./qfile
+measurables:
+    averages:       Yes
+    trajectories:   No 
+    moments:        Yes
+    sqw:            No 
+    ams:            No 
+    nc-ams:         No 
+    totenergy:      No 
+    cumulants:      Yes
+    coord:          Yes
