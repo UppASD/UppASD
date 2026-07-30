@@ -1953,6 +1953,11 @@ evaluations and verifies nonzero dipole energy/FFT timing; the device runtime
 oracle separately verifies basis-resolved atomistic, interface, and coarse
 field values and the exactly-once dipole energy. Both ordinary inputs under
 `examples/AdaptiveCoarseGraining` are launched by the executable suite.
+The input suite also covers random-cone and deterministic spin-spiral
+initialization plus CPU/GPU `ip_mode S` handoff: capability preflight occurs
+before the atomistic initial phase, while topology/material/runtime
+construction consumes its completed moment state immediately before the
+measurement phase.
 Exhaustive unsupported-capability negative fixtures remain open.
 
 ---

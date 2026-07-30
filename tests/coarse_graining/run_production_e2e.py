@@ -110,6 +110,10 @@ def main() -> None:
     bad_temp = run_case(binary, root / "unsupported_temperature")
     assert bad_temp.returncode != 0
     assert "Temp/do_qhb/do_3tm" in bad_temp.stdout
+    bad_initial_phase = run_case(binary, root / "unsupported_initial_phase_mc")
+    assert bad_initial_phase.returncode != 0
+    assert "ip_mode" in bad_initial_phase.stdout
+    assert "Performing MC initial phase" not in bad_initial_phase.stdout
 
     parity_cpu: dict[str, str] = {}
     for mode in ("static", "adaptive"):
@@ -123,11 +127,36 @@ def main() -> None:
     assert abs(float_metric(parity_cpu["static"], "direction_sum")) < 40.0
     assert metric(parity_cpu["adaptive"], "accepted_transitions") > 0
 
-    for name in ("static_mixed", "adaptive"):
+    initial_phase_cpu = run_case(binary, root / "initial_phase_sd_cpu")
+    assert initial_phase_cpu.returncode == 0, initial_phase_cpu.stdout
+    assert "Performing initial phase:" in initial_phase_cpu.stdout
+    assert "initial_state_source=completed_atomistic_sd" in initial_phase_cpu.stdout
+    assert initial_phase_cpu.stdout.index("Performing initial phase:") < (
+        initial_phase_cpu.stdout.index("AdaptiveCG: capability accepted")
+    )
+    assert metric(initial_phase_cpu.stdout, "accepted_transitions") > 0
+    assert close(
+        float_metric(initial_phase_cpu.stdout, "direction_norm2"),
+        48.0,
+        2.0e-12,
+        2.0e-12,
+    )
+    print("CG-10.5 Initmag=2 atomistic SD initial-phase handoff passed")
+
+    spiral = run_case(binary, root / "initmag_spin_spiral")
+    assert spiral.returncode == 0, spiral.stdout
+    assert "spin spiral modulation" in spiral.stdout
+    assert "initial_state_source=initmag mode=8" in spiral.stdout
+    assert abs(float_metric(spiral.stdout, "direction_sum")) < 20.0
+    print("CG-10.5 Initmag=8 inhomogeneous spin-spiral seed passed")
+
+    for name in ("static_mixed", "adaptive", "initial_phase_texture"):
         result = run_case(binary, examples / name)
         assert result.returncode == 0, f"example {name}\n{result.stdout}"
         assert "AdaptiveCG: capability accepted" in result.stdout
         assert "AdaptiveCG: last_energy_j" in result.stdout
+        if name == "initial_phase_texture":
+            assert "initial_state_source=completed_atomistic_sd" in result.stdout
     print("CG-10.5 user-facing input examples passed")
 
     if args.gpu_binary:
@@ -142,6 +171,14 @@ def main() -> None:
             assert "Gpu: AdaptiveCG initial active_atoms=" in result.stdout
             gpu_outputs[name] = result.stdout
         if len(gpu_outputs) == 2:
+            initial_phase_gpu = run_case(gpu_binary, root / "initial_phase_sd_gpu")
+            assert initial_phase_gpu.returncode == 0, initial_phase_gpu.stdout
+            assert "GpuSDSimulation: SD initial phase starting" in initial_phase_gpu.stdout
+            assert "initial_state_source=completed_atomistic_sd" in initial_phase_gpu.stdout
+            assert initial_phase_gpu.stdout.index(
+                "GpuSDSimulation: SD initial phase starting"
+            ) < initial_phase_gpu.stdout.index("AdaptiveCG: capability accepted")
+            assert metric(initial_phase_gpu.stdout, "accepted_transitions") > 0
             static_active = metric(gpu_outputs["gpu_static_mixed"], "active_atoms")
             adaptive_counts = [
                 int(value)

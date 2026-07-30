@@ -272,6 +272,25 @@ contains
       
       integer :: cflag
 
+      ! Capability preflight ran before the initial phase and before any
+      ! device allocation. Construct adaptive ownership only now, from the
+      ! completed atomistic handoff state, while Hamiltonian input remains
+      ! available for material extraction.
+      block
+         use AdaptiveCGProduction, only : setup_adaptive_cg_production, &
+            ADAPTIVE_CG_PRODUCTION_OK
+         integer :: adaptive_status
+         character(len=512) :: adaptive_diagnostic
+         call setup_adaptive_cg_production(adaptive_status,adaptive_diagnostic)
+         if (adaptive_status /= ADAPTIVE_CG_PRODUCTION_OK) then
+            write(*,'(a)') trim(adaptive_diagnostic)
+            error stop 1
+         end if
+      end block
+
+      ! The adaptive material descriptor has copied the required coefficients.
+      call allocate_hamiltonianinput(ham_inp,flag=-1)
+
       if(do_diamag=='Y') then
          call timing(0,'SpinCorr      ','ON')
          call setup_tensor_hamiltonian(NA,Natom,Mensemble,simid,emomM,mmom)
@@ -1344,24 +1363,21 @@ contains
             ham%dm_vect,ham_inp%do_anisotropy,ham_inp%anisotropy,simid)
       end if
 
-      ! Adaptive CG capability validation and construction deliberately happen
-      ! only after geometry, moments, Hamiltonian, damping, and solver setup
-      ! are complete, but before input Hamiltonian storage is released and
-      ! before either CPU runtime dispatch or GPU device preflight.
+      ! Adaptive CG preflight happens after geometry, moments, Hamiltonian,
+      ! damping, and solver setup, but before the optional atomistic initial
+      ! phase can allocate a device. Runtime construction is deferred until
+      ! that phase has produced its final handoff texture.
       block
-         use AdaptiveCGProduction, only : setup_adaptive_cg_production, &
+         use AdaptiveCGProduction, only : preflight_adaptive_cg_production, &
             ADAPTIVE_CG_PRODUCTION_OK
          integer :: adaptive_status
          character(len=512) :: adaptive_diagnostic
-         call setup_adaptive_cg_production(adaptive_status,adaptive_diagnostic)
+         call preflight_adaptive_cg_production(adaptive_status,adaptive_diagnostic)
          if (adaptive_status /= ADAPTIVE_CG_PRODUCTION_OK) then
             write(*,'(a)') trim(adaptive_diagnostic)
             error stop 1
          end if
       end block
-
-      ! Deallocate input data for Heisenberg Hamiltonian
-      call allocate_hamiltonianinput(ham_inp,flag=-1)
 
       !------------------------------------------------------------------------------
       ! This is the initialization of the KMC particles

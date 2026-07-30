@@ -108,6 +108,7 @@ module AdaptiveCGProduction
 
    type(adaptive_cg_production_state_type), save, public :: adaptive_cg_state
 
+   public :: preflight_adaptive_cg_production
    public :: setup_adaptive_cg_production
    public :: cleanup_adaptive_cg_production
    public :: adaptive_cg_is_enabled
@@ -119,6 +120,16 @@ contains
    logical function adaptive_cg_is_enabled()
       adaptive_cg_is_enabled = adaptive_cg_state%ready
    end function adaptive_cg_is_enabled
+
+   subroutine preflight_adaptive_cg_production(status, diagnostic)
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: diagnostic
+
+      status = ADAPTIVE_CG_PRODUCTION_OK
+      diagnostic = ''
+      if (same_word(adaptive_cg%enabled,'N')) return
+      call validate_configuration(status,diagnostic)
+   end subroutine preflight_adaptive_cg_production
 
    subroutine setup_adaptive_cg_production(status, diagnostic)
       integer, intent(out) :: status
@@ -142,7 +153,7 @@ contains
       diagnostic = ''
       if (same_word(adaptive_cg%enabled,'N')) return
 
-      call validate_configuration(status,diagnostic)
+      call preflight_adaptive_cg_production(status,diagnostic)
       if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
       adaptive_cg_state%gpu_requested = affirmative(do_gpu) .and. affirmative(do_gpu_llg)
       adaptive_cg_state%adaptive_mask = same_word(adaptive_cg%mask_mode,'ADAPTIVE')
@@ -401,12 +412,16 @@ contains
       if (mode /= 'S') then
          call reject('mode: adaptive coarse graining supports spin dynamics (S) only',status,diagnostic); return
       end if
-      if (ipmode /= 'N') then
-         call reject('ip_mode: adaptive coarse graining requires no initial phase; restart/MC/SD initial phases are unsupported', &
+      if (ipmode /= 'N' .and. ipmode /= 'S') then
+         call reject('ip_mode: adaptive coarse graining supports N or an atomistic SD handoff (S) only', &
             status,diagnostic); return
       end if
       if (initmag == 4) then
          call reject('initmag=4 restart is unsupported until adaptive state serialization is implemented',status,diagnostic); return
+      end if
+      if (.not. any(initmag == (/1,2,3,5,8/))) then
+         call reject('initmag: adaptive CG supports random (1), cone (2), momfile (3), random Ising seed (5), or spin spiral (8)', &
+            status,diagnostic); return
       end if
       if (SDEalgh /= 1 .or. llg /= 1) then
          call reject('SDEalgh/llg: adaptive coarse graining supports deterministic fixed-length Heun LLG (1) only', &
@@ -900,6 +915,12 @@ contains
       write(*,'(a,a,a,a)') 'AdaptiveCG: channel_mode=',trim(adaptive_cg%channel_mode), &
          ' fft_source_mapping=basis-resolved-to-single-dynamical-channel'
       write(*,'(a,a)') 'AdaptiveCG: gpu_dipole_mode=',trim(gpu_dipole_mode)
+      if (ipmode == 'S') then
+         write(*,'(a,i0,a)') 'AdaptiveCG: initial_state_source=completed_atomistic_sd phases=', &
+            ipnphase,' (CG ownership begins after the initial phase)'
+      else
+         write(*,'(a,i0)') 'AdaptiveCG: initial_state_source=initmag mode=',initmag
+      end if
       write(*,'(a,3(i0,1x),a,3(i0,1x))') 'AdaptiveCG: block_size=',block_size_x,block_size_y,block_size_z, &
          ' block_grid=',adaptive_cg_state%topology%block_grid
       write(*,'(a,i0,a,i0,a,i0,a,i0)') 'AdaptiveCG: atoms=',Natom,' blocks=', &

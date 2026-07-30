@@ -16,6 +16,15 @@ cd adaptive
 ../../../build_cpu/bin/sd.f95
 ```
 
+The `initial_phase_texture` case starts from an `Initmag 8` spin spiral, runs
+ten ordinary atomistic SD preparation steps, and only then constructs the
+adaptive topology and selector:
+
+```sh
+cd initial_phase_texture
+../../../build_cpu/bin/sd.f95
+```
+
 Adjust the executable path for your build. `static_mixed/mask.dat` keeps block
 1 atomistic; omitted
 blocks start coarse and the required interaction-width interface is added
@@ -37,6 +46,19 @@ The important physics/diagnostic keywords are:
   joules.
 - `cg_diagnostics 3`: resolved topology, ownership states, transitions,
   per-term energies, field/trajectory checksums, timings, and memory.
+
+Supported starting-state modes are `Initmag 1` (random), `2` (random cone),
+`3` (momfile direction), `5` (random signs along the momfile direction), and
+`8` (spin spiral using `initpropvec`, `initrotvec`, and `initrotang`).
+`Initmag 4` remains a restart and is rejected until adaptive state
+serialization exists.
+
+`ip_mode S` is also supported as an atomistic preparation stage. Its
+`ip_nphase` rows use the ordinary `steps, temperature, timestep, damping`
+format. Adaptive ownership is not active during this stage: the final atomic
+moments are handed off at the start of the measurement phase, when CG derives
+its coarse moments and initial selector state. Other `ip_mode` runners remain
+outside the accepted boundary.
 
 The current production boundary requires periodic boundaries, scalar
 Heisenberg exchange, zero temperature, fixed-length deterministic Heun

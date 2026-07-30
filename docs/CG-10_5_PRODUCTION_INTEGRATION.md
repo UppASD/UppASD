@@ -31,16 +31,20 @@ cleared on preflight/allocation exceptions.
 ## Capability boundary
 
 The initial production model accepts regular replicated cells with exact
-positive block divisibility, `P P P` boundaries, mode `S`, no initial phase,
-deterministic Heun (`SDEalgh=1`), zero temperature, one ensemble-compatible
+positive block divisibility, `P P P` boundaries, mode `S`, deterministic Heun
+(`SDEalgh=1`), zero measurement temperature, one ensemble-compatible
 ferromagnetic dynamical channel, scalar exchange, uniform Landé factor and
-damping, and no restart. CPU and GPU call the same Fortran validation before
-either runtime is allocated.
+damping, and no restart. `Initmag` modes 1 (random), 2 (cone), 3 (momfile), 5
+(random Ising seed), and 8 (spin spiral) are accepted. `ip_mode N` starts CG
+from that state; `ip_mode S` first runs the ordinary atomistic SD initial
+phase and hands its completed texture to CG. CPU and GPU use the same Fortran
+capability preflight before the initial phase can allocate a device.
 
 The setup diagnostic names the offending keyword or capability when it
-rejects Monte Carlo, GNEB, spin-lattice or other modes; initial-phase or
-restart input; stochastic/finite-temperature dynamics; DMI, tensor exchange,
-anisotropy, legacy `do_dip`, external/time-dependent fields,
+rejects Monte Carlo, GNEB, spin-lattice or other measurement modes;
+non-SD initial-phase modes or restart input; stochastic/finite-temperature
+measurement dynamics; DMI, tensor exchange, anisotropy, legacy `do_dip`,
+external/time-dependent measurement fields,
 sparse/reduced/fixed moments, energy-output paths not yet connected to hybrid
 accounting, nonperiodic or explicit-device geometry, multiple channels, or
 heterogeneous Landé/damping data. The GPU periodic path accepts
@@ -61,6 +65,15 @@ whole simulation phase. No test fixture supplies production coefficients or
 maps. Auxiliary files are read during enabled setup and closed immediately.
 With `do_adaptive_cg=N`, setup returns before opening a file or constructing
 any owner.
+
+Adaptive setup has two lifecycle points. A read-only preflight validates the
+resolved inputs, geometry, Hamiltonian, and selected initial/measurement
+solvers before `run_initial_phase`. Actual topology, material, selector, and
+runtime construction occurs at the start of `run_measurement_phase`, after an
+optional atomistic `ip_mode S` has updated `emom`, `emomM`, and `mmom`.
+Hamiltonian input storage is retained until this handoff construction and
+released immediately afterward. No coarse ownership or adaptive selector is
+active during the initial phase.
 
 Both CPU and GPU publish selector changes only after a complete corrector
 stage. Coarse reconstruction is committed to the atomic direction array used
@@ -117,7 +130,8 @@ production convolution contributes a nonzero adaptive dipole energy and FFT
 timing. CPU assertions compare active updates and prove that mixed and coarse
 modes reduce short-range/integration work. GPU cases assert compact active
 counts and are skipped only when the compiled backend reports that no device
-is present.
+is present. Additional executable cases cover `Initmag=2` plus CPU/GPU
+atomistic-SD handoff and the deterministic `Initmag=8` spin-spiral texture.
 
 The ordinary inputs in `examples/AdaptiveCoarseGraining` cover a static mixed
 mask and adaptive MAX_ANGLE selection. They contain no test-only hooks or
