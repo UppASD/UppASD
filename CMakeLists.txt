@@ -886,6 +886,16 @@ if(BUILD_TESTING)
    target_link_libraries(stiffness_material_tests PRIVATE ${UppASD_LIB})
    add_test(NAME coarse-graining-stiffness-material COMMAND stiffness_material_tests)
 
+   # RCG-02 analytic source-of-truth for the directed-pair DMI energy and
+   # both dimer fields.  It calls the independent CPU field entrypoints.
+   add_executable(dmi_dimer_energy_tests
+      ${CMAKE_SOURCE_DIR}/source/Hamiltonian/applyhamiltonian.f90
+      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_dmi_dimer_energy.f90)
+   set_target_properties(dmi_dimer_energy_tests PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/dmi_dimer_energy_tests)
+   target_link_libraries(dmi_dimer_energy_tests PRIVATE ${UppASD_LIB})
+   add_test(NAME coarse-graining-dmi-dimer-energy COMMAND dmi_dimer_energy_tests)
+
    # CG-04 CPU reference tensor operator: explicit energy/field fixtures on
    # cubic and skew canonical grids, independent of adaptive and GPU paths.
    add_executable(coarse_tensor_operator_tests
@@ -952,6 +962,7 @@ if(BUILD_TESTING)
    # production and backend tests below add the matching CUDA/HIP label.
    set_tests_properties(
       coarse-graining-block-topology
+      coarse-graining-dmi-dimer-energy
       coarse-graining-stiffness-material
       coarse-graining-tensor-operator
       coarse-graining-multichannel-tensor-operator
@@ -1054,6 +1065,32 @@ if(BUILD_TESTING)
    # do not recompile a driver from Python/nvcc.  It exercises the complete
    # Builder A tensor upload, batched kernel R2C, and stored-spectrum contract.
    if(USE_CUDA OR USE_HIP)
+      # RCG-02 device half of DMI-DIMER-CPU-GPU.  The test runs the actual
+      # hamdev::dm_field device helper, rather than reproducing it on host.
+      add_executable(gpu_dmi_dimer_tests
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_dmi_dimer.cpp)
+      target_include_directories(gpu_dmi_dimer_tests PRIVATE
+         ${CMAKE_SOURCE_DIR}/source/gpu_files)
+      if(USE_CUDA)
+         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_dmi_dimer.cpp
+            PROPERTIES LANGUAGE CUDA)
+         target_compile_definitions(gpu_dmi_dimer_tests PRIVATE CUDA_V)
+         target_link_libraries(gpu_dmi_dimer_tests PRIVATE CUDA::cudart)
+      else()
+         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_dmi_dimer.cpp
+            PROPERTIES LANGUAGE HIP)
+         target_compile_definitions(gpu_dmi_dimer_tests PRIVATE HIP_V)
+      endif()
+      add_test(NAME coarse-graining-gpu-dmi-dimer COMMAND gpu_dmi_dimer_tests)
+      set_tests_properties(coarse-graining-gpu-dmi-dimer PROPERTIES SKIP_RETURN_CODE 77)
+      if(USE_CUDA)
+         set_tests_properties(coarse-graining-gpu-dmi-dimer
+            PROPERTIES LABELS "coarse-graining;cg13;cg13-cuda;reference")
+      else()
+         set_tests_properties(coarse-graining-gpu-dmi-dimer
+            PROPERTIES LABELS "coarse-graining;cg13;cg13-hip;reference")
+      endif()
+
       # CG-09/CG-10 immutable topology transfer, mutable block/channel
       # storage, compact work scheduling, tensor/interface/adaptive parity,
       # measured phase boundaries, and cleanup accounting on the active

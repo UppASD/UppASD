@@ -624,6 +624,18 @@ Opus/Terra or Sol reviewer
 `DMI-SPIRAL-Q`, and the operator-level portion of
 `DMI-HYBRID-CROSSING`.
 
+**RCG-02 evidence (2026-07-31, incomplete):**
+`docs/RCG-02_DMI_HANDEDNESS_EVIDENCE.md` records the independent indexed
+derivation, the DMI dimer's pre-fix CPU-action failure, and Human approval of
+the source-level correction.  `DMI-DIMER-ENERGY`, material small-\(q\),
+tensor DMI derivative/chiral-chain, static-hybrid crossing, and the ordinary
+feature-off/production CPU suite pass on the corrected source.  A fresh CUDA
+fp64 build on RTX A4000 hardware passes the device dimer, GPU adaptive
+runtime, and production-e2e fixtures; HIP is unavailable.  The legacy
+feature-off ASD suite has four DMI-sensitive golden-output changes (Kagome
+and SCsurf) requiring independent review and reviewed reference
+reconciliation, so RCG-02 remains open.
+
 ---
 
 ### Task RCG-03: Enforce coarse-model capability safety

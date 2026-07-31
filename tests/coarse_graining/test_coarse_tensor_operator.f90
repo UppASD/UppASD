@@ -13,6 +13,7 @@ program test_coarse_tensor_operator
    call test_uniform_rotation_and_metric()
    call test_energy_derivatives_and_reporting()
    call test_small_q_chirality_and_block_one()
+   call test_small_q_chiral_minimum()
    call test_domain_wall_refinement()
    call test_llg_and_setup_rejections()
 
@@ -261,6 +262,65 @@ contains
          negative%spiralization_j < 0.0_dblprec, &
          'positive D_zx gives E(+q)>E(-q) and the approved negative-q chirality')
    end subroutine test_small_q_chirality_and_block_one
+
+   subroutine test_small_q_chiral_minimum()
+      ! DMI-SPIRAL-Q: for E/V=A q^2+D_zx q, the independently prescribed
+      ! continuum minimum is q_min=-D_zx/(2A).  The same physical chain is
+      ! sampled at two block resolutions; both must select the left-handed
+      ! (negative-q) mode and approach the analytic magnitude.
+      type(block_topology_type) :: topology
+      type(coarse_material_type) :: material
+      type(coarse_tensor_operator_type) :: operator
+      type(coarse_operator_options_type) :: options
+      type(coarse_energy_terms_type) :: energy, minimum
+      integer, parameter :: ncell = 256
+      integer :: width, mode, best_mode, block, status
+      character(len=512) :: message
+      real(dblprec), parameter :: a = 2.0d-10, exchange_a = 1.0d-11
+      real(dblprec) :: cell(3,3), exchange(3,3), dmi(3,3), dmi_zx
+      real(dblprec) :: length, q, q_minimum, q_analytic, angle
+      real(dblprec), allocatable :: direction(:,:), field(:,:), zero(:,:)
+
+      cell = 0.0_dblprec
+      cell(1,1) = a
+      cell(2,2) = a
+      cell(3,3) = a
+      exchange = 0.0_dblprec
+      exchange(1,1) = exchange_a
+      length = real(ncell,dblprec)*a
+      q_analytic = -2.0_dblprec*acos(-1.0_dblprec)/length
+      dmi_zx = -2.0_dblprec*exchange_a*q_analytic
+      dmi = 0.0_dblprec
+      dmi(3,1) = dmi_zx
+
+      do width = 1, 4, 3
+         call make_fixture((/ncell,1,1/),(/width,1,1/),cell,exchange,dmi, &
+            topology,material,operator,options)
+         allocate(direction(3,operator%nblocks),field(3,operator%nblocks),zero(3,operator%nblocks))
+         zero = 0.0_dblprec
+         minimum%total_j = huge(1.0_dblprec)
+         best_mode = 0
+         do mode = -3,3
+            q = 2.0_dblprec*acos(-1.0_dblprec)*real(mode,dblprec)/length
+            do block = 1,operator%nblocks
+               angle = q*operator%block_vectors_m(1,1)*real(operator%block_coordinate(1,block),dblprec)
+               direction(:,block) = (/cos(angle),sin(angle),0.0_dblprec/)
+            end do
+            call evaluate_coarse_tensor_operator(operator,direction,field,energy,status,message, &
+               external_field_t=zero)
+            call check(status == COARSE_TENSOR_OK,'small-q chiral chain evaluates')
+            if (energy%total_j < minimum%total_j) then
+               minimum = energy
+               best_mode = mode
+            end if
+         end do
+         q_minimum = 2.0_dblprec*acos(-1.0_dblprec)*real(best_mode,dblprec)/length
+         call check(best_mode < 0,'positive D_zx selects the analytic left-handed (negative-q) minimum')
+         call check_close(q_minimum,q_analytic,2.0d-1, &
+            'small-q chiral-chain minimum magnitude matches -D_zx/(2A)')
+         deallocate(direction,field,zero)
+      end do
+   end subroutine test_small_q_chiral_minimum
 
    subroutine test_domain_wall_refinement()
       type(block_topology_type) :: topology

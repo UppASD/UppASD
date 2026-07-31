@@ -109,7 +109,7 @@ contains
       type(coarse_tensor_operator_type) :: tensor
       type(smooth_projected_operator_type) :: projection
       type(static_hybrid_operator_type) :: hybrid
-      type(static_hybrid_energy_type) :: energy, uniform_energy
+      type(static_hybrid_energy_type) :: energy, uniform_energy, opposite_chirality_energy
       integer, parameter :: n = 32
       integer :: atom, block, status
       character(len=512) :: message
@@ -170,6 +170,19 @@ contains
       call check_close(energy%total_j-uniform_energy%total_j, &
          baseline_energy-baseline_uniform,3.0d-14, &
          'constant long-wave spiral passes the block-one interface patch test')
+
+      ! DMI-HYBRID-CROSSING operator fixture: the fine/buffer bonds and the
+      ! coarse interior use the same directed DMI energy, so +D_zx must prefer
+      ! the negative-q member of this otherwise exchange-degenerate pair.
+      do atom = 1,n
+         fine(:,atom) = (/cos(-q*real(atom-1,dblprec)), &
+            sin(-q*real(atom-1,dblprec)),0.0_dblprec/)
+         coarse(:,1,atom) = fine(:,atom)
+      end do
+      call evaluate_static_hybrid_operator(hybrid,fine,coarse,matrix,fine_field, &
+         coarse_field,opposite_chirality_energy,status,message)
+      call check(energy%total_j > opposite_chirality_energy%total_j, &
+         'mixed-resolution interface preserves the DMI-preferred negative-q chirality')
 
       do atom = 1,n
          fine(:,atom) = (/cos(q*real(atom-1,dblprec)+ &

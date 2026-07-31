@@ -18,6 +18,7 @@ module ApplyHamiltonian
    implicit none
 
    private
+   public :: heisge
 
 
 contains
