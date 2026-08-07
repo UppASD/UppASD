@@ -196,23 +196,37 @@ Both pass on the accepted fix. `ctest -L cg13-cpu` (12/12) and
 build after the fix, confirming no currently-covered behavior regressed
 (consistent with the "zero MC+DMI regression coverage" finding above).
 
+## Clean-commit acceptance record (2026-08-08)
+
+The golden reconciliation and Monte Carlo fix above are committed as
+`5275f733` (Kagome/SCsurf dmfile/dmdata sign reconciliation) and `2f700fda`
+(Monte Carlo DMI handedness and `emom`/`emomM` fix), with Human physics
+approval (Anders Bergman) recorded for both. `git worktree add --detach`
+checked out `2f700fda` into an isolated directory (`git describe --tags`
+reports `v6.0.2-444-g2f700fda`, no `-dirty` suffix) and both backends were
+rebuilt fresh out-of-tree from that exact commit:
+
+```text
+ctest -L cg13-cpu            # 11/12 pass; the one failure
+                              # (adaptive-cg-setup-rejection-matrix) is the
+                              # tracked-jfile fixture fix from a separate,
+                              # uncommitted, unrelated patch -- not a DMI
+                              # regression
+ctest -R '^asd-tests$'       # 31/31 pass
+ctest -R '^(coarse-graining-gpu-dmi-dimer|coarse-graining-gpu-adaptive-runtime|adaptive-cg-production-e2e)$'
+                              # 3/3 pass (CUDA 13.3.73, NVIDIA RTX A4000,
+                              # driver 610.57.04)
+```
+
 ## Open evidence
 
 - **HIP** execution and sanitizer evidence remain unavailable; no HIP
   toolchain or device exists in any environment used for this blueprint so
   far.
-- **Clean-commit CUDA acceptance record.** All evidence above, including the
-  CUDA reruns of `coarse-graining-gpu-dmi-dimer`,
-  `coarse-graining-gpu-adaptive-runtime`, and `adaptive-cg-production-e2e`
-  (CUDA 13.3.73, NVIDIA RTX A4000, driver 610.57.04), was gathered on an
-  uncommitted worktree (`git describe` still reports `-dirty`). Per this
-  blueprint's evidence policy, this is valid execution evidence but not the
-  clean-commit acceptance record RCG-02 requires; that record can only be
-  produced after this work is committed and re-run against the resulting
-  commit hash.
 - **Independent reviewer sign-off.** The physics derivations above (golden
   reconciliation and the Monte Carlo fix) were produced and checked in this
-  session, independent of the DMI fix commit's author and of whoever made
-  the dmfile/dmdata sign-flip adjustment; both still require sign-off from a
-  reviewer per the blueprint's "Required separation" rule before RCG-02's
-  checklist boxes are ticked.
+  session, independent of the DMI fix commit's original author and of
+  whoever made the dmfile/dmdata sign-flip adjustment, and both received
+  Human physics approval (Anders Bergman, 2026-08-08). A separate
+  Opus/Terra or Sol adversarial physics review remains open per the
+  blueprint's delegation guide.

@@ -654,14 +654,15 @@ otherwise; `ctest -L cg13-cpu` (12/12) and `ctest -R '^asd-tests$'` (31/31)
 both pass unchanged on a fresh out-of-tree CPU build after the fix.
 
 Human physics approval of both 2026-08-08 findings (golden reconciliation
-and the Monte Carlo fix) is recorded (Anders Bergman, 2026-08-08).
+and the Monte Carlo fix) is recorded (Anders Bergman, 2026-08-08). Both are
+committed (`5275f733`, `2f700fda`); a clean-commit rebuild of `2f700fda`
+(`git describe` reports no `-dirty` suffix) reproduces every result above on
+both CPU and CUDA.
 
-RCG-02 remains open on two items, neither a physics disagreement: today's
-evidence (including the CUDA rerun) was gathered on an uncommitted
-worktree, so it is valid execution evidence but not the clean-commit
-acceptance record this blueprint requires until this work is committed and
-re-run against the resulting hash; and HIP execution evidence remains
-unavailable in every environment used so far.
+RCG-02 remains open on two items, neither a physics disagreement: HIP
+execution evidence is unavailable in every environment used so far, and a
+separate independent Opus/Terra or Sol adversarial physics review (distinct
+from Human approval) per the delegation guide has not yet been obtained.
 
 ---
 
