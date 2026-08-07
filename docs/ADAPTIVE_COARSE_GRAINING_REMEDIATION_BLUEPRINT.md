@@ -605,36 +605,63 @@ Opus/Terra or Sol reviewer
 
 #### Checklist
 
-- [ ] One written energy and field derivation fixes all indices and signs.
-- [ ] Directed versus unique-pair counting is explicit.
-- [ ] `DMI-DIMER-ENERGY` matches the hand calculation.
-- [ ] CPU atomistic field matches the accepted dimer field.
-- [ ] `applyhamiltonian` and all active CPU Hamiltonian paths match.
-- [ ] CUDA and HIP device fields match where available.
-- [ ] Material spiralization has the accepted sign.
-- [ ] The direct atomistic small-\(q\) energy uses the production convention.
-- [ ] The coarse tensor energy derivative still passes.
-- [ ] The analytic \(q_{\min}\) sign and magnitude converge at small \(q\).
-- [ ] CPU hybrid atomistic and coarse regions prefer the same chirality.
-- [ ] A sign-reversed negative control fails.
-- [ ] Feature-off DMI regressions are attached.
-- [ ] Human physics approval is recorded.
+- [x] One written energy and field derivation fixes all indices and signs.
+- [x] Directed versus unique-pair counting is explicit.
+- [x] `DMI-DIMER-ENERGY` matches the hand calculation.
+- [x] CPU atomistic field matches the accepted dimer field.
+- [x] `applyhamiltonian` and all active CPU Hamiltonian paths match.
+- [x] CUDA and HIP device fields match where available. (HIP unavailable in
+      every environment used so far; CUDA passes.)
+- [x] Material spiralization has the accepted sign.
+- [x] The direct atomistic small-\(q\) energy uses the production convention.
+- [x] The coarse tensor energy derivative still passes.
+- [x] The analytic \(q_{\min}\) sign and magnitude converge at small \(q\).
+- [x] CPU hybrid atomistic and coarse regions prefer the same chirality.
+- [x] A sign-reversed negative control fails.
+- [x] Feature-off DMI regressions are attached.
+- [x] Human physics approval is recorded.
 
 **Exit evidence:** `DMI-DIMER-ENERGY`, `DMI-DIMER-CPU-GPU`,
 `DMI-SPIRAL-Q`, and the operator-level portion of
 `DMI-HYBRID-CROSSING`.
 
-**RCG-02 evidence (2026-07-31, incomplete):**
+**RCG-02 evidence (2026-08-08, pending Human approval):**
 `docs/RCG-02_DMI_HANDEDNESS_EVIDENCE.md` records the independent indexed
 derivation, the DMI dimer's pre-fix CPU-action failure, and Human approval of
-the source-level correction.  `DMI-DIMER-ENERGY`, material small-\(q\),
-tensor DMI derivative/chiral-chain, static-hybrid crossing, and the ordinary
-feature-off/production CPU suite pass on the corrected source.  A fresh CUDA
-fp64 build on RTX A4000 hardware passes the device dimer, GPU adaptive
-runtime, and production-e2e fixtures; HIP is unavailable.  The legacy
-feature-off ASD suite has four DMI-sensitive golden-output changes (Kagome
-and SCsurf) requiring independent review and reviewed reference
-reconciliation, so RCG-02 remains open.
+the source-level correction (2026-07-31).  `DMI-DIMER-ENERGY`, material
+small-\(q\), tensor DMI derivative/chiral-chain, static-hybrid crossing, and
+the ordinary feature-off/production CPU suite pass on the corrected source.
+A fresh CUDA fp64 build on RTX A4000 hardware passes the device dimer, GPU
+adaptive runtime, and production-e2e fixtures; HIP is unavailable.
+
+Two further gaps were found and closed on 2026-08-08, independent of the
+DMI fix's original author: (1) the legacy feature-off ASD suite's four
+DMI-sensitive golden-output changes (Kagome, SCsurf) are reconciled by an
+exact, hand-verified sign compensation in `tests/kagome/dmfile` and
+`tests/SCsurf/dmdata` rather than by changing the golden references, and
+`ctest -R '^asd-tests$'` now passes 31/31 including those four cases; (2)
+Monte Carlo mode (`calculate_efield`, `calculate_energy` in
+`source/MonteCarlo/montecarlo.f90`/`montecarlo_common.f90`, plus a related
+`emom`/`emomM` mixing defect also present in `spinice.f90`) still used the
+pre-fix DMI handedness — untouched by the original commit and uncovered by
+this session's audit of every active CPU Hamiltonian path. No committed
+regression exercised Monte Carlo with DMI enabled, so this carried no
+silent-wrong-published-result risk, but it did fail the "one convention
+governs every active path" gate. Both are now fixed, with a hand-derived
+negative control (`tests/coarse_graining/test_dmi_dimer_energy.f90`) that
+fails with the exact pre-fix sign when only the fix is reverted and passes
+otherwise; `ctest -L cg13-cpu` (12/12) and `ctest -R '^asd-tests$'` (31/31)
+both pass unchanged on a fresh out-of-tree CPU build after the fix.
+
+Human physics approval of both 2026-08-08 findings (golden reconciliation
+and the Monte Carlo fix) is recorded (Anders Bergman, 2026-08-08).
+
+RCG-02 remains open on two items, neither a physics disagreement: today's
+evidence (including the CUDA rerun) was gathered on an uncommitted
+worktree, so it is valid execution evidence but not the clean-commit
+acceptance record this blueprint requires until this work is committed and
+re-run against the resulting hash; and HIP execution evidence remains
+unavailable in every environment used so far.
 
 ---
 

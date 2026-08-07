@@ -6,6 +6,8 @@ program test_dmi_dimer_energy
    use HamiltonianData, only : ham
    use HamiltonianActions, only : dzyaloshinskii_moriya_field
    use ApplyHamiltonian, only : heisge
+   use MonteCarlo, only : calculate_efield
+   use montecarlo_common, only : calculate_energy
    implicit none
 
    integer, parameter :: natom = 2, ensembles = 1, max_neigh = 1
@@ -21,6 +23,9 @@ program test_dmi_dimer_energy
    real(dblprec) :: eaniso(3,natom), kaniso(2,natom), sb(natom), external_field(3,natom,ensembles)
    real(dblprec) :: action_field(3), apply_field(3,natom,ensembles), apply_internal(3,natom,ensembles)
    real(dblprec) :: apply_external(3,natom,ensembles), expected_field(3,natom), energy_j
+   real(dblprec) :: mc_field(3), mmom(natom,ensembles), newmom(3), de
+   real(dblprec) :: emomM_macro(3,0,ensembles), macro_mag_trial, macro_trial(3)
+   integer :: cell_index(natom), macro_nlistsize(0), macro_atom_nlist(0,0), icell
 
    failures = 0
    emom_m = 0.0_dblprec
@@ -49,6 +54,29 @@ program test_dmi_dimer_energy
    call dzyaloshinskii_moriya_field(1,1,action_field,natom,ensembles,emom_m)
    call check_vector(action_field,expected_field(:,1),tolerance, &
       'HamiltonianActions DMI field uses D_ij cross M_j',failures)
+
+   ! Monte Carlo heat-bath field (calculate_efield) must agree with the same
+   ! oracle. do_dm=1, every other Hamiltonian term off, no exchange
+   ! neighbours (ham%nlistsize=0), so totfield is the DM contribution alone.
+   mc_field = 0.0_dblprec
+   external_field = 0.0_dblprec
+   call calculate_efield(natom,ensembles,1,1,0,0,0,0,0,0,emom_m,emom,'N',1, &
+      external_field(:,1,1),'N',1,mc_field,'N',0)
+   call check_vector(mc_field,expected_field(:,1),tolerance, &
+      'Monte Carlo calculate_efield DM field uses D_ij cross M_j',failures)
+
+   ! Monte Carlo Metropolis energy difference (calculate_energy) for flipping
+   ! atom 1 from +x to -x must match mu_B*D_12.(M1_new x M2)-mu_B*D_12.(M1 x M2)
+   ! = -2 mu_B d, the same D_ij x M_j handedness expressed as an energy.
+   mmom = 1.0_dblprec
+   newmom = (/-1.0_dblprec,0.0_dblprec,0.0_dblprec/)
+   call calculate_energy(natom,ensembles,natom,1,1,0,0,0,0,0,0, &
+      emom_m,emom,mmom,1,newmom,external_field(:,1,1),de,1, &
+      'N',0,0,0,cell_index,macro_nlistsize,macro_atom_nlist,emomM_macro, &
+      icell,macro_mag_trial,macro_trial,'N',0,0)
+   call check_close(de,-2.0_dblprec*mub*d,tolerance*mub, &
+      'Monte Carlo calculate_energy DM flip uses D_ij cross M_j',failures)
+
    call clear_action_hamiltonian()
 
    nlistsize = 0
@@ -92,14 +120,16 @@ contains
       real(dblprec), intent(in) :: vectors(3,max_neigh,natom)
       integer, intent(in) :: neighbours(max_neigh,natom), sizes(natom)
       allocate(ham%aHam(natom),ham%dmlistsize(natom),ham%dmlist(max_neigh,natom),ham%dm_vect(3,max_neigh,natom))
+      allocate(ham%nlistsize(natom))
       ham%aHam = (/1,2/)
       ham%dmlistsize = sizes
       ham%dmlist = neighbours
       ham%dm_vect = vectors
+      ham%nlistsize = 0
    end subroutine initialise_action_hamiltonian
 
    subroutine clear_action_hamiltonian()
-      deallocate(ham%aHam,ham%dmlistsize,ham%dmlist,ham%dm_vect)
+      deallocate(ham%aHam,ham%dmlistsize,ham%dmlist,ham%dm_vect,ham%nlistsize)
    end subroutine clear_action_hamiltonian
 
    subroutine check_close(actual,expected,epsilon,label,count)

@@ -1720,10 +1720,10 @@ subroutine calculate_spinice_energy(Natom, Mensemble, nHam, max_no_neigh, conf_n
             do j=1,dmlistsize(catom)
                if (iloop==1) then
                   e_c=e_c+dm_vect(1,j,catom)*(emomM(2,catom,k)*emomM(3,dmlist(j,catom),k)- &
-                  emom(3,catom,k)*emomM(2,dmlist(j,catom),k))+ &
+                  emomM(3,catom,k)*emomM(2,dmlist(j,catom),k))+ &
                   dm_vect(2,j,catom)*(emomM(3,catom,k)*emomM(1,dmlist(j,catom),k)- &
                   emomM(1,catom,k)*emomM(3,dmlist(j,catom),k))+ &
-                  dm_vect(3,j,catom)*(emom(1,catom,k)*emomM(2,dmlist(j,catom),k)- &
+                  dm_vect(3,j,catom)*(emomM(1,catom,k)*emomM(2,dmlist(j,catom),k)- &
                   emomM(2,catom,k)*emomM(1,dmlist(j,catom),k))
                else
                   e_t=e_t+dm_vect(1,j,catom)*(emomM(2,catom,k)*emomM(3,dmlist(j,catom),k)- &

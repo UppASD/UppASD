@@ -26,6 +26,7 @@ module MonteCarlo
 
    ! public subroutines
    public :: mc_evolve, prn_mcmoments, choose_random_atom_x , allocate_mcdata
+   public :: calculate_efield
 
 contains
 
@@ -497,14 +498,15 @@ contains
          endif
       endif
       ! DM interaction
+      ! Accepted convention (RCG-02): B_dm(i) = sum_j D_ij x M_j.
       if(do_dm==1) then
          do j=1,ham%dmlistsize(iflip_ham)
-            totfield(1) = totfield(1) + ham%dm_vect(3,j,iflip_ham)*emomM(2,ham%dmlist(j,iflip),k) -&
-               ham%dm_vect(2,j,iflip_ham)*emomM(3,ham%dmlist(j,iflip),k)
-            totfield(2) = totfield(2) + ham%dm_vect(1,j,iflip_ham)*emomM(3,ham%dmlist(j,iflip),k) -&
-               ham%dm_vect(3,j,iflip_ham)*emomM(1,ham%dmlist(j,iflip),k)
-            totfield(3) = totfield(3) + ham%dm_vect(2,j,iflip_ham)*emomM(1,ham%dmlist(j,iflip),k) -&
-               ham%dm_vect(1,j,iflip_ham)*emomM(2,ham%dmlist(j,iflip),k)
+            totfield(1) = totfield(1) + ham%dm_vect(2,j,iflip_ham)*emomM(3,ham%dmlist(j,iflip),k) -&
+               ham%dm_vect(3,j,iflip_ham)*emomM(2,ham%dmlist(j,iflip),k)
+            totfield(2) = totfield(2) + ham%dm_vect(3,j,iflip_ham)*emomM(1,ham%dmlist(j,iflip),k) -&
+               ham%dm_vect(1,j,iflip_ham)*emomM(3,ham%dmlist(j,iflip),k)
+            totfield(3) = totfield(3) + ham%dm_vect(1,j,iflip_ham)*emomM(2,ham%dmlist(j,iflip),k) -&
+               ham%dm_vect(2,j,iflip_ham)*emomM(1,ham%dmlist(j,iflip),k)
          end do
       end if
 
