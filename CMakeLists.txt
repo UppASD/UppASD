@@ -957,6 +957,18 @@ if(BUILD_TESTING)
    add_test(NAME coarse-graining-adaptive-hybrid-solver
       COMMAND adaptive_hybrid_solver_tests)
 
+   # RCG-03 polarization safety gate (F-14): a single-channel block whose
+   # channel-resolved resultant/moment-sum ratio is below the accepted
+   # threshold, or whose resultant is undefined (near-zero, never
+   # normalized), must never be judged safe to coarsen.
+   add_executable(polarization_gate_tests
+      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_polarization_gate.f90)
+   set_target_properties(polarization_gate_tests PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/polarization_gate_tests)
+   target_link_libraries(polarization_gate_tests PRIVATE ${UppASD_LIB})
+   add_test(NAME coarse-graining-polarization-gate
+      COMMAND polarization_gate_tests)
+
    # CG-13 labels are the repeatable suite interface.  Keep the focused
    # analytic/reference tests in the CPU suite even in a GPU build; the
    # production and backend tests below add the matching CUDA/HIP label.
@@ -970,6 +982,7 @@ if(BUILD_TESTING)
       coarse-graining-static-hybrid-operator
       coarse-graining-block-selector
       coarse-graining-adaptive-hybrid-solver
+      coarse-graining-polarization-gate
       PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;reference")
    if(USE_CUDA)
       set_property(TEST
@@ -981,6 +994,7 @@ if(BUILD_TESTING)
          coarse-graining-static-hybrid-operator
          coarse-graining-block-selector
          coarse-graining-adaptive-hybrid-solver
+         coarse-graining-polarization-gate
          APPEND PROPERTY LABELS cg13-cuda)
    elseif(USE_HIP)
       set_property(TEST
@@ -992,6 +1006,7 @@ if(BUILD_TESTING)
          coarse-graining-static-hybrid-operator
          coarse-graining-block-selector
          coarse-graining-adaptive-hybrid-solver
+         coarse-graining-polarization-gate
          APPEND PROPERTY LABELS cg13-hip)
    endif()
 

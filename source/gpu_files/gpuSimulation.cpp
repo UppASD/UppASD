@@ -795,6 +795,9 @@ bool GpuSimulation::initiateMatrices(int is_mc) {
             if(FortranData::adaptive_coarsen_threshold)
                adaptiveSelectorPolicy.coarsenThreshold =
                   static_cast<real>(*FortranData::adaptive_coarsen_threshold);
+            if(FortranData::adaptive_polarization_threshold)
+               adaptivePolarizationThreshold =
+                  static_cast<real>(*FortranData::adaptive_polarization_threshold);
             if(FortranData::adaptive_minimum_dwell)
                adaptiveSelectorPolicy.minimumDwellUpdates =
                   *FortranData::adaptive_minimum_dwell;
@@ -1088,7 +1091,9 @@ void GpuSimulation::advanceAdaptiveStep(
       step % adaptiveUpdateInterval == 0) {
       gpuAdaptiveRuntime.restrictMoments(gpuLattice.emom.data());
       gpuAdaptiveRuntime.evaluateSelectorScores(gpuLattice.emom.data());
-      gpuAdaptiveRuntime.proposeSelectorState(adaptiveSelectorPolicy);
+      gpuAdaptiveRuntime.evaluatePolarizationGate(adaptivePolarizationThreshold);
+      gpuAdaptiveRuntime.proposeSelectorState(
+         adaptiveSelectorPolicy, gpuAdaptiveRuntime.polarizationUnsafeBlockMask());
       gpuAdaptiveRuntime.publishProposedState(
          gpuLattice.emom.data(), adaptiveReconstructionPolicy, true);
       gpuAdaptiveRuntime.synchronizeAtomicState(

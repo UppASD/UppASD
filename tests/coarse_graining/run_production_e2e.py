@@ -23,6 +23,8 @@ from fixture_dependencies import (
     GPU_FFT_CASE,
     GPU_PARITY_CASES,
     GPU_INITIAL_PHASE_CASES,
+    POLARIZATION_GATE_CASE,
+    POLARIZATION_GATE_GPU_CASE,
     SPIN_SPIRAL_CASE,
     STATIC_ALL_COARSE_CASE,
     STATIC_ALL_FINE_CASE,
@@ -188,6 +190,26 @@ def main() -> None:
     assert abs(float_metric(parity_cpu["static"], "direction_sum")) < 40.0
     assert metric(parity_cpu["adaptive"], "accepted_transitions") > 0
 
+    # RCG-03 POL-CANCELLATION production regression: identical geometry and a
+    # selector configuration deliberately neutralized to always request
+    # coarsening (cg_refine_threshold/cg_coarsen_threshold saturated near the
+    # misalignment score's 2.0 ceiling) as parity_adaptive_cpu above, but
+    # starting from a genuinely incoherent (random) per-atom state instead of
+    # an aligned one. With the misalignment criterion neutralized, the only
+    # thing that can still block coarsening is the polarization gate itself;
+    # parity_adaptive_cpu (aligned, same neutralized thresholds) coarsening
+    # while this case does not is the negative control proving the gate
+    # (rather than the ordinary selector) is what holds the line here.
+    polarization_gate = run_case(binary, root / POLARIZATION_GATE_CASE)
+    assert polarization_gate.returncode == 0, polarization_gate.stdout
+    assert metric(polarization_gate.stdout, "accepted_transitions") == 0
+    final_coarse_counts = re.findall(
+        r"resolution_counts fine=\d+ interface=\d+ coarse=(\d+)", polarization_gate.stdout
+    )
+    assert final_coarse_counts and int(final_coarse_counts[-1]) == 0, polarization_gate.stdout
+    assert all(state != 0 for state in final_state(polarization_gate.stdout))
+    print("RCG-03 polarization gate blocks coarsening of a low-polarization block")
+
     initial_phase_cpu = run_case(binary, root / CPU_INITIAL_PHASE_SD_CASE)
     assert initial_phase_cpu.returncode == 0, initial_phase_cpu.stdout
     assert "Performing initial phase:" in initial_phase_cpu.stdout
@@ -348,6 +370,26 @@ def main() -> None:
                     assert metric(cpu, "accepted_transitions") == metric(
                         gpu, "accepted_transitions"
                     )
+
+            # RCG-03 POL-CANCELLATION production regression, GPU backend:
+            # same neutralized-selector / random-Initmag construction as the
+            # CPU polarization_gate_cpu case above, run through the real GPU
+            # dispatch path. Without the GPU-side gate (evaluatePolarizationGate
+            # wired into proposeSelectorState's hardAtomisticBlockMask), this
+            # would coarsen every step since the misalignment criterion is
+            # saturated to always request it.
+            polarization_gate_gpu = run_case(gpu_binary, root / POLARIZATION_GATE_GPU_CASE)
+            assert polarization_gate_gpu.returncode == 0, polarization_gate_gpu.stdout
+            assert metric(polarization_gate_gpu.stdout, "accepted_transitions") == 0
+            gpu_final_coarse_counts = re.findall(
+                r"resolution_counts fine=\d+ interface=\d+ coarse=(\d+)",
+                polarization_gate_gpu.stdout,
+            )
+            assert gpu_final_coarse_counts and int(gpu_final_coarse_counts[-1]) == 0, (
+                polarization_gate_gpu.stdout
+            )
+            print("RCG-03 GPU polarization gate blocks coarsening of a low-polarization block")
+
             chiral_gpu = run_case(gpu_binary, root / GPU_DMI_CASE)
             assert chiral_gpu.returncode == 0, chiral_gpu.stdout
             assert final_state(chiral.stdout) == final_state(chiral_gpu.stdout)

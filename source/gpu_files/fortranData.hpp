@@ -174,6 +174,7 @@ public:
    static unsigned int* adaptive_update_interval;
    static real* adaptive_refine_threshold;
    static real* adaptive_coarsen_threshold;
+   static real* adaptive_polarization_threshold;
    static unsigned int* adaptive_minimum_dwell;
    static unsigned int* adaptive_buffer_dilation;
    static int* adaptive_reconstruction_scheme;
@@ -399,7 +400,8 @@ public:
       real* normalization_floor, real* magnetic_moment_si,
       real* gamma_per_ts, real* damping, int* mask_mode,
       unsigned int* update_interval, real* refine_threshold,
-      real* coarsen_threshold, unsigned int* minimum_dwell,
+      real* coarsen_threshold, real* polarization_threshold,
+      unsigned int* minimum_dwell,
       unsigned int* buffer_dilation, int* reconstruction_scheme,
       real* cone_angle_rad, real* energy_jump_limit_j, int* diagnostics);
     static void clearMacrocellPointers();

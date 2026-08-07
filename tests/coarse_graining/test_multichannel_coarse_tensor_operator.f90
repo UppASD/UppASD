@@ -14,6 +14,7 @@ program test_multichannel_coarse_tensor_operator
    failures = 0
    call test_two_sublattice_material_and_modes()
    call test_channel_resolved_operator_and_texture()
+   call test_asymmetric_exchange_stiffness_rejected()
    if (failures /= 0) then
       write(*,'(a,i0)') 'multichannel coarse tensor operator tests failed: ',failures
       stop 1
@@ -103,6 +104,41 @@ contains
       call check(status == COARSE_TENSOR_OK .and. abs(energy%exchange_j) > 0.0_dblprec .and. &
          all(ieee_is_finite(field)), 'two-sublattice AFM domain-wall texture evaluates with channel-resolved stiffness')
    end subroutine test_channel_resolved_operator_and_texture
+
+   !> RCG-03 negative control: the mixed-derivative gradient discretization
+   !> relies on Cartesian symmetry of exchange_stiffness per channel pair.
+   !> A fault-injected asymmetric tensor (physically unreachable through the
+   !> ordinary atomistic extraction path, which always yields a symmetric
+   !> displacement-outer-product sum) must be rejected at setup rather than
+   !> silently accepted, since the pre-fix code never checked this tensor.
+   subroutine test_asymmetric_exchange_stiffness_rejected()
+      type(coarse_lattice_input_type) :: input
+      type(coarse_material_type) :: material
+      type(block_topology_type) :: topology
+      type(multichannel_coarse_tensor_operator_type) :: operator
+      type(coarse_operator_options_type) :: options
+      integer :: status, channel_map(2), repetitions(3)
+      character(len=512) :: message
+      real(dblprec), parameter :: a=2.0d-10, pair=3.0d-21
+      real(dblprec) :: cell(3,3), omega
+
+      call make_two_channel_input(input,a,pair)
+      call extract_coarse_material(input,material,status,message)
+      omega=abs(material%local_exchange(1,2))*material%cell_volume_m3/COARSE_MUB_SI * &
+         (material%channel_gamma(1)/material%channel_moment_mub(1)+ &
+          material%channel_gamma(2)/material%channel_moment_mub(2))
+      call validate_coarse_material_two_sublattice_modes(material,0.0_dblprec,omega,1.0d-12,status,message)
+      cell=0.0_dblprec; cell(1,1)=a; cell(2,2)=a; cell(3,3)=a
+      channel_map=(/1,2/); repetitions=(/8,1,1/)
+      call build_block_topology(topology,REGULAR_REPLICATED_CELL,2,repetitions,16,(/1,1,1/),cell,channel_map,status,message)
+      call check(status == BLOCK_TOPOLOGY_OK, 'asymmetric-tensor topology builds')
+
+      material%exchange_stiffness(1,2,1,1) = material%exchange_stiffness(1,2,1,1) + &
+         max(1.0_dblprec,abs(material%exchange_stiffness(1,2,1,1)))
+      call setup_multichannel_coarse_tensor_operator(operator,topology,material,options,status,message)
+      call check(status /= COARSE_TENSOR_OK .and. index(message,'Cartesian-symmetric') > 0, &
+         'a fault-injected asymmetric exchange stiffness is rejected: '//trim(message))
+   end subroutine test_asymmetric_exchange_stiffness_rejected
 
    subroutine make_two_channel_input(input,a,pair)
       type(coarse_lattice_input_type), intent(out) :: input

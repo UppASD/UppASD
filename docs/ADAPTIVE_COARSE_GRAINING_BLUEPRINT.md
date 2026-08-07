@@ -926,6 +926,7 @@ input is read.
 | `cg_selector` | enum | `MAX_ANGLE` | `MAX_ANGLE` |
 | `cg_refine_threshold` | dimensionless misalignment | `0.25` | finite, 0 through 2 |
 | `cg_coarsen_threshold` | dimensionless misalignment | `0.10` | finite, 0 through refine threshold |
+| `cg_polarization_threshold` | dimensionless resultant/moment-sum ratio | `0.9` | finite, `(0,1]` |
 | `cg_update_interval` | complete SD steps | `1` | positive integer |
 | `cg_minimum_dwell_updates` | selector updates | `0` | nonnegative integer |
 | `cg_buffer_blocks` | block layers | `0` | nonnegative integer |

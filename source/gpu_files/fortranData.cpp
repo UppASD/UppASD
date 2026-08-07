@@ -124,6 +124,7 @@ int* FortranData::adaptive_mask_mode = nullptr;
 unsigned int* FortranData::adaptive_update_interval = nullptr;
 real* FortranData::adaptive_refine_threshold = nullptr;
 real* FortranData::adaptive_coarsen_threshold = nullptr;
+real* FortranData::adaptive_polarization_threshold = nullptr;
 unsigned int* FortranData::adaptive_minimum_dwell = nullptr;
 unsigned int* FortranData::adaptive_buffer_dilation = nullptr;
 int* FortranData::adaptive_reconstruction_scheme = nullptr;
@@ -568,6 +569,7 @@ void FortranData::clearAdaptivePointers() {
    adaptive_update_interval = nullptr;
    adaptive_refine_threshold = nullptr;
    adaptive_coarsen_threshold = nullptr;
+   adaptive_polarization_threshold = nullptr;
    adaptive_minimum_dwell = nullptr;
    adaptive_buffer_dilation = nullptr;
    adaptive_reconstruction_scheme = nullptr;
@@ -588,7 +590,8 @@ void FortranData::setAdaptiveKernelPointers(
    real* normalization_floor, real* magnetic_moment_si,
    real* gamma_per_ts, real* damping, int* mask_mode,
    unsigned int* update_interval, real* refine_threshold,
-   real* coarsen_threshold, unsigned int* minimum_dwell,
+   real* coarsen_threshold, real* polarization_threshold,
+   unsigned int* minimum_dwell,
    unsigned int* buffer_dilation, int* reconstruction_scheme,
    real* cone_angle_rad, real* energy_jump_limit_j, int* diagnostics) {
    adaptive_atom_moment = atom_moment;
@@ -618,6 +621,7 @@ void FortranData::setAdaptiveKernelPointers(
    adaptive_update_interval = update_interval;
    adaptive_refine_threshold = refine_threshold;
    adaptive_coarsen_threshold = coarsen_threshold;
+   adaptive_polarization_threshold = polarization_threshold;
    adaptive_minimum_dwell = minimum_dwell;
    adaptive_buffer_dilation = buffer_dilation;
    adaptive_reconstruction_scheme = reconstruction_scheme;
@@ -930,7 +934,8 @@ extern "C" void fortrandata_setadaptivekernels_(
    real* normalization_floor, real* magnetic_moment_si,
    real* gamma_per_ts, real* damping, int* mask_mode,
    unsigned int* update_interval, real* refine_threshold,
-   real* coarsen_threshold, unsigned int* minimum_dwell,
+   real* coarsen_threshold, real* polarization_threshold,
+   unsigned int* minimum_dwell,
    unsigned int* buffer_dilation, int* reconstruction_scheme,
    real* cone_angle_rad, real* energy_jump_limit_j, int* diagnostics) {
    FortranData::setAdaptiveKernelPointers(
@@ -941,7 +946,8 @@ extern "C" void fortrandata_setadaptivekernels_(
       exchange_stiffness, spiralization, anisotropy_axis_count,
       anisotropy_axis, anisotropy_k1, anisotropy_k2, normalization_floor,
       magnetic_moment_si, gamma_per_ts, damping, mask_mode, update_interval,
-      refine_threshold, coarsen_threshold, minimum_dwell, buffer_dilation,
+      refine_threshold, coarsen_threshold, polarization_threshold,
+      minimum_dwell, buffer_dilation,
       reconstruction_scheme, cone_angle_rad, energy_jump_limit_j, diagnostics);
 }
 

@@ -690,6 +690,29 @@ and supported anisotropy scope
 **Exit evidence:** `POL-THRESHOLD`, `POL-CANCELLATION`,
 `ANI-UNIFORM-TRANSLATED`, and `ANI-NONUNIFORM-REJECT`.
 
+**RCG-03 evidence (2026-08-06, exploratory, not accepted):**
+`docs/RCG-03_POLARIZATION_ANISOTROPY_EVIDENCE.md` records a dynamic,
+non-overridable polarization gate (new `cg_polarization_threshold` input,
+default `0.9`) reusing the existing `hard_atomistic_mask` interlock, and a
+cell-periodicity uniformity check in `build_production_anisotropy` plus a
+matching exchange-tensor-symmetry assertion in
+`MultiChannelCoarseTensorOperator`. `POL-THRESHOLD` and `POL-CANCELLATION`
+pass with a defect-injection negative control at both the unit and
+production-fixture layers, on CPU and now also on CUDA (the polarization
+gate was ported to `GpuAdaptiveRuntime` on real RTX A4000/CUDA 13.3
+hardware, since the GPU backend runs its own independent selector kernels
+and never consulted the CPU mask; device-level and production-e2e negative
+controls both pass; HIP remains untested by explicit instruction).
+`ANI-UNIFORM-TRANSLATED` passes as a regression (this check needed no GPU
+port — it runs once at Fortran-side setup before GPU dispatch);
+`ANI-NONUNIFORM-REJECT` has no production fixture yet (do_cluster was found
+to be transitively rejected by the pre-existing geometry check in the
+common case) and rests on source-level fault-injection evidence only. This
+task was performed while RCG-02 remains open, per the blueprint's
+exploratory-work allowance (section 8/10); no checklist box above is
+ticked, and this evidence is not accepted until RCG-02 closes and the work
+is rebased and rerun.
+
 ---
 
 ### Task RCG-04: Replace vacuous e2e evidence with moving fixtures

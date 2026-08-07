@@ -560,6 +560,44 @@ void testKernelParityAndWorkflow() {
            "CG-10 runtime cleanup did not restore tracked device memory");
 }
 
+// RCG-03 (F-14): the GPU polarization gate must mirror the Fortran
+// evaluate_polarization_gate contract -- a block with a well-aligned
+// channel resultant stays eligible to coarsen, while a block whose
+// resultant is exactly cancelled (never normalized) is unconditionally
+// unsafe. KernelFixture atoms are one-based-pair-per-block: atoms {3,4}
+// (zero-based indices 2,3) are block 2 (one-based), atoms {5,6}
+// (zero-based indices 4,5) are block 3 (one-based).
+void testPolarizationGate() {
+   KernelFixture fixture;
+   const auto topology = fixture.topology();
+   const auto input = fixture.runtime();
+   GpuAdaptiveRuntime runtime;
+   runtime.initialize(topology, input, KernelFixture::atoms, KernelFixture::ensembles);
+   require(runtime.kernelsReady(), "polarization gate fixture kernels were not published ready");
+
+   const std::size_t atomVectors = 3 * KernelFixture::atoms;
+   GpuTensor<real, 1> atomDirection;
+   atomDirection.Allocate(static_cast<index_t>(atomVectors));
+   std::vector<double> hostAtom(atomVectors, 0.0);
+   hostAtom[2 + 3 * 2] = 1.0;   // block 2, atom 3 (zero-based 2): +z
+   hostAtom[2 + 3 * 3] = 1.0;   // block 2, atom 4 (zero-based 3): +z, aligned
+   hostAtom[2 + 3 * 4] = 1.0;   // block 3, atom 5 (zero-based 4): +z
+   hostAtom[2 + 3 * 5] = -1.0;  // block 3, atom 6 (zero-based 5): -z, exactly cancelled
+   upload(atomDirection.data(), deviceVector(hostAtom));
+
+   runtime.restrictMoments(atomDirection.data());
+   runtime.evaluatePolarizationGate(real(0.9));
+
+   std::vector<unsigned char> unsafe(KernelFixture::blocks, 0);
+   ASSERT_GPU(GPU_MEMCPY(unsafe.data(), runtime.polarizationUnsafeBlockMask(),
+                         unsafe.size(), GPU_MEMCPY_DEVICE_TO_HOST));
+   require(unsafe[1] == 0, "aligned block was flagged unsafe to coarsen");
+   require(unsafe[2] == 1, "exactly-cancelled block was not flagged unsafe");
+
+   atomDirection.Free();
+   runtime.release();
+}
+
 } // namespace
 
 int main() {
@@ -655,6 +693,7 @@ int main() {
    require(TensorMemoryTracker::current_device() == baseline,
            "release did not restore device memory accounting");
    testKernelParityAndWorkflow();
+   testPolarizationGate();
    std::cout << "CG-09/CG-10 GPU adaptive runtime tests passed\n";
    return 0;
 }

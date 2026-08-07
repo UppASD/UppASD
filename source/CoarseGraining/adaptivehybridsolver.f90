@@ -102,6 +102,7 @@ module AdaptiveHybridSolver
    end interface
 
    public :: restrict_channel_moments
+   public :: evaluate_polarization_gate
    public :: reconstruct_block_aligned
    public :: reconstruct_block_constrained_cone
    public :: deterministic_reconstruction_seed
@@ -188,6 +189,68 @@ contains
       end do
       status = ADAPTIVE_HYBRID_OK
    end subroutine restrict_channel_moments
+
+   !> RCG-03 polarization safety gate (F-14).  A block is unsafe to coarsen
+   !> whenever any dynamical channel/ensemble at that block has no defined
+   !> resultant direction (near-zero moment, never normalized) or a
+   !> resultant/moment-sum ratio below the accepted threshold.  Pure function
+   !> of restrict_channel_moments' own outputs, so it carries no separate
+   !> zero-handling convention of its own.
+   subroutine evaluate_polarization_gate(topology,resultant_mub,moment_sum_mub, &
+         direction_defined,threshold,unsafe_block,status,diagnostic)
+      type(block_topology_type), intent(in) :: topology
+      real(dblprec), intent(in) :: resultant_mub(:,:,:,:)
+      real(dblprec), intent(in) :: moment_sum_mub(:,:,:)
+      logical, intent(in) :: direction_defined(:,:,:)
+      real(dblprec), intent(in) :: threshold
+      logical, intent(out) :: unsafe_block(:)
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: diagnostic
+
+      integer :: block, channel, ensemble
+      real(dblprec) :: ratio
+
+      status = ADAPTIVE_HYBRID_INVALID_STATE
+      diagnostic = ''
+      if (.not. topology%ready .or. topology%geometry_mode /= REGULAR_REPLICATED_CELL) then
+         status = ADAPTIVE_HYBRID_INVALID_TOPOLOGY
+         diagnostic = 'Polarization gate requires a ready regular block topology'
+         return
+      end if
+      if (any(shape(resultant_mub) /= (/3,int(topology%n_dynamic_channels), &
+             int(topology%n_spatial_blocks),size(moment_sum_mub,3)/)) .or. &
+          any(shape(moment_sum_mub) /= (/int(topology%n_dynamic_channels), &
+             int(topology%n_spatial_blocks),size(moment_sum_mub,3)/)) .or. &
+          any(shape(direction_defined) /= shape(moment_sum_mub)) .or. &
+          size(unsafe_block) /= int(topology%n_spatial_blocks)) then
+         diagnostic = 'Polarization gate arrays do not match topology/channel/ensemble dimensions'
+         return
+      end if
+      if (.not. ieee_is_finite(threshold) .or. threshold <= 0.0_dblprec .or. threshold > 1.0_dblprec) then
+         diagnostic = 'Polarization threshold must lie in (0,1]'
+         return
+      end if
+      if (.not. all(ieee_is_finite(resultant_mub)) .or. .not. all(ieee_is_finite(moment_sum_mub))) then
+         diagnostic = 'Polarization gate requires finite restriction data'
+         return
+      end if
+
+      unsafe_block = .false.
+      do block = 1, int(topology%n_spatial_blocks)
+         do ensemble = 1, size(moment_sum_mub,3)
+            do channel = 1, int(topology%n_dynamic_channels)
+               if (.not. direction_defined(channel,block,ensemble)) then
+                  unsafe_block(block) = .true.
+                  cycle
+               end if
+               ratio = norm3(resultant_mub(:,channel,block,ensemble))/ &
+                  moment_sum_mub(channel,block,ensemble)
+               if (ratio < threshold) unsafe_block(block) = .true.
+            end do
+         end do
+      end do
+      status = ADAPTIVE_HYBRID_OK
+   end subroutine evaluate_polarization_gate
 
    subroutine reconstruct_block_aligned(topology,block,atom_moment_mub, &
          requested_resultant_mub,atom_direction,tolerance,status,diagnostic)

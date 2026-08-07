@@ -1,4 +1,4 @@
-simid cg105parityadaptivegpu
+simid cg105polgatecpu
 alat 1.0
 ncell 6 2 2
 BC P P P
@@ -10,7 +10,7 @@ posfile ../posfile
 momfile ../momfile
 exchange ../jfile
 SDEalgh 1
-Initmag 3
+Initmag 1
 mseed 92731
 Mensemble 1
 ip_mode N
@@ -22,11 +22,6 @@ do_avrg N
 do_cumu N
 do_tottraj N
 plotenergy 0
-gpu_mode 1
-do_gpu Y
-do_gpu_llg Y
-do_gpu_measurements N
-do_gpu_correlations N
 do_adaptive_cg Y
 block_size_x 1
 block_size_y 2
@@ -36,9 +31,10 @@ cg_mask_mode ADAPTIVE
 cg_selector MAX_ANGLE
 cg_refine_threshold 2.00
 cg_coarsen_threshold 1.99
+cg_polarization_threshold 0.9
 cg_update_interval 1
 cg_minimum_dwell_updates 0
 cg_buffer_blocks 0
 cg_reconstruction ALIGNED
 cg_energy_jump_limit 1.0e9
-cg_diagnostics 3
+cg_diagnostics 2

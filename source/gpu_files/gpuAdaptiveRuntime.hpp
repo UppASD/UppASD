@@ -135,6 +135,7 @@ struct GpuAdaptiveDeviceRuntime {
    unsigned int* transitionEpoch = nullptr;
    unsigned char* atomisticBlockMask = nullptr;
    unsigned char* coarseBlockMask = nullptr;
+   unsigned char* polarizationUnsafeMask = nullptr;
    unsigned char* atomisticAtomMask = nullptr;
    unsigned char* interfaceAtomMask = nullptr;
    int* activeAtomList = nullptr;
@@ -182,6 +183,7 @@ struct GpuAdaptivePhaseMetrics {
    double coarseMilliseconds = 0.0;
    double interfaceMilliseconds = 0.0;
    double selectorMilliseconds = 0.0;
+   double polarizationMilliseconds = 0.0;
    double compactionMilliseconds = 0.0;
    double fftMilliseconds = 0.0;
    double integrationMilliseconds = 0.0;
@@ -287,6 +289,10 @@ public:
    bool kernelsReady() const { return kernelsReady_; }
    void restrictMoments(const real* atomDirection);
    void evaluateSelectorScores(const real* atomDirection);
+   void evaluatePolarizationGate(real polarizationThreshold);
+   const unsigned char* polarizationUnsafeBlockMask() const {
+      return polarizationUnsafeBlockMask_.data();
+   }
    void proposeSelectorState(const GpuAdaptiveSelectorPolicy& policy,
                              const unsigned char* hardAtomisticBlockMask = nullptr);
    void publishProposedState(real* atomDirection,
@@ -391,6 +397,7 @@ private:
    GpuTensor<real, 1> initialAtomField_, initialCoarseField_, predictorCoarseField_;
    GpuTensor<real, 1> energyTerms_;
    GpuTensor<unsigned char, 1> acceptedBlockMask_;
+   GpuTensor<unsigned char, 1> polarizationUnsafeBlockMask_;
 
    GpuAdaptiveDeviceTopology deviceTopology_{};
    GpuAdaptiveDeviceRuntime deviceRuntime_{};

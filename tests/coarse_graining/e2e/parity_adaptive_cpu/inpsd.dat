@@ -10,7 +10,7 @@ posfile ../posfile
 momfile ../momfile
 exchange ../jfile
 SDEalgh 1
-Initmag 1
+Initmag 3
 mseed 92731
 Mensemble 1
 ip_mode N

@@ -95,6 +95,18 @@ __device__ inline real normDevice(const real a[3]) {
    return sqrt(dotDevice(a, a));
 }
 
+// Shared "never normalize noise" epsilon, matching restrict_channel_moments
+// on the Fortran side.  A resultant is only trusted once its length exceeds
+// 64*epsilon*scale; both restrictAdaptiveMoments and evaluatePolarizationGate
+// must agree on this constant.
+__device__ inline real epsilonDevice() {
+#ifdef SINGLE_PREC
+   return real(1.1920928955078125e-7);
+#else
+   return real(2.2204460492503131e-16);
+#endif
+}
+
 __device__ inline std::size_t plusBlock(const GpuAdaptiveDeviceTopology& topology,
                                         std::size_t block, int direction) {
    int coordinate[3] = {
@@ -169,14 +181,9 @@ __global__ void restrictAdaptiveMoments(GpuAdaptiveDeviceTopology topology,
          runtime.coarseMoment[3 * scalar + 2]
       };
       const real length = normDevice(vector);
-#ifdef SINGLE_PREC
-      const real epsilon = real(1.1920928955078125e-7);
-#else
-      const real epsilon = real(2.2204460492503131e-16);
-#endif
       const real scale = runtime.channelMomentSum[scalar] > real(1) ?
                          runtime.channelMomentSum[scalar] : real(1);
-      if(length > real(64) * epsilon * scale) {
+      if(length > real(64) * epsilonDevice() * scale) {
          runtime.coarseDirection[3 * scalar] = vector[0] / length;
          runtime.coarseDirection[3 * scalar + 1] = vector[1] / length;
          runtime.coarseDirection[3 * scalar + 2] = vector[2] / length;
@@ -243,6 +250,40 @@ __global__ void selectorAdaptiveScores(GpuAdaptiveDeviceTopology topology,
       &runtime.selectorScores[runtime.selectorCriteria * blockI], score);
    atomicMaxSelector(
       &runtime.selectorScores[runtime.selectorCriteria * blockJ], score);
+}
+
+// RCG-03 (F-14): a block is unsafe to coarsen whenever any dynamical
+// channel/ensemble has no defined resultant direction (near-zero moment,
+// never normalized -- see epsilonDevice()) or a resultant/moment-sum ratio
+// below the accepted threshold.  One thread per block, looping internally
+// over channel/ensemble, so there is no multi-writer race on the output
+// byte (mirrors proposeAdaptiveState's one-thread-per-block style rather
+// than selectorAdaptiveScores' atomic-reduction style).  Pure function of
+// restrictAdaptiveMoments' own outputs, exactly like the Fortran
+// evaluate_polarization_gate it mirrors.
+__global__ void evaluateAdaptivePolarizationGate(GpuAdaptiveDeviceTopology topology,
+                                                 GpuAdaptiveDeviceRuntime runtime,
+                                                 real polarizationThreshold) {
+   const std::size_t block = adaptiveThreadIndex();
+   if(block >= topology.blocks) return;
+   unsigned char unsafe = 0;
+   for(std::size_t channel = 0; channel < topology.dynamicChannels && !unsafe; ++channel) {
+      for(std::size_t ensemble = 0; ensemble < topology.ensembles && !unsafe; ++ensemble) {
+         const std::size_t scalar = coarseScalarIndex(
+            channel, block, ensemble, topology.dynamicChannels, topology.blocks);
+         const real resultant[3] = {
+            runtime.coarseMoment[3 * scalar],
+            runtime.coarseMoment[3 * scalar + 1],
+            runtime.coarseMoment[3 * scalar + 2]
+         };
+         const real length = normDevice(resultant);
+         const real total = runtime.channelMomentSum[scalar];
+         const real scale = total > real(1) ? total : real(1);
+         const bool directionDefined = length > real(64) * epsilonDevice() * scale;
+         if(!directionDefined || length < polarizationThreshold * total) unsafe = 1;
+      }
+   }
+   runtime.polarizationUnsafeMask[block] = unsafe;
 }
 
 __global__ void proposeAdaptiveState(GpuAdaptiveDeviceTopology topology,
@@ -1641,7 +1682,7 @@ std::size_t GpuAdaptiveRuntime::estimateBytes(const GpuAdaptiveTopologyInput& t,
          checkedAdd(total, 11 * t.atoms + 8 * t.atoms + 9 * r.kernels.bonds + 27 +
                            10 * t.blocks + 13 * atomEnsembles +
                            4 * vectorState + 8, sizeof(real)) &&
-         checkedAdd(total, t.blocks, sizeof(unsigned char));
+         checkedAdd(total, 2 * t.blocks, sizeof(unsigned char));
       if(!kernelOk)
          throw std::overflow_error("GPU adaptive kernel memory estimate overflow");
    }
@@ -1782,6 +1823,7 @@ void GpuAdaptiveRuntime::allocate(const GpuAdaptiveTopologyInput& t,
       predictorCoarseField_.Allocate(vectorState);
       energyTerms_.Allocate(8);
       acceptedBlockMask_.Allocate(b);
+      polarizationUnsafeBlockMask_.Allocate(b);
       // Make zero-step diagnostics deterministic before the first field
       // evaluation; normal kernels overwrite these buffers thereafter.
       atomFieldScratch_.zeros_async(stream_);
@@ -1908,6 +1950,7 @@ void GpuAdaptiveRuntime::refreshDeviceDescriptors() {
    deviceRuntime_.transitionEpoch = transitionEpoch_.data();
    deviceRuntime_.atomisticBlockMask = atomisticBlockMask_.data();
    deviceRuntime_.coarseBlockMask = coarseBlockMask_.data();
+   deviceRuntime_.polarizationUnsafeMask = polarizationUnsafeBlockMask_.data();
    deviceRuntime_.atomisticAtomMask = atomisticAtomMask_.data();
    deviceRuntime_.interfaceAtomMask = interfaceAtomMask_.data();
    deviceRuntime_.activeAtomList = activeAtomList_.data();
@@ -2067,6 +2110,24 @@ void GpuAdaptiveRuntime::evaluateSelectorScores(const real* atomDirection) {
 #endif
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.selectorMilliseconds);
+}
+
+void GpuAdaptiveRuntime::evaluatePolarizationGate(real polarizationThreshold) {
+   if(!ready_ || !kernelsReady_)
+      throw std::logic_error("GPU adaptive polarization gate requires initialized CG-10 kernels");
+   ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
+#if defined(CUDA_V)
+   evaluateAdaptivePolarizationGate<<<
+      adaptiveGrid(blocks_), adaptiveThreads, 0, stream_>>>(
+      deviceTopology_, deviceRuntime_, polarizationThreshold);
+#else
+   hipLaunchKernelGGL(
+      evaluateAdaptivePolarizationGate, dim3(adaptiveGrid(blocks_)),
+      dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
+      polarizationThreshold);
+#endif
+   ASSERT_GPU(GPU_GET_LAST_ERROR());
+   finishPhase(phaseMetrics_.polarizationMilliseconds);
 }
 
 void GpuAdaptiveRuntime::proposeSelectorState(
@@ -2521,6 +2582,7 @@ GpuAdaptiveDiagnosticSnapshot GpuAdaptiveRuntime::diagnosticSnapshot(
 void GpuAdaptiveRuntime::release() {
    if(streamCreated_) ASSERT_GPU(GPU_STREAM_SYNC(stream_));
    freeIfAllocated(acceptedBlockMask_);
+   freeIfAllocated(polarizationUnsafeBlockMask_);
    freeIfAllocated(energyTerms_);
    freeIfAllocated(predictorCoarseField_);
    freeIfAllocated(initialCoarseField_);

@@ -20,6 +20,7 @@ module InputDataType
       character(len=32) :: selector = 'MAX_ANGLE'
       real(dblprec) :: refine_threshold = 0.25_dblprec
       real(dblprec) :: coarsen_threshold = 0.10_dblprec
+      real(dblprec) :: polarization_threshold = 0.9_dblprec
       integer :: update_interval = 1
       integer :: minimum_dwell_updates = 0
       integer :: buffer_blocks = 0

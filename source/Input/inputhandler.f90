@@ -240,6 +240,10 @@ contains
                read(ifile,*,iostat=i_err) adaptive_cg%coarsen_threshold
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('cg_polarization_threshold')
+               read(ifile,*,iostat=i_err) adaptive_cg%polarization_threshold
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             case('cg_update_interval')
                read(ifile,*,iostat=i_err) adaptive_cg%update_interval
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err

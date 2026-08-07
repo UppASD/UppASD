@@ -70,7 +70,7 @@ contains
       integer, intent(out) :: status
       character(len=*), intent(out) :: diagnostic
 
-      integer :: runtime_status, channel, block, cells_per_block
+      integer :: runtime_status, channel, block, cells_per_block, c1, c2
       real(dblprec) :: determinant, cell_volume, scale
       character(len=512) :: runtime_diagnostic
 
@@ -148,6 +148,23 @@ contains
          diagnostic = 'Two-sublattice local exchange must be channel-symmetric'
          return
       end if
+      ! RCG-03: mixed-derivative accuracy of the gradient discretization
+      ! relies on Cartesian symmetry of the per-channel-pair spatial
+      ! exchange stiffness tensor, mirroring the single-channel assertion in
+      ! CoarseTensorOperator; local_exchange's channel symmetry above does
+      ! not cover this separate spatial tensor.
+      do c2 = 1, 2
+         do c1 = 1, 2
+            if (maxval(abs(material%exchange_stiffness(:,:,c1,c2) - &
+                       transpose(material%exchange_stiffness(:,:,c1,c2)))) > &
+                1.0d-12*max(tiny(1.0_dblprec), &
+                   maxval(abs(material%exchange_stiffness(:,:,c1,c2))))) then
+               status = COARSE_TENSOR_INVALID_MATERIAL
+               diagnostic = 'Two-sublattice exchange stiffness must be Cartesian-symmetric per channel pair'
+               return
+            end if
+         end do
+      end do
       determinant = determinant3(topology%block_vectors)
       cell_volume = abs(determinant3(topology%cell_vectors))
       scale = max(cell_volume,material%cell_volume_m3)

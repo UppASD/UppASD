@@ -34,6 +34,7 @@ private:
     unsigned int adaptiveUpdateInterval = 1;
     GpuAdaptiveSelectorPolicy adaptiveSelectorPolicy{};
     GpuAdaptiveReconstructionPolicy adaptiveReconstructionPolicy{};
+    real adaptivePolarizationThreshold = real(0.9);
     int adaptiveDiagnostics = 0;
     double adaptiveEnergyJumpLimitJ = 0.0;
 

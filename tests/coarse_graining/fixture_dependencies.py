@@ -5,6 +5,8 @@ STATIC_ALL_FINE_CASE = "static_all_fine"
 STATIC_ALL_COARSE_CASE = "static_all_coarse"
 STATIC_MIXED_CASE = "static_mixed"
 ADAPTIVE_MIXED_CASE = "adaptive_mixed"
+POLARIZATION_GATE_CASE = "polarization_gate_cpu"
+POLARIZATION_GATE_GPU_CASE = "polarization_gate_gpu"
 
 CPU_REJECTION_CASES = (
     "invalid_partial_block",
@@ -43,7 +45,8 @@ def all_e2e_cases() -> tuple[str, ...]:
     """Return every e2e directory referenced by either executable harness."""
     names = {
         FEATURE_OFF_CASE, STATIC_ALL_FINE_CASE, STATIC_ALL_COARSE_CASE,
-        STATIC_MIXED_CASE, ADAPTIVE_MIXED_CASE, *CPU_REJECTION_CASES,
+        STATIC_MIXED_CASE, ADAPTIVE_MIXED_CASE, POLARIZATION_GATE_CASE,
+        POLARIZATION_GATE_GPU_CASE, *CPU_REJECTION_CASES,
         *CPU_ANISOTROPY_CASES, *CPU_PARITY_CASES.values(),
         CPU_INITIAL_PHASE_SD_CASE, *[case for case, _ in CPU_INITIAL_PHASE_CASES.values()],
         SPIN_SPIRAL_CASE, *GPU_EXECUTABLE_CASES, *GPU_INITIAL_PHASE_CASES,

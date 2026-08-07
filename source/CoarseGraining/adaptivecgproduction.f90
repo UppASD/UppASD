@@ -43,7 +43,8 @@ module AdaptiveCGProduction
       apply_adaptive_transitions, reconstruct_block_aligned, &
       reconstruct_block_constrained_cone, ADAPTIVE_HYBRID_OK, &
       ADAPTIVE_STAGE_COMPLETE_STEP, RECONSTRUCTION_ALIGNED, &
-      RECONSTRUCTION_CONSTRAINED_CONE
+      RECONSTRUCTION_CONSTRAINED_CONE, restrict_channel_moments, &
+      evaluate_polarization_gate
 
    implicit none
    private
@@ -82,6 +83,12 @@ module AdaptiveCGProduction
       type(adaptive_reconstruction_configuration_type) :: reconstruction
       logical, allocatable :: initial_fine_mask(:)
       logical, allocatable :: hard_fine_mask(:)
+      logical, allocatable :: static_hard_fine_mask(:)
+      logical, allocatable :: polarization_unsafe_block(:)
+      real(dblprec), allocatable :: polarization_resultant_mub(:,:,:,:)
+      real(dblprec), allocatable :: polarization_moment_sum_mub(:,:,:)
+      real(dblprec), allocatable :: polarization_direction_mub(:,:,:,:)
+      logical, allocatable :: polarization_direction_defined(:,:,:)
       real(dblprec), allocatable :: atom_moment_mub(:)
       integer, allocatable :: atom_anisotropy_axis_count(:)
       real(dblprec), allocatable :: atom_anisotropy_axis(:,:,:)
@@ -191,9 +198,13 @@ contains
       end if
 
       allocate(adaptive_cg_state%initial_fine_mask(adaptive_cg_state%topology%n_spatial_blocks), &
-         adaptive_cg_state%hard_fine_mask(adaptive_cg_state%topology%n_spatial_blocks))
+         adaptive_cg_state%hard_fine_mask(adaptive_cg_state%topology%n_spatial_blocks), &
+         adaptive_cg_state%static_hard_fine_mask(adaptive_cg_state%topology%n_spatial_blocks), &
+         adaptive_cg_state%polarization_unsafe_block(adaptive_cg_state%topology%n_spatial_blocks))
       adaptive_cg_state%initial_fine_mask = .true.
       adaptive_cg_state%hard_fine_mask = .false.
+      adaptive_cg_state%static_hard_fine_mask = .false.
+      adaptive_cg_state%polarization_unsafe_block = .false.
       if (len_trim(adaptive_cg%static_mask_file) > 0) then
          adaptive_cg_state%initial_fine_mask = .false.
          call read_mask_file(trim(adaptive_cg%static_mask_file), &
@@ -202,8 +213,10 @@ contains
             call cleanup_adaptive_cg_production()
             return
          end if
-         if (adaptive_cg_state%adaptive_mask) &
+         if (adaptive_cg_state%adaptive_mask) then
+            adaptive_cg_state%static_hard_fine_mask = adaptive_cg_state%initial_fine_mask
             adaptive_cg_state%hard_fine_mask = adaptive_cg_state%initial_fine_mask
+         end if
       end if
 
       channel_gamma(1) = Landeg(1)
@@ -314,6 +327,19 @@ contains
          return
       end if
 
+      allocate(adaptive_cg_state%polarization_resultant_mub(3,adaptive_cg_state%topology%n_dynamic_channels, &
+         adaptive_cg_state%topology%n_spatial_blocks,Mensemble), &
+         adaptive_cg_state%polarization_moment_sum_mub(adaptive_cg_state%topology%n_dynamic_channels, &
+         adaptive_cg_state%topology%n_spatial_blocks,Mensemble), &
+         adaptive_cg_state%polarization_direction_mub(3,adaptive_cg_state%topology%n_dynamic_channels, &
+         adaptive_cg_state%topology%n_spatial_blocks,Mensemble), &
+         adaptive_cg_state%polarization_direction_defined(adaptive_cg_state%topology%n_dynamic_channels, &
+         adaptive_cg_state%topology%n_spatial_blocks,Mensemble))
+      adaptive_cg_state%polarization_resultant_mub = 0.0_dblprec
+      adaptive_cg_state%polarization_moment_sum_mub = 0.0_dblprec
+      adaptive_cg_state%polarization_direction_mub = 0.0_dblprec
+      adaptive_cg_state%polarization_direction_defined = .false.
+
       adaptive_cg_state%selector_configuration%refine_threshold = adaptive_cg%refine_threshold
       adaptive_cg_state%selector_configuration%coarsen_threshold = adaptive_cg%coarsen_threshold
       adaptive_cg_state%selector_configuration%update_interval = adaptive_cg%update_interval
@@ -346,8 +372,10 @@ contains
       character(len=*), intent(out) :: diagnostic
 
       integer :: atom, basis, block, axis_count, central_atom, countstart
+      integer :: reference_atom, reference_count
       real(dblprec) :: cell_axis(3,2), cell_k1_j(2), cell_k2_j(2)
-      real(dblprec) :: moment, k1_j, k2_j
+      real(dblprec) :: moment, k1_j, k2_j, axis_scale, k_scale
+      character(len=160) :: rejection_message
 
       allocate(adaptive_cg_state%atom_anisotropy_axis_count(Natom), &
          adaptive_cg_state%atom_anisotropy_axis(3,2,Natom), &
@@ -410,6 +438,56 @@ contains
                if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
             end if
          end if
+      end do
+
+      ! RCG-03 (F-06): the block below samples anisotropy from one central
+      ! translated copy per basis index and broadcasts it to every block.
+      ! That is only valid if every translated copy of a basis site carries
+      ! identical anisotropy; prove it (or reject) before relying on it, so
+      ! do_cluster overrides, random-alloy decoration, or any other atom-
+      ! indexed divergence cannot be silently homogenized.
+      do basis = 1, NA
+         reference_atom = 0
+         do atom = 1, Natom
+            if (anumb(atom) /= basis) cycle
+            if (reference_atom == 0) then
+               reference_atom = atom
+               cycle
+            end if
+            reference_count = adaptive_cg_state%atom_anisotropy_axis_count(reference_atom)
+            if (adaptive_cg_state%atom_anisotropy_axis_count(atom) /= reference_count) then
+               write(rejection_message,'(a,i0,a,i0,a,i0)') &
+                  'anisotropy: basis ',basis,' is not cell-periodic; atom ',atom, &
+                  ' has a different axis count than atom ',reference_atom
+               call reject(trim(rejection_message),status,diagnostic)
+               return
+            end if
+            if (reference_count == 0) cycle
+            ! Axis components are unit-vector coordinates (O(1)); the k1/k2
+            ! constants are Joule-scale (typically 1e-21..1e-24 J). A shared
+            ! O(1) absolute floor would swamp a real energy-scale divergence,
+            ! so each scale is floored only against its own tiny(), not 1.
+            axis_scale = max(tiny(1.0_dblprec),maxval(abs( &
+               adaptive_cg_state%atom_anisotropy_axis(:,1:reference_count,reference_atom))))
+            k_scale = max(tiny(1.0_dblprec),maxval(abs( &
+               adaptive_cg_state%atom_anisotropy_k1_j(1:reference_count,reference_atom))), &
+               maxval(abs(adaptive_cg_state%atom_anisotropy_k2_j(1:reference_count,reference_atom))))
+            if (maxval(abs(adaptive_cg_state%atom_anisotropy_axis(:,1:reference_count,atom) - &
+                   adaptive_cg_state%atom_anisotropy_axis(:,1:reference_count,reference_atom))) > &
+                   1.0d-10*axis_scale .or. &
+                maxval(abs(adaptive_cg_state%atom_anisotropy_k1_j(1:reference_count,atom) - &
+                   adaptive_cg_state%atom_anisotropy_k1_j(1:reference_count,reference_atom))) > &
+                   1.0d-10*k_scale .or. &
+                maxval(abs(adaptive_cg_state%atom_anisotropy_k2_j(1:reference_count,atom) - &
+                   adaptive_cg_state%atom_anisotropy_k2_j(1:reference_count,reference_atom))) > &
+                   1.0d-10*k_scale) then
+               write(rejection_message,'(a,i0,a,i0,a,i0)') &
+                  'anisotropy: basis ',basis,' is not cell-periodic; atom ',atom, &
+                  ' differs from atom ',reference_atom
+               call reject(trim(rejection_message),status,diagnostic)
+               return
+            end if
+         end do
       end do
 
       axis_count = 0
@@ -559,6 +637,11 @@ contains
           adaptive_cg%coarsen_threshold > adaptive_cg%refine_threshold) then
          call reject('cg_coarsen_threshold/refine_threshold require 0 <= coarsen <= refine <= 2', &
             status,diagnostic); return
+      end if
+      if (.not. ieee_is_finite(adaptive_cg%polarization_threshold) .or. &
+          adaptive_cg%polarization_threshold <= 0.0_dblprec .or. &
+          adaptive_cg%polarization_threshold > 1.0_dblprec) then
+         call reject('cg_polarization_threshold must lie in (0,1]',status,diagnostic); return
       end if
       if (adaptive_cg%update_interval <= 0) then
          call reject('cg_update_interval must be positive',status,diagnostic); return
@@ -928,11 +1011,27 @@ contains
       type(selector_evaluation_type) :: evaluation
       type(selector_requests_type) :: requests
       integer(c_int) :: selector_status
-      integer :: before, after
+      integer :: before, after, hybrid_status
 
       if (mod(step,adaptive_cg%update_interval) /= 0) then
          status = ADAPTIVE_CG_PRODUCTION_OK; diagnostic=''; return
       end if
+      call restrict_channel_moments(adaptive_cg_state%topology,adaptive_cg_state%atom_moment_mub, &
+         atom_direction,adaptive_cg_state%polarization_resultant_mub, &
+         adaptive_cg_state%polarization_moment_sum_mub,adaptive_cg_state%polarization_direction_mub, &
+         adaptive_cg_state%polarization_direction_defined,hybrid_status,diagnostic)
+      if (hybrid_status /= ADAPTIVE_HYBRID_OK) then
+         status = ADAPTIVE_CG_PRODUCTION_SETUP_FAILED; return
+      end if
+      call evaluate_polarization_gate(adaptive_cg_state%topology, &
+         adaptive_cg_state%polarization_resultant_mub,adaptive_cg_state%polarization_moment_sum_mub, &
+         adaptive_cg_state%polarization_direction_defined,adaptive_cg%polarization_threshold, &
+         adaptive_cg_state%polarization_unsafe_block,hybrid_status,diagnostic)
+      if (hybrid_status /= ADAPTIVE_HYBRID_OK) then
+         status = ADAPTIVE_CG_PRODUCTION_SETUP_FAILED; return
+      end if
+      adaptive_cg_state%hard_fine_mask = adaptive_cg_state%static_hard_fine_mask .or. &
+         adaptive_cg_state%polarization_unsafe_block
       call evaluate_selector_registry(adaptive_cg_state%selector_registry, &
          adaptive_cg_state%runtime%selector,atom_direction(:,:,1), &
          adaptive_cg_state%topology%atom_to_block,adaptive_cg_state%bond_atom(1,:), &

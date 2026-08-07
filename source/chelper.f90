@@ -244,8 +244,8 @@ module Chelper
             exchange_stiffness, spiralization, anisotropy_axis_count, anisotropy_axis, &
             anisotropy_k1, anisotropy_k2, normalization_floor, magnetic_moment_si, gamma_per_ts, &
             damping, adaptive_mask, update_interval, refine_threshold, coarsen_threshold, &
-            minimum_dwell, buffer_dilation, reconstruction_scheme, cone_angle_rad, &
-            energy_jump_limit_j, diagnostics) &
+            polarization_threshold, minimum_dwell, buffer_dilation, reconstruction_scheme, &
+            cone_angle_rad, energy_jump_limit_j, diagnostics) &
             bind(C, name="fortrandata_setadaptivekernels_")
          import :: c_int, c_double
          real(c_double), intent(inout) :: atom_moment(*), atom_anisotropy_axis(*)
@@ -256,6 +256,7 @@ module Chelper
          real(c_double), intent(inout) :: anisotropy_k1(*), anisotropy_k2(*)
          real(c_double), intent(inout) :: normalization_floor, magnetic_moment_si, gamma_per_ts, damping
          real(c_double), intent(inout) :: refine_threshold, coarsen_threshold, cone_angle_rad
+         real(c_double), intent(inout) :: polarization_threshold
          real(c_double), intent(inout) :: energy_jump_limit_j
          integer(c_int), intent(inout) :: atom_anisotropy_axis_count(*)
          integer(c_int), intent(inout) :: projection_block(*), bonds, bond_atom(*)
@@ -769,7 +770,8 @@ contains
             adaptive_cg_state%tensor%channel_gamma_per_t_s, &
             adaptive_cg_state%tensor%channel_damping,adaptive_cg_state%gpu_adaptive_mask, &
             adaptive_cg%update_interval,adaptive_cg%refine_threshold, &
-            adaptive_cg%coarsen_threshold,adaptive_cg%minimum_dwell_updates, &
+            adaptive_cg%coarsen_threshold,adaptive_cg%polarization_threshold, &
+            adaptive_cg%minimum_dwell_updates, &
             adaptive_cg_state%gpu_buffer_dilation, &
             adaptive_cg_state%gpu_reconstruction_scheme, &
             adaptive_cg_state%reconstruction%cone_angle_rad, &
