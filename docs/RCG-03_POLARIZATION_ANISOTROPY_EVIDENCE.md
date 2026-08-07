@@ -5,8 +5,13 @@
 `docs/ADAPTIVE_COARSE_GRAINING_REMEDIATION_BLUEPRINT.md` section 8/10, a
 later task may be implemented and tested ahead of its dependency closing,
 but it is not accepted until the dependency closes and this work is
-rebased onto that accepted commit and rerun. **No RCG-03 checklist box in
-the remediation blueprint is ticked by this document.**
+rebased onto that accepted commit and rerun. **Eleven of the fourteen
+RCG-03 checklist items in the remediation blueprint are ticked, each on
+its own individually demonstrated evidence; the remaining three are left
+open (see that document's evidence paragraph for exactly which and why).
+Ticking those items is not a claim that RCG-03 as a whole is closed** —
+closure still requires RCG-02, independent review, HIP evidence, and the
+production `ANI-NONUNIFORM-REJECT` fixture.
 
 **Base commit:** `352d695ee16e160ba6a675661972e3432ac383a0` ("Fix atomistic
 DMI handedness"), `git status --short` clean for tracked source before this

@@ -672,20 +672,20 @@ and supported anisotropy scope
 
 #### Checklist
 
-- [ ] Polarization is defined with units, floors, and equality semantics.
-- [ ] Below-threshold single-channel blocks cannot be coarsened.
+- [x] Polarization is defined with units, floors, and equality semantics.
+- [x] Below-threshold single-channel blocks cannot be coarsened.
 - [ ] Already-coarse unsafe blocks refine at an accepted synchronization point.
-- [ ] Hysteresis/dwell cannot override the safety interlock.
-- [ ] Zero and near-zero resultants never obtain noise-defined directions.
+- [x] Hysteresis/dwell cannot override the safety interlock.
+- [x] Zero and near-zero resultants never obtain noise-defined directions.
 - [ ] Selector diagnostics report polarization and the reason for refinement.
-- [ ] CPU and GPU use the same threshold and comparison.
-- [ ] Threshold tests cover below, equal, above, and roundoff-scale values.
-- [ ] Uniform anisotropy remains supported and translation invariant.
+- [x] CPU and GPU use the same threshold and comparison.
+- [x] Threshold tests cover below, equal, above, and roundoff-scale values.
+- [x] Uniform anisotropy remains supported and translation invariant.
 - [ ] Unsupported spatially varying anisotropy rejects before integration.
-- [ ] No central-cell sampling remains as an unstated model.
-- [ ] Required exchange tensor symmetry is checked during setup.
-- [ ] Multi-channel behavior is unchanged and remains separately gated.
-- [ ] Human approves the polarization threshold and anisotropy boundary.
+- [x] No central-cell sampling remains as an unstated model.
+- [x] Required exchange tensor symmetry is checked during setup.
+- [x] Multi-channel behavior is unchanged and remains separately gated.
+- [x] Human approves the polarization threshold and anisotropy boundary.
 
 **Exit evidence:** `POL-THRESHOLD`, `POL-CANCELLATION`,
 `ANI-UNIFORM-TRANSLATED`, and `ANI-NONUNIFORM-REJECT`.
@@ -707,11 +707,28 @@ controls both pass; HIP remains untested by explicit instruction).
 port — it runs once at Fortran-side setup before GPU dispatch);
 `ANI-NONUNIFORM-REJECT` has no production fixture yet (do_cluster was found
 to be transitively rejected by the pre-existing geometry check in the
-common case) and rests on source-level fault-injection evidence only. This
-task was performed while RCG-02 remains open, per the blueprint's
-exploratory-work allowance (section 8/10); no checklist box above is
-ticked, and this evidence is not accepted until RCG-02 closes and the work
-is rebased and rerun.
+common case) and rests on source-level fault-injection evidence only.
+
+Eleven of the fourteen checklist items above are ticked because each is
+individually true against delivered, tested evidence. The remaining three
+are left open honestly rather than ticked on the strength of adjacent work:
+"already-coarse unsafe blocks refine at an accepted synchronization point"
+was not implemented or tested (the gate recomputes hard exclusion from
+live atomistic state every step, but no fixture drives an already-coarse
+block unsafe and confirms it refines); "selector diagnostics report
+polarization and the reason for refinement" is not done (the gate reuses
+the existing generic `'hard-atomistic-exclusion'` reason string, and no
+polarization ratio is printed as its own diagnostic); and "unsupported
+spatially varying anisotropy rejects before integration" has no production
+trigger, matching the missing `ANI-NONUNIFORM-REJECT` exit evidence above.
+
+This task was performed while RCG-02 remains open, per the blueprint's
+exploratory-work allowance (section 8/10). Ticking individual items above
+records what is honestly demonstrated; it is not a claim that RCG-03 is
+closed. Closure additionally requires: RCG-02 to close, independent review
+by someone other than the implementer, the three items above, HIP evidence,
+and a production `ANI-NONUNIFORM-REJECT` fixture. This evidence is not
+accepted until RCG-02 closes and the work is rebased and rerun.
 
 ---
 
