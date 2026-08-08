@@ -625,7 +625,7 @@ Opus/Terra or Sol reviewer
 `DMI-SPIRAL-Q`, and the operator-level portion of
 `DMI-HYBRID-CROSSING`.
 
-**RCG-02 evidence (2026-08-08, pending Human approval):**
+**RCG-02 evidence (2026-08-08, CLOSED):**
 `docs/RCG-02_DMI_HANDEDNESS_EVIDENCE.md` records the independent indexed
 derivation, the DMI dimer's pre-fix CPU-action failure, and Human approval of
 the source-level correction (2026-07-31).  `DMI-DIMER-ENERGY`, material
@@ -659,10 +659,15 @@ committed (`5275f733`, `2f700fda`); a clean-commit rebuild of `2f700fda`
 (`git describe` reports no `-dirty` suffix) reproduces every result above on
 both CPU and CUDA.
 
-RCG-02 remains open on two items, neither a physics disagreement: HIP
-execution evidence is unavailable in every environment used so far, and a
-separate independent Opus/Terra or Sol adversarial physics review (distinct
-from Human approval) per the delegation guide has not yet been obtained.
+**RCG-02 is closed (2026-08-08, Human decision: Anders Bergman).** Two
+items are explicitly deferred by approved scope decision, not blocking:
+HIP execution evidence, because no HIP toolchain or device exists in any
+environment used so far (postponed to whenever HIP hardware becomes
+available); and a separate independent Opus/Terra or Sol adversarial
+physics review distinct from Human approval, deferred to a later stage of
+the remediation program. Neither deferral reflects a physics disagreement
+or an unresolved correctness question — every fixture this document
+requires passes now.
 
 ---
 

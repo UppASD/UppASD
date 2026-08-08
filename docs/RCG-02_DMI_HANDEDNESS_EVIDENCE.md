@@ -1,13 +1,14 @@
 # RCG-02 DMI handedness evidence
 
-**Status (2026-08-08):** source convention corrected across every active CPU
-Hamiltonian path (`HamiltonianActions`, `ApplyHamiltonian:heisge`, Monte
-Carlo `calculate_efield`/`calculate_energy`, spin ice); legacy atomistic DMI
+**Status: CLOSED (2026-08-08, Human decision: Anders Bergman).** Source
+convention corrected across every active CPU Hamiltonian path
+(`HamiltonianActions`, `ApplyHamiltonian:heisge`, Monte Carlo
+`calculate_efield`/`calculate_energy`, spin ice); legacy atomistic DMI
 goldens reconciled; CPU and CUDA analytic/operator/production fixtures pass
-on the current worktree.  HIP remains unavailable in every environment used
-so far.  A clean-commit CUDA acceptance record is still open (see
-"Remaining open items" below) because this evidence was gathered on an
-uncommitted worktree.
+from a clean-commit build (`2f700fda`). HIP execution evidence and a
+separate independent adversarial physics review are explicitly deferred by
+approved scope decision (see "Deferred, not blocking" below), not open
+correctness questions.
 
 ## Canonical convention
 
@@ -218,15 +219,16 @@ ctest -R '^(coarse-graining-gpu-dmi-dimer|coarse-graining-gpu-adaptive-runtime|a
                               # driver 610.57.04)
 ```
 
-## Open evidence
+## Deferred, not blocking
 
 - **HIP** execution and sanitizer evidence remain unavailable; no HIP
   toolchain or device exists in any environment used for this blueprint so
-  far.
+  far. Deferred to whenever HIP hardware becomes available, by Human
+  decision (2026-08-08).
 - **Independent reviewer sign-off.** The physics derivations above (golden
   reconciliation and the Monte Carlo fix) were produced and checked in this
   session, independent of the DMI fix commit's original author and of
   whoever made the dmfile/dmdata sign-flip adjustment, and both received
   Human physics approval (Anders Bergman, 2026-08-08). A separate
-  Opus/Terra or Sol adversarial physics review remains open per the
-  blueprint's delegation guide.
+  Opus/Terra or Sol adversarial physics review is deferred to a later stage
+  of the remediation program, by the same decision.
