@@ -37,9 +37,24 @@ def main() -> None:
     source = (base / "inpsd.dat").read_text()
 
     cases = {
-        "mode": (replace_line(source, "mode", "M"), "mode:"),
+        # Switching to mode M without mcnstep trips an unrelated legacy
+        # input-consistency fallback in read_parameters (nstep is read
+        # before mcnstep is known, so it silently seeds mcnstep from nstep
+        # and marks sane_input=.false.) before AdaptiveCG's own mode
+        # rejection is ever reached. Setting mcnstep in the same position as
+        # "mode" keeps it ahead of the fixture's existing Nstep line, which
+        # is required for the fallback not to fire.
+        "mode": (replace_line(source, "mode", "M\nmcnstep 2"), "mode:"),
         "initial-phase": (replace_line(source, "ip_mode", "X"), "ip_mode:"),
-        "restart": (replace_line(source, "initmag", "4"), "initmag=4"),
+        # A restart request must reach AdaptiveCG's own initmag=4 capability
+        # rejection, not the unrelated generic "restartfile does not exist"
+        # stop. The default restartfile name is the literal "restart", which
+        # the fixture does not provide, so point at the tracked restart
+        # fixture that copytree already includes in the case directory.
+        "restart": (
+            replace_line(source, "initmag", "4") + "\nrestartfile ./restart.cg105mix.out\n",
+            "initmag=4",
+        ),
         "temperature": (replace_line(source, "temp", "10.0"), "Temp/do_qhb/do_3tm"),
         "stochastic-integrator": (replace_line(source, "SDEalgh", "2"), "SDEalgh/llg"),
         "boundary": (replace_line(source, "BC", "O P P"), "BC:"),
@@ -73,6 +88,17 @@ def main() -> None:
     failures: list[str] = []
     with tempfile.TemporaryDirectory(prefix="cg13-rejections-") as temporary:
         temporary_root = Path(temporary)
+        # The base fixture's inpsd.dat reads "posfile ../posfile",
+        # "momfile ../momfile", and "exchange ../jfile" (and every
+        # Hamiltonian-capability case appends its own "<kw> ../jfile" line),
+        # all resolved relative to each case directory one level below
+        # temporary_root. Without copies of these tracked siblings here,
+        # posfile/momfile silently fall back to a single-basis-atom default
+        # that misclassifies the geometry as an explicit-device rejection,
+        # and jfile-dependent cases fail on a missing-file stop, in both
+        # cases before the case can reach its intended setup-time rejection.
+        for shared_fixture in ("posfile", "momfile", "jfile"):
+            shutil.copy(root / shared_fixture, temporary_root / shared_fixture)
         for name, (input_text, diagnostic) in cases.items():
             case = temporary_root / name
             shutil.copytree(base, case)

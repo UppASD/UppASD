@@ -235,6 +235,9 @@ contains
       !
       integer :: i_err,isite,ichem,i_stat,iconf
       real(dblprec)  :: aemom_tmp
+      real(dblprec)  :: tmp_ammom,tmp_landeg
+      real(dblprec), dimension(3) :: tmp_aemom
+      integer :: tmp_indmom
 
       iconf = 1
 
@@ -260,31 +263,52 @@ contains
 
       i_err=0
 
+      ! Every branch below reads (isite,ichem[,iconf]) from the momfile and
+      ! uses them directly as array subscripts. A momfile with too few or
+      ! misaligned columns for the active do_lsf/ind_mom_flag/set_landeg
+      ! combination (e.g. a plain momfile read with do_lsf='Y', which expects
+      ! a leading LSF configuration-index column) previously produced
+      ! out-of-bounds indices written straight into ammom_inp/aemom_inp. Read
+      ! into local temporaries first and validate bounds before touching the
+      ! arrays, so a malformed file stops cleanly instead of corrupting memory.
       if(set_landeg==1) then
          ! If the induced magnetic moments flag is on one must read whether a certain moment is induced or not
          if (do_lsf=='N') then
             if (ind_mom_flag=='Y') then
                do while(i_err==0)
-                  read(ifileno,*,iostat=i_err) isite, ichem, ammom_inp(isite,ichem,1),&
-                     aemom_inp(1:3,isite,ichem,1), Landeg_ch(isite,ichem,1),ind_mom(isite,ichem)
-                     aemom_tmp=norm2(aemom_inp(:,isite,ichem,1))
-                     aemom_inp(:,isite,ichem,1)=aemom_inp(:,isite,ichem,1)/aemom_tmp
+                  read(ifileno,*,iostat=i_err) isite, ichem, tmp_ammom,&
+                     tmp_aemom, tmp_landeg, tmp_indmom
+                  if (i_err/=0) exit
+                  call check_moment_bounds(isite,ichem,iconf)
+                  ammom_inp(isite,ichem,1)=tmp_ammom
+                  aemom_tmp=norm2(tmp_aemom)
+                  aemom_inp(1:3,isite,ichem,1)=tmp_aemom/aemom_tmp
+                  Landeg_ch(isite,ichem,1)=tmp_landeg
+                  ind_mom(isite,ichem)=tmp_indmom
                end do
             else
                do while(i_err==0)
-                  read(ifileno,*,iostat=i_err) isite, ichem, ammom_inp(isite,ichem,1), &
-                     aemom_inp(1:3,isite,ichem,1), Landeg_ch(isite,ichem,1)
-                     aemom_tmp=norm2(aemom_inp(:,isite,ichem,1))
-                     aemom_inp(:,isite,ichem,1)=aemom_inp(:,isite,ichem,1)/aemom_tmp
+                  read(ifileno,*,iostat=i_err) isite, ichem, tmp_ammom, &
+                     tmp_aemom, tmp_landeg
+                  if (i_err/=0) exit
+                  call check_moment_bounds(isite,ichem,iconf)
+                  ammom_inp(isite,ichem,1)=tmp_ammom
+                  aemom_tmp=norm2(tmp_aemom)
+                  aemom_inp(1:3,isite,ichem,1)=tmp_aemom/aemom_tmp
+                  Landeg_ch(isite,ichem,1)=tmp_landeg
                end do
             endif
          else ! LSF
             ! For LSF modified momfile requires configuration number as first column
             do while(i_err==0)
-               read(ifileno,*,iostat=i_err) iconf, isite, ichem, ammom_inp(isite,ichem,iconf), &
-                  aemom_inp(1:3,isite,ichem,iconf), Landeg_ch(isite,ichem,iconf)
-                  aemom_tmp=norm2(aemom_inp(:,isite,ichem,iconf))
-                  aemom_inp(:,isite,ichem,iconf)=aemom_inp(:,isite,ichem,iconf)/aemom_tmp
+               read(ifileno,*,iostat=i_err) iconf, isite, ichem, tmp_ammom, &
+                  tmp_aemom, tmp_landeg
+               if (i_err/=0) exit
+               call check_moment_bounds(isite,ichem,iconf)
+               ammom_inp(isite,ichem,iconf)=tmp_ammom
+               aemom_tmp=norm2(tmp_aemom)
+               aemom_inp(1:3,isite,ichem,iconf)=tmp_aemom/aemom_tmp
+               Landeg_ch(isite,ichem,iconf)=tmp_landeg
             end do
          endif
       else
@@ -293,30 +317,53 @@ contains
             if (ind_mom_flag=='Y') then
                ! If the induced magnetic moments flag is on one must read whether a certain moment is induced or not
                do while(i_err==0)
-                  read(ifileno,*,iostat=i_err) isite, ichem, ammom_inp(isite,ichem,1), &
-                     aemom_inp(1:3,isite,ichem,1), ind_mom(isite,ichem)
-                     aemom_tmp=norm2(aemom_inp(:,isite,ichem,1))
-                     aemom_inp(:,isite,ichem,1)=aemom_inp(:,isite,ichem,1)/aemom_tmp
+                  read(ifileno,*,iostat=i_err) isite, ichem, tmp_ammom, &
+                     tmp_aemom, tmp_indmom
+                  if (i_err/=0) exit
+                  call check_moment_bounds(isite,ichem,iconf)
+                  ammom_inp(isite,ichem,1)=tmp_ammom
+                  aemom_tmp=norm2(tmp_aemom)
+                  aemom_inp(1:3,isite,ichem,1)=tmp_aemom/aemom_tmp
+                  ind_mom(isite,ichem)=tmp_indmom
                end do
             else
                do while(i_err==0)
-                  read(ifileno,*,iostat=i_err) isite, ichem, ammom_inp(isite,ichem,1), &
-                     aemom_inp(1:3,isite,ichem,1)
-                     aemom_tmp=norm2(aemom_inp(:,isite,ichem,1))
-                     aemom_inp(1:3,isite,ichem,1)=aemom_inp(1:3,isite,ichem,1)/aemom_tmp
+                  read(ifileno,*,iostat=i_err) isite, ichem, tmp_ammom, &
+                     tmp_aemom
+                  if (i_err/=0) exit
+                  call check_moment_bounds(isite,ichem,iconf)
+                  ammom_inp(isite,ichem,1)=tmp_ammom
+                  aemom_tmp=norm2(tmp_aemom)
+                  aemom_inp(1:3,isite,ichem,1)=tmp_aemom/aemom_tmp
                end do
             endif
          else   ! LSF
             do while(i_err==0)
-               read(ifileno,*,iostat=i_err) iconf, isite, ichem, ammom_inp(isite,ichem,iconf), &
-                  aemom_inp(1:3,isite,ichem,iconf)
-                  aemom_tmp=norm2(aemom_inp(:,isite,ichem,iconf))
-                  aemom_inp(:,isite,ichem,iconf)=aemom_inp(:,isite,ichem,iconf)/aemom_tmp
+               read(ifileno,*,iostat=i_err) iconf, isite, ichem, tmp_ammom, &
+                  tmp_aemom
+               if (i_err/=0) exit
+               call check_moment_bounds(isite,ichem,iconf)
+               ammom_inp(isite,ichem,iconf)=tmp_ammom
+               aemom_tmp=norm2(tmp_aemom)
+               aemom_inp(1:3,isite,ichem,iconf)=tmp_aemom/aemom_tmp
             end do
          endif
       end if
       close(ifileno)
       !
+   contains
+      subroutine check_moment_bounds(isite_in,ichem_in,iconf_in)
+         integer, intent(in) :: isite_in,ichem_in,iconf_in
+         character(len=200) :: msg
+         if (isite_in<1 .or. isite_in>na .or. ichem_in<1 .or. ichem_in>nchmax .or. &
+             iconf_in<1 .or. iconf_in>conf_num) then
+            write(msg,'(a,i0,1x,i0,1x,i0,a,i0,a,i0,a,i0,a)') &
+               'Malformed momfile entry (site,chem,conf)=(',isite_in,ichem_in,iconf_in, &
+               '); expected site in 1..',na,', chem in 1..',nchmax,', conf in 1..',conf_num, &
+               '. do_lsf=Y requires a leading LSF configuration-index column.'
+            call ErrorHandling_ERROR(trim(msg))
+         end if
+      end subroutine check_moment_bounds
    end subroutine read_moments
 
    !----------------------------------------------------------------------------------

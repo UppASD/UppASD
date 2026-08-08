@@ -1,6 +1,6 @@
 simid: adaptive
-date: 2026-07-30
-git_revision: v6.0.2-437-gf8e2-dirty
+date: 2026-08-08
+git_revision: v6.0.2-442-g3733-dirty
 siminfo:
     temperature:    0.0000000         
     timestep:       0.10000000E-15    
