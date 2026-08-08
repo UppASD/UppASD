@@ -707,14 +707,14 @@ and supported anisotropy scope
 
 - [x] Polarization is defined with units, floors, and equality semantics.
 - [x] Below-threshold single-channel blocks cannot be coarsened.
-- [ ] Already-coarse unsafe blocks refine at an accepted synchronization point.
+- [x] Already-coarse unsafe blocks refine at an accepted synchronization point.
 - [x] Hysteresis/dwell cannot override the safety interlock.
 - [x] Zero and near-zero resultants never obtain noise-defined directions.
-- [ ] Selector diagnostics report polarization and the reason for refinement.
+- [x] Selector diagnostics report polarization and the reason for refinement.
 - [x] CPU and GPU use the same threshold and comparison.
 - [x] Threshold tests cover below, equal, above, and roundoff-scale values.
 - [x] Uniform anisotropy remains supported and translation invariant.
-- [ ] Unsupported spatially varying anisotropy rejects before integration.
+- [x] Unsupported spatially varying anisotropy rejects before integration.
 - [x] No central-cell sampling remains as an unstated model.
 - [x] Required exchange tensor symmetry is checked during setup.
 - [x] Multi-channel behavior is unchanged and remains separately gated.
@@ -762,6 +762,49 @@ closed. Closure additionally requires: RCG-02 to close, independent review
 by someone other than the implementer, the three items above, HIP evidence,
 and a production `ANI-NONUNIFORM-REJECT` fixture. This evidence is not
 accepted until RCG-02 closes and the work is rebased and rerun.
+
+**RCG-03 evidence (2026-08-08, CLOSED):** RCG-02 closed at `fae4c413`;
+those commits sit chronologically on top of the RCG-03 patches above in a
+single line of history, so no rebase was needed, only a rerun, which was
+done first from fresh out-of-tree builds before any further edits
+(`ctest -L cg13-cpu` 12/12, `ctest -L cg13-cuda` 15/15 on `d8b8c5ab`,
+including the `mode:` rejection-matrix case that both RCG-01 and the
+2026-08-06 RCG-03 evidence had flagged as a pre-existing unrelated
+failure — it now passes cleanly and was not investigated further, being
+out of scope). The three items left open above are now delivered:
+already-coarse-block-refines-at-sync-point has an operator-level fixture
+(`tests/coarse_graining/test_adaptive_hybrid_solver.f90`,
+`test_polarization_forces_refine_of_coarse_block`) after finding that
+production reconstruction structurally prevents an already-coarse block
+from ever being observed polarization-unsafe through the ordinary step
+loop (it rebuilds dormant atoms to exact full polarization every step,
+before the gate runs); the polarization-forced-atomistic path now logs its
+own `'polarization-unsafe'` reason (distinct from the static-mask-only
+`'hard-atomistic-exclusion'`) with the triggering ratio, on both CPU and
+CUDA (`evaluate_polarization_gate`/`evaluateAdaptivePolarizationGate`
+gained a `block_ratio`/`polarizationRatio` diagnostic output, threaded
+through the transition log and the GPU diagnostic snapshot/print); and
+`ANI-NONUNIFORM-REJECT` now has a production fixture
+(`tests/coarse_graining/e2e/ani_nonuniform_reject_cluster`, a `do_cluster`
+embedding placed exactly on an existing host lattice site so
+`clus_expand=0` and the geometry check the original candidate tripped
+never fires), reached through the ordinary `sd.f95` executable and wired
+into `run_setup_rejection_matrix.py` (31/31 cases) and the tracked-fixture
+audit. Full detail, including two unrelated pre-existing `do_cluster`
+setup-order quirks worked around entirely from the fixture's own input
+files (no source changes), is in
+`docs/RCG-03_POLARIZATION_ANISOTROPY_EVIDENCE.md`'s "RCG-03 closure
+(2026-08-08)" section.
+
+**RCG-03 is closed (2026-08-08, Human decision: Anders Bergman).** Two
+items are explicitly deferred, matching RCG-02's precedent and for the
+same reasons, not blocking: HIP execution evidence, because no HIP
+toolchain or device exists in any environment used so far; and a separate
+independent Opus/Terra or Sol adversarial review distinct from Human
+approval, deferred to a later stage of the remediation program. Neither
+deferral reflects a physics disagreement or an unresolved correctness
+question — every fixture this document requires passes now on CPU and
+CUDA.
 
 ---
 

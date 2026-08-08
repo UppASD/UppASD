@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from fixture_dependencies import STATIC_MIXED_CASE
+from fixture_dependencies import CLUSTER_ANISOTROPY_REJECTION_CASE, STATIC_MIXED_CASE
 
 
 def replace_line(text: str, keyword: str, value: str) -> str:
@@ -97,7 +97,7 @@ def main() -> None:
         # that misclassifies the geometry as an explicit-device rejection,
         # and jfile-dependent cases fail on a missing-file stop, in both
         # cases before the case can reach its intended setup-time rejection.
-        for shared_fixture in ("posfile", "momfile", "jfile"):
+        for shared_fixture in ("posfile", "momfile", "jfile", "kfile_cg_x"):
             shutil.copy(root / shared_fixture, temporary_root / shared_fixture)
         for name, (input_text, diagnostic) in cases.items():
             case = temporary_root / name
@@ -114,9 +114,28 @@ def main() -> None:
             if result.returncode == 0 or not setup_error or "AdaptiveCG: capability accepted" in result.stdout:
                 failures.append(f"{name}: expected setup-time rejection ({diagnostic})\n{result.stdout}")
 
+        # RCG-03 ANI-NONUNIFORM-REJECT: unlike the cases above, this fixture
+        # is not a text mutation of static_mixed -- it is its own tracked
+        # do_cluster input (posfile_clus/momfile_clus/exchange_clus/
+        # anisotropy_clus), copied verbatim, that reaches
+        # build_production_anisotropy's cell-periodicity check through the
+        # ordinary do_cluster embedding path rather than fault injection.
+        cluster_case = temporary_root / "anisotropy-cluster-nonuniform"
+        shutil.copytree(root / CLUSTER_ANISOTROPY_REJECTION_CASE, cluster_case)
+        result = subprocess.run(
+            [str(binary)], cwd=cluster_case, text=True, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, timeout=60, check=False,
+        )
+        if result.returncode == 0 or "anisotropy: basis" not in result.stdout or \
+                "AdaptiveCG: capability accepted" in result.stdout:
+            failures.append(
+                "anisotropy-cluster-nonuniform: expected setup-time rejection "
+                f"(anisotropy: basis)\n{result.stdout}"
+            )
+
     if failures:
         raise AssertionError("\n".join(failures))
-    print(f"CG-13 setup-rejection matrix passed ({len(cases)} cases)")
+    print(f"CG-13 setup-rejection matrix passed ({len(cases) + 1} cases)")
 
 
 if __name__ == "__main__":

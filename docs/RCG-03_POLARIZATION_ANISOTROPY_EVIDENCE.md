@@ -1,6 +1,17 @@
-# RCG-03 polarization gate and anisotropy capability audit — exploratory evidence
+# RCG-03 polarization gate and anisotropy capability audit — evidence
 
-**Status:** exploratory work performed while RCG-02 remains open (see
+**Status: RCG-03 is closed (2026-08-08, Human decision: Anders Bergman).**
+Sections 1–14 below (through "Open limitations") are the original
+2026-08-06 exploratory session, performed while RCG-02 was still open, and
+are retained unchanged as the historical record of that work. The
+"RCG-03 closure (2026-08-08)" section at the end of this document records
+the rebase onto the now-closed RCG-02, the three previously-open checklist
+items being delivered, and the Human closure decision including the
+HIP/independent-review deferral. Read that final section for the current
+status; do not treat the paragraph below (written 2026-08-06) as current.
+
+**Original 2026-08-06 status (superseded, kept for history):** exploratory
+work performed while RCG-02 remains open (see
 `docs/RCG-02_DMI_HANDEDNESS_EVIDENCE.md`). Per
 `docs/ADAPTIVE_COARSE_GRAINING_REMEDIATION_BLUEPRINT.md` section 8/10, a
 later task may be implemented and tested ahead of its dependency closing,
@@ -325,3 +336,307 @@ pre-existing failures outside RCG-01").
   entire document records exploratory, not accepted, evidence. Before
   acceptance, this work must be rebased onto the commit that closes RCG-02
   and every fixture above rerun.
+
+---
+
+## RCG-03 closure (2026-08-08)
+
+**RCG-03 is closed (2026-08-08, Human decision: Anders Bergman).** This
+section covers the remaining work after RCG-02 closed: the mandatory
+rebase/rerun, the three checklist items left open above, and the closure
+decision itself, including HIP and independent review.
+
+### Rebase and rerun
+
+RCG-02 closed at commit `fae4c413` ("RCG-02: close, with HIP and
+independent review deferred by Human decision"). The two RCG-03 patches
+above (`20ef6f4d`, `3733b6ce`) are chronological ancestors of RCG-02's
+closing commits, not the reverse, so no git rebase was needed — RCG-02's
+DMI/Monte Carlo fixes already sit on top of RCG-03's polarization/
+anisotropy work in a single line of history. HEAD at the start of this
+session was `d8b8c5ab` ("Updating LSF moment file reading"), with a clean
+`git status --short` for tracked source.
+
+Per the blueprint's explicit instruction not to assume nothing regressed,
+both suites were rerun from fresh out-of-tree builds on `d8b8c5ab` before
+any new edits:
+
+```text
+CPU:  cmake -S . -B <build> -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
+      cmake --build <build> -j2
+      ctest --test-dir <build> -L cg13-cpu
+      -> 12/12 passed, including adaptive-cg-production-e2e and
+         adaptive-cg-setup-rejection-matrix (see note below).
+
+CUDA: cmake -S . -B <build> -DUPPASD_GPU_BACKEND=CUDA -DBUILD_TESTING=ON \
+        -DCMAKE_BUILD_TYPE=Release
+      cmake --build <build> -j2
+      ctest --test-dir <build> -L cg13-cuda
+      -> 15/15 passed, including the GPU production e2e and GPU
+         adaptive-runtime fixtures.
+```
+
+Environment: GNU Fortran 13.3.0, GNU C/C++ 12.4.0, CMake 3.28.3; CUDA
+13.3.73 (`nvcc`), NVIDIA driver 610.57.04, two NVIDIA RTX A4000 GPUs
+(`nvidia-smi`), `-DUPPASD_GPU_BACKEND=CUDA`, fp64.
+
+**`adaptive-cg-setup-rejection-matrix` no longer has the pre-existing
+`mode:` failure** that both the RCG-01 and 2026-08-06 RCG-03 evidence
+flagged as unrelated and pre-existing: it passed cleanly in this rerun,
+before any RCG-03-closure edits were made. This session did not
+investigate why it now passes (out of scope), but it is recorded here
+since it changes the honest baseline this closure work rebases onto.
+
+**Note on tracked-file cleanliness:** running `adaptive-cg-production-e2e`
+executes the real binary directly against `examples/AdaptiveCoarseGraining/*`
+(tracked input directories that also receive the run's own provenance-
+stamped `uppasd.*.yaml` output in place), which modifies those three
+tracked files as a side effect of testing, not of any source edit. They
+were restored with `git checkout` after every test run in this session so
+`git describe --tags --dirty` reports a clean, non-`-dirty` tree between
+edits.
+
+### Item 1 — already-coarse unsafe blocks refine at an accepted sync point
+
+**Finding before implementing a fixture:** production reconstruction
+(`reconstruct_coarse_atoms` in `adaptivecgproduction.f90`) runs every step
+for every currently-coarse block, before the polarization gate is ever
+evaluated that same step, and it always rebuilds the dormant atoms to
+exactly match the coarse channel's own moment/direction (both
+`RECONSTRUCTION_ALIGNED` and `RECONSTRUCTION_CONSTRAINED_CONE` solve for a
+resultant equal to `channel_moment_sum_mub * coarse_direction`, i.e. ratio
+`1.0` to `1e-12`, by construction — see `reconstruct_block_constrained_cone`'s
+bisection search on `cone_longitudinal` against `requested_norm`). This
+means a block that has been coarse for at least one production step can
+never be observed polarization-unsafe through the ordinary
+`adaptive_cg_cpu_step` loop: reconstruction actively "launders" its
+polarization back to `1.0` before the gate ever sees it, every step. A
+production-executable fixture for this specific transition (coarse →
+unsafe → forced atomistic, purely from step-loop dynamics) is therefore
+not achievable honestly; building one would require either disabling
+reconstruction (not a real production configuration) or waiting on an
+event the architecture is specifically designed to prevent.
+
+**Fixture delivered (operator layer):**
+`tests/coarse_graining/test_adaptive_hybrid_solver.f90`,
+`test_polarization_forces_refine_of_coarse_block`, matching the blueprint's
+fixture-layer taxonomy (section 6.1, layer 2: "operator fixtures ... with
+exact or high-accuracy references"), which does not go through
+`reconstruct_coarse_atoms` at all:
+
+1. A new single-block fixture helper, `make_single_block_fixture` (width
+   `=n`, unlike the file's existing `make_chain_fixture`'s width `=1`), so
+   a block can contain more than one atom per channel and therefore have a
+   genuinely variable polarization ratio.
+2. `setup_adaptive_hybrid_runtime` is confirmed to leave the block
+   `RESOLUTION_COARSE` by construction (`fine_seed` all false) — "already
+   coarse before any evolution," matching the checklist wording directly.
+3. The block's dormant atoms are hand-set to a genuine, honest low-
+   polarization state (three of four members aligned, one flipped),
+   giving an exact `0.5` resultant/moment-sum ratio.
+4. `restrict_channel_moments` + `evaluate_polarization_gate` (threshold
+   `0.9`) are called directly on this state and confirmed to measure
+   exactly `0.5` and flag the block unsafe.
+5. `apply_adaptive_transitions` is called with that mask/ratio at
+   `ADAPTIVE_STAGE_PREDICTOR`: rejected (`ADAPTIVE_HYBRID_INVALID_STAGE`),
+   state unchanged — "not mid-integrator-stage."
+6. The same call at `ADAPTIVE_STAGE_COMPLETE_STEP`: accepted, block
+   transitions `RESOLUTION_COARSE -> RESOLUTION_ATOMISTIC`, and the logged
+   transition event carries `selector_reason == 'polarization-unsafe'` and
+   `polarization_ratio == 0.5` (both new fields; see Item 2).
+
+**Negative control:** the `polarization_caused` branch in
+`advance_selector_state` (`blockselector.f90`) was temporarily forced to
+`.false.` (`if (.false. .and. present(...))`), rebuilt, and rerun: only the
+new "own reason and ratio" assertion failed
+(`FAIL: the forced transition is logged with its own reason and the
+measured polarization ratio`); every other assertion, including the
+state-transition and stage-gating ones, still passed. Reverted and
+confirmed `adaptive_hybrid_solver_tests`, `polarization_gate_tests`, and
+`block_selector_tests` all pass again.
+
+### Item 2 — selector diagnostics report polarization and the reason
+
+**CPU (Fortran):**
+
+- `evaluate_polarization_gate` (`adaptivehybridsolver.f90`) gained an
+  optional `block_ratio(:)` output: the worst (minimum) resultant/moment-
+  sum ratio observed across every channel/ensemble at each block,
+  regardless of whether the block is flagged unsafe, with the documented
+  `0.0` floor for an undefined (near-zero, never-normalized) direction.
+- `advance_selector_state` and `apply_adaptive_transitions`
+  (`blockselector.f90`, `adaptivehybridsolver.f90`) gained optional
+  `polarization_unsafe_mask`/`polarization_ratio` parameters. When
+  supplied, a hard-forced transition is logged with reason
+  `'polarization-unsafe'` instead of the generic `'hard-atomistic-
+  exclusion'` whenever polarization was (at least partly) the cause;
+  `'hard-atomistic-exclusion'` is kept, unchanged, for a static-mask-only
+  exclusion. All new parameters are optional, so every pre-existing call
+  site (both production and the other unit tests) is unaffected.
+- `selector_transition_event_type` and `adaptive_transition_event_type`
+  gained a `polarization_ratio` field (sentinel `-1.0`, never a valid
+  ratio, when not supplied), threaded through
+  `append_transition`/`append_adaptive_event`.
+- Production wiring: `adaptive_cg_state` gained a persistent
+  `polarization_ratio_block(:)` array, filled by the same
+  `evaluate_polarization_gate` call `update_adaptive_mask` already made,
+  and passed into `apply_adaptive_transitions` alongside the existing
+  `polarization_unsafe_block` mask. `print_transition_events` now prints a
+  `polarization_ratio=<value>` field on every `AdaptiveCG: transition ...`
+  line.
+
+**GPU (CUDA; HIP deferred, see below):**
+
+- `evaluateAdaptivePolarizationGate` (`gpuAdaptiveRuntime.cpp`) gained the
+  same worst-ratio tracking, writing to a new
+  `GpuAdaptiveDeviceRuntime::polarizationRatio` device buffer
+  (`polarizationRatioBlock_`, allocated/wired/freed alongside the existing
+  `polarizationUnsafeBlockMask_`). The loop can no longer short-circuit on
+  the first unsafe hit the way the mask-only version could, since every
+  channel/ensemble must be visited to find the true minimum.
+- `estimateBytes` was updated to include the new buffer; omitting this
+  caused `gpu_adaptive_runtime_tests` to abort with "CG-10 scratch or
+  construction storage bypassed memory preflight" until fixed.
+- `GpuAdaptiveDiagnosticSnapshot` gained a `polarizationRatio` vector,
+  downloaded in `diagnosticSnapshot()`; `gpuSimulation.cpp`'s
+  `release()` diagnostic block prints a new
+  `Gpu: AdaptiveCG polarization_ratio values=...` line alongside the
+  existing `final_state` line.
+- Unlike the Fortran side, the GPU's `hardAtomisticBlockMask` (consumed by
+  `proposeAdaptiveState`) is *only* ever populated from
+  `polarizationUnsafeBlockMask()` (`gpuSimulation.cpp`) — there is no
+  separate static-mask concept ported to the GPU path yet — so a distinct
+  GPU-side reason enum would have exactly one possible value today. A code
+  comment records this explicitly rather than adding a redundant enum; the
+  device-reachable gap this checklist item is actually about (no numeric
+  ratio surfaced) is closed by the buffer/snapshot/print above.
+- `test_gpu_adaptive_runtime.cpp`'s `testPolarizationGate` gained a new
+  `polarizationRatioBlock()` accessor call, asserting the aligned block's
+  ratio is `1.0` and the exactly-cancelled block's ratio is `0.0`
+  (matching the CPU floor convention).
+
+**Commands and results:**
+
+```text
+cmake --build <cpu build> -j2 --target sd.f95 adaptive_hybrid_solver_tests \
+  polarization_gate_tests block_selector_tests
+ctest --test-dir <cpu build> -L cg13-cpu           # 12/12
+cmake --build <cuda build> -j2 --target gpu_adaptive_runtime_tests sd.f95.cuda
+ctest --test-dir <cuda build> -L cg13-cuda         # 15/15
+```
+
+HIP was not touched, per the same explicit deferral as the 2026-08-06
+session (see "HIP and independent review" below): the `hipLaunchKernelGGL`
+launch call for `evaluateAdaptivePolarizationGate` is unchanged (the kernel
+body it launches is shared source, compiled by either backend, so the
+change automatically applies to a future HIP build), but it has not been
+built or run under `-DUPPASD_GPU_BACKEND=HIP`.
+
+### Item 3 — ANI-NONUNIFORM-REJECT production fixture
+
+**New fixture:** `tests/coarse_graining/e2e/ani_nonuniform_reject_cluster/`
+(full provenance in that directory's `README.md`), wired into
+`tests/coarse_graining/run_setup_rejection_matrix.py` as a 31st rejection
+case and into `tests/coarse_graining/fixture_dependencies.py`'s
+`all_e2e_cases()`/`audit_fixture_dependencies.py` tracked-fixture audit.
+
+**Mechanism (reachable, unlike `do_cluster`'s original candidate path):**
+a `do_cluster` embedding of exactly one atom, placed at the same fractional
+coordinate as an existing host lattice site (`ncell_clus 1 1 1`,
+`posfile_clus` at `(0,0,0)`), so `clus_expand` (`clus_geometry.f90`) stays
+`0` and `Natom` is unchanged. The pre-existing `Natom /= NA*N1*N2*N3`
+geometry rejection in `validate_configuration` — which the 2026-08-06
+session found transitively blocks the `clus_expand>0` case — therefore
+never fires. `anisotropy_clus` then gives that one embedded atom (basis 1)
+a divergent `k1` (`-0.005`) from the host's uniform kfile value for basis 1
+(`-0.002`, from `../kfile_cg_x`, the same file `anisotropy_uniform_fine`
+already uses). Running the ordinary `sd.f95` executable against this input
+produces:
+
+```text
+AdaptiveCG setup rejected: anisotropy: basis 1 is not cell-periodic; atom 3 differs from atom 1
+```
+
+— `build_production_anisotropy`'s cell-periodicity check
+(`adaptivecgproduction.f90`), reached through the ordinary executable and
+an ordinary capability, exactly as the checklist requires.
+
+**Two pre-existing, unrelated setup-order obstacles were found and worked
+around from the fixture's own input files, with no source changes:**
+
+1. `Landeg_glob` defaults to `2.0`, but the ordinary host moment path
+   halves it (`Landeg(i)=Landeg_ch(...)*0.5`,
+   `source/System/magnetizationinit.f90`) while `cluster_creation`
+   (`source/Clusters/clusters.f90`) copies the cluster's `Landeg_ch_clus`
+   into `Landeg(iatom)` directly, with no such factor. With the default
+   `set_landeg 0`, the embedded atom would silently end up with `Landeg=2.0`
+   against every host atom's `1.0`, tripping the unrelated
+   `Landeg/do_site_damping: ... requires uniform gamma and damping`
+   capability guard before the anisotropy check is ever reached. The
+   fixture sets `set_landeg 1` (making the momfiles' gyromagnetic column
+   authoritative for both host and cluster) and gives `momfile_clus` a
+   `1.0` column so the embedded atom's `Landeg` matches the host exactly.
+2. `cluster_creation`'s exchange-overwrite loop unconditionally consumes
+   `ham_clus%nlistsize_clus`/`ncoup_clus` regardless of whether the
+   cluster's anisotropy is even in play, so `exchange_clus` (`jfile_clus`)
+   is required input; the fixture supplies one self-referencing bond with
+   zero coupling so the host's real exchange is left untouched.
+
+Both are genuine, narrow inconsistencies in the pre-existing `do_cluster`
+embedding path, unrelated to RCG-03's capability-safety scope. Neither
+required a source change — a candidate fix to the apparently-missing
+`ham_clus%taniso_clus`/`kaniso_clus`/`eaniso_clus` population was drafted
+and then reverted after finding that `hamiltonianinit.f90:299-313` already
+calls the shared `setup_anisotropies` routine for the cluster path
+correctly; that candidate fix was an unnecessary duplicate based on an
+incomplete search and never appears in the final diff.
+
+**Negative control:** replacing `kfile_clus`'s `k1=-0.005` with the host's
+own `k1=-0.002` (anisotropy-matched embedding) was run manually and
+completes normally (`AdaptiveCG: capability accepted`, `returncode=0`)
+instead of rejecting, confirming the rejection is produced by the genuine
+per-atom divergence and not merely by `do_cluster`'s presence.
+
+**Commands and results:**
+
+```text
+python3 tests/coarse_graining/run_setup_rejection_matrix.py --binary <sd.f95>
+# CG-13 setup-rejection matrix passed (31 cases)
+python3 tests/coarse_graining/audit_fixture_dependencies.py
+# adaptive-CG fixture dependency audit: PASS (38 fixture directories, 60 input paths)
+```
+
+### HIP and independent review
+
+Per Human decision (Anders Bergman, 2026-08-08), RCG-03 closes with the
+same two deferrals RCG-02 closed with, for the same reasons:
+
+- **HIP execution evidence** is deferred: no HIP toolchain or device
+  exists in any environment used so far. The `hipLaunchKernelGGL` launch
+  call for the polarization-gate kernel, and the (unchanged, shared)
+  kernel body it launches, remain untested under
+  `-DUPPASD_GPU_BACKEND=HIP`.
+- **A separate independent Opus/Terra or Sol adversarial physics/
+  implementation review**, distinct from Human approval, is deferred to a
+  later stage of the remediation program.
+
+Neither deferral reflects a physics disagreement or an unresolved
+correctness question — every fixture this document and the remediation
+blueprint's RCG-03 checklist require passes now on CPU and CUDA.
+
+### Closure summary
+
+All fourteen RCG-03 checklist items in the remediation blueprint are now
+ticked on delivered, tested evidence. Exit evidence:
+
+- `POL-THRESHOLD`, `POL-CANCELLATION` — passing since 2026-08-06, rerun
+  clean in this session's fresh builds.
+- `ANI-UNIFORM-TRANSLATED` — passing since 2026-08-06 (Fortran-side
+  setup, no GPU port needed), rerun clean.
+- `ANI-NONUNIFORM-REJECT` — new production fixture delivered above.
+- Already-coarse-unsafe-refine and polarization-reason/ratio diagnostics —
+  new operator fixture and CPU+CUDA diagnostic wiring delivered above.
+
+`ctest -L cg13-cpu` (12/12) and `ctest -L cg13-cuda` (15/15) both pass on
+fresh out-of-tree builds of the final commit; `run_setup_rejection_matrix.py`
+passes 31/31 cases; `audit_fixture_dependencies.py` passes.

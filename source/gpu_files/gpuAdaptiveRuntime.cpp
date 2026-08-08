@@ -267,8 +267,13 @@ __global__ void evaluateAdaptivePolarizationGate(GpuAdaptiveDeviceTopology topol
    const std::size_t block = adaptiveThreadIndex();
    if(block >= topology.blocks) return;
    unsigned char unsafe = 0;
-   for(std::size_t channel = 0; channel < topology.dynamicChannels && !unsafe; ++channel) {
-      for(std::size_t ensemble = 0; ensemble < topology.ensembles && !unsafe; ++ensemble) {
+   // RCG-03 diagnostic: track the worst (minimum) ratio across every
+   // channel/ensemble, mirroring the Fortran block_ratio output.  This
+   // cannot short-circuit on the first unsafe hit the way the mask-only
+   // computation could, or later (safer) channels would never be visited.
+   real worst = real(1);
+   for(std::size_t channel = 0; channel < topology.dynamicChannels; ++channel) {
+      for(std::size_t ensemble = 0; ensemble < topology.ensembles; ++ensemble) {
          const std::size_t scalar = coarseScalarIndex(
             channel, block, ensemble, topology.dynamicChannels, topology.blocks);
          const real resultant[3] = {
@@ -280,10 +285,18 @@ __global__ void evaluateAdaptivePolarizationGate(GpuAdaptiveDeviceTopology topol
          const real total = runtime.channelMomentSum[scalar];
          const real scale = total > real(1) ? total : real(1);
          const bool directionDefined = length > real(64) * epsilonDevice() * scale;
-         if(!directionDefined || length < polarizationThreshold * total) unsafe = 1;
+         if(!directionDefined) {
+            unsafe = 1;
+            worst = real(0);
+            continue;
+         }
+         const real ratio = length / total;
+         if(ratio < polarizationThreshold) unsafe = 1;
+         if(ratio < worst) worst = ratio;
       }
    }
    runtime.polarizationUnsafeMask[block] = unsafe;
+   if(runtime.polarizationRatio) runtime.polarizationRatio[block] = worst;
 }
 
 __global__ void proposeAdaptiveState(GpuAdaptiveDeviceTopology topology,
@@ -1681,7 +1694,7 @@ std::size_t GpuAdaptiveRuntime::estimateBytes(const GpuAdaptiveTopologyInput& t,
                            2 * r.kernels.selectorEdges + t.blocks, sizeof(int)) &&
          checkedAdd(total, 11 * t.atoms + 8 * t.atoms + 9 * r.kernels.bonds + 27 +
                            10 * t.blocks + 13 * atomEnsembles +
-                           4 * vectorState + 8, sizeof(real)) &&
+                           4 * vectorState + 8 + t.blocks, sizeof(real)) &&
          checkedAdd(total, 2 * t.blocks, sizeof(unsigned char));
       if(!kernelOk)
          throw std::overflow_error("GPU adaptive kernel memory estimate overflow");
@@ -1824,6 +1837,7 @@ void GpuAdaptiveRuntime::allocate(const GpuAdaptiveTopologyInput& t,
       energyTerms_.Allocate(8);
       acceptedBlockMask_.Allocate(b);
       polarizationUnsafeBlockMask_.Allocate(b);
+      polarizationRatioBlock_.Allocate(b);
       // Make zero-step diagnostics deterministic before the first field
       // evaluation; normal kernels overwrite these buffers thereafter.
       atomFieldScratch_.zeros_async(stream_);
@@ -1951,6 +1965,7 @@ void GpuAdaptiveRuntime::refreshDeviceDescriptors() {
    deviceRuntime_.atomisticBlockMask = atomisticBlockMask_.data();
    deviceRuntime_.coarseBlockMask = coarseBlockMask_.data();
    deviceRuntime_.polarizationUnsafeMask = polarizationUnsafeBlockMask_.data();
+   deviceRuntime_.polarizationRatio = polarizationRatioBlock_.data();
    deviceRuntime_.atomisticAtomMask = atomisticAtomMask_.data();
    deviceRuntime_.interfaceAtomMask = interfaceAtomMask_.data();
    deviceRuntime_.activeAtomList = activeAtomList_.data();
@@ -2527,6 +2542,7 @@ GpuAdaptiveDiagnosticSnapshot GpuAdaptiveRuntime::diagnosticSnapshot(
    result.stateAge.resize(blocks_);
    result.transitionEpoch.resize(blocks_);
    result.selectorScores.resize(deviceRuntime_.selectorCriteria * blocks_);
+   result.polarizationRatio.resize(blocks_);
    const auto download = [](void* destination, const void* source,
                             std::size_t bytes) {
       if(bytes == 0) return;
@@ -2542,6 +2558,8 @@ GpuAdaptiveDiagnosticSnapshot GpuAdaptiveRuntime::diagnosticSnapshot(
             blocks_ * sizeof(unsigned int));
    download(result.selectorScores.data(), selectorScores_.data(),
             result.selectorScores.size() * sizeof(real));
+   download(result.polarizationRatio.data(), polarizationRatioBlock_.data(),
+            result.polarizationRatio.size() * sizeof(real));
    std::vector<real> atomField(3 * atoms_ * ensembles_);
    std::vector<real> coarseField(3 * dynamicChannels_ * blocks_ * ensembles_);
    std::vector<real> direction(3 * atoms_ * ensembles_);
@@ -2583,6 +2601,7 @@ void GpuAdaptiveRuntime::release() {
    if(streamCreated_) ASSERT_GPU(GPU_STREAM_SYNC(stream_));
    freeIfAllocated(acceptedBlockMask_);
    freeIfAllocated(polarizationUnsafeBlockMask_);
+   freeIfAllocated(polarizationRatioBlock_);
    freeIfAllocated(energyTerms_);
    freeIfAllocated(predictorCoarseField_);
    freeIfAllocated(initialCoarseField_);

@@ -136,6 +136,11 @@ struct GpuAdaptiveDeviceRuntime {
    unsigned char* atomisticBlockMask = nullptr;
    unsigned char* coarseBlockMask = nullptr;
    unsigned char* polarizationUnsafeMask = nullptr;
+   // RCG-03 diagnostic: worst (minimum) resultant/moment-sum ratio observed
+   // over every channel/ensemble at each block, mirroring the Fortran
+   // evaluate_polarization_gate block_ratio output; see its header comment
+   // for the 0.0 undefined-direction floor convention.
+   real* polarizationRatio = nullptr;
    unsigned char* atomisticAtomMask = nullptr;
    unsigned char* interfaceAtomMask = nullptr;
    int* activeAtomList = nullptr;
@@ -194,6 +199,7 @@ struct GpuAdaptiveDiagnosticSnapshot {
    std::vector<unsigned int> stateAge;
    std::vector<unsigned int> transitionEpoch;
    std::vector<real> selectorScores;
+   std::vector<real> polarizationRatio;
    GpuAdaptiveEnergy energy{};
    double atomFieldSumT = 0.0;
    double atomFieldNorm2T2 = 0.0;
@@ -292,6 +298,11 @@ public:
    void evaluatePolarizationGate(real polarizationThreshold);
    const unsigned char* polarizationUnsafeBlockMask() const {
       return polarizationUnsafeBlockMask_.data();
+   }
+   // RCG-03 diagnostic: device pointer to the per-block ratio computed by
+   // the same evaluatePolarizationGate() call; see GpuAdaptiveDeviceRuntime.
+   const real* polarizationRatioBlock() const {
+      return polarizationRatioBlock_.data();
    }
    void proposeSelectorState(const GpuAdaptiveSelectorPolicy& policy,
                              const unsigned char* hardAtomisticBlockMask = nullptr);
@@ -398,6 +409,7 @@ private:
    GpuTensor<real, 1> energyTerms_;
    GpuTensor<unsigned char, 1> acceptedBlockMask_;
    GpuTensor<unsigned char, 1> polarizationUnsafeBlockMask_;
+   GpuTensor<real, 1> polarizationRatioBlock_;
 
    GpuAdaptiveDeviceTopology deviceTopology_{};
    GpuAdaptiveDeviceRuntime deviceRuntime_{};

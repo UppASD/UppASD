@@ -928,6 +928,17 @@ void GpuSimulation::release() {
             std::printf("%s%d", block == 0 ? "" : ",",
                         diagnostic.blockState[block]);
          std::printf("\n");
+         // RCG-03 diagnostic: the polarization ratio evaluatePolarizationGate
+         // measured for every block.  hardAtomisticBlockMask on the GPU path is
+         // currently populated solely from the polarization gate (there is no
+         // separate static-mask concept ported to GPU), so a block forced fine
+         // in final_state above with a ratio below the configured threshold
+         // has 'polarization-unsafe' as its unambiguous reason.
+         std::printf("Gpu: AdaptiveCG polarization_ratio values=");
+         for(std::size_t block = 0; block < diagnostic.polarizationRatio.size(); ++block)
+            std::printf("%s%.16e", block == 0 ? "" : ",",
+                        static_cast<double>(diagnostic.polarizationRatio[block]));
+         std::printf("\n");
          const auto countState = [&](int state) {
             return static_cast<unsigned long long>(std::count(
                diagnostic.blockState.begin(), diagnostic.blockState.end(), state));

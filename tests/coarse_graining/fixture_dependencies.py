@@ -20,6 +20,11 @@ CPU_ANISOTROPY_CASES = (
     "anisotropy_uniform_fine",
     "anisotropy_uniform_coarse",
 )
+# RCG-03 ANI-NONUNIFORM-REJECT: a do_cluster embedding placed exactly on an
+# existing host lattice site (clus_expand=0, so the pre-existing
+# Natom/=NA*N1*N2*N3 geometry rejection never triggers) that gives one atom
+# a divergent anisotropy from every other atom sharing its basis index.
+CLUSTER_ANISOTROPY_REJECTION_CASE = "ani_nonuniform_reject_cluster"
 CPU_PARITY_CASES = {"static": "parity_static_cpu", "adaptive": "parity_adaptive_cpu"}
 CPU_INITIAL_PHASE_CASES = {
     "M": ("initial_phase_mc", "Performing MC initial phase:"),
@@ -47,7 +52,7 @@ def all_e2e_cases() -> tuple[str, ...]:
         FEATURE_OFF_CASE, STATIC_ALL_FINE_CASE, STATIC_ALL_COARSE_CASE,
         STATIC_MIXED_CASE, ADAPTIVE_MIXED_CASE, POLARIZATION_GATE_CASE,
         POLARIZATION_GATE_GPU_CASE, *CPU_REJECTION_CASES,
-        *CPU_ANISOTROPY_CASES, *CPU_PARITY_CASES.values(),
+        *CPU_ANISOTROPY_CASES, CLUSTER_ANISOTROPY_REJECTION_CASE, *CPU_PARITY_CASES.values(),
         CPU_INITIAL_PHASE_SD_CASE, *[case for case, _ in CPU_INITIAL_PHASE_CASES.values()],
         SPIN_SPIRAL_CASE, *GPU_EXECUTABLE_CASES, *GPU_INITIAL_PHASE_CASES,
         *GPU_PARITY_CASES.values(), GPU_DMI_CASE, GPU_FFT_CASE,

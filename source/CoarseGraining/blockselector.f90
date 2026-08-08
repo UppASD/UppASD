@@ -70,6 +70,12 @@ module BlockSelector
       integer(c_int) :: old_state = RESOLUTION_COARSE
       integer(c_int) :: new_state = RESOLUTION_COARSE
       character(len=48) :: reason = ''
+      !> RCG-03 diagnostic: the resultant/moment-sum ratio evaluated for this
+      !> block by the polarization gate, when the caller supplies one to
+      !> advance_selector_state.  Left at the sentinel -1 (never a valid
+      !> ratio, which lies in [0,1]) when no ratio was supplied, so callers
+      !> can distinguish "not evaluated" from "evaluated and safe".
+      real(c_double) :: polarization_ratio = -1.0_c_double
       real(c_double), allocatable :: score(:)
       logical, allocatable :: refine_request(:)
       logical, allocatable :: coarsen_request(:)
@@ -296,8 +302,18 @@ contains
 
    !> The sole block-state mutation API.  Calls not on update_interval are
    !> intentional no-ops, so the caller may invoke it at every safe sync point.
+   !>
+   !> hard_atomistic_mask is the single non-overridable exclusion signal and
+   !> still alone determines whether a block is forced atomistic.
+   !> polarization_unsafe_mask/polarization_ratio are optional RCG-03
+   !> diagnostics: when supplied, a forced-atomistic transition whose cause
+   !> includes polarization is logged with its own 'polarization-unsafe'
+   !> reason (distinct from a static-mask-only 'hard-atomistic-exclusion')
+   !> and the triggering ratio is attached to the logged event.  Callers that
+   !> omit them (every pre-existing call site) see unchanged behavior.
    subroutine advance_selector_state(runtime, requests, hard_atomistic_mask, evaluation, &
-         configuration, synchronization_step, transition_log, status, diagnostic)
+         configuration, synchronization_step, transition_log, status, diagnostic, &
+         polarization_unsafe_mask, polarization_ratio)
       type(block_selector_runtime_type), intent(inout) :: runtime
       type(selector_requests_type), intent(in) :: requests
       logical, intent(in) :: hard_atomistic_mask(:)
@@ -307,10 +323,14 @@ contains
       type(selector_transition_log_type), intent(inout) :: transition_log
       integer(c_int), intent(out) :: status
       character(len=*), intent(out) :: diagnostic
+      logical, intent(in), optional :: polarization_unsafe_mask(:)
+      real(c_double), intent(in), optional :: polarization_ratio(:)
 
       integer :: block, nblocks
       integer(c_int) :: old_state, new_state
       character(len=48) :: reason
+      logical :: polarization_caused
+      real(c_double) :: ratio_to_log
 
       status = SELECTOR_OK
       diagnostic = ''
@@ -325,6 +345,18 @@ contains
          call fail_advance('Selector state, request, exclusion, and score sizes must match')
          return
       end if
+      if (present(polarization_unsafe_mask)) then
+         if (size(polarization_unsafe_mask) /= nblocks) then
+            call fail_advance('Polarization-unsafe diagnostic mask size must match block count')
+            return
+         end if
+      end if
+      if (present(polarization_ratio)) then
+         if (size(polarization_ratio) /= nblocks) then
+            call fail_advance('Polarization ratio diagnostic size must match block count')
+            return
+         end if
+      end if
       if (configuration%update_interval <= 0 .or. configuration%minimum_dwell_updates < 0) then
          call fail_advance('Selector update interval and dwell age must be nonnegative')
          return
@@ -335,12 +367,20 @@ contains
          old_state = runtime%resolution_state(block)
          new_state = old_state
          reason = ''
+         ratio_to_log = -1.0_c_double
+         if (present(polarization_ratio)) ratio_to_log = polarization_ratio(block)
+         polarization_caused = .false.
+         if (present(polarization_unsafe_mask)) polarization_caused = polarization_unsafe_mask(block)
          if (runtime%state_age(block) < huge(0_c_int)) then
             runtime%state_age(block) = runtime%state_age(block) + 1_c_int
          end if
          if (hard_atomistic_mask(block)) then
             new_state = RESOLUTION_ATOMISTIC
-            reason = 'hard-atomistic-exclusion'
+            if (polarization_caused) then
+               reason = 'polarization-unsafe'
+            else
+               reason = 'hard-atomistic-exclusion'
+            end if
          else if (old_state == RESOLUTION_COARSE .and. requests%refine(block) .and. &
                   runtime%state_age(block) >= configuration%minimum_dwell_updates) then
             new_state = RESOLUTION_ATOMISTIC
@@ -353,7 +393,7 @@ contains
          if (new_state /= old_state) then
             call append_transition(transition_log, synchronization_step, block, old_state, new_state, &
                reason, evaluation%score(:,block), evaluation%refine(:,block), evaluation%coarsen(:,block), &
-               status, diagnostic)
+               status, diagnostic, ratio_to_log)
             if (status /= SELECTOR_OK) return
             runtime%resolution_state(block) = new_state
             runtime%state_age(block) = 0_c_int
@@ -493,7 +533,7 @@ contains
    end subroutine append_criterion
 
    subroutine append_transition(transition_log, synchronization_step, block, old_state, new_state, reason, &
-         score, refine_request, coarsen_request, status, diagnostic)
+         score, refine_request, coarsen_request, status, diagnostic, polarization_ratio)
       type(selector_transition_log_type), intent(inout) :: transition_log
       integer(c_int), intent(in) :: synchronization_step, block, old_state, new_state
       character(len=*), intent(in) :: reason
@@ -501,6 +541,7 @@ contains
       logical, intent(in) :: refine_request(:), coarsen_request(:)
       integer(c_int), intent(out) :: status
       character(len=*), intent(out) :: diagnostic
+      real(c_double), intent(in), optional :: polarization_ratio
 
       type(selector_transition_event_type), allocatable :: expanded(:)
       integer :: old_count, allocation_status
@@ -521,6 +562,7 @@ contains
       expanded(old_count+1)%old_state = old_state
       expanded(old_count+1)%new_state = new_state
       expanded(old_count+1)%reason = reason
+      if (present(polarization_ratio)) expanded(old_count+1)%polarization_ratio = polarization_ratio
       allocate(expanded(old_count+1)%score(size(score)), expanded(old_count+1)%refine_request(size(refine_request)), &
          expanded(old_count+1)%coarsen_request(size(coarsen_request)), stat=allocation_status)
       if (allocation_status /= 0) then

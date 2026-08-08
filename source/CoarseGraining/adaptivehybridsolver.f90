@@ -14,7 +14,7 @@
 !-------------------------------------------------------------------------------
 module AdaptiveHybridSolver
 
-   use, intrinsic :: iso_c_binding, only : c_int
+   use, intrinsic :: iso_c_binding, only : c_int, c_double
    use, intrinsic :: iso_fortran_env, only : int64
    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
    use Parameters, only : dblprec
@@ -63,6 +63,10 @@ module AdaptiveHybridSolver
       integer(c_int) :: transition_epoch = 0_c_int
       logical :: accepted = .false.
       character(len=48) :: selector_reason = ''
+      !> RCG-03 diagnostic: the polarization ratio that produced
+      !> selector_reason=='polarization-unsafe', or the sentinel -1 when the
+      !> transition had a different cause.  See selector_transition_event_type.
+      real(dblprec) :: polarization_ratio = -1.0_dblprec
       character(len=48) :: outcome = ''
       integer :: reconstruction_scheme = RECONSTRUCTION_ALIGNED
       real(dblprec) :: energy_before_j = 0.0_dblprec
@@ -197,7 +201,7 @@ contains
    !> of restrict_channel_moments' own outputs, so it carries no separate
    !> zero-handling convention of its own.
    subroutine evaluate_polarization_gate(topology,resultant_mub,moment_sum_mub, &
-         direction_defined,threshold,unsafe_block,status,diagnostic)
+         direction_defined,threshold,unsafe_block,status,diagnostic,block_ratio)
       type(block_topology_type), intent(in) :: topology
       real(dblprec), intent(in) :: resultant_mub(:,:,:,:)
       real(dblprec), intent(in) :: moment_sum_mub(:,:,:)
@@ -206,9 +210,16 @@ contains
       logical, intent(out) :: unsafe_block(:)
       integer, intent(out) :: status
       character(len=*), intent(out) :: diagnostic
+      !> RCG-03 diagnostic: the worst (minimum) resultant/moment-sum ratio
+      !> observed over every channel/ensemble at each block, regardless of
+      !> whether the block is flagged unsafe.  An undefined direction
+      !> (near-zero resultant, never normalized) reports the documented floor
+      !> of 0.0, since its true ratio is undefined and 0 is the natural limit
+      !> as the resultant vanishes.  Optional so existing callers are unaffected.
+      real(dblprec), intent(out), optional :: block_ratio(:)
 
       integer :: block, channel, ensemble
-      real(dblprec) :: ratio
+      real(dblprec) :: ratio, worst
 
       status = ADAPTIVE_HYBRID_INVALID_STATE
       diagnostic = ''
@@ -226,6 +237,12 @@ contains
          diagnostic = 'Polarization gate arrays do not match topology/channel/ensemble dimensions'
          return
       end if
+      if (present(block_ratio)) then
+         if (size(block_ratio) /= int(topology%n_spatial_blocks)) then
+            diagnostic = 'Polarization gate ratio diagnostic size must match block count'
+            return
+         end if
+      end if
       if (.not. ieee_is_finite(threshold) .or. threshold <= 0.0_dblprec .or. threshold > 1.0_dblprec) then
          diagnostic = 'Polarization threshold must lie in (0,1]'
          return
@@ -237,17 +254,21 @@ contains
 
       unsafe_block = .false.
       do block = 1, int(topology%n_spatial_blocks)
+         worst = 1.0_dblprec
          do ensemble = 1, size(moment_sum_mub,3)
             do channel = 1, int(topology%n_dynamic_channels)
                if (.not. direction_defined(channel,block,ensemble)) then
                   unsafe_block(block) = .true.
+                  worst = 0.0_dblprec
                   cycle
                end if
                ratio = norm3(resultant_mub(:,channel,block,ensemble))/ &
                   moment_sum_mub(channel,block,ensemble)
                if (ratio < threshold) unsafe_block(block) = .true.
+               worst = min(worst,ratio)
             end do
          end do
+         if (present(block_ratio)) block_ratio(block) = worst
       end do
       status = ADAPTIVE_HYBRID_OK
    end subroutine evaluate_polarization_gate
@@ -512,7 +533,8 @@ contains
    subroutine apply_adaptive_transitions(runtime,topology,requests,hard_atomistic_mask, &
          evaluation,selector_configuration,reconstruction_configuration, &
          synchronization_step,integration_stage,atom_moment_mub,atom_direction, &
-         coarse_direction,energy_evaluator,status,diagnostic)
+         coarse_direction,energy_evaluator,status,diagnostic, &
+         polarization_unsafe_mask,polarization_ratio)
       type(adaptive_hybrid_runtime_type), intent(inout) :: runtime
       type(block_topology_type), intent(in) :: topology
       type(selector_requests_type), intent(in) :: requests
@@ -528,6 +550,11 @@ contains
       procedure(adaptive_energy_evaluator) :: energy_evaluator
       integer, intent(out) :: status
       character(len=*), intent(out) :: diagnostic
+      !> RCG-03 diagnostics, forwarded verbatim to advance_selector_state; see
+      !> its header comment.  Both optional so every pre-existing caller is
+      !> unaffected.
+      logical, intent(in), optional :: polarization_unsafe_mask(:)
+      real(c_double), intent(in), optional :: polarization_ratio(:)
 
       type(block_selector_runtime_type) :: decision, working
       type(selector_transition_log_type) :: decisions
@@ -583,7 +610,7 @@ contains
       old_epoch = runtime%selector%transition_epoch
       call advance_selector_state(decision,requests,hard_atomistic_mask,evaluation, &
          selector_configuration,synchronization_step,decisions,selector_status, &
-         dependency_diagnostic)
+         dependency_diagnostic,polarization_unsafe_mask,polarization_ratio)
       if (selector_status /= SELECTOR_OK) then
          diagnostic = 'Selector transition proposal failed: '//trim(dependency_diagnostic)
          return
@@ -923,6 +950,7 @@ contains
       expanded(old_count+1)%transition_epoch = epoch
       expanded(old_count+1)%accepted = accepted
       expanded(old_count+1)%selector_reason = decision%reason
+      expanded(old_count+1)%polarization_ratio = decision%polarization_ratio
       expanded(old_count+1)%outcome = outcome
       expanded(old_count+1)%reconstruction_scheme = scheme
       expanded(old_count+1)%energy_before_j = energy_before

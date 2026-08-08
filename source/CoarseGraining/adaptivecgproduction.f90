@@ -85,6 +85,11 @@ module AdaptiveCGProduction
       logical, allocatable :: hard_fine_mask(:)
       logical, allocatable :: static_hard_fine_mask(:)
       logical, allocatable :: polarization_unsafe_block(:)
+      !> RCG-03 diagnostic: worst per-block resultant/moment-sum ratio from
+      !> the same evaluate_polarization_gate call that fills
+      !> polarization_unsafe_block; forwarded into the transition log so a
+      !> forced-atomistic reason can be traced to the ratio that caused it.
+      real(dblprec), allocatable :: polarization_ratio_block(:)
       real(dblprec), allocatable :: polarization_resultant_mub(:,:,:,:)
       real(dblprec), allocatable :: polarization_moment_sum_mub(:,:,:)
       real(dblprec), allocatable :: polarization_direction_mub(:,:,:,:)
@@ -200,11 +205,13 @@ contains
       allocate(adaptive_cg_state%initial_fine_mask(adaptive_cg_state%topology%n_spatial_blocks), &
          adaptive_cg_state%hard_fine_mask(adaptive_cg_state%topology%n_spatial_blocks), &
          adaptive_cg_state%static_hard_fine_mask(adaptive_cg_state%topology%n_spatial_blocks), &
-         adaptive_cg_state%polarization_unsafe_block(adaptive_cg_state%topology%n_spatial_blocks))
+         adaptive_cg_state%polarization_unsafe_block(adaptive_cg_state%topology%n_spatial_blocks), &
+         adaptive_cg_state%polarization_ratio_block(adaptive_cg_state%topology%n_spatial_blocks))
       adaptive_cg_state%initial_fine_mask = .true.
       adaptive_cg_state%hard_fine_mask = .false.
       adaptive_cg_state%static_hard_fine_mask = .false.
       adaptive_cg_state%polarization_unsafe_block = .false.
+      adaptive_cg_state%polarization_ratio_block = -1.0_dblprec
       if (len_trim(adaptive_cg%static_mask_file) > 0) then
          adaptive_cg_state%initial_fine_mask = .false.
          call read_mask_file(trim(adaptive_cg%static_mask_file), &
@@ -1026,7 +1033,8 @@ contains
       call evaluate_polarization_gate(adaptive_cg_state%topology, &
          adaptive_cg_state%polarization_resultant_mub,adaptive_cg_state%polarization_moment_sum_mub, &
          adaptive_cg_state%polarization_direction_defined,adaptive_cg%polarization_threshold, &
-         adaptive_cg_state%polarization_unsafe_block,hybrid_status,diagnostic)
+         adaptive_cg_state%polarization_unsafe_block,hybrid_status,diagnostic, &
+         adaptive_cg_state%polarization_ratio_block)
       if (hybrid_status /= ADAPTIVE_HYBRID_OK) then
          status = ADAPTIVE_CG_PRODUCTION_SETUP_FAILED; return
       end if
@@ -1052,7 +1060,8 @@ contains
          adaptive_cg_state%selector_configuration,adaptive_cg_state%reconstruction, &
          int(step,c_int),ADAPTIVE_STAGE_COMPLETE_STEP,adaptive_cg_state%atom_moment_mub, &
          atom_direction,adaptive_cg_state%coarse_direction,production_energy_evaluator, &
-         status,diagnostic)
+         status,diagnostic,adaptive_cg_state%polarization_unsafe_block, &
+         adaptive_cg_state%polarization_ratio_block)
       if (status /= ADAPTIVE_HYBRID_OK) then
          status = ADAPTIVE_CG_PRODUCTION_SETUP_FAILED; return
       end if
@@ -1441,7 +1450,7 @@ contains
       integer :: event
 
       do event = first, last
-         write(*,'(a,i0,a,i0,a,i0,a,i0,a,l1,a,a,a,a,a,3(es24.16,1x))') &
+         write(*,'(a,i0,a,i0,a,i0,a,i0,a,l1,a,a,a,a,a,3(es24.16,1x),a,es24.16)') &
             'AdaptiveCG: transition step=', &
             adaptive_cg_state%runtime%transition_log%event(event)%synchronization_step, &
             ' block=',adaptive_cg_state%runtime%transition_log%event(event)%block, &
@@ -1452,7 +1461,8 @@ contains
             ' outcome=',trim(adaptive_cg_state%runtime%transition_log%event(event)%outcome), &
             ' energies_j=',adaptive_cg_state%runtime%transition_log%event(event)%energy_before_j, &
             adaptive_cg_state%runtime%transition_log%event(event)%energy_after_j, &
-            adaptive_cg_state%runtime%transition_log%event(event)%energy_jump_j
+            adaptive_cg_state%runtime%transition_log%event(event)%energy_jump_j, &
+            ' polarization_ratio=',adaptive_cg_state%runtime%transition_log%event(event)%polarization_ratio
       end do
    end subroutine print_transition_events
 

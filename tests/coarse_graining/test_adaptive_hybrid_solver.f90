@@ -23,6 +23,7 @@ program test_adaptive_hybrid_solver
    call test_channel_restriction_and_reconstruction()
    call test_transactional_chain_transitions()
    call test_adaptive_skyrmion_transition()
+   call test_polarization_forces_refine_of_coarse_block()
 
    if (failures /= 0) then
       write(*,'(a,i0)') 'adaptive hybrid solver tests failed: ',failures
@@ -270,6 +271,121 @@ contains
          'skyrmion adaptive transition is accepted with a finite measured jump')
       call check_runtime_invariants(runtime,topology,bonds)
    end subroutine test_adaptive_skyrmion_transition
+
+   !> RCG-03: an already-coarse block whose dormant atomistic state has since
+   !> become polarization-unsafe must be forced back to atomistic only at an
+   !> accepted synchronization point, with a reason and ratio distinct from
+   !> the pre-existing static-mask hard exclusion.  Production reconstruction
+   !> (reconstruct_coarse_atoms) always rebuilds a coarse block's dormant
+   !> atoms to match its coarse channel exactly, so a genuinely reduced
+   !> resultant can only be observed at the operator layer exercised here
+   !> (see docs/RCG-03_POLARIZATION_ANISOTROPY_EVIDENCE.md for why a
+   !> production-executable fixture cannot reach this path).
+   subroutine test_polarization_forces_refine_of_coarse_block()
+      type(block_topology_type) :: topology
+      type(static_hybrid_operator_type) :: hybrid
+      type(adaptive_hybrid_runtime_type) :: runtime
+      type(selector_requests_type) :: requests
+      type(selector_evaluation_type) :: evaluation
+      type(selector_configuration_type) :: selector_configuration
+      type(adaptive_reconstruction_configuration_type) :: reconstruction
+      integer, parameter :: n = 4
+      integer :: status, hybrid_status
+      integer(c_int) :: state_before
+      character(len=512) :: message
+      integer :: bonds(2,n)
+      real(dblprec) :: displacement(3,n), matrix(3,3,n), moment(n)
+      real(dblprec) :: atom_direction(3,n,1), coarse_direction(3,1,1,1)
+      real(dblprec) :: resultant(3,1,1,1), moment_sum(1,1,1), direction(3,1,1,1)
+      real(dblprec) :: ratio(1)
+      logical :: defined(1,1,1), unsafe(1)
+
+      call make_single_block_fixture(n,topology,hybrid,bonds,displacement,matrix,status,message)
+      call check(status == ADAPTIVE_HYBRID_OK,'single-block polarization fixture builds: '//trim(message))
+      evaluator_matrix = matrix
+      evaluator_mask_penalty = 0.0_dblprec
+      moment = 1.7_dblprec
+      atom_direction = 0.0_dblprec
+      atom_direction(3,:,1) = 1.0_dblprec
+      coarse_direction(:,1,1,1) = (/0.0_dblprec,0.0_dblprec,1.0_dblprec/)
+      call setup_adaptive_hybrid_runtime(runtime,topology,hybrid,moment,atom_direction, &
+         coarse_direction,status,message)
+      call check(status == ADAPTIVE_HYBRID_OK,'single-block polarization runtime initializes')
+      call check(runtime%selector%resolution_state(1) == RESOLUTION_COARSE, &
+         'the block starts already coarse, before any evolution is applied')
+
+      ! Evolve the block's dormant atomistic state into genuine, honest low
+      ! polarization: three of its four members stay aligned and one flips
+      ! fully, giving an exact resultant/moment-sum ratio of 0.5.
+      atom_direction(3,4,1) = -1.0_dblprec
+      call restrict_channel_moments(topology,moment,atom_direction,resultant,moment_sum, &
+         direction,defined,hybrid_status,message)
+      call check(hybrid_status == ADAPTIVE_HYBRID_OK .and. defined(1,1,1), &
+         'the evolved block state has a well-defined but reduced resultant')
+      call evaluate_polarization_gate(topology,resultant,moment_sum,defined,0.9_dblprec, &
+         unsafe,hybrid_status,message,ratio)
+      call check(hybrid_status == ADAPTIVE_HYBRID_OK .and. unsafe(1) .and. &
+         abs(ratio(1)-0.5_dblprec) < 1.0d-12, &
+         'the polarization gate measures the exact 0.5 ratio and flags the block unsafe')
+
+      allocate(evaluation%score(1,1),evaluation%refine(1,1),evaluation%coarsen(1,1), &
+         requests%refine(1),requests%coarsen(1))
+      evaluation%score = 0.0_dblprec
+      evaluation%refine = .false.
+      evaluation%coarsen = .false.
+      requests%refine = .false.
+      requests%coarsen = .false.
+      reconstruction%energy_jump_limit_j = huge(1.0_dblprec)
+
+      state_before = runtime%selector%resolution_state(1)
+      call apply_adaptive_transitions(runtime,topology,requests,unsafe,evaluation, &
+         selector_configuration,reconstruction,0_c_int,ADAPTIVE_STAGE_PREDICTOR, &
+         moment,atom_direction,coarse_direction,hybrid_energy,status,message, &
+         unsafe,ratio)
+      call check(status == ADAPTIVE_HYBRID_INVALID_STAGE .and. &
+         runtime%selector%resolution_state(1) == state_before, &
+         'an already-coarse polarization-unsafe block cannot be forced to refine mid-integrator-stage')
+
+      call apply_adaptive_transitions(runtime,topology,requests,unsafe,evaluation, &
+         selector_configuration,reconstruction,0_c_int,ADAPTIVE_STAGE_COMPLETE_STEP, &
+         moment,atom_direction,coarse_direction,hybrid_energy,status,message, &
+         unsafe,ratio)
+      call check(status == ADAPTIVE_HYBRID_OK .and. &
+         runtime%selector%resolution_state(1) == RESOLUTION_ATOMISTIC, &
+         'the already-coarse block is forced atomistic at the next accepted synchronization point')
+      call check(allocated(runtime%transition_log%event) .and. &
+         size(runtime%transition_log%event) == 1 .and. &
+         runtime%transition_log%event(1)%accepted .and. &
+         trim(runtime%transition_log%event(1)%selector_reason) == 'polarization-unsafe' .and. &
+         abs(runtime%transition_log%event(1)%polarization_ratio-0.5_dblprec) < 1.0d-12, &
+         'the forced transition is logged with its own reason and the measured polarization ratio')
+   end subroutine test_polarization_forces_refine_of_coarse_block
+
+   subroutine make_single_block_fixture(n,topology,hybrid,bonds,displacement,matrix,status,message)
+      integer, intent(in) :: n
+      type(block_topology_type), intent(out) :: topology
+      type(static_hybrid_operator_type), intent(out) :: hybrid
+      integer, intent(out) :: bonds(2,n)
+      real(dblprec), intent(out) :: displacement(3,n), matrix(3,3,n)
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: message
+      type(coarse_tensor_operator_type) :: tensor
+      type(smooth_projected_operator_type) :: projection
+      real(dblprec) :: coordinate(3,n)
+      logical :: mask(1)
+
+      ! width=n puts every atom in the single spatial block, unlike
+      ! make_chain_fixture's width=1 (one atom per block) -- needed so the
+      ! polarization ratio of a block can vary at all.  mask is per-block
+      ! (one block here), not per-atom.
+      call make_operator_fixture(n,n,topology,tensor,projection,bonds,displacement, &
+         matrix,coordinate,status,message)
+      if (status /= ADAPTIVE_HYBRID_OK) return
+      mask = .false.
+      call setup_static_hybrid_operator(hybrid,topology,tensor,projection,mask,bonds, &
+         displacement,0,status,message)
+      if (status == STATIC_HYBRID_OK) status = ADAPTIVE_HYBRID_OK
+   end subroutine make_single_block_fixture
 
    subroutine hybrid_energy(operator,atom_direction,coarse_direction,energy_j,status,diagnostic)
       type(static_hybrid_operator_type), intent(in) :: operator

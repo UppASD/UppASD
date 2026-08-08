@@ -594,6 +594,16 @@ void testPolarizationGate() {
    require(unsafe[1] == 0, "aligned block was flagged unsafe to coarsen");
    require(unsafe[2] == 1, "exactly-cancelled block was not flagged unsafe");
 
+   // RCG-03 diagnostic: the same call also reports the ratio that produced
+   // each verdict above, not just the pass/fail bit.
+   std::vector<real> ratio(KernelFixture::blocks, real(-1));
+   ASSERT_GPU(GPU_MEMCPY(ratio.data(), runtime.polarizationRatioBlock(),
+                         ratio.size() * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST));
+   require(std::abs(static_cast<double>(ratio[1]) - 1.0) < 1.0e-12,
+           "aligned block ratio was not measured as 1.0");
+   require(static_cast<double>(ratio[2]) == 0.0,
+           "exactly-cancelled block ratio was not reported at the undefined-direction floor");
+
    atomDirection.Free();
    runtime.release();
 }
