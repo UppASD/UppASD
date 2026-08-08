@@ -25,6 +25,7 @@ from fixture_dependencies import (
     GPU_INITIAL_PHASE_CASES,
     POLARIZATION_GATE_CASE,
     POLARIZATION_GATE_GPU_CASE,
+    RESTART_INITMAG_CASE,
     SPIN_SPIRAL_CASE,
     STATIC_ALL_COARSE_CASE,
     STATIC_ALL_FINE_CASE,
@@ -257,6 +258,16 @@ def main() -> None:
     assert "initial_state_source=initmag mode=8" in spiral.stdout
     assert abs(float_metric(spiral.stdout, "direction_sum")) < 20.0
     print("CG-10.5 Initmag=8 inhomogeneous spin-spiral seed passed")
+
+    # RCG-04B follow-up: validate_configuration used to reject initmag=4
+    # (restart) outright. It no longer does; this is a setup/capability
+    # smoke test only (Nstep 1) proving AdaptiveCG accepts a restart-format
+    # initial condition end to end, not a moving-dynamics or parity claim.
+    restart_initmag = run_case(binary, root / RESTART_INITMAG_CASE)
+    assert restart_initmag.returncode == 0, restart_initmag.stdout
+    assert "AdaptiveCG: capability accepted" in restart_initmag.stdout
+    assert "initial_state_source=initmag mode=4" in restart_initmag.stdout
+    print("CG-10.5 Initmag=4 restart capability passed")
 
     for name in EXAMPLE_CASES:
         result = run_case(binary, examples / name)

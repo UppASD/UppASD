@@ -14,7 +14,7 @@ E2E_ROOT = REPO_ROOT / "tests/coarse_graining/e2e"
 EXAMPLES_ROOT = REPO_ROOT / "examples/AdaptiveCoarseGraining"
 INPUT_FILE_KEYS = {
     "anisotropy", "cg_static_mask_file", "dm", "exchange", "jfile",
-    "kfile", "momfile", "pdfile", "posfile", "qfile",
+    "kfile", "momfile", "pdfile", "posfile", "qfile", "restartfile",
 }
 
 

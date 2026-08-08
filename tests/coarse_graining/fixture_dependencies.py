@@ -43,6 +43,7 @@ GPU_DMI_CASE = "dmi_anisotropy_mixed_gpu"
 GPU_FFT_CASE = "gpu_fft_static_mixed"
 CPU_INITIAL_PHASE_SD_CASE = "initial_phase_sd_cpu"
 SPIN_SPIRAL_CASE = "initmag_spin_spiral"
+RESTART_INITMAG_CASE = "initmag_restart_atomistic"
 EXAMPLE_CASES = ("static_mixed", "adaptive", "initial_phase_texture")
 
 
@@ -54,7 +55,7 @@ def all_e2e_cases() -> tuple[str, ...]:
         POLARIZATION_GATE_GPU_CASE, *CPU_REJECTION_CASES,
         *CPU_ANISOTROPY_CASES, CLUSTER_ANISOTROPY_REJECTION_CASE, *CPU_PARITY_CASES.values(),
         CPU_INITIAL_PHASE_SD_CASE, *[case for case, _ in CPU_INITIAL_PHASE_CASES.values()],
-        SPIN_SPIRAL_CASE, *GPU_EXECUTABLE_CASES, *GPU_INITIAL_PHASE_CASES,
+        SPIN_SPIRAL_CASE, RESTART_INITMAG_CASE, *GPU_EXECUTABLE_CASES, *GPU_INITIAL_PHASE_CASES,
         *GPU_PARITY_CASES.values(), GPU_DMI_CASE, GPU_FFT_CASE,
     }
     return tuple(sorted(names))

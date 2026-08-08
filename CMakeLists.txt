@@ -969,6 +969,15 @@ if(BUILD_TESTING)
    add_test(NAME coarse-graining-polarization-gate
       COMMAND polarization_gate_tests)
 
+   # RCG-04B deterministic moving-state generators (conical spiral, +-q
+   # chiral partner, periodic domain-wall pair). Host-only Python, no
+   # UppASD/FFT/CUDA/HIP dependency -- generator-level unit tests only, no
+   # production dynamics is run or claimed (see
+   # docs/RCG-04_MOVING_E2E_EVIDENCE.md, RCG-04B section).
+   add_test(NAME coarse-graining-moving-state-generator
+      COMMAND python3
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_moving_state_generator.py -v)
+
    # CG-13 labels are the repeatable suite interface.  Keep the focused
    # analytic/reference tests in the CPU suite even in a GPU build; the
    # production and backend tests below add the matching CUDA/HIP label.
@@ -983,6 +992,7 @@ if(BUILD_TESTING)
       coarse-graining-block-selector
       coarse-graining-adaptive-hybrid-solver
       coarse-graining-polarization-gate
+      coarse-graining-moving-state-generator
       PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;reference")
    if(USE_CUDA)
       set_property(TEST
@@ -995,6 +1005,7 @@ if(BUILD_TESTING)
          coarse-graining-block-selector
          coarse-graining-adaptive-hybrid-solver
          coarse-graining-polarization-gate
+         coarse-graining-moving-state-generator
          APPEND PROPERTY LABELS cg13-cuda)
    elseif(USE_HIP)
       set_property(TEST
@@ -1007,6 +1018,7 @@ if(BUILD_TESTING)
          coarse-graining-block-selector
          coarse-graining-adaptive-hybrid-solver
          coarse-graining-polarization-gate
+         coarse-graining-moving-state-generator
          APPEND PROPERTY LABELS cg13-hip)
    endif()
 

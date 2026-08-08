@@ -502,16 +502,376 @@ All twelve RCG-04A checklist items are complete and evidenced.
 
 ---
 
-## Open items (carried forward, not blocking RCG-04A)
+## 10. RCG-04B: deterministic moving-state generators
 
-- The pre-existing, out-of-scope corruption in
-  `docs/ADAPTIVE_COARSE_GRAINING_REMEDIATION_BLUEPRINT.md` (see top of this
-  document) remains in the working tree by explicit user decision
-  (2026-08-08) and should be reverted or repaired in a separate, unrelated
-  change whenever the user chooses.
+**Status: RCG-04B only. Generator and provenance layer — no fixture,
+production diagnostic, moving-dynamics claim, or production-consuming test
+run was added in this slice.**
+
+**Base commit:** `3fe7d600c98f52c6238fe4558dae11ac24d5d5fa` ("RCG-04A: define
+moving e2e evidence contract"), the accepted RCG-04A commit. `git status
+--short` at session start showed no modified tracked files (the
+`docs/ADAPTIVE_COARSE_GRAINING_REMEDIATION_BLUEPRINT.md` anomaly recorded in
+§0 above was fixed, per explicit user instruction, before the RCG-04A commit
+and is no longer present).
+
+### 10.1 Inspection of existing conventions (before implementation)
+
+Before writing any generator code, the following were read from source:
+
+- `source/Input/inputhandler_ext.f90:read_moments` — **`momfile` is indexed
+  by `(isite, ichem)`, i.e. one row per *basis site* (`na`), not one row per
+  global atom.** It is a per-basis-site template, broadcast identically to
+  every unit cell during setup. This means an ordinary `momfile` alone
+  cannot express a spatially varying state — matches and explains this
+  document's §3.1/§3.2 finding that every `Initmag 3` fixture is uniform.
+- `source/System/magnetizationinit.f90:402-524` (`initmag==8`) — UppASD's
+  *existing* spin-spiral initializer rotates the `momfile` base vector for
+  each atom by an angle `q.x + phase` about a caller-chosen axis
+  (Rodrigues' rotation formula, lines 469-486). Critically, **the base
+  vector need not be perpendicular to the rotation axis** — the existing
+  `initmag_spin_spiral` fixture (flagged in §3.5) happens to choose one that
+  is (giving a planar spiral), but the same mechanism, given a base vector
+  at a genuine cone angle, produces an honest conical spiral with no source
+  change at all.
+- `source/System/magnetizationinit.f90:267-282` (`initmag==4`) and
+  `source/System/restart.f90:read_mag_conf_std` — ordinary UppASD's restart
+  loader reads a full per-atom configuration (7-line header, then
+  `iter ens iatom |M| Mx My Mz` per atom, matching the writer
+  `prn_mag_conf_iter`/`prn_mag_conf_time` exactly). This is the only
+  existing mechanism general enough to express a domain wall.
+- `source/CoarseGraining/adaptivecgproduction.f90:692-696`
+  (`validate_configuration`) — **AdaptiveCG production accepts `Initmag` in
+  `{1, 2, 3, 5, 8}` only; `Initmag=4` (restart) is explicitly rejected**
+  with the diagnostic `"initmag=4 restart is unsupported until adaptive
+  state serialization is implemented"`. This is a real, pre-existing
+  capability boundary discovered while designing the domain-wall generator,
+  not a defect introduced by this slice — see §10.4.
+- `source/System/geometry.f90:445` (`coord(1,i)=I1*C1(1)+I2*C2(1)+I3*C3(1)+Bas(1,I0)`)
+  and the atom-index formula `i=I0+I1*NA+I2*N1*NA+I3*N2*N1*NA` used
+  throughout `magnetizationinit.f90` — the exact ordering/position
+  conventions the generator must reproduce to be directly consumable.
+- `tests/dipole_validation/generate_cases.py` and
+  `tests/dipole_validation/test_open_fft_oracle.py` — the repository's
+  existing convention for a deterministic Python generator/oracle module
+  plus a `unittest`-based, directly-CTest-registered test file
+  (`python3 <test>.py -v`). RCG-04B follows this convention rather than
+  inventing a new one (no pytest dependency is introduced).
+
+No isolated test-only momfile/atom-ordering convention was created; both
+new generator mechanisms reuse an existing UppASD input path exactly.
+
+### 10.2 What was implemented
+
+`tests/coarse_graining/moving_state_generator.py` (new module):
+
+- `Geometry` — a small dataclass reproducing the atom-index and
+  Cartesian-position formulas above, restricted to the identity-`cell`
+  case (`cell 1 0 0 / 0 1 0 / 0 0 1`), which is every geometry file under
+  `tests/coarse_graining/e2e` today. This restriction is stated explicitly
+  in the module docstring rather than silently assumed.
+- `conical_spiral_state(geometry, *, cone_angle_deg, turns, axis,
+  phase_deg, modulation_cell_axis, moment_magnitude, landeg,
+  degeneracy_tolerance_deg)` — produces a `momfile` plus the
+  `Initmag 8`/`initpropvec`/`initrotvec`/`initrotang` `inpsd.dat` records
+  needed to drive UppASD's existing spin-spiral initializer into a genuine
+  cone. Also returns the full per-atom direction dictionary (computed
+  independently in Python, for self-testing and for later oracle reuse) and
+  a `manifest` provenance record.
+- `chiral_partner_pair(...)` — calls `conical_spiral_state` twice with
+  `turns` and `-turns` (all other parameters identical); neither function
+  accepts or reads a DMI file, so the `+q`/`-q` choice cannot be derived
+  from whichever DMI input a later fixture tests against (checked
+  structurally in `test_does_not_depend_on_any_dmi_file`).
+- `domain_wall_pair_state(geometry, *, axis_cell_index, wall_centers_cells,
+  width_cells, easy_axis, wall_type, chirality, cant_deg,
+  moment_magnitude, simid, separation_margin_widths)` — produces a
+  restart-format text block for a periodic **two**-kink domain-wall pair
+  (`theta(u) = 2*atan(exp((u-c1)/w)) - 2*atan(exp((u-c2)/w))`, giving an
+  up-down-up pattern with zero net winding, required for periodic boundary
+  conditions), with `NEEL`/`BLOCH` wall-plane selection, a `chirality`
+  sign, and a small deterministic `cant_deg` tilt (scaled by `sin(theta)`
+  so it vanishes away from either wall core) that breaks exact wall-plane
+  symmetry pinning without introducing any randomness.
+- `content_hash`/`manifest_json` — SHA-256 content hash and canonical
+  (`sort_keys=True`) JSON serialization for provenance/regeneration checks.
+
+**Analytic justification for the conical-spiral degeneracy rejection**
+(independently derived from the written Hamiltonian in the module
+docstring, not inferred from any production diagnostic): for a Bravais
+lattice with isotropic, centrosymmetric pairwise exchange, a conical-spiral
+ansatz `m(x) = R_axis(q.x).s0` is an exact LLG fixed point iff `s0` is an
+eigenvector of `M(q) = sum_delta J(delta) R_axis(q.delta)`. In the rotation
+eigenbasis, `M(q)` is diagonal with eigenvalue `J0 = sum_delta J(delta)`
+along the axis and `J(q) = sum_delta J(delta) cos(q.delta)` (real, by
+centrosymmetry) in the perpendicular plane. A cone angle strictly between 0
+and 180 degrees, and not equal to 90, mixes eigenvectors with different
+eigenvalues whenever `J0 != J(q)` — generically true for any nonzero `q` in
+the long-wavelength regime, where `J0-J(q) ~= q^2 * (exchange stiffness) /
+2`. `conical_spiral_state` therefore rejects cone angles within
+`degeneracy_tolerance_deg` (default 5 degrees) of 0/90/180 degrees, and
+rejects `turns=0` outright, raising `DegenerateStateError` with the
+reasoning inline. This is the same physical mechanism §3.5 of this
+document flagged as a suspected defect in the existing
+`initmag_spin_spiral` fixture (a planar, `theta=90`, construction);
+RCG-04B's generator makes the non-degenerate region the default path
+rather than special-casing the flagged fixture itself (no fixture files
+were touched in this slice).
+
+`domain_wall_pair_state` similarly rejects (`DegenerateStateError`) wall
+placements whose minimum separation (from each other and from the periodic
+boundary) is less than `separation_margin_widths` (default 4) times
+`width_cells`, since the two-kink profile only closes periodically up to a
+residual of order `exp(-separation/width)`.
+
+### 10.3 Tests (`tests/coarse_graining/test_moving_state_generator.py`)
+
+40 `unittest` cases, run directly (`python3 ... -v`) and via the new CTest
+target `coarse-graining-moving-state-generator` (labels
+`coarse-graining;cg13;cg13-cpu;reference`, and appended to `cg13-cuda`/
+`cg13-hip` alongside the other host-only reference tests when those
+backends are configured, since generation has no backend dependency),
+covering every category the RCG-04B prompt requires:
+
+- **atom ordering:** `iter_atoms()` is a permutation of `1..natom`; its
+  nesting order matches `magnetizationinit.f90` exactly (basis fastest,
+  then `i1`, `i2`, `i3`); `atom_index` matches the production formula by
+  direct computation.
+- **normalization:** every generated direction, for both generators, has
+  unit norm to at least 1e-10.
+- **periodic closure:** the conical spiral's azimuth advances linearly by
+  exactly `turns*2*pi/n1` per cell step (12 assertions across one full
+  supercell traversal); the domain-wall pair's polar angle at the two ends
+  of the periodic axis agrees to within the analytically expected
+  `exp(-separation/width)` residual (a loosened, not exact, tolerance —
+  documented inline as an expected discretization effect, not evidence of
+  a construction error).
+- **wall count/placement:** exactly two sign changes of the easy-axis
+  component occur across the periodic domain, located within 1.5 cells of
+  the requested centres.
+- **opposite chiral partners:** `+q`/`-q` partners share an identical cone
+  (axis-component) profile but wind in opposite azimuthal directions; a
+  structural test confirms neither generator function's signature accepts
+  a DMI-file argument.
+- **deterministic regeneration:** two independent calls with identical
+  parameters produce byte-identical `momfile`/restart text and an identical
+  recorded SHA-256 hash; changing one parameter changes the hash; the
+  manifest's JSON serialization is itself byte-stable across calls.
+- **malformed input:** mismatched basis/`na` length, non-positive
+  geometry extents, out-of-range cell indices, invalid `modulation_cell_axis`/
+  `axis_cell_index`, non-positive `moment_magnitude`/`width_cells`,
+  unordered/out-of-range wall centres, invalid `wall_type`/`chirality`, and
+  an `easy_axis` parallel to the wall propagation axis all raise a typed
+  error (`MalformedGeneratorInputError`) with a specific message.
+
+No RNG, `set()` iteration, or filesystem/locale dependency is used anywhere
+in the generator, satisfying the determinism requirement without needing a
+fixed seed (there is nothing stochastic to seed).
+
+### 10.4 Production capability gap found, then fixed by explicit user direction
+
+While designing the domain-wall-pair generator, AdaptiveCG production's
+explicit rejection of `Initmag=4` (§10.1, `adaptivecgproduction.f90:692-693`)
+was found to block **any** genuinely spatially-varying, non-helical initial
+state — not just this generator's output — from ever being loaded into an
+AdaptiveCG-enabled production run. This is a real, load-bearing scope
+boundary for RCG-04G (adaptive wall motion), which depends on this
+generator per the RCG-04 dependency graph. This was reported to the user
+(not silently worked around) before any fix was attempted, per the
+remediation blueprint's governing rule that a discovered production
+capability gap "must be demonstrated and reported... before expanding the
+slice."
+
+**The user explicitly asked for the rejection to be fixed** as an
+in-session follow-up, after reviewing this finding. The remainder of this
+section records that fix, which is therefore in scope for this commit
+despite being outside RCG-04B's originally drafted prompt.
+
+#### 10.4.1 Why lifting the rejection is safe
+
+The rejection message read: `"initmag=4 restart is unsupported until
+adaptive state serialization is implemented"`. Before changing anything,
+the call sequence in `source/uppasd.f90` was traced to check whether that
+concern actually applies to this use case:
+
+1. `magninit` (line 1245) populates `emom`/`emomM` — including, for
+   `initmag==4`, via the ordinary `read_mag_conf`/`read_mag_conf_std`
+   restart loader — **before** any AdaptiveCG code runs at all.
+2. `preflight_adaptive_cg_production` (called later, line ~1375) only
+   validates the configuration; it does not touch `emom`.
+3. `setup_adaptive_cg_production` (called later still, after any initial
+   phase, per its own comment: "Construct adaptive ownership only now,
+   from the completed atomistic handoff state") always builds a **fresh**
+   block/channel classification from whatever `emom` currently holds — the
+   same construction runs identically regardless of which `Initmag` value
+   produced that `emom` state.
+
+There is no code path, for any `Initmag` value, that resumes a *previous
+AdaptiveCG run's own* resolution/dwell/transition-history state — that
+capability (the genuine meaning of "adaptive state serialization") simply
+does not exist yet for anything. The rejection therefore did not protect
+against an actual functional difference between `Initmag=4` and the five
+already-accepted values; it blocked a case that is architecturally
+identical to them (restart is just another way to seed the same cold-start
+atomistic state that `Initmag` 1/2/3/5/8 already seed). `Initmag=4` was
+added to the accepted set in `validate_configuration`
+(`source/CoarseGraining/adaptivecgproduction.f90`), replacing the outright
+rejection, with the reasoning above recorded inline as a source comment.
+
+#### 10.4.2 Regression: the now-obsolete rejection-matrix negative control
+
+`tests/coarse_graining/run_setup_rejection_matrix.py` had a `"restart"`
+case asserting `initmag=4` rejection. Inspecting it surfaced a second,
+independent, pre-existing fragility unrelated to this fix: the case relied
+on `tests/coarse_graining/e2e/static_mixed/restart.cg105mix.out`, which
+`git ls-files` shows is **not tracked** (it matches the repository's
+`restart.*.out` `.gitignore` pattern) — a leftover runtime artifact from a
+previous local test run, not a reproducible fixture input. On a genuinely
+clean clone this case would already have failed differently (a generic
+"restartfile does not exist" stop, never reaching AdaptiveCG's own check),
+independent of today's fix. This case has been removed (not
+reworked to assert something else), since there is no longer any rejection
+to assert; its removal incidentally also removes that latent fragility.
+
+#### 10.4.3 New positive regression: `initmag_restart_atomistic`
+
+`tests/coarse_graining/e2e/initmag_restart_atomistic/` is a new production
+e2e fixture (full provenance in that directory's `README.md`) proving the
+capability now works end to end through the real `sd.f95` executable: the
+standard 48-atom host geometry, `Initmag 4`, and a restart-format seed file
+(`restart_seed.out`) generated deterministically by this slice's own
+`domain_wall_pair_state` (RCG-04B generator consuming its own output,
+closing part of the "no fixture yet consumes this generator" gap noted
+below). `restart_seed.out` is deliberately **not** named
+`restart.<simid>.out`, and `simid` was kept within UppASD's
+`character(len=8)` field width — both found and fixed during development,
+see the fixture's `README.md` for the exact silent-truncation and
+self-overwrite hazards that motivated them. `run_production_e2e.py` now
+asserts `returncode == 0`, `"AdaptiveCG: capability accepted"`, and
+`"AdaptiveCG: initial_state_source=initmag mode=4"`. This is a
+**setup/capability smoke test only** (`Nstep 1`, no trajectory, energy, or
+field assertion beyond the standard capability-accepted banner) — it does
+not claim the resulting dynamics is correct, consistent with RCG-04B's "no
+moving-dynamics, parity, or accuracy claim" boundary.
+
+`domain_wall_pair_state`'s output remains, additionally, directly
+consumable by **ordinary** (`AdaptiveCG`-disabled) UppASD, useful for a
+future feature-off/all-fine reference.
+
+### 10.5 RCG-04B checklist
+
+- [x] Existing input/generator conventions were inspected before implementation. (§10.1)
+- [x] A deterministic periodic conical-spiral generator is implemented. (§10.2, `conical_spiral_state`)
+- [x] Special stationary parameter choices are rejected or explicitly identified. (§10.2 analytic justification; `DegenerateStateError`)
+- [x] A deterministic periodic domain-wall-pair generator is implemented. (§10.2, `domain_wall_pair_state`)
+- [x] A deterministic `+q`/`-q` DMI-sensitive state generator is implemented. (§10.2, `chiral_partner_pair`)
+- [x] Atom ordering, basis/material identity, and moment magnitudes are preserved. (§10.1, §10.3 atom-ordering tests)
+- [x] Every generated spin direction is normalized within a documented budget. (§10.3, 1e-10)
+- [x] Periodic closure and wall topology are tested. (§10.3)
+- [x] Repeated generation is byte-stable and produces a recorded stable hash. (§10.3, `DeterministicRegenerationTests`)
+- [x] Generator parameters and provenance are tracked in a manifest or equivalent. (§10.2 `manifest`/`manifest_json`; `GENERATOR_MANIFEST.json` in §10.4.3's fixture)
+- [ ] CPU and GPU fixture paths can consume identical generated bytes. Partially evidenced on CPU only: §10.4.3's `initmag_restart_atomistic` fixture proves CPU production consumes this generator's restart-format output; no GPU-path or conical-spiral-path fixture exists yet, so this box remains open rather than fully ticked.
+- [x] Malformed or physically incompatible generator requests fail clearly. (§10.3 malformed-input tests)
+- [x] Tracked-fixture/package audit covers the generator and required inputs. `restartfile` was added to `audit_fixture_dependencies.py`'s tracked-input-keyword set, and §10.4.3's fixture (whose `restart_seed.out` is this generator's output) is now covered: `audit_fixture_dependencies.py` passes at 39 fixture directories / 62 input paths (§10.6).
+- [x] No moving-dynamics, parity, or accuracy claim is made in this slice. (§10 status line and §10.4.3: the new fixture is explicitly a setup/capability smoke test, `Nstep 1`)
+- [x] Unrelated worktree changes remain untouched and unstaged. (§10.6)
+
+### 10.6 Fresh build/test evidence (this slice)
+
+**Environment:** GNU Fortran 13.3.0, GNU C/C++ 12.4.0, CMake 3.28.3, CPU
+backend, fp64, Release build type.
+
+```text
+$ python3 tests/coarse_graining/test_moving_state_generator.py -v
+...
+Ran 40 tests in 0.016s
+OK
+
+$ cmake -S . -B /tmp/rcg04b-fix-cpu-Nt2NEM -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
+-- Git tag found: VERSION="v6.0.2-449-g3fe7-dirty".   # dirty from this
+                                                        # slice's own
+                                                        # uncommitted
+                                                        # changes, expected
+                                                        # mid-slice
+$ cmake --build /tmp/rcg04b-fix-cpu-Nt2NEM -j$(nproc)
+...
+[100%] Built target polarization_gate_tests   # exit 0 (rebuild after the
+                                                # adaptivecgproduction.f90 fix)
+
+# Manual pre-CTest check that the new fixture works end to end and that its
+# tracked restart_seed.out is not overwritten by the run:
+$ cd tests/coarse_graining/e2e/initmag_restart_atomistic && \
+  md5sum restart_seed.out > /tmp/before.md5 && \
+  /tmp/rcg04b-fix-cpu-Nt2NEM/bin/sd.f95 > /tmp/out2.log 2>&1; echo "returncode=$?"; \
+  md5sum -c /tmp/before.md5; grep -n "capability accepted\|initial_state_source" /tmp/out2.log
+returncode=0
+restart_seed.out: OK
+45:AdaptiveCG: capability accepted: regular periodic single-FM deterministic Heun
+52:AdaptiveCG: initial_state_source=initmag mode=4
+
+$ ctest --test-dir /tmp/rcg04b-fix-cpu-Nt2NEM -L cg13-cpu --output-on-failure
+...
+13: coarse-graining-moving-state-generator ...... Passed (0.05 sec)
+14: adaptive-cg-production-e2e .................. Passed (0.75 sec)
+15: adaptive-cg-setup-rejection-matrix .......... Passed (2.34 sec)
+100% tests passed, 0 tests failed out of 13
+
+$ ctest --test-dir /tmp/rcg04b-fix-cpu-Nt2NEM -R '^asd-tests$' --output-on-failure
+1/1 Test #2: asd-tests ........................   Passed    7.01 sec
+100% tests passed, 0 tests failed out of 1    # legacy feature-off/non-CG
+                                                # regression suite, confirming
+                                                # the fix and new fixture
+                                                # introduced no unrelated
+                                                # regression
+
+$ python3 tests/coarse_graining/audit_fixture_dependencies.py
+adaptive-CG fixture dependency audit: PASS (39 fixture directories, 62 input paths)
+```
+
+**Worktree check after the run:** `adaptive-cg-production-e2e` again
+touched the three tracked `examples/AdaptiveCoarseGraining/*/uppasd.adaptive.yaml`
+provenance files as a side effect of testing (same behaviour documented in
+§8 and in the RCG-03 evidence); they were restored with `git checkout`
+after the run. Manually running the new fixture also produced its own
+runtime byproducts (`restart.cg105ir4.out`, `inp.cg105ir4.json`,
+`uppasd.cg105ir4.yaml`, all matching existing `.gitignore` patterns), which
+were deleted (not committed) after confirming they were byproducts, not
+inputs. `restart_seed.out` itself required `git add -f` to stage, since it
+matches the repository's broad `*.out` ignore pattern despite being a
+genuine tracked fixture input (consistent with `restart.*.out` already
+being an explicit e2e-scoped ignore pattern for the same reason). After
+restoration and staging, `git status --short` showed exactly this slice's
+intended files: `CMakeLists.txt`,
+`source/CoarseGraining/adaptivecgproduction.f90`, five modified
+`tests/coarse_graining/*.py` harness files, two new generator/test `.py`
+files, the four new `initmag_restart_atomistic` fixture files, and this
+evidence document. `docs/ADAPTIVE_COARSE_GRAINING_REMEDIATION_BLUEPRINT.md`
+(fixed before the RCG-04A commit) remained untouched and clean throughout.
+
+---
+
+## Open items (carried forward, not blocking RCG-04A/B)
+
+- ~~AdaptiveCG's `Initmag=4` rejection blocks RCG-04G~~ — **fixed** in this
+  slice (§10.4): `validate_configuration` now accepts `Initmag=4`, and
+  `initmag_restart_atomistic` (§10.4.3) proves it end to end on CPU. RCG-04G
+  can now consume `domain_wall_pair_state`'s output in an AdaptiveCG-enabled
+  run; this no longer blocks it. GPU-path evidence for `Initmag=4` remains
+  unestablished (no GPU fixture was added) and CUDA/HIP builds were not
+  exercised in this slice — a later slice (RCG-04G or RCG-04I) should
+  confirm the GPU dispatch path also accepts and honours a restart-loaded
+  state before relying on it there.
 - Whether `initmag_spin_spiral` truly has zero initial torque (§3.5) is
-  argued from Hamiltonian symmetry, not from a freshly run diagnostic in
-  this slice (implementing such a diagnostic is explicitly out of RCG-04A's
-  scope). RCG-04B/C must verify this independently before deciding whether
-  the fixture is reusable, needs a nonzero cant, or should be retired in
-  favour of the conical-spiral generator.
+  argued from Hamiltonian symmetry, not from a freshly run diagnostic
+  (RCG-04A/B do not implement one). RCG-04B's own analytic derivation
+  (§10.2) independently confirms the mechanism (planar, `theta=90`, cone
+  angle under isotropic centrosymmetric exchange is exactly the rejected
+  degenerate case) but this remains a source-level argument, not a
+  production measurement; RCG-04C should verify it independently before
+  deciding whether that fixture is reusable, needs a nonzero cant, or
+  should be retired in favour of `conical_spiral_state`.
+- No fixture yet consumes any RCG-04B generator's output through the
+  UppASD executable (CPU or GPU); the "CPU and GPU fixture paths can
+  consume identical generated bytes" and "tracked-fixture/package audit
+  covers the generator" checklist items are explicitly left open above
+  until RCG-04D or a later slice wires a generator into a real e2e case.

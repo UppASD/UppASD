@@ -46,15 +46,14 @@ def main() -> None:
         # is required for the fallback not to fire.
         "mode": (replace_line(source, "mode", "M\nmcnstep 2"), "mode:"),
         "initial-phase": (replace_line(source, "ip_mode", "X"), "ip_mode:"),
-        # A restart request must reach AdaptiveCG's own initmag=4 capability
-        # rejection, not the unrelated generic "restartfile does not exist"
-        # stop. The default restartfile name is the literal "restart", which
-        # the fixture does not provide, so point at the tracked restart
-        # fixture that copytree already includes in the case directory.
-        "restart": (
-            replace_line(source, "initmag", "4") + "\nrestartfile ./restart.cg105mix.out\n",
-            "initmag=4",
-        ),
+        # initmag=4 (restart) used to be rejected here unconditionally; it
+        # no longer is (RCG-04B follow-up -- see
+        # docs/RCG-04_MOVING_E2E_EVIDENCE.md section 10.4/10.7 and
+        # tests/coarse_graining/e2e/initmag_restart_atomistic, the positive
+        # regression proving the capability now works end to end). There is
+        # therefore no longer a setup-time rejection to assert for this
+        # case; it has been removed rather than left asserting stale
+        # behaviour.
         "temperature": (replace_line(source, "temp", "10.0"), "Temp/do_qhb/do_3tm"),
         "stochastic-integrator": (replace_line(source, "SDEalgh", "2"), "SDEalgh/llg"),
         "boundary": (replace_line(source, "BC", "O P P"), "BC:"),

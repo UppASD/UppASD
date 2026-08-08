@@ -689,11 +689,22 @@ contains
          call reject('ip_mode: adaptive CG supports N, S, M, H, Q, Y, Z, or G; X/SX and lattice/multiscale runners remain unsupported', &
             status,diagnostic); return
       end if
-      if (initmag == 4) then
-         call reject('initmag=4 restart is unsupported until adaptive state serialization is implemented',status,diagnostic); return
-      end if
-      if (.not. any(initmag == (/1,2,3,5,8/))) then
-         call reject('initmag: adaptive CG supports random (1), cone (2), momfile (3), random Ising seed (5), or spin spiral (8)', &
+      ! initmag=4 (restart) was previously rejected here pending "adaptive
+      ! state serialization". That concern applies only to resuming a
+      ! previous AdaptiveCG run's own resolution/dwell/transition-history
+      ! state, which no Initmag value can do: setup_adaptive_cg_production
+      ! always builds fresh block/channel ownership from whatever emom/
+      ! emomM the ordinary magninit call already populated, uniformly for
+      ! every supported Initmag. Restart loading itself completes in
+      ! magninit before this preflight ever runs (see uppasd.f90's call
+      ! ordering: magninit, then preflight_adaptive_cg_production, then
+      ! setup_adaptive_cg_production after any initial phase), so a
+      ! restart-format file is architecturally just another way to supply
+      ! the same cold-start atomistic state that Initmag 1/2/3/5/8 supply,
+      ! not a resume of AdaptiveCG-internal state.
+      if (.not. any(initmag == (/1,2,3,4,5,8/))) then
+         call reject('initmag: adaptive CG supports random (1), cone (2), momfile (3), '// &
+            'restart (4), random Ising seed (5), or spin spiral (8)', &
             status,diagnostic); return
       end if
       if (SDEalgh /= 1 .or. llg /= 1) then

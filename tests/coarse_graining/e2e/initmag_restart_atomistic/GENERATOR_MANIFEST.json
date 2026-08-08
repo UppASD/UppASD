@@ -1,0 +1,42 @@
+{
+  "content_sha256": "159fe084b7e4927dc55ca02216481751fd39d9d9f98d1e6ce749e652a19be6f3",
+  "generator_name": "domain_wall_pair_state",
+  "generator_version": "rcg04b-moving-state-generator-v1",
+  "geometry": {
+    "basis": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.5,
+        0.5,
+        0.5
+      ]
+    ],
+    "n1": 6,
+    "n2": 2,
+    "n3": 2,
+    "na": 2,
+    "natom": 48
+  },
+  "parameters": {
+    "axis_cell_index": 0,
+    "cant_deg": 2.0,
+    "chirality": 1,
+    "easy_axis": [
+      0.0,
+      0.0,
+      1.0
+    ],
+    "moment_magnitude": 2.23,
+    "simid": "cg105ir4",
+    "wall_centers_cells": [
+      1.5,
+      4.5
+    ],
+    "wall_type": "NEEL",
+    "width_cells": 0.3
+  }
+}
