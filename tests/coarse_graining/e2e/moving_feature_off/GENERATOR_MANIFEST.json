@@ -1,0 +1,37 @@
+{
+  "content_sha256": "56b04630806ac76035e1ae07e3208acbc66029d60b977f08b03b4a73192e2000",
+  "generator_name": "conical_spiral_state",
+  "generator_version": "rcg04b-moving-state-generator-v1",
+  "geometry": {
+    "basis": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.5,
+        0.5,
+        0.5
+      ]
+    ],
+    "n1": 6,
+    "n2": 2,
+    "n3": 2,
+    "na": 2,
+    "natom": 48
+  },
+  "parameters": {
+    "axis": [
+      0.0,
+      0.0,
+      1.0
+    ],
+    "cone_angle_deg": 40.0,
+    "landeg": 2.0,
+    "modulation_cell_axis": 0,
+    "moment_magnitude": 2.23,
+    "phase_deg": 0.0,
+    "turns": 1
+  }
+}

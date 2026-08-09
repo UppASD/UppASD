@@ -991,6 +991,15 @@ if(BUILD_TESTING)
       COMMAND python3
          ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_trajectory_evidence.py -v)
 
+   # RCG-04D independent initial effective-field/torque oracle, calibrated
+   # against two real production runs (see torque_oracle.py's module
+   # docstring) but not deriving the RCG-04D moving-state acceptance gate
+   # from the diagnostic it gates. Host-only Python, no UppASD/CUDA/HIP
+   # dependency; see docs/RCG-04_MOVING_E2E_EVIDENCE.md (RCG-04D section).
+   add_test(NAME coarse-graining-torque-oracle
+      COMMAND python3
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_torque_oracle.py -v)
+
    # CG-13 labels are the repeatable suite interface.  Keep the focused
    # analytic/reference tests in the CPU suite even in a GPU build; the
    # production and backend tests below add the matching CUDA/HIP label.
@@ -1007,6 +1016,7 @@ if(BUILD_TESTING)
       coarse-graining-polarization-gate
       coarse-graining-moving-state-generator
       coarse-graining-trajectory-evidence
+      coarse-graining-torque-oracle
       PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;reference")
    if(USE_CUDA)
       set_property(TEST
@@ -1021,6 +1031,7 @@ if(BUILD_TESTING)
          coarse-graining-polarization-gate
          coarse-graining-moving-state-generator
          coarse-graining-trajectory-evidence
+         coarse-graining-torque-oracle
          APPEND PROPERTY LABELS cg13-cuda)
    elseif(USE_HIP)
       set_property(TEST
@@ -1035,6 +1046,7 @@ if(BUILD_TESTING)
          coarse-graining-polarization-gate
          coarse-graining-moving-state-generator
          coarse-graining-trajectory-evidence
+         coarse-graining-torque-oracle
          APPEND PROPERTY LABELS cg13-hip)
    endif()
 
@@ -1054,6 +1066,17 @@ if(BUILD_TESTING)
       COMMAND python3
          ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_setup_rejection_matrix.py
          --binary $<TARGET_FILE:${UppASD_EXE}>)
+   # RCG-04D E2E-MOVING-OFF-FINE: genuinely nonstationary feature-off/all-fine
+   # parity, independent-oracle nontriviality gate, and defect-sensitivity
+   # negative controls. CPU-only in this slice; CPU/GPU backend parity for
+   # this fixture is RCG-04I's responsibility, not claimed here.
+   add_test(NAME adaptive-cg-moving-off-fine
+      COMMAND python3
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_moving_off_fine.py
+         --binary $<TARGET_FILE:${UppASD_EXE}>)
+   set_tests_properties(adaptive-cg-moving-off-fine
+      PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;moving-parity"
+                 ENVIRONMENT "OMP_NUM_THREADS=1")
    add_test(NAME adaptive-cg-fixture-dependencies
       COMMAND python3
          ${CMAKE_SOURCE_DIR}/tests/coarse_graining/audit_fixture_dependencies.py)

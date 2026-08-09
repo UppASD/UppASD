@@ -46,6 +46,14 @@ SPIN_SPIRAL_CASE = "initmag_spin_spiral"
 RESTART_INITMAG_CASE = "initmag_restart_atomistic"
 EXAMPLE_CASES = ("static_mixed", "adaptive", "initial_phase_texture")
 
+# RCG-04D E2E-MOVING-OFF-FINE: genuinely nonstationary (nonzero-torque)
+# conical-spiral feature-off/all-fine parity pair, distinct from the
+# uniform/stationary FEATURE_OFF_CASE/STATIC_ALL_FINE_CASE pair above (which
+# remains a zero-torque smoke test only). See run_moving_off_fine.py and
+# each fixture's README.md.
+MOVING_FEATURE_OFF_CASE = "moving_feature_off"
+MOVING_ALL_FINE_CASE = "moving_all_fine"
+
 
 def all_e2e_cases() -> tuple[str, ...]:
     """Return every e2e directory referenced by either executable harness."""
@@ -57,5 +65,6 @@ def all_e2e_cases() -> tuple[str, ...]:
         CPU_INITIAL_PHASE_SD_CASE, *[case for case, _ in CPU_INITIAL_PHASE_CASES.values()],
         SPIN_SPIRAL_CASE, RESTART_INITMAG_CASE, *GPU_EXECUTABLE_CASES, *GPU_INITIAL_PHASE_CASES,
         *GPU_PARITY_CASES.values(), GPU_DMI_CASE, GPU_FFT_CASE,
+        MOVING_FEATURE_OFF_CASE, MOVING_ALL_FINE_CASE,
     }
     return tuple(sorted(names))

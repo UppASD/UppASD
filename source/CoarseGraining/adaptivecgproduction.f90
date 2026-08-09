@@ -900,8 +900,8 @@ contains
          if (local_status /= COARSE_TENSOR_OK) return
          do atom = 1, Natom
             if (.not. adaptive_cg_state%runtime%hybrid%atomistic_atom(atom)) cycle
-            call llg_rhs(atom0(:,atom,ensemble),atom_field0(:,atom,ensemble),Landeg(1), &
-               lambda1_array(1),rhs0)
+            call llg_rhs(atom0(:,atom,ensemble),atom_field0(:,atom,ensemble), &
+               gama*Landeg(atom),lambda1_array(atom),rhs0)
             candidate = atom0(:,atom,ensemble)+delta_t*rhs0
             atom_predictor(:,atom,ensemble) = candidate/sqrt(sum(candidate*candidate))
          end do
@@ -927,10 +927,10 @@ contains
          if (local_status /= COARSE_TENSOR_OK) return
          do atom = 1, Natom
             if (.not. adaptive_cg_state%runtime%hybrid%atomistic_atom(atom)) cycle
-            call llg_rhs(atom0(:,atom,ensemble),atom_field0(:,atom,ensemble),Landeg(1), &
-               lambda1_array(1),rhs0)
+            call llg_rhs(atom0(:,atom,ensemble),atom_field0(:,atom,ensemble), &
+               gama*Landeg(atom),lambda1_array(atom),rhs0)
             call llg_rhs(atom_predictor(:,atom,ensemble),atom_field1(:,atom,ensemble), &
-               Landeg(1),lambda1_array(1),rhs1)
+               gama*Landeg(atom),lambda1_array(atom),rhs1)
             candidate = atom0(:,atom,ensemble)+0.5_dblprec*delta_t*(rhs0+rhs1)
             atom_direction(:,atom,ensemble) = candidate/sqrt(sum(candidate*candidate))
          end do
