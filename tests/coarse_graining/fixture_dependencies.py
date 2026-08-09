@@ -66,6 +66,21 @@ MOVING_ALL_COARSE_CASES = (
     "moving_all_coarse_bs4", "moving_all_coarse_bs8",
 )
 
+# RCG-04F E2E-MOVING-STATIC: static fine/interface(buffer)/coarse mixed-mask
+# decomposition of the RCG-04E wide conical-spiral state -- ``bs1``/``bs2``
+# are a fixed-physical-partition spatial-refinement pair (block_size_x 1 vs
+# 2, same 48-fine/32-interface/112-coarse-atom split), ``bs1_shifted`` moves
+# the FINE seed half a period away at the same block resolution. See
+# run_moving_static_mixed.py, static_topology_oracle.py, and each fixture's
+# README.md.
+MOVING_STATIC_MIXED_BS1_CASE = "moving_static_mixed_bs1"
+MOVING_STATIC_MIXED_BS2_CASE = "moving_static_mixed_bs2"
+MOVING_STATIC_MIXED_BS1_SHIFTED_CASE = "moving_static_mixed_bs1_shifted"
+MOVING_STATIC_MIXED_CASES = (
+    MOVING_STATIC_MIXED_BS1_CASE, MOVING_STATIC_MIXED_BS2_CASE,
+    MOVING_STATIC_MIXED_BS1_SHIFTED_CASE,
+)
+
 
 def all_e2e_cases() -> tuple[str, ...]:
     """Return every e2e directory referenced by either executable harness."""
@@ -79,5 +94,6 @@ def all_e2e_cases() -> tuple[str, ...]:
         *GPU_PARITY_CASES.values(), GPU_DMI_CASE, GPU_FFT_CASE,
         MOVING_FEATURE_OFF_CASE, MOVING_ALL_FINE_CASE,
         MOVING_FEATURE_OFF_WIDE_CASE, MOVING_ALL_FINE_WIDE_CASE, *MOVING_ALL_COARSE_CASES,
+        *MOVING_STATIC_MIXED_CASES,
     }
     return tuple(sorted(names))

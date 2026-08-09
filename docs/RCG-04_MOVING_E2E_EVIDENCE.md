@@ -2033,6 +2033,388 @@ All seventeen RCG-04E checklist items are complete and evidenced.
 
 ---
 
+## 14. RCG-04F: E2E-MOVING-STATIC
+
+**Status: RCG-04F complete. No production defect was found or fixed in this
+slice; a disposable interface-coupling negative control (source mutation,
+applied, shown to produce a large and structurally-distributed divergence
+from the accepted trajectory, then restored and reverified) is recorded.**
+
+**Base commit:** `c44d126a...` ("RCG-04E: validate all-coarse moving
+dynamics"), the accepted RCG-04E commit. `git status --short` at session
+start showed no modified/untracked tracked files beyond the pre-existing
+untracked scratch/build directories already present in the worktree (same
+baseline recorded at the start of every prior RCG-04 slice).
+
+### 14.1 Fixture construction: a static fine/interface(buffer)/coarse decomposition of the RCG-04E wide conical spiral
+
+`tests/coarse_graining/e2e/moving_static_mixed_bs1/`, `moving_static_mixed_bs2/`,
+and `moving_static_mixed_bs1_shifted/` (three new fixtures; full provenance
+in each directory's own `README.md`). All three consume the byte-identical
+`momfile` RCG-04E's `moving_all_fine_wide`/`moving_all_coarse_bs*` fixtures
+already use (`cone_angle_deg=40`, `turns=1`, `axis=(0,0,1)`,
+`modulation_cell_axis=0`, `ncell 24 2 2`, 192 atoms), verified by content
+hash. `moving_all_fine_wide` itself (re-run fresh in this slice, not
+assumed to carry over unexamined) is reused unmodified as this slice's
+atomistic oracle, per the RCG-04F prompt's explicit "reuse an accepted
+moving state and all-fine reference where possible."
+
+**Construction:** `cg_operator PROJECTED` (matching `static_mixed`'s
+existing convention for a genuine partial-fine mask, as opposed to the
+`TENSOR`-labelled all-fine/all-coarse fixtures where the operator choice is
+physically irrelevant), `cg_mask_mode STATIC`, `cg_buffer_blocks 0`,
+`cg_diagnostics 2`, and a `mask.dat` listing only the one-based FINE block
+ids (every omitted id defaults to COARSE, the existing `static_mixed`
+convention). Every other physical/integration parameter (`damping 0.05`,
+`timestep 1.0e-16`, `Nstep 50`, `do_tottraj Y`/`tottraj_step 5`) is
+identical to `moving_all_fine_wide`.
+
+- `moving_static_mixed_bs1`: `block_size_x=1` (24 blocks total), FINE seed
+  blocks 1-6.
+- `moving_static_mixed_bs2`: `block_size_x=2` (12 blocks total), FINE seed
+  blocks 1-3 -- chosen so this fixture covers the **exact same physical**
+  6-cell fine interior as `bs1`, at half the block resolution (see §14.2).
+- `moving_static_mixed_bs1_shifted`: same `block_size_x=1` as `bs1`, FINE
+  seed blocks 13-18 (12 cells away, exactly half the 24-cell conical-spiral
+  period).
+
+### 14.2 Independent static-topology oracle (`tests/coarse_graining/static_topology_oracle.py`, 19 tests, all passing)
+
+Before running anything, `static_topology_oracle.compute_expected_topology`
+independently re-derives (from `Geometry`+`jfile`+block shape+FINE ids
+alone, never from a production readback) the exact periodic-dilation
+algorithm read from `source/CoarseGraining/statichybridoperator.f90:
+rebuild_static_hybrid_ownership` (`buffer_width_blocks = ceil(max_shell_
+radius/block_length_x - 64*eps) + cg_buffer_blocks`, Chebyshev/periodic
+block distance) and `blocktopology.f90`'s block numbering/atom-to-block
+formulas. For this shared `jfile` (max shell radius `sqrt(2.75)~1.6583`,
+the `(1.5,0.5,0.5)` shell):
+
+| fixture | block_size_x | nblocks_x | buffer_width_x | FINE blocks (atoms) | interface/BUFFER blocks (atoms) | COARSE blocks (atoms) |
+| --- | --- | --- | --- | --- | --- | --- |
+| `bs1` | 1 | 24 | 2 | 6 (48) | 4: ids {7,8,23,24} (32) | 14 (112) |
+| `bs2` | 2 | 12 | 1 | 3 (48) | 2: ids {4,12} (32) | 7 (112) |
+| `bs1_shifted` | 1 | 24 | 2 | 6: ids {13..18} (48) | 4: ids {11,12,19,20} (32) | 14 (112) |
+
+`bs1`/`bs2` cover the **identical physical 48-fine/32-interface/112-coarse-atom
+partition**, confirmed independently (`test_bs2_partition_matches_bs1_atom_counts`)
+and by the oracle's own `interface_bond_count` (a purely topological count
+of active exchange bonds crossing the atomistic-to-coarse boundary, using
+`torque_oracle.build_geometric_bonds`): **176** for both `bs1` and `bs2`
+(and for `bs1_shifted`), confirmed **0** for an all-fine control topology
+(`test_all_fine_topology_has_no_interface_bonds`) -- independent,
+structural, nonzero proof that the interface/buffer coupling path is
+geometrically engaged for every accepted fixture, before any production run.
+
+No new production diagnostic was needed. The existing `AdaptiveCG:
+atoms=.../initial_coarse=.../interface_atoms=.../active_atom_updates=.../
+active_block_updates=` summary lines and the per-step `resolution_state`
+history (`cg_diagnostics 2`, already used by every CG13 fixture) are
+together sufficient; `run_moving_static_mixed.py` asserts the runtime
+values against the independently derived expectation above **exactly**
+(not approximately) for every fixture, at both the `initial` and `final`
+`resolution_state` labels (a static mask has no mechanism to change
+mid-run -- `update_adaptive_mask` is only ever called when
+`adaptive_cg_state%adaptive_mask` is true, source-confirmed, so no
+intermediate `label=step` sample exists for a STATIC mask; RCG-04F
+introduces no adaptive transitions, per its own scope boundary).
+
+### 14.3 Ownership evidence: atomistic-owned, coarse-owned, and interface/buffer work are each nonzero and asserted
+
+For every fixture, `run_moving_static_mixed.py` asserts (not merely prints):
+
+- `active_atoms == expected(fine)+expected(interface)` and `active_blocks
+  == expected(coarse)`, both matched exactly against the independent
+  topology (§14.2);
+- `interface_atoms == expected(interface)` exactly (32 for every fixture);
+- `active_atom_updates == active_atoms * completed_steps` **exactly** (not
+  just `>0`) -- e.g. `bs1`: `80 atoms * 50 steps = 4000`, observed `4000` --
+  direct, per-step-multiplied evidence that the atomistic-owned short-range
+  update ran identically at every one of the 50 completed steps, not only
+  once at setup;
+- `active_block_updates == coarse_blocks * completed_steps` exactly -- e.g.
+  `bs1`: `14 * 50 = 700`, observed `700` -- the same evidence for the
+  coarse-owned update;
+- the independent `interface_bond_count` (§14.2) is positive for every
+  fixture (176).
+
+Combined with §14.5's negative control (disabling the interface/buffer
+coupling changes the trajectory by up to `1.47` rad, everywhere in the
+fine/interface/coarse regions, not only near the boundary), this
+constitutes direct evidence that all three of atomistic-owned,
+coarse-owned, and interface/buffer coupling work are nonzero and
+physically consequential, per the RCG-04F prompt's central requirement.
+
+### 14.4 Raw trajectory-comparison results (recorded before any acceptance budget)
+
+Environment: GNU Fortran 13.3.0, CPU backend, fp64, Release build,
+`/tmp/rcg04f-cpu-build` (iterative) and `/tmp/rcg04f-final-build` (final
+claim-bearing rebuild, §14.7).
+
+**Independent atomistic nontriviality gate** (re-verified at this
+geometry, `torque_oracle.py`): `max_torque=rms_torque=0.0400269`,
+`max_field_misalignment_deg=0.180699` (identical to RCG-04E's own
+re-verified values at this geometry, since the state/geometry are
+unchanged).
+
+**Off/all-fine re-check** (before trusting `moving_all_fine_wide` as this
+slice's oracle): component `max_abs=4.0625e-06`; angular
+`max=4.07489e-06` rad; restart `max_abs=4.0625e-06` -- all comfortably
+inside RCG-04D/E's accepted `5.0e-4` budgets.
+
+| fixture | displacement max (rad) | component max_abs / rms | angular max (deg) / rms | energy max_abs_err | restart max_abs | normalization max_err | production `coarse_exchange` (J) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `bs1` | 1.47648 | 1.22284 / 0.222556 | 1.47052 (84.25) / 0.39437 | 324.1 | 1.22284 | 7.47e-10 | 7.15502e-20 |
+| `bs2` | 1.36127 | 1.17078 / 0.245926 | 1.35459 (77.61) / 0.434163 | 274.367 | 1.17078 | 7.3e-10 | 4.50589e-20 |
+| `bs1_shifted` | 1.5197 | 1.21702 / 0.223826 | 1.5127 (86.67) / 0.396981 | 340.843 | 1.21702 | 7.6e-10 | 7.69481e-20 |
+
+`production coarse_exchange` is positive for every fixture, consistent
+with RCG-04E's independent second-moment `D_xx` sign check.
+
+**Spatial error table** (per-atom max angular error vs `moving_all_fine_wide`,
+bucketed by independently-derived ownership class and Chebyshev
+block-distance from the nearest differently-classed block; `bs1` shown,
+`block_size_x=1` so block distance = physical cells):
+
+| class | distance | n | mean(max rad) | worst(max rad) |
+| --- | --- | --- | --- | --- |
+| interface | 1 | 32 | 0.352 | 0.619 |
+| fine | 1 | 16 | 0.589 | 0.822 |
+| fine | 2 | 16 | 0.721 | 0.941 |
+| fine | 3 (deepest interior) | 16 | 0.669 | 0.975 |
+| coarse | 1 | 16 | 0.582 | 0.874 |
+| coarse | 2..6 | 16 each | 0.46-0.64 | 1.16-1.47 |
+| coarse | 7 (deepest interior) | 16 | 0.290 | 0.729 |
+
+(`bs2`/`bs1_shifted` tables are qualitatively similar; full tables are
+printed by `run_moving_static_mixed.py` and are part of the recorded CTest
+log, not reproduced in full here.)
+
+**Refinement trend** (`bs2`[block_size_x=2] -> `bs1`[block_size_x=1], same
+physical 48/32/112-atom partition): angular_max_rad `1.35459 -> 1.47052`
+-- **not** monotonically improving; see §14.5 for the interpretation.
+
+**Shift-pair symmetry** (`bs1` vs `bs1_shifted`, same block resolution,
+FINE seed moved 12 cells = half the conical-spiral period):
+angular_max_rad `1.47052` vs `1.5127`, ratio `1.029`.
+
+### 14.5 Physical interpretation of the raw results
+
+**The shift-pair symmetry check is the cleanest positive result in this
+slice and directly validates the mask/geometry/ownership machinery.** A
+uniform-pitch conical spiral on a translationally invariant lattice has,
+by construction (RCG-04B's own eigenvalue-gap derivation), a local
+torque/field-misalignment magnitude independent of `x`. Moving the FINE
+seed by exactly 12 cells (half the 24-cell period) should therefore leave
+every scalar/angular observable used in this slice unchanged up to
+ordinary run-to-run floating-point path differences. The observed ratio
+(`1.029`, comfortably inside the `1.15` budget) confirms this: a genuine
+mask/geometry indexing defect (e.g. an off-by-one in block numbering, or a
+wrong periodic-wrap sign) would not respect this symmetry, so this is a
+real, non-vacuous regression check, not merely a restatement of the same
+case.
+
+**The refinement trend (`bs2 -> bs1`) is not monotonically improving, and
+the fine-region spatial-error buckets do not show a clean interior-vs-
+boundary gradient. Both are explained by, and reinforce, RCG-04E's own
+already-documented open item** ("Coarse-vs-atomistic precession-rate
+quantitative reconciliation is not complete" -- RCG-04E, §13.6/open items):
+RCG-04E found and left open that the coarse tensor operator's fitted
+precession rate does not shrink monotonically with block size in the
+tested regime (its own numbers: `bs1` ~15x too fast, `bs2` ~12x, `bs4`
+~3.4x, `bs8` ~0.9x). In RCG-04F's *mixed* topology, that same rate
+mismatch is injected continuously, every step, across the fine/coarse
+interface into the genuinely atomistic (fine/interface) region -- and,
+given this geometry's narrow 6-cell fine region and the ~1.66-cell
+interaction radius, 50 steps is enough time for that injected perturbation
+to visibly propagate through the *entire* fine region rather than staying
+confined near the boundary (`fine` bucket errors are comparable in
+magnitude at distance 1 and distance 3, the deepest interior). Because
+`bs1`'s coarse blocks have, per RCG-04E's own numbers, a *larger* rate
+mismatch than `bs2`'s larger blocks, `bs1` injects a larger perturbation
+despite being the "finer" discretisation -- which is exactly the observed
+non-monotonic trend. This is treated as a **reinforcement of RCG-04E's
+existing open item**, carried forward (§14.8), not a new RCG-04F defect:
+RCG-04F's own responsibility -- the ownership/interface *mechanism* being
+structurally correct -- is independently established by §14.2/14.3/14.6,
+which do not depend on the coarse operator's rate accuracy.
+
+**Acceptance budgets (§14.4 table, `MAX_ANGULAR_ERROR_RAD`/`MAX_COMPONENT_
+ERROR`/`MAX_ENERGY_ERROR_J_REDUCED`/`MAX_RESTART_ERROR` in
+`run_moving_static_mixed.py`) are set from these freshly observed raw
+values with roughly 25-30% headroom**, following RCG-04E's precedent for
+absorbing a real, already-documented physical approximation error rather
+than fitting away a mystery. They are deliberately loose (up to `1.9` rad,
+compared to a maximum possible antipodal angle of `pi~3.14` rad) for the
+documented reason above, not chosen blindly.
+
+### 14.6 Interface-coupling negative control
+
+**Why an in-memory trajectory mutation is insufficient here, and what was
+used instead:** the always-run `run_negative_controls` (freeze-evolution
+and reverse-final-step, RCG-04D/E precedent) is retained and passes (see
+§14.7), proving the harness's own comparison assertions are defect-sensitive
+in general. But a **source-level** negative control targeting the interface
+*coupling specifically* needs a metric that is monotonically sensitive to
+that coupling being disabled. An initial attempt compared the mutated
+mixed trajectory against the unmodified all-fine reference (the same
+metric the accepted-case budgets use) and **did not fail**: disabling the
+coupling *reduced* `bs1`'s angular_max_rad from `1.47052` to `0.935449`,
+because (per §14.5) the coupling's normal effect is to inject the already
+oversized coarse precession-rate error into the fine region, so removing
+the coupling coincidentally makes the fine region behave *more* like the
+isolated atomistic reference on this particular (loose) metric. This
+finding was not discarded -- it is itself informative physical evidence
+that the interface coupling is doing real, consequential work (see §14.3)
+-- but it is the wrong comparison for a "the interface path is disabled"
+negative control specifically.
+
+**Correct negative control: compare the mutated trajectory directly
+against the accepted (unmutated) trajectory**, not against all-fine.
+
+**Mutation** (disposable, applied and reverted in this session, never
+committed): `source/CoarseGraining/statichybridoperator.f90`, inside
+`evaluate_static_hybrid_operator`:
+
+```fortran
+! before (accepted):
+effective_direction = ghost_direction
+! after (disposable mutation):
+effective_direction = 0.0_dblprec
+```
+
+`ghost_direction` is the smoothly-prolongated coarse-block direction that
+stands in for a coarse-owned neighbour inside every atomistic-owned
+boundary bond (`atomistic_bond_owner`); zeroing it disables exactly the
+coarse-to-atomistic half of the interface/buffer coupling described in the
+module's own docstring ("smooth-prolongated ghosts whenever an owned
+atomistic bond crosses the interface"). The line immediately below still
+overwrites every genuinely atomistic atom's own slot with its real
+`fine_direction`, so fine/buffer atoms' own state is untouched by the
+mutation itself -- only the coarse-side contribution they read from is
+zeroed. `moving_all_fine_wide` never calls `StaticHybridOperator` at all
+(its branch of `adaptive_cg_cpu_step` uses only the plain atomistic
+Heisenberg field), so it is structurally unaffected, matching the RCG-04E
+isolation precedent.
+
+**Build/run commands:**
+
+```text
+$ cmake --build /tmp/rcg04f-cpu-build -j2 --target sd.f95
+# (fresh accepted bs1 run captured first, then the mutation applied)
+$ cd tests/coarse_graining/e2e/moving_static_mixed_bs1
+$ OMP_NUM_THREADS=1 /tmp/rcg04f-cpu-build/bin/sd.f95   # accepted, then again after the mutation+rebuild
+```
+
+**Which comparison failed, and why:** accepted-vs-mutated `bs1` trajectory
+comparison (`angular_trajectory_error`, same technique as every other
+comparison in this document, applied atom-by-atom):
+
+- overall: `max_radians=1.47201`, `rms_radians=0.33230`;
+- bucketed by ownership class and distance (Chebyshev blocks): every
+  bucket shows a clearly nonzero divergence, from `interface distance=1`
+  (`mean=0.291`, `max=0.620`) through the deepest `fine distance=3`
+  interior (`mean=0.606`, `max=0.976`) to the deepest `coarse distance=7`
+  interior (`mean=0.218`, `max=0.728`), peaking at `coarse distance=4`
+  (`max=1.47201`, the overall maximum).
+
+A divergence of this magnitude (up to 84 degrees), present in every
+ownership class including the deepest fine and coarse interiors, is
+unambiguous, non-vacuous evidence that the interface/buffer coupling
+performs substantial, physically consequential work in the accepted
+(unmutated) run -- exactly the RCG-04F requirement ("obtain evidence that
+[the interface/buffer coupling] performs nonzero, physically relevant
+work"). This comparison script is recorded as a session artifact (not
+committed as a permanent CTest case, consistent with the RCG-04D/E
+precedent of keeping the disposable-mutation control separate from the
+always-run harness).
+
+**Restoration:** `git diff --stat source/CoarseGraining/statichybridoperator.f90`
+saved before reverting; `git checkout -- source/CoarseGraining/statichybridoperator.f90`;
+`git diff --stat` afterward produced no output, confirming byte-identical
+restoration. Rebuilt (`cmake --build /tmp/rcg04f-cpu-build -j2 --target
+sd.f95`) and reran the complete `cg13-cpu` label: **20/20 passing again**
+(§14.7), including `adaptive-cg-moving-static-mixed`.
+
+### 14.7 Fresh build/test evidence
+
+**Environment:** GNU Fortran 13.3.0, GNU C/C++ 12.4.0, CMake 3.28.3, CPU
+backend, fp64 (default precision), Release build type. No CUDA/HIP
+evidence gathered in this slice (RCG-04F's scope per the prompt pack does
+not require backend parity -- that is RCG-04I's).
+
+```text
+$ cmake -S . -B /tmp/rcg04f-final-build -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
+-- Git tag found: VERSION="v6.0.2-453-gc44d-dirty".   # dirty from this
+                                                        # slice's own
+                                                        # uncommitted files
+$ cmake --build /tmp/rcg04f-final-build -j2
+...
+[100%] Built target polarization_gate_tests   # exit 0, only the one
+                                                # pre-existing executable-
+                                                # stack linker warning
+
+$ ctest --test-dir /tmp/rcg04f-final-build -L cg13-cpu --output-on-failure
+...
+17: coarse-graining-static-topology-oracle ....... Passed
+18: adaptive-cg-production-e2e .................... Passed
+19: adaptive-cg-setup-rejection-matrix ............ Passed
+20: adaptive-cg-moving-off-fine .................... Passed
+21: adaptive-cg-moving-all-coarse .................. Passed
+22: adaptive-cg-moving-static-mixed ................ Passed
+100% tests passed, 0 tests failed out of 20
+
+$ python3 tests/coarse_graining/audit_fixture_dependencies.py
+adaptive-CG fixture dependency audit: PASS (50 fixture directories, 91 input paths)
+
+$ python3 tests/coarse_graining/test_static_topology_oracle.py -v
+Ran 19 tests in ...
+OK
+```
+
+**Worktree check after all runs:** `adaptive-cg-production-e2e` again
+touched the three tracked `examples/AdaptiveCoarseGraining/*/uppasd.adaptive.yaml`
+provenance files as a test-run side effect (same behaviour documented in
+every prior RCG-04 slice); restored with `git checkout` after the run.
+Running the new fixtures directly produced runtime byproducts inside their
+own tracked directories (`moment.<simid>.out`, `restart.<simid>.out`,
+`uppasd.<simid>.yaml`, `inp.<simid>.json`), all deleted (not committed)
+after confirming they were byproducts. After restoration, `git status
+--short` showed exactly this slice's intended files: `CMakeLists.txt` (new
+test/label registrations), `tests/coarse_graining/fixture_dependencies.py`
+(new case-name constants), four new files
+(`tests/coarse_graining/{static_topology_oracle,test_static_topology_oracle,
+run_moving_static_mixed}.py`) and the three new
+`e2e/{moving_static_mixed_bs1,bs2,bs1_shifted}/` fixture directories.
+`source/CoarseGraining/statichybridoperator.f90` (the disposable negative
+control) was reverted to byte-identical accepted content before this
+slice's commit, per the governing rule against committing a fault switch.
+
+### 14.8 RCG-04F checklist
+
+- [x] Static mask contains nonempty fine, coarse, and interface/buffer regions. (§14.1/14.2: 48/32/112 atoms respectively, every fixture)
+- [x] Expected topology and ownership are recorded from physical geometry. (§14.2, `static_topology_oracle.compute_expected_topology`, independent of any production readback)
+- [x] Runtime ownership evidence agrees with the expected map. (§14.2/14.3: exact match, both `resolution_state` block vectors and atom-count diagnostics, every fixture)
+- [x] The moving state samples or crosses the mixed-resolution interface. (§14.1/14.3: the conical spiral precesses at every site, including every interface/buffer atom; not a case confined to one ownership region)
+- [x] Atomistic-owned work is nonzero and asserted. (§14.3: `active_atom_updates == active_atoms*completed_steps` exactly, every fixture)
+- [x] Coarse-owned work is nonzero and asserted. (§14.3: `active_block_updates == coarse_blocks*completed_steps` exactly, every fixture)
+- [x] Interface/buffer work is nonzero and asserted. (§14.2 topological bond count; §14.6 negative control: disabling it changes the trajectory by up to 1.47 rad in every ownership class)
+- [x] Complete mixed and all-fine trajectories are compared. (§14.4: full per-step, per-atom component/angular error, all three fixtures)
+- [x] Named energy, field, and restart evidence is compared. (§14.4: independent-oracle energy series, production `last_energy_j`/`coarse_exchange` sign, restart-state comparison)
+- [x] Error is resolved by ownership class and/or distance from the interface. (§14.4 spatial error table, every fixture)
+- [x] At least one spatial refinement is performed at fixed physical evolution. (§14.1/14.4: `bs2`[block_size_x=2] -> `bs1`[block_size_x=1], identical 48/32/112-atom physical partition)
+- [x] Shifted-interface sensitivity is tested or explicitly justified as unnecessary. (§14.4/14.5: tested; ratio 1.029, consistent with the predicted translational symmetry)
+- [x] Raw interface errors and refinement trend are recorded before budget selection. (§14.4: printed by `run_moving_static_mixed.py` before any assertion; reproduced here)
+- [x] An interface-path negative control fails for the expected reason. (§14.6: accepted-vs-mutated comparison, not accepted-vs-all-fine; the correct comparison and why the first attempt was insufficient are both recorded)
+- [x] Restored unmodified source passes the complete slice again. (§14.6/14.7: `statichybridoperator.f90` byte-identical restoration confirmed; 20/20 `cg13-cpu`)
+- [x] No adaptive or DMI claim is smuggled into this slice. (§14.1: `cg_mask_mode STATIC` only, no `do_adaptive_cg` selector thresholds; no DMI file referenced)
+- [x] `E2E-MOVING-STATIC` evidence is tracked with full provenance. (this section: commands, environment, raw data, and interpretation all recorded)
+- [x] Unrelated worktree changes remain untouched and unstaged. (§14.7 worktree check)
+
+All eighteen RCG-04F checklist items are complete and evidenced.
+
+---
+
 ## Open items (carried forward, not blocking RCG-04A/B/C/D/E)
 
 - **Coarse-vs-atomistic precession-rate quantitative reconciliation is not

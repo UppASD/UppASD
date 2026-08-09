@@ -1010,6 +1010,14 @@ if(BUILD_TESTING)
       COMMAND python3
          ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_coarse_torque_oracle.py -v)
 
+   # RCG-04F independent static fine/interface(buffer)/coarse block-ownership
+   # oracle, re-deriving StaticHybridOperator's periodic dilation algorithm
+   # from source (never reading production's own ownership arrays back).
+   # Host-only Python, no UppASD/CUDA/HIP dependency.
+   add_test(NAME coarse-graining-static-topology-oracle
+      COMMAND python3
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_static_topology_oracle.py -v)
+
    # CG-13 labels are the repeatable suite interface.  Keep the focused
    # analytic/reference tests in the CPU suite even in a GPU build; the
    # production and backend tests below add the matching CUDA/HIP label.
@@ -1028,6 +1036,7 @@ if(BUILD_TESTING)
       coarse-graining-trajectory-evidence
       coarse-graining-torque-oracle
       coarse-graining-coarse-torque-oracle
+      coarse-graining-static-topology-oracle
       PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;reference")
    if(USE_CUDA)
       set_property(TEST
@@ -1044,6 +1053,7 @@ if(BUILD_TESTING)
          coarse-graining-trajectory-evidence
          coarse-graining-torque-oracle
          coarse-graining-coarse-torque-oracle
+         coarse-graining-static-topology-oracle
          APPEND PROPERTY LABELS cg13-cuda)
    elseif(USE_HIP)
       set_property(TEST
@@ -1060,6 +1070,7 @@ if(BUILD_TESTING)
          coarse-graining-trajectory-evidence
          coarse-graining-torque-oracle
          coarse-graining-coarse-torque-oracle
+         coarse-graining-static-topology-oracle
          APPEND PROPERTY LABELS cg13-hip)
    endif()
 
@@ -1101,6 +1112,19 @@ if(BUILD_TESTING)
          ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_moving_all_coarse.py
          --binary $<TARGET_FILE:${UppASD_EXE}>)
    set_tests_properties(adaptive-cg-moving-all-coarse
+      PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;moving-parity"
+                 ENVIRONMENT "OMP_NUM_THREADS=1")
+   # RCG-04F E2E-MOVING-STATIC: static fine/interface(buffer)/coarse mixed-mask
+   # decomposition of the RCG-04E wide conical spiral, with independent
+   # ownership-topology verification, a fixed-physical-partition spatial-
+   # refinement pair, and shifted-interface sensitivity. CPU-only in this
+   # slice; CPU/GPU backend parity is RCG-04I's responsibility, not claimed
+   # here.
+   add_test(NAME adaptive-cg-moving-static-mixed
+      COMMAND python3
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_moving_static_mixed.py
+         --binary $<TARGET_FILE:${UppASD_EXE}>)
+   set_tests_properties(adaptive-cg-moving-static-mixed
       PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;moving-parity"
                  ENVIRONMENT "OMP_NUM_THREADS=1")
    add_test(NAME adaptive-cg-fixture-dependencies

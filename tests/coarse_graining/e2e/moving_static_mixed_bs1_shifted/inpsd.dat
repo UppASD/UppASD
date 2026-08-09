@@ -1,0 +1,38 @@
+simid cg104fs1
+alat 1.0
+ncell 24 2 2
+BC P P P
+cell 1.0 0.0 0.0
+     0.0 1.0 0.0
+     0.0 0.0 1.0
+Sym 1
+posfile ../posfile
+momfile ./momfile
+exchange ../jfile
+SDEalgh 1
+Initmag 8
+initpropvec 0.041666666666666664 0 0
+initrotvec 0 0 1
+initrotang 0
+Mensemble 1
+ip_mode N
+mode S
+temp 0.0
+damping 0.05
+timestep 1.0e-16
+Nstep 50
+do_avrg N
+do_cumu N
+do_tottraj Y
+tottraj_step 5
+tottraj_buff 1
+plotenergy 0
+do_adaptive_cg Y
+block_size_x 1
+block_size_y 2
+block_size_z 2
+cg_operator PROJECTED
+cg_mask_mode STATIC
+cg_static_mask_file mask.dat
+cg_buffer_blocks 0
+cg_diagnostics 2
