@@ -978,6 +978,19 @@ if(BUILD_TESTING)
       COMMAND python3
          ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_moving_state_generator.py -v)
 
+   # RCG-04C reusable trajectory parsing/validation/comparison infrastructure
+   # (strict moment/restart-file parser, component/angular error, spin
+   # displacement, named energy/field series comparison, adaptive transition
+   # and resolution-state history parsing, conical-mode amplitude/phase/
+   # frequency, signed chirality, domain-wall centre/crossing tracking).
+   # Host-only Python, no UppASD/FFT/CUDA/HIP dependency -- parser/metric
+   # unit tests against synthetic records only; see
+   # docs/RCG-04_MOVING_E2E_EVIDENCE.md (RCG-04C section) for the separate
+   # manual production-output parsing evidence.
+   add_test(NAME coarse-graining-trajectory-evidence
+      COMMAND python3
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_trajectory_evidence.py -v)
+
    # CG-13 labels are the repeatable suite interface.  Keep the focused
    # analytic/reference tests in the CPU suite even in a GPU build; the
    # production and backend tests below add the matching CUDA/HIP label.
@@ -993,6 +1006,7 @@ if(BUILD_TESTING)
       coarse-graining-adaptive-hybrid-solver
       coarse-graining-polarization-gate
       coarse-graining-moving-state-generator
+      coarse-graining-trajectory-evidence
       PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;reference")
    if(USE_CUDA)
       set_property(TEST
@@ -1006,6 +1020,7 @@ if(BUILD_TESTING)
          coarse-graining-adaptive-hybrid-solver
          coarse-graining-polarization-gate
          coarse-graining-moving-state-generator
+         coarse-graining-trajectory-evidence
          APPEND PROPERTY LABELS cg13-cuda)
    elseif(USE_HIP)
       set_property(TEST
@@ -1019,6 +1034,7 @@ if(BUILD_TESTING)
          coarse-graining-adaptive-hybrid-solver
          coarse-graining-polarization-gate
          coarse-graining-moving-state-generator
+         coarse-graining-trajectory-evidence
          APPEND PROPERTY LABELS cg13-hip)
    endif()
 

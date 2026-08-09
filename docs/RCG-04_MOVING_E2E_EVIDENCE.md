@@ -850,7 +850,334 @@ evidence document. `docs/ADAPTIVE_COARSE_GRAINING_REMEDIATION_BLUEPRINT.md`
 
 ---
 
-## Open items (carried forward, not blocking RCG-04A/B)
+## 11. RCG-04C: trajectory parsing and observable infrastructure
+
+**Status: RCG-04C only. Reusable parsing/validation/comparison
+infrastructure — no fixture, production diagnostic, moving-dynamics claim,
+or final numerical tolerance was added in this slice.**
+
+**Base commit:** `64832ed9a6d722f95d601bbc577236014281b87f` ("RCG-04B: add
+deterministic moving-state generators"), the accepted RCG-04B commit.
+`git status --short` at session start showed no modified/untracked tracked
+files beyond the pre-existing untracked scratch/build directories already
+present in the worktree before this session.
+
+### 11.1 Production-output audit (before writing any parser)
+
+Read in full before implementation: `source/Measurement/prn_trajectories.f90`
+(`do_tottraj`/`tottraj_step`, `print_trajectories`/`prn_tottraj`/
+`buffer_tottraj`), `source/System/restart.f90` (`prn_mag_conf_iter`,
+`prn_mag_conf_time`, `read_mag_conf_std`), every caller of
+`prn_mag_conf(...,'R',...)`, `source/CoarseGraining/adaptivecgproduction.f90`
+(`print_resolved_configuration`, `print_adaptive_cg_summary`,
+`print_transition_events`, `print_resolution_state`, and their call sites),
+`source/gpu_files/gpuSimulation.cpp` (lines 807-980, the GPU diagnostic
+mirror), and `source/chelper.f90` (the GPU→Fortran trajectory-measurement
+callback). Findings, each restated in full in `trajectory_evidence.py`'s
+module docstring so they travel with the code:
+
+1. **`moment.<simid>.out` (`do_tottraj='Y'`) and `restart.<simid>.out` share
+   exactly one text format** (7-line header: 2 rule lines, file type,
+   simulation type, atom count, ensemble count, column-header line; then
+   `mstep ens iatom |Mom| Mx My Mz` rows, Fortran format
+   `i8,i8,i8,2x,4(es16.8)`). A restart file is a length-one trajectory in
+   this format, not a separate structure — confirmed by reading
+   `prn_mag_conf_iter` directly, which is the single subroutine that writes
+   both, keyed only by its `type` argument (`'M'` vs `'R'`).
+2. **This trajectory format is backend-neutral already.** `chelper.f90:409-
+   434` shows the GPU measurement path calls back into the same Fortran
+   `print_trajectories`/`prn_mag_conf_iter` with synced-back `emom`/`mmom`.
+   No new diagnostic was needed to get a moving per-step trajectory on
+   either backend — the existing `do_tottraj` mechanism already satisfies
+   the RCG-04C contract, confirming the RCG-04A audit's identical
+   conclusion and the prompt pack's "prefer existing ordinary production
+   output" instruction.
+3. **The CPU per-event transition log and per-step resolution-state history
+   already exist and are already exercised**, just never parsed:
+   `print_transition_events` (format at
+   `adaptivecgproduction.f90:1450-1461`) prints step, block, old/new state,
+   accepted, reason, outcome, before/after/jump energy, and (RCG-03)
+   polarization ratio, once per accepted/rejected transition;
+   `print_resolution_state('step',step)` prints a full per-block resolution
+   vector at every synchronization step. Both fire only at
+   `cg_diagnostics>=2` (default `1`); `e2e/adaptive_mixed` already sets
+   `cg_diagnostics 2` and so already produces this history today, unparsed
+   by `run_production_e2e.py`.
+4. **Backend gap found and documented, not fixed** (per the governing
+   blueprint's "document the gap before changing production code" rule):
+   the GPU diagnostic path emits only `initial`/`final` snapshots — no
+   per-step resolution history, no per-event transition log at all, and its
+   one summary line hardcodes `rejected_transitions=0`
+   (`gpuSimulation.cpp` line ~949) rather than tracking rejections. This is
+   a real CPU/GPU capability asymmetry relevant to RCG-04G/RCG-04I, carried
+   forward as an open item below; no production code was changed to work
+   around it.
+5. **Named per-step energies/fields do not exist on either backend today**:
+   `print_adaptive_cg_summary` (CPU) and its GPU mirror are each called
+   exactly once, after the run completes (`source/uppasd.f90:523` is the
+   sole CPU call site). `parse_energy_field_series` below is written to
+   return one sample per diagnostic emission — forward-compatible with a
+   future per-step diagnostic, and verified with a synthetic two-emission
+   stdout — but against today's production output it will only ever
+   produce a single, final-step sample. This restates the RCG-04A audit's
+   identical finding rather than hiding it.
+
+No production Fortran/C++ file was changed to reach any of the above; every
+finding was obtained by reading source and, for items 1-3 and 5, by parsing
+real stdout/file output from a freshly built binary (§11.4).
+
+### 11.2 What was implemented
+
+`tests/coarse_graining/trajectory_evidence.py` (new module, no external
+dependencies beyond the standard library and `moving_state_generator`'s
+`Geometry`/`manifest_json`):
+
+- **Strict parser** (`parse_mag_conf_text`/`parse_mag_conf_file`,
+  `Trajectory`/`TrajectoryStep`/`SpinRecord`): every record is indexed by
+  its own explicit `(step, ensemble, atom)` columns, never by position, so
+  within-step row order is irrelevant (tested) while cross-step ordering is
+  still enforced (steps must be strictly increasing — a corrupted file with
+  step blocks concatenated out of chronological order raises
+  `NonMonotonicStepError` rather than being silently accepted by
+  positional/append-only parsing). Rejects, each with a dedicated exception
+  subclass and negative test: truncated header/data
+  (`TruncatedTrajectoryFileError`), malformed header fields
+  (`MalformedHeaderError`), a step missing declared `(ens,atom)` records
+  (`MissingStepDataError`), a step gap inconsistent with the cadence
+  inferred from the first two steps (`MissingStepError`), a duplicate
+  `(step,ens,atom)` record (`DuplicateRecordError`), an atom/ensemble index
+  outside the declared range (`InconsistentAtomCountError`), a non-finite
+  value (`NonFiniteValueError`), and a direction vector outside a
+  configurable normalization budget (`NonUnitDirectionError`).
+  `find_unique_output`/`load_restart_state`/`load_moment_trajectory` reject
+  zero or multiple matching output files
+  (`MissingOutputFileError`/`AmbiguousSimulationIdentifierError`) instead of
+  silently picking the first `glob()` match the way
+  `run_production_e2e.py`'s pre-existing `restart_state()` helper does
+  (`next(case.glob("restart.*.out"))`) — the concrete "ambiguous simulation
+  identifier" hazard the RCG-04C prompt names explicitly. That pre-existing
+  helper itself was not touched in this slice (out of scope: RCG-04C is
+  infrastructure, not a `run_production_e2e.py` rewrite), but the new
+  ambiguity-safe helper is what later slices should use in its place.
+- **Comparison/derived metrics, parsing-only (no thresholds)**:
+  `component_trajectory_error` (per-component max/RMS), `angular_trajectory_error`
+  (stable `angle = 2*atan2(|u-v|,|u+v|)` formula rather than `acos(u.v)`,
+  verified numerically stable at both the near-parallel and exact-antiparallel
+  limit, where `acos`'s derivative vanishes), `spin_displacement`
+  (initial-to-final and max-over-time per-spin angular displacement, the
+  nonzero-evolution evidence no current fixture computes per RCG-04A §3.5),
+  `parse_energy_field_series`/`compare_energy_field_series` (named-term
+  identity preserved, GPU `Gpu: AdaptiveCG` prefix handled), restart-state
+  comparison (reuses the same trajectory-comparison routines on a
+  length-one `Trajectory` — no separate mechanism), `conical_mode_series`/
+  `fit_conical_mode_frequency` (complex order parameter against a
+  caller-supplied per-atom phase map, frequency by unwrapped-phase linear
+  regression — recovers a known synthetic angular frequency to 6 decimal
+  places, §11.3), `signed_chirality` (mean `axis.(S_i x S_j)` over caller-
+  supplied directed bonds, using the *same* triple-product orientation as
+  the accepted RCG-02 DMI convention — documented inline against
+  `docs/RCG-02_DMI_HANDEDNESS_EVIDENCE.md` so a later DMI-sign comparison
+  uses one consistent handedness definition throughout, not two), and
+  `domain_wall_centers`/`track_wall_crossings` (linear zero-crossing
+  interpolation of the easy-axis projection; periodic center unwrapping
+  using the same wrap-to-nearest convention as phase unwrapping; block-
+  boundary crossing-event detection). `axis_chain_bonds` is a small shared
+  geometry-walking helper (reusing `moving_state_generator.Geometry`'s atom
+  ordering, not a new convention) used by both the chirality and
+  domain-wall metrics.
+- **RCG-03 diagnostic parsers**: `parse_transition_events` (every field
+  `print_transition_events` writes: step, block, old/new state, accepted,
+  reason, outcome, before/after/jump energy, polarization ratio) and
+  `parse_resolution_state_history` (every `label=initial|step|final` sample
+  in emission order — unlike `run_production_e2e.py`'s existing
+  `final_state()`, which regexes only the last, `label=final`, occurrence).
+- **Machine-readable summaries**: `trajectory_summary` (matching the
+  RCG-04A §5 canonical schema's per-step-per-atom trajectory record, with
+  an opaque `provenance` pass-through for the caller's commit/build/command
+  evidence) and every metric dataclass's `as_dict()`, all confirmed
+  JSON-serializable by test.
+
+`tests/coarse_graining/test_trajectory_evidence.py`: 52 `unittest` cases
+(all passing, §11.4), registered as CTest `coarse-graining-trajectory-evidence`
+(labels `coarse-graining;cg13;cg13-cpu;reference`, and appended to
+`cg13-cuda`/`cg13-hip` alongside `coarse-graining-moving-state-generator`,
+since parsing has no backend dependency — the same pattern RCG-04B used).
+Covers: basic parsing (restart-style single-step, multi-step, multi-
+ensemble, moment magnitude, Fortran `D`-exponent numbers), a positive test
+proving within-step row reordering is handled by explicit indexing, all
+eight parser corruption categories above as dedicated negative tests, the
+three ambiguity/lookup helper behaviors, four `load_*` contract tests,
+component/angular error including the antiparallel/near-parallel stability
+cases and a key-mismatch rejection, displacement (a synthetic 4-step 90-
+degree rotation recovers the exact expected displacement), energy/field
+series (single emission, GPU prefix, multi-emission forward-compatibility,
+comparison, mismatched-length rejection), transition-event parsing
+(accepted and rejected events, field-by-field), resolution-state history
+(multi-label ordering), conical-mode amplitude/frequency recovery from a
+synthetic rotating state, signed chirality (right/left-handed sign,
+axis-reversal sign flip, empty-bond-list rejection), domain-wall center
+detection and periodic-unwrap/crossing-event tracking, and JSON-
+serializability of the summary schema.
+
+### 11.3 Two real production-output corruption bugs found and fixed by end-to-end testing
+
+Synthetic-record tests alone passed against two parser bugs that only a
+real production run exposed (§11.4), both fixed in this slice:
+
+1. **Off-by-one in the data-line offset.** The 7-line header block is 6
+   fixed lines *plus* one column-header line (`"#iter ens iatom |Mom| ..."`)
+   before data starts; the first implementation started slicing data at
+   line index 6 (the column-header line itself) instead of 7, so the
+   column-header text was fed to the data-row regex. Synthetic test
+   fixtures built by the sibling `header()`/`row()` helpers happened to
+   never exercise this off-by-one because... they did not: this was caught
+   immediately by the very first synthetic-record test run, before any
+   real production output was involved, and is noted here only because
+   it's the same 7-vs-6 line-counting hazard the fix for item 2 below also
+   touches.
+2. **Fixed-width Fortran field padding was under-matched by two regexes**,
+   caught only once real `es24.16`/`es16.8` production output (not a
+   hand-typed synthetic string) was parsed: `energies_j=`/named-energy-term
+   regexes required the numeric value to follow `=` with no intervening
+   whitespace, but positive/negative fixed-width values are padded with
+   one or two leading spaces (`atomistic_bilinear= -1.33...`,
+   `coarse_dipole=  0.0...`); and the transition-event regex required
+   exactly one literal space before `polarization_ratio=`, but real output
+   has two. Both were found by running the actual CPU binary
+   (§11.4) and discovering `parse_energy_field_series` returned an empty
+   `energies_j` dict and `parse_transition_events` returned zero events
+   against real stdout that plainly contained both. Fixed by replacing the
+   literal single space / no-space assumptions with `\s*`/`\s+`; the
+   synthetic test fixtures were then **also** corrected to use the same
+   real two-space padding (previously they used no padding at all), so a
+   regression back to the literal-space assumption would be caught by the
+   synthetic suite alone next time, without needing a real build. This is
+   recorded here as a concrete demonstration of why the RCG-04C prompt
+   requires "at least one ordinary production smoke fixture" to be parsed
+   end to end, not only synthetic records.
+
+### 11.4 Fresh build/test evidence (this slice)
+
+**Environment:** GNU Fortran 13.3.0, GNU C/C++ 12.4.0, CMake 3.28.3, CPU
+backend, fp64, Release build type.
+
+```text
+$ cmake -S . -B /tmp/rcg04c-cpu-build -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
+-- Git tag found: VERSION="v6.0.2-450-g6483-dirty".   # dirty from this
+                                                        # slice's own
+                                                        # uncommitted files
+$ cmake --build /tmp/rcg04c-cpu-build -j$(nproc)
+...
+[100%] Built target polarization_gate_tests   # exit 0, only the one
+                                                # pre-existing executable-
+                                                # stack linker warning
+
+$ ctest --test-dir /tmp/rcg04c-cpu-build -L cg13-cpu --output-on-failure
+...
+13: coarse-graining-moving-state-generator ...... Passed (0.05 sec)
+14: coarse-graining-trajectory-evidence ......... Passed (0.05 sec)
+15: adaptive-cg-production-e2e .................. Passed (1.13 sec)
+16: adaptive-cg-setup-rejection-matrix .......... Passed (2.33 sec)
+100% tests passed, 0 tests failed out of 14
+
+$ ctest --test-dir /tmp/rcg04c-cpu-build -R '^asd-tests$' --output-on-failure
+1/1 Test #2: asd-tests ........................   Passed    6.54 sec   # legacy
+                                                    # regression suite unaffected
+
+$ python3 tests/coarse_graining/audit_fixture_dependencies.py
+adaptive-CG fixture dependency audit: PASS (39 fixture directories, 62 input paths)
+                                                    # unchanged from RCG-04B:
+                                                    # this slice added no
+                                                    # fixture directories
+```
+
+**Production smoke-parsing evidence (manual, not a permanent fixture
+change — same precedent as RCG-04B §10.6's manual pre-CTest check):** two
+existing tracked fixtures were copied to a scratch directory (with their
+shared `posfile`/`momfile`/`jfile`), given `do_tottraj Y`/`tottraj_step 1`,
+and run against the fresh binary above; the tracked `inpsd.dat` files were
+**not** modified.
+
+`static_all_fine` (uniform, `cg_diagnostics 2` already set, `cg_mask_mode
+STATIC`): `load_moment_trajectory` parsed a 3-step (`0,1,2`), 48-atom
+trajectory from the real `moment.cg105fin.out`; `load_restart_state` parsed
+the real `restart.cg105fin.out`; the two independently-loaded final states
+agreed exactly (max abs diff `0.0`, a genuine cross-file consistency check,
+not a tautology — they come from two different writer call sites for the
+same final `emom`/`mmom`). `parse_energy_field_series` recovered all eight
+named energy terms plus the four field checksums from the real
+`AdaptiveCG: last_energy_j`/`last_field_checksums_t` lines.
+`parse_resolution_state_history` correctly returned only `initial`/`final`
+samples (no `step` samples), confirming that `STATIC` mask mode never
+invokes the per-step selector print path — expected production behavior,
+not a parser gap.
+
+`adaptive_mixed` (`cg_mask_mode ADAPTIVE`, `cg_diagnostics 2` already set):
+`parse_transition_events` recovered all 7 real transition events (5
+accepted `coarsen-request`, 2 rejected `energy-jump-rejected`) with correct
+`step`/`block`/`old_state`/`new_state`/`accepted`/`reason`/`outcome`/
+`energy_jump_j`/`polarization_ratio` for every one, cross-checked by hand
+against the raw stdout lines. `parse_resolution_state_history` recovered
+the full `initial`/`step`/`step`/`final` history with correct per-block
+values at each sample. This end-to-end run is what caught and confirmed
+the fix for §11.3 item 2.
+
+**Worktree check after all runs:** `adaptive-cg-production-e2e` again
+touched the three tracked `examples/AdaptiveCoarseGraining/*/uppasd.adaptive.yaml`
+provenance files as a test-run side effect (same behaviour documented in
+§8/§10.6); restored with `git checkout` after the run. The scratch
+`do_tottraj`-enabled copies used for the manual end-to-end demonstration
+above live entirely under `/tmp`, outside the repository, and were never
+staged. After restoration, `git status --short` showed exactly this
+slice's intended files: `CMakeLists.txt` (new test registration) and the
+two new `tests/coarse_graining/{trajectory_evidence,test_trajectory_evidence}.py`
+files; every pre-existing untracked build/scratch directory noted at
+session start was untouched.
+
+### 11.5 RCG-04C checklist
+
+- [x] Existing trajectory/restart/energy/field/transition output paths were audited. (§11.1)
+- [x] Existing production output is reused wherever it satisfies the contract. (§11.1 items 1-2; no new production diagnostic added)
+- [x] Complete per-step, per-atom spin vectors are parsed without loss of identity. (§11.2, `parse_mag_conf_text`; step/ens/atom keys)
+- [x] Ensemble and moment-magnitude semantics are preserved where applicable. (§11.2; `SpinRecord.moment`, `(ens,atom)` keys)
+- [x] Missing, duplicate, truncated, non-finite, and inconsistent records fail. (§11.2 parser list; §11.4 tests, 8 corruption categories)
+- [x] Maximum, RMS, angular, and displacement metrics are implemented and tested. (§11.2; component/angular error + displacement tests)
+- [x] Named energy and field series retain their physical term identities. (§11.2, §11.3 item 2, §11.4 real-output verification)
+- [x] Restart-state comparison is implemented and tested. (§11.2; `load_restart_state` + §11.4 real cross-check against `moment[final]`)
+- [x] Conical-mode phase/frequency extraction is implemented and tested. (§11.2; synthetic-rotation frequency recovered to 6 places)
+- [x] Signed chirality is implemented with a documented orientation convention. (§11.2; RCG-02-consistent convention documented inline; sign tests)
+- [x] Periodic wall tracking and crossing detection are implemented and tested. (§11.2; unwrap + crossing-event tests)
+- [x] RCG-03 transition histories are parsed with all available diagnostic fields. (§11.2, §11.4; 7/7 real events, all fields)
+- [x] Machine-readable summaries include provenance and observable definitions. (§11.2; `trajectory_summary`/`as_dict()`, JSON-serializable)
+- [x] Parser corruption negative tests fail for the intended reasons. (§11.4; 14/14 `cg13-cpu`, all 52 unit tests passing)
+- [x] At least one ordinary production output is parsed end to end. (§11.4; two real fixtures, moment+restart+energy+transition+resolution)
+- [x] No final physics tolerance is accepted in this infrastructure slice. (comparison routines return error statistics/dicts only; no `assert`/threshold anywhere in `trajectory_evidence.py`)
+- [x] Unrelated worktree changes remain untouched and unstaged. (§11.4 worktree check)
+
+All seventeen RCG-04C checklist items are complete and evidenced (the
+prompt's list has one more entry than RCG-04A/B's twelve/fourteen because
+RCG-04C's prompt itself enumerates more required behaviors).
+
+---
+
+## Open items (carried forward, not blocking RCG-04A/B/C)
+
+- **GPU per-step adaptive diagnostics gap** (§11.1 item 4, new in this
+  slice): the GPU path has no per-step resolution-state or per-event
+  transition log, and hardcodes `rejected_transitions=0`. `parse_transition_events`/
+  `parse_resolution_state_history` will therefore return an empty/minimal
+  result against any GPU stdout today. This does not block RCG-04C (a
+  parsing-infrastructure slice) but is relevant to RCG-04G (adaptive
+  boundary crossing) and RCG-04I (backend parity): either GPU-side evidence
+  for those slices is limited to initial/final snapshots, or a reviewed
+  GPU diagnostic addition is needed first.
+- **Named per-step energy/field series do not exist in production yet**
+  (§11.1 item 5): `parse_energy_field_series` is implemented and tested to
+  handle multiple emissions, but today's production output gives it only
+  one (final-step) sample per run on either backend. A later slice that
+  needs true per-step energy comparison (as opposed to final-state
+  comparison) will need a reviewed production diagnostic change first;
+  this slice does not propose one.
 
 - ~~AdaptiveCG's `Initmag=4` rejection blocks RCG-04G~~ — **fixed** in this
   slice (§10.4): `validate_configuration` now accepts `Initmag=4`, and
@@ -862,14 +1189,17 @@ evidence document. `docs/ADAPTIVE_COARSE_GRAINING_REMEDIATION_BLUEPRINT.md`
   confirm the GPU dispatch path also accepts and honours a restart-loaded
   state before relying on it there.
 - Whether `initmag_spin_spiral` truly has zero initial torque (§3.5) is
-  argued from Hamiltonian symmetry, not from a freshly run diagnostic
-  (RCG-04A/B do not implement one). RCG-04B's own analytic derivation
-  (§10.2) independently confirms the mechanism (planar, `theta=90`, cone
-  angle under isotropic centrosymmetric exchange is exactly the rejected
-  degenerate case) but this remains a source-level argument, not a
-  production measurement; RCG-04C should verify it independently before
-  deciding whether that fixture is reusable, needs a nonzero cant, or
-  should be retired in favour of `conical_spiral_state`.
+  still argued from Hamiltonian symmetry, not from a freshly run
+  diagnostic. RCG-04C's `spin_displacement` (§11.2) is exactly the tool
+  needed to check this directly (run the fixture with `do_tottraj Y` and
+  confirm `max_over_time_displacement_overall` stays at numerical noise),
+  but this slice built the tool without pointing it at that specific
+  fixture — RCG-04C is parsing/metric infrastructure, not a fixture-level
+  physics check, and doing so would have gone beyond its "no moving-physics
+  claim yet" boundary. A later slice (RCG-04D, when it constructs the
+  first real moving fixture) should run this check before deciding whether
+  `initmag_spin_spiral` is reusable, needs a nonzero cant, or should be
+  retired in favour of `conical_spiral_state`.
 - No fixture yet consumes any RCG-04B generator's output through the
   UppASD executable (CPU or GPU); the "CPU and GPU fixture paths can
   consume identical generated bytes" and "tracked-fixture/package audit
