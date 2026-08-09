@@ -54,6 +54,18 @@ EXAMPLE_CASES = ("static_mixed", "adaptive", "initial_phase_texture")
 MOVING_FEATURE_OFF_CASE = "moving_feature_off"
 MOVING_ALL_FINE_CASE = "moving_all_fine"
 
+# RCG-04E E2E-MOVING-ALL-COARSE: wide-geometry (ncell 24 2 2) re-run of the
+# RCG-04D feature-off/all-fine parity pair, used to (re-)establish the
+# atomistic oracle at this slice's geometry, plus four all-coarse block-size
+# resolutions compared against it. See run_moving_all_coarse.py and each
+# fixture's README.md.
+MOVING_FEATURE_OFF_WIDE_CASE = "moving_feature_off_wide"
+MOVING_ALL_FINE_WIDE_CASE = "moving_all_fine_wide"
+MOVING_ALL_COARSE_CASES = (
+    "moving_all_coarse_bs1", "moving_all_coarse_bs2",
+    "moving_all_coarse_bs4", "moving_all_coarse_bs8",
+)
+
 
 def all_e2e_cases() -> tuple[str, ...]:
     """Return every e2e directory referenced by either executable harness."""
@@ -66,5 +78,6 @@ def all_e2e_cases() -> tuple[str, ...]:
         SPIN_SPIRAL_CASE, RESTART_INITMAG_CASE, *GPU_EXECUTABLE_CASES, *GPU_INITIAL_PHASE_CASES,
         *GPU_PARITY_CASES.values(), GPU_DMI_CASE, GPU_FFT_CASE,
         MOVING_FEATURE_OFF_CASE, MOVING_ALL_FINE_CASE,
+        MOVING_FEATURE_OFF_WIDE_CASE, MOVING_ALL_FINE_WIDE_CASE, *MOVING_ALL_COARSE_CASES,
     }
     return tuple(sorted(names))

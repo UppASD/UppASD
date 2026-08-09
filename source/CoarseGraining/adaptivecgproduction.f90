@@ -226,7 +226,16 @@ contains
          end if
       end if
 
-      channel_gamma(1) = Landeg(1)
+      ! RCG-04E: channel_gamma must carry physical SI units (s^-1 T^-1, see
+      ! stiffness.f90's channel_gamma_unit), not the bare dimensionless
+      ! Landeg g-factor -- the same defect class RCG-04D fixed in the
+      ! atomistic branch of adaptive_cg_cpu_step (llg_rhs calls below use
+      ! gama*Landeg(atom), not Landeg(atom) alone). Without this factor the
+      ! coarse-block LLG precession rate is too slow by ~1/gama (~5.7e-12),
+      ! confirmed by comparing moving_all_fine_wide's and
+      ! moving_all_coarse_bs*'s fitted precession frequencies (see
+      ! docs/RCG-04_MOVING_E2E_EVIDENCE.md, RCG-04E section).
+      channel_gamma(1) = gama*Landeg(1)
       channel_damping(1) = lambda1_array(1)
       allocate(production_ncoup(1,size(ham%ncoup,1),size(ham%ncoup,2),1))
       production_ncoup(1,:,:,1)=ham%ncoup(:,:,1)

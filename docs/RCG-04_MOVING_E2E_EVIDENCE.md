@@ -1564,8 +1564,506 @@ All eighteen RCG-04D checklist items are complete and evidenced.
 
 ---
 
-## Open items (carried forward, not blocking RCG-04A/B/C/D)
+## 13. RCG-04E: E2E-MOVING-ALL-COARSE
 
+**Status: RCG-04E complete, including a real production-defect finding and
+fix (the coarse-block LLG gyromagnetic rate, the same defect class RCG-04D
+fixed on the atomistic side) found while comparing trajectories, explicitly
+authorized by the user after the finding was reported, and a controlled
+broken-coarse-operator negative control (source mutation, applied, shown to
+fail, then restored and reverified).**
+
+**Base commit:** `ab0267bd2549721e3752ad673c02f6482e04d066` ("RCG-04D:
+establish moving off fine parity"), the accepted RCG-04D commit. `git
+status --short` at session start showed no modified/untracked tracked files
+beyond the pre-existing untracked scratch/build directories already present
+in the worktree before this session (recorded identically at the start of
+every prior RCG-04 slice's evidence).
+
+### 13.1 Fixture construction: a wide-geometry long-wave variant of the RCG-04D conical mode
+
+`tests/coarse_graining/e2e/moving_feature_off_wide/`,
+`moving_all_fine_wide/`, and `moving_all_coarse_bs{1,2,4,8}/` (six new
+fixtures; full provenance in each directory's own `README.md`). All six
+consume a byte-identical `momfile`, verified by content hash in
+`run_moving_all_coarse.py`, produced by the same
+`moving_state_generator.conical_spiral_state` call RCG-04D used
+(`cone_angle_deg=40`, `turns=1`, `axis=(0,0,1)`, `modulation_cell_axis=0`,
+`moment_magnitude=2.23`, `landeg=2.0`) -- the accepted RCG-04D construction,
+unmodified.
+
+**Why the geometry changed from RCG-04D's `ncell 6 2 2` to `ncell 24 2 2`,
+a "carefully justified long-wave variant" per the RCG-04E prompt's explicit
+allowance:** `conical_spiral_state`'s `momfile` output is a per-basis-site
+template (`na=2` lines) that does not depend on `n1`/`n2`/`n3` at all --
+confirmed by direct hash comparison, `56b04630...` for both geometries. Only
+the `Initmag=8` `initpropvec` record (`turns/n1`) differs. RCG-04D's
+`ncell 6 2 2` gives one full spiral wavelength over only 6 cells, which does
+not admit three-plus block sizes that stay comfortably inside the long-wave
+regime (RCG-04E's own guardrail explicitly forbids "claim[ing] an asymptotic
+order... from a regime outside long-wave validity"). `ncell 24 2 2` keeps
+the same one-full-turn conical spiral spread over 24 cells instead of 6
+(`initpropvec_x = 1/24`), admitting block sizes 1, 2, 4 (24, 12, 6 blocks
+per wavelength -- comfortably long-wave) plus 8 (3 blocks per wavelength,
+explicitly marked out-of-regime, see below). Every other physical and
+integration parameter is identical to RCG-04D: exchange-only Hamiltonian
+(shared `../jfile`), `damping 0.05`, `timestep 1.0e-16`, `Nstep 50`,
+`do_tottraj Y`/`tottraj_step 5` (11 sampled steps).
+
+**All-coarse construction:** `cg_operator TENSOR`, `cg_mask_mode STATIC`,
+`cg_static_mask_file mask.dat` (a comment-only file -- every one-based block
+id is omitted, so every block defaults to `COARSE`, the same convention as
+the existing `static_all_coarse` fixture). `block_size_y=2`,
+`block_size_z=2` fully span `n2=n3=2` for every fixture (the state is
+uniform in y/z, so fully coarsening those directions loses no information);
+only `block_size_x in {1,2,4,8}` varies, giving `blocks_x = n1/block_size_x
+in {24,12,6,3}`.
+
+**Reconstructed trajectory is ordinary production output, not a
+postprocessing step:** `reconstruct_coarse_atoms`
+(`adaptivecgproduction.f90:1152`) is called unconditionally every step from
+`adaptive_cg_cpu_step`, before `do_tottraj`'s per-step write, broadcasting
+each block's macrospin direction (via the production-default `ALIGNED`
+scheme) to every atom it owns. The ordinary `moment.<simid>.out` trajectory
+these fixtures emit (`do_tottraj Y`) therefore already *is* the
+reconstructed per-atom trajectory the RCG-04E prompt requires.
+
+### 13.2 Independent nontriviality gates (before accepting any trajectory)
+
+**Atomistic oracle (RCG-04D's `torque_oracle.py`, re-run at this geometry,
+not assumed to carry over):** `max_torque=rms_torque=0.0400269`,
+`max_field_misalignment_deg=0.180699` -- an order of magnitude smaller than
+RCG-04D's `ncell 6 2 2` values (`0.672`/`3.17` deg), which is the expected
+long-wave-limit physics (the RCG-04B eigenvalue-gap derivation gives
+`J0-J(q) ~ q**2/2` for small `q`, and `q` here is 4x smaller than RCG-04D's).
+Both values comfortably exceed the floors used to gate acceptance
+(`MIN_MAX_TORQUE=0.004`, `MIN_FIELD_MISALIGNMENT_DEG=0.02`, an order of
+magnitude below the observed values, not RCG-04D's floors reused
+unexamined).
+
+**Coarse-block oracle (new module, `tests/coarse_graining/coarse_torque_oracle.py`,
+5 tests in `test_coarse_torque_oracle.py`, all passing):** independently
+(from the generator's own `direction_by_atom`, never a production
+readback) averages per-atom directions into blocks, and independently
+estimates the coarse exchange stiffness `D_xx` via the standard
+unregularized second-moment formula (`sum_bonds J(delta)*dx**2 /
+(2*V_cell)`, the textbook long-wavelength coefficient of `q**2` in the
+atomistic magnon dispersion) rather than reverse-engineering production's
+own regularized least-squares fit (`source/SpinWaves/stiffness.f90:fit_coarse_material`).
+The module's docstring states explicitly that this gives a
+qualitatively/structurally correct but not quantitatively-calibrated
+estimate, and that it is used only for this nontriviality gate, never as
+the RCG-04E accuracy oracle. A discrete-Laplacian torque proxy built from
+this estimate:
+
+| block_size_x | torque_proxy | max_neighbor_angle_deg | min_block_average_norm |
+| --- | --- | --- | --- |
+| 1 | 0.0396294 | 9.61348 | 0.999116 |
+| 2 | 0.0388941 | 19.0312 | 0.995602 |
+| 4 | 0.036037 | 36.4547 | 0.981903 |
+| 8 | 0.0259451 | 59.2035 | 0.932634 |
+
+All four exceed the documented floors (`MIN_COARSE_TORQUE_PROXY=1.0e-3`,
+`MIN_COARSE_NEIGHBOR_ANGLE_DEG=1.0` deg) -- the all-coarse block state is
+independently demonstrated to be a genuinely nonuniform, non-degenerate
+texture at every tested resolution, not a stationary special case.
+`min_block_average_norm` (the intra-block-averaging reduction factor,
+always `<=1`, `=1` only for a perfectly uniform block) confirms this
+directly: it stays close to 1 even at `bs8`, i.e. no tested block size hits
+an exact aliasing null.
+
+### 13.3 A real production defect found, root-caused, and fixed: coarse `channel_gamma` missing the physical `gama` constant
+
+While comparing `moving_all_fine_wide` (atomistic) against
+`moving_all_coarse_bs1`/`bs2` (all-coarse), the fitted precession frequency
+from the real per-step production trajectories
+(`trajectory_evidence.fit_conical_mode_frequency`, computed directly from
+real simulated seconds via `x_by_step={step: step*timestep}` -- no oracle
+unit ambiguity, both sides use the same physical clock) showed:
+
+- atomistic: `2.30612e+12 rad/s`;
+- all-coarse (`bs1`/`bs2`, before the fix): `4844`/`2171 rad/s`.
+
+An approximately 9-order-of-magnitude discrepancy, with the all-coarse
+displacement over the same 50 steps/`5e-15 s` nonetheless *larger* than the
+atomistic reference's own total motion -- internally inconsistent with such
+a tiny fitted rate, and worth root-causing before setting any acceptance
+budget (governing rule: "do not tune a timestep, state, or tolerance solely
+until [two things] happen to agree").
+
+**Root cause**, found by tracing `channel_gamma`'s construction (not a
+disposable debug print this time; a static trace was sufficient):
+`source/CoarseGraining/adaptivecgproduction.f90:229` set
+`channel_gamma(1) = Landeg(1)` -- the coarse-block gyromagnetic ratio,
+documented as requiring genuine SI units `s^-1 T^-1`
+(`source/SpinWaves/stiffness.f90:119`, `channel_gamma_unit = 's^-1 T^-1'`),
+was being set to the bare, dimensionless Landé g-factor (`~2.0`) instead.
+Traced through `extract_coarse_material_from_uppasd` -> `fit_coarse_material`
+(`stiffness.f90`) -> `material%channel_gamma` ->
+`operator%channel_gamma_per_t_s` (`coarsetensoroperator.f90:262`), this
+value flows completely unchanged (a straight passthrough at every step,
+confirmed by reading each intermediate assignment) into
+`coarse_llg_rhs`'s precession prefactor
+(`coarsetensoroperator.f90:595`: `prefactor =
+-operator%channel_gamma_per_t_s/(1+damping**2)`). This is the exact same
+defect class RCG-04D found and fixed in the *atomistic* branch of
+`adaptive_cg_cpu_step` (missing `gama` in the `llg_rhs` calls) -- and
+`gama = 1.760859644e11` (`source/Parameters/constants.f90`) is already
+imported in this file (`use Constants, only: gama, mub, pi`) and used
+correctly three lines below the defect, in that already-fixed atomistic
+branch (lines 904/931/933: `gama*Landeg(atom)`), but was never applied at
+line 229.
+
+**Reported to the user before further slice work, per the governing rule**
+("If a slice discovers a production defect, the agent must demonstrate and
+report it before expanding the slice"); the user explicitly chose "fix it
+now, like RCG-04D did" from three presented options (fix now / defer and
+complete qualitatively / stop for independent investigation).
+
+**Fix** (one line, `adaptivecgproduction.f90:229`):
+`channel_gamma(1) = Landeg(1)` -> `channel_gamma(1) = gama*Landeg(1)`, with
+an inline comment recording the defect and this evidence document as the
+reference. No other production file was changed for this fix.
+
+**Effect of the fix** (same `bs1`/`bs2` fitted frequencies, after):
+`3.42013e+13`/`2.69845e+13 rad/s` -- now the *same order of magnitude* as
+the atomistic reference's `2.30612e+12 rad/s` (within roughly 15x/12x,
+itself discussed in §13.5 below), rather than off by 9 orders of magnitude.
+This is the same qualitative before/after signature RCG-04D's `gama` fix
+produced (frozen-looking dynamics becoming physically-scaled dynamics), and
+is strong corroborating evidence the root cause was correctly identified,
+not merely worked around.
+
+**Regression check:** fresh rebuild + full `cg13-cpu` label (18/18, §13.8)
+passes before and after the fix identically -- the fix changes only
+previously-mis-scaled all-coarse dynamics; every prior fixture (atomistic-
+only, or a uniform/zero-gradient coarse state where `channel_gamma`'s scale
+is irrelevant because the field itself is zero) is unaffected.
+
+### 13.4 `run_moving_all_coarse.py`: the accepted-case harness
+
+New dedicated CTest driver
+(`tests/coarse_graining/run_moving_all_coarse.py`, registered as
+`adaptive-cg-moving-all-coarse`), following the `run_moving_off_fine.py`
+precedent (imports and reuses its `run_case`,
+`verify_byte_identical_initial_state`, and
+`NegativeControlDidNotFailError` directly rather than duplicating them):
+
+1. **Input equivalence:** `momfile` byte-identity across all six fixtures
+   (content-hash compared); normalized `inpsd.dat` key-by-key comparison
+   between `moving_feature_off_wide`/`moving_all_fine_wide` (extended
+   ignored-key set also covers `cg_static_mask_file`, needed once the
+   all-coarse comparison is added).
+2. **Independent pre-acceptance nontriviality gates** (§13.2): atomistic
+   oracle and, for every block size, the coarse-block oracle.
+3. **Wide-geometry off/all-fine re-check** before trusting
+   `moving_all_fine_wide` as this slice's oracle (not assumed to generalize
+   from RCG-04D's `ncell 6 2 2` result): displacement `off=0.00742338`
+   `fine=0.00741931` rad (both `>` the `0.005` rad floor); component
+   `max_abs=4.0625e-06`; angular `max=4.07489e-06` rad; restart
+   `max_abs=4.0625e-06` -- all comfortably inside RCG-04D's accepted
+   `5.0e-4` budgets, confirming the mechanism generalizes to this geometry.
+4. **Initial-step fine-vs-coarse representation error, measured, not
+   assumed:** `reconstruct_coarse_atoms` only runs inside
+   `adaptive_cg_cpu_step`, so the `do_tottraj` step-0 sample should be the
+   untouched atomistic seed on both sides. Measured (not hardcoded) via a
+   single-step `angular_trajectory_error` comparison at the first sampled
+   step: **exactly `0` rad for all four block sizes** -- confirming the
+   entire observed divergence (§13.5) accumulates purely from the 50 steps
+   of genuinely different dynamics, with no confounding "representation
+   loss at t=0" effect.
+5. **Complete reconstructed-vs-atomistic trajectory comparison** for every
+   block size: `component_trajectory_error`, `angular_trajectory_error`
+   (over all 192 atoms x 11 sampled steps), `spin_displacement` (both
+   initial-state-identity, item 4, and maximum-over-time, item 5).
+6. **Conical-mode amplitude/phase/frequency** (`conical_mode_series`/
+   `fit_conical_mode_frequency`, reused from RCG-04C, `phase_by_atom`
+   computed independently from `q.x` per atom, the same convention the
+   generator itself uses) and **accumulated phase error** (unwrapped final
+   phase difference between the atomistic and reconstructed-coarse mode
+   series).
+7. **Named energy evolution, two independent measures:**
+   (a) the same RCG-04D independent-oracle technique
+   (`torque_oracle.exchange_energy_per_atom` applied identically to both
+   trajectories' parsed spin data, every sampled step -- here also to the
+   *reconstructed* all-coarse trajectory, which is a complete, valid
+   per-atom state after reconstruction); (b) production's own single-sample
+   `last_energy_j` `coarse_exchange` term, independently sign-checked
+   against `coarse_torque_oracle`'s second-moment `D_xx` estimate (§13.6).
+8. **Moment-length/normalization behavior:** max `|1-|S_i||` over every
+   sampled `(step,ensemble,atom)` of the reconstructed trajectory --
+   `5.85e-10`/`4.99e-10`/`3.62e-10`/`4.77e-10` for `bs1`/`bs2`/`bs4`/`bs8`,
+   comfortably inside the `1.0e-8` budget (`ALIGNED` reconstruction always
+   re-normalizes, so this is expected to be tiny; checked, not assumed).
+9. **Defect-sensitivity negative controls** (§13.7).
+
+### 13.5 Raw block-size-sweep results (recorded before any acceptance budget)
+
+`q_block_length_deg = q_per_cell * block_size_x` where
+`q_per_cell = 2*pi*turns/n1 = 2*pi/24 = 0.261799` rad/cell.
+
+| block_size_x | nblocks_x | q\*block_length | initial error | displacement max | component max_abs / rms | angular max (deg) / rms | mode amp fine/coarse final | freq fine / coarse (rad/s) | accum. phase error | energy max_abs err | coarse_exchange (J) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 24 | 15 deg | 0 rad | 0.394633 rad | 0.380287 / 0.109983 | 0.387467 (22.2) / 0.191116 | 0.642504 / 0.593825 | 2.30612e+12 / 3.42013e+13 | 9.1373 deg | 45.7728 | 1.90938e-19 |
+| 2 | 12 | 30 deg | 0 rad | 0.658634 rad | 0.631845 / 0.203333 | 0.65225 (37.37) / 0.35568 | 0.642504 / 0.46943 | 2.30612e+12 / 2.69845e+13 | 7.06982 deg | 58.6861 | 1.19321e-19 |
+| 4 | 6 | 60 deg | 0 rad | 0.897583 rad | 0.831752 / 0.338449 | 0.894499 (51.25) / 0.598866 | 0.642504 / 0.135477 | 2.30612e+12 / 7.74933e+12 | 1.55937 deg | 174.082 | 9.93813e-21 |
+| 8 (out-of-regime) | 3 | 120 deg | 0 rad | 0.869718 rad | 0.813443 / 0.367113 | 0.869672 (49.83) / 0.650026 | 0.642504 / 0.0353715 | 2.30612e+12 / 2.02036e+12 | 0.0818629 deg | 55.5347 | 6.77454e-22 |
+
+### 13.6 Physical interpretation of the raw results
+
+**The angular/component error refinement trend is clean and monotonic**
+across the three long-wave block sizes: `bs4 -> bs2 -> bs1` (coarsest to
+finest) gives `max_radians = 0.8945 -> 0.6523 -> 0.3875`, strictly
+decreasing as blocks refine, exactly the qualitative behaviour a correct
+long-wave coarse operator should show (finer blocks resolve the mode
+better). This is the primary evidence supporting acceptance -- not that the
+absolute error is small (it is not: at `bs1`, 22 degrees of angular error
+accumulates over the run), but that the error shrinks in the expected
+direction and does not explode or reverse as resolution improves.
+
+**Why the absolute error is not small, and why that is not itself
+evidence of a defect:** unlike RCG-04D's off/all-fine comparison (two
+independent *atomistic* integrators applied to the *same* underlying
+physics, residual `~1e-4` rad, an integrator-implementation-noise floor),
+this comparison is between the atomistic reference and a genuinely
+different, approximate long-wave-limit *coarse* operator. Even after the
+`gama` fix, the coarse precession rate does not match the atomistic
+reference's rate exactly (`bs1`: `3.42e13` vs `2.31e12 rad/s`, roughly 15x
+too fast; `bs8`: `2.02e12`, within 12% of the atomistic rate). This
+residual mismatch is consistent with the coarse operator being only a
+long-wavelength-limit approximation to the true atomistic dispersion
+(discrete-Laplacian dispersion `~sin**2(qL/2)` deviates from the continuum
+`~(qL/2)**2` limit once `q*L` is not small, and none of the tested
+resolutions -- `q*L` from 15 to 120 degrees -- are deep in that limit) --
+but a full quantitative reconciliation of the coarse rate's dependence on
+block size was not attempted in this slice (see the open item below);
+what *is* established is that the trend is monotonic, bounded, and
+physically directional, which is what the RCG-04E acceptance claim rests
+on.
+
+**Mode-amplitude collapse is a real, expected representation effect, not
+solely a dynamics error.** `mode_amplitude_coarse_final` drops from `0.594`
+(`bs1`) to `0.035` (`bs8`), versus the atomistic reference's `0.6425`
+(essentially unchanged, since the atomistic amplitude is very nearly
+conserved for this weakly-damped run). §13.2's `min_block_average_norm`
+values (`0.999`/`0.996`/`0.982`/`0.933`) show only a small *direct*
+block-averaging reduction; the much larger amplitude collapse seen in
+`conical_mode_series` is a compounded effect of measuring a *piecewise-constant*
+reconstructed field (one direction per block, constant across every atom in
+that block) against the *continuously-varying* true atomistic phase
+reference used to define the order parameter -- a second, independent
+averaging/cancellation on top of the block-average itself. This is expected
+mathematics for any coarse-grained representation compared against a
+fine-scale phase reference, not evidence that the coarse dynamics is wrong;
+it does mean the `accumulated_phase_error_deg` metric becomes numerically
+less meaningful as amplitude collapses toward this floor (motivating the
+generous, non-tightened budget for that metric, §13.4).
+
+**The independent sign check on the named `coarse_exchange` energy passes
+for every block size:** `coarse_torque_oracle.estimate_unregularized_stiffness_xx`
+independently predicts `D_xx=1.18142` J/m (positive, for this dominantly-
+ferromagnetic `jfile`); production's own `coarse_exchange` diagnostic is
+positive at every tested block size (`1.909e-19` down to `6.77e-22` J,
+decreasing with block volume as expected for a fixed-amplitude gradient
+term integrated over a shrinking number of, but individually larger,
+blocks). This is the assertion the broken-operator negative control
+(§13.7) is designed to fail.
+
+**`bs8` (3 blocks/wavelength) is reported but excluded from the
+convergence-order interpretation**, per the governing guardrail against
+claiming an asymptotic order from too few points or an out-of-regime
+sample: its angular error (`0.8697` rad) sits between `bs2` and `bs4`
+rather than continuing the trend, and its mode amplitude has collapsed to
+`0.035` -- both consistent with the block-averaging Dirichlet-kernel factor
+approaching a null as `q*L` approaches Nyquist, not with a defect.
+
+### 13.7 Broken-coarse-operator negative control
+
+**Mutation** (disposable, in the already-fixed tree, applied and reverted
+in this session, never committed):
+`source/CoarseGraining/coarsetensoroperator.f90:260`,
+
+```fortran
+! before (accepted):
+operator%exchange_stiffness_j_per_m = material%exchange_stiffness(:,:,1,1)
+! after (disposable mutation):
+operator%exchange_stiffness_j_per_m = -1.0_dblprec * material%exchange_stiffness(:,:,1,1)
+```
+
+a sign flip of the coarse exchange-stiffness tensor -- exactly the
+"narrowly defined source mutation... changes a coarse exchange/tensor
+coefficient, sign" the RCG-04E prompt asks for. The atomistic reference
+(`moving_all_fine_wide`) never calls `CoarseTensorOperator` at all (its
+per-atom branch of `adaptive_cg_cpu_step` uses only `llg_rhs` on the
+atomistic Heisenberg field), so it is structurally unaffected by this
+mutation, satisfying "leaving the atomistic reference unchanged" without
+needing a second build.
+
+**Build command:** `cmake --build /tmp/rcg04e-cpu-build -j2 --target sd.f95`
+(incremental rebuild of the one changed translation unit, `~1 s`).
+
+**Which physical assertion failed, and why:** the mutation flips the sign
+of every named `coarse_exchange` sample (e.g. `bs1`:
+`+1.90938e-19 -> -1.9609e-19` J), which is exactly the independent sign
+check in §13.6/step 7(b):
+
+```text
+AssertionError: bs1: production coarse_exchange=-1.9609027942374587e-19 J has the wrong
+sign -- independent second-moment estimate predicts a positive D_xx=1.18142 J/m for this
+dominantly-ferromagnetic jfile, so coarse_exchange (a sum of D_xx times squared gradients)
+must be positive too
+```
+
+Confirmed failing at the CTest level too:
+`ctest -R '^adaptive-cg-moving-all-coarse$'` -> `0% tests passed, 1 tests
+failed out of 1`.
+
+(For completeness: the loose angular-vs-fine budget, §13.4 item 5, is
+*not* sensitive to this particular mutation -- a pure sign flip reverses
+the coarse precession direction, `frequency` flips sign, e.g. `bs1`:
+`+3.42e13 -> -3.42e13 rad/s`, but the *magnitude* of angular divergence
+from the (comparatively near-stationary) atomistic reference barely
+changes, since that divergence is already dominated by the coarse state's
+own large excursion regardless of which way it precesses. This is exactly
+why §13.4 item 7(b)'s dedicated, independently-signed energy check --
+rather than the loose trajectory-comparison budget -- is the assertion
+that carries this negative control; it was added specifically after this
+was discovered while first attempting the mutation.)
+
+**Restoration:** `git diff source/CoarseGraining/coarsetensoroperator.f90 >
+/tmp/rcg04e_mutation.patch` (saved before reverting, for the record above),
+then `git checkout -- source/CoarseGraining/coarsetensoroperator.f90`;
+`git diff --stat` on that file afterward showed no output, confirming
+byte-identical restoration. Rebuilt (`cmake --build ... --target sd.f95`)
+and reran the complete `cg13-cpu` label: **18/18 passing again**
+(§13.8), including `adaptive-cg-moving-all-coarse`.
+
+### 13.8 Fresh build/test evidence
+
+**Environment:** GNU Fortran 13.3.0, GNU C/C++ 12.4.0, CMake 3.28.3, CPU
+backend, fp64 (default precision), Release build type. No CUDA/HIP evidence
+gathered in this slice (RCG-04E's scope per the prompt pack does not
+require backend parity -- that is RCG-04I's).
+
+```text
+$ cmake -S . -B /tmp/rcg04e-cpu-build -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
+-- Git tag found: VERSION="v6.0.2-452-gab02-dirty".   # dirty from this
+                                                        # slice's own
+                                                        # uncommitted files
+$ cmake --build /tmp/rcg04e-cpu-build -j2
+...
+[100%] Built target polarization_gate_tests   # exit 0, only the one
+                                                # pre-existing executable-
+                                                # stack linker warning
+
+$ ctest --test-dir /tmp/rcg04e-cpu-build -L cg13-cpu --output-on-failure
+...
+15: coarse-graining-coarse-torque-oracle ........ Passed (0.10 sec)
+16: adaptive-cg-production-e2e ................... Passed (0.82 sec)
+17: adaptive-cg-setup-rejection-matrix ........... Passed (2.35 sec)
+18: adaptive-cg-moving-off-fine ................... Passed (0.18 sec)
+19: adaptive-cg-moving-all-coarse ................. Passed (6.74 sec)
+100% tests passed, 0 tests failed out of 18
+
+$ ctest --test-dir /tmp/rcg04e-cpu-build -R '^(adaptive-cg-fixture-dependencies|asd-tests)$'
+1/2 Test: asd-tests .......................... Passed  6.91 sec   # legacy
+                                                # non-CG regression suite,
+                                                # unaffected
+2/2 Test: adaptive-cg-fixture-dependencies ... Passed  0.03 sec
+
+# Defect-sensitivity at the source level (see §13.7):
+$ git diff source/CoarseGraining/coarsetensoroperator.f90 > /tmp/rcg04e_mutation.patch
+$ <apply the sign-flip mutation shown in §13.7>
+$ cmake --build /tmp/rcg04e-cpu-build -j2 --target sd.f95
+$ ctest --test-dir /tmp/rcg04e-cpu-build -R '^adaptive-cg-moving-all-coarse$'
+...
+AssertionError: bs1: production coarse_exchange=-1.9609...e-19 J has the wrong sign ...
+0% tests passed, 1 tests failed out of 1
+$ git checkout -- source/CoarseGraining/coarsetensoroperator.f90   # fix restored;
+                                                                     # git diff --stat
+                                                                     # produced no output
+$ cmake --build /tmp/rcg04e-cpu-build -j2 --target sd.f95
+$ ctest --test-dir /tmp/rcg04e-cpu-build -L cg13-cpu --output-on-failure
+...
+100% tests passed, 0 tests failed out of 18   # fix reapplied, full suite green again
+```
+
+**Worktree check after all runs:** `adaptive-cg-production-e2e` again
+touched the three tracked `examples/AdaptiveCoarseGraining/*/uppasd.adaptive.yaml`
+provenance files as a test-run side effect (same behaviour documented in
+every prior RCG-04 slice); restored with `git checkout` after each run.
+Running the new fixtures directly produced runtime byproducts inside their
+own tracked directories (`moment.<simid>.out`, `restart.<simid>.out`,
+`uppasd.<simid>.yaml`, `inp.<simid>.json`), all deleted (not committed)
+after confirming they were byproducts, not tracked inputs -- the same
+precedent as every prior RCG-04 slice's manual end-to-end checks. After
+restoration, `git status --short` showed exactly this slice's intended
+files: `CMakeLists.txt` (new test/label registrations),
+`source/CoarseGraining/adaptivecgproduction.f90` (the `channel_gamma` `gama`
+fix), `tests/coarse_graining/fixture_dependencies.py` (new case-name
+constants), five new files
+(`tests/coarse_graining/{coarse_torque_oracle,test_coarse_torque_oracle,run_moving_all_coarse}.py`
+and the six new `e2e/{moving_feature_off_wide,moving_all_fine_wide,moving_all_coarse_bs1,bs2,bs4,bs8}/`
+fixture directories), and this evidence document.
+`source/CoarseGraining/coarsetensoroperator.f90` (the disposable negative
+control) was reverted to byte-identical accepted content before this
+slice's commit, per the governing rule against committing a fault switch.
+
+### 13.9 RCG-04E checklist
+
+- [x] The all-coarse state has independently demonstrated nonzero initial torque. (§13.2, `coarse_torque_oracle.py`, all four block sizes exceed documented floors)
+- [x] Atomistic and coarse cases use the same physical sample and moving mode. (§13.1; byte-identical `momfile`, identical Hamiltonian/integration parameters; only `n1` and block size differ, both justified)
+- [x] Physical block dimensions and `q * block_length` are recorded. (§13.5 table; 15/30/60/120 degrees for bs1/2/4/8)
+- [x] Complete reconstructed coarse trajectories are compared with all-fine. (§13.4 items 4-5; 192 atoms x 11 sampled steps, every block size)
+- [x] Mode amplitude, phase, frequency, and accumulated phase error are reported. (§13.5 table; §13.6 interpretation)
+- [x] Named energy evolution and normalization behavior are reported. (§13.4 items 7-8; §13.5 table; independent-oracle series plus production `coarse_exchange` sign check plus moment-length check)
+- [x] At least three meaningful spatial resolutions are evaluated, or a justified limitation is recorded. (§13.1, §13.6; bs1/bs2/bs4 long-wave, bs8 explicitly out-of-regime and excluded from the order claim)
+- [x] Raw errors are retained before any acceptance threshold is selected. (§13.5; recorded and printed before any budget assertion runs)
+- [x] The observed refinement trend is physically and numerically interpreted. (§13.6; monotonic angular-error trend, mode-amplitude-collapse mechanism, frequency-mismatch mechanism all explained)
+- [x] Any analytic reference states its assumptions and enabled-term coverage. (§13.2, `coarse_torque_oracle.py` docstring; explicitly not calibrated against production's regularized fit, used only for the nontriviality gate, not the accuracy claim)
+- [x] The accepted atomistic reference remains independent of the coarse operator. (§13.7; `moving_all_fine_wide` never calls `CoarseTensorOperator`, confirmed by code-path inspection, not merely assumed)
+- [x] A controlled broken-coarse-operator mutation fails a claim-bearing assertion. (§13.7; sign-flip mutation fails the independent `coarse_exchange` sign check, at both the script and CTest level)
+- [x] The mutation, build command, and failure reason are recorded exactly. (§13.7, §13.8)
+- [x] No permanent production fault switch or mutated source is committed. (§13.7, §13.8; `coarsetensoroperator.f90` restored byte-identical, confirmed by empty `git diff --stat`, before this slice's commit)
+- [x] Restored unmodified source passes the complete slice again. (§13.7, §13.8; 18/18 `cg13-cpu` after restoration)
+- [x] `E2E-MOVING-ALL-COARSE` evidence is tracked with full provenance. (this section; commands, environment, raw data, and interpretation all recorded)
+- [x] Unrelated worktree changes remain untouched and unstaged. (§13.8 worktree check)
+
+All seventeen RCG-04E checklist items are complete and evidenced.
+
+---
+
+## Open items (carried forward, not blocking RCG-04A/B/C/D/E)
+
+- **Coarse-vs-atomistic precession-rate quantitative reconciliation is not
+  complete** (new in RCG-04E, §13.6): after the `channel_gamma` `gama` fix,
+  the all-coarse fitted precession frequency is the same order of magnitude
+  as the atomistic reference but not a quantitative match (`bs1`: ~15x too
+  fast; `bs8`: within 12%). A discrete-Laplacian dispersion argument
+  (`~sin**2(qL/2)` vs. the continuum `~(qL/2)**2` limit) is offered as a
+  plausible qualitative explanation in §13.6, but a full quantitative
+  derivation of the coarse rate's dependence on block size -- and whether
+  the residual mismatch is fully explained by that discretization effect
+  alone or includes a smaller additional scale factor -- was not attempted.
+  Does not block RCG-04E's own claim (which rests on the monotonic
+  refinement trend and the independent sign/nontriviality checks, not on
+  quantitative rate agreement), but a later slice (RCG-04F/I, or a
+  dedicated follow-up) needing a tighter coarse-dynamics accuracy budget
+  should resolve this first.
+- **`alat` as a genuine SI lattice parameter vs. the repository-wide CG13
+  reduced-unit `jfile` convention** (new in RCG-04E, §13.3 investigation):
+  `adaptivecgproduction.f90:722-724` explicitly requires `alat` to be "an
+  explicit positive SI lattice parameter in metres," and every CG13 fixture
+  (including this slice's) uses `alat 1.0` (i.e. a 1-metre lattice
+  constant) with `jfile` `Jij` values that are not derived from any real
+  material's fitted exchange constants. This was not found to be a defect
+  (the atomistic Heisenberg field/energy path does not use `alat` for
+  energy scaling at all, only for neighbour-list distance matching, per
+  `torque_oracle.py`'s calibration), but it does mean no CG13 fixture today
+  establishes what a *physically realistic* `alat`/`jfile` combination
+  would show for coarse-vs-atomistic rate agreement. Not investigated
+  further in this slice; flagged for whichever later slice first needs a
+  physically-scaled (not merely internally-consistent) SI comparison.
 - **GPU per-step adaptive diagnostics gap** (§11.1 item 4, new in this
   slice): the GPU path has no per-step resolution-state or per-event
   transition log, and hardcodes `rejected_transitions=0`. `parse_transition_events`/

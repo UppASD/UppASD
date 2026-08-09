@@ -1000,6 +1000,16 @@ if(BUILD_TESTING)
       COMMAND python3
          ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_torque_oracle.py -v)
 
+   # RCG-04E independent structural nontriviality oracle for the all-coarse
+   # block state (uncalibrated against production's regularized stiffness
+   # fit -- see coarse_torque_oracle.py's module docstring for scope). Used
+   # only as a pre-acceptance gate; the RCG-04E accuracy oracle is the
+   # accepted all-fine atomistic trajectory. Host-only Python, no
+   # UppASD/CUDA/HIP dependency.
+   add_test(NAME coarse-graining-coarse-torque-oracle
+      COMMAND python3
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_coarse_torque_oracle.py -v)
+
    # CG-13 labels are the repeatable suite interface.  Keep the focused
    # analytic/reference tests in the CPU suite even in a GPU build; the
    # production and backend tests below add the matching CUDA/HIP label.
@@ -1017,6 +1027,7 @@ if(BUILD_TESTING)
       coarse-graining-moving-state-generator
       coarse-graining-trajectory-evidence
       coarse-graining-torque-oracle
+      coarse-graining-coarse-torque-oracle
       PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;reference")
    if(USE_CUDA)
       set_property(TEST
@@ -1032,6 +1043,7 @@ if(BUILD_TESTING)
          coarse-graining-moving-state-generator
          coarse-graining-trajectory-evidence
          coarse-graining-torque-oracle
+         coarse-graining-coarse-torque-oracle
          APPEND PROPERTY LABELS cg13-cuda)
    elseif(USE_HIP)
       set_property(TEST
@@ -1047,6 +1059,7 @@ if(BUILD_TESTING)
          coarse-graining-moving-state-generator
          coarse-graining-trajectory-evidence
          coarse-graining-torque-oracle
+         coarse-graining-coarse-torque-oracle
          APPEND PROPERTY LABELS cg13-hip)
    endif()
 
@@ -1075,6 +1088,19 @@ if(BUILD_TESTING)
          ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_moving_off_fine.py
          --binary $<TARGET_FILE:${UppASD_EXE}>)
    set_tests_properties(adaptive-cg-moving-off-fine
+      PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;moving-parity"
+                 ENVIRONMENT "OMP_NUM_THREADS=1")
+   # RCG-04E E2E-MOVING-ALL-COARSE: all-coarse long-wavelength dynamics at
+   # multiple physical block sizes, validated against the accepted all-fine
+   # atomistic reference (re-verified at this fixture's own wide geometry),
+   # plus independent nontriviality gates and defect-sensitivity negative
+   # controls. CPU-only in this slice; CPU/GPU backend parity is RCG-04I's
+   # responsibility, not claimed here.
+   add_test(NAME adaptive-cg-moving-all-coarse
+      COMMAND python3
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_moving_all_coarse.py
+         --binary $<TARGET_FILE:${UppASD_EXE}>)
+   set_tests_properties(adaptive-cg-moving-all-coarse
       PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;moving-parity"
                  ENVIRONMENT "OMP_NUM_THREADS=1")
    add_test(NAME adaptive-cg-fixture-dependencies
