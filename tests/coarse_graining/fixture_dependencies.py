@@ -81,6 +81,16 @@ MOVING_STATIC_MIXED_CASES = (
     MOVING_STATIC_MIXED_BS1_SHIFTED_CASE,
 )
 
+# RCG-04G E2E-MOVING-ADAPTIVE: a deterministic periodic domain-wall pair
+# (RCG-04B's domain_wall_pair_state, Initmag=4) under ADAPTIVE mask mode,
+# demonstrating accepted resolution transitions correlated with genuine
+# wall motion and block-boundary crossing, plus the RCG-03 polarization
+# safety contract. ``moving_wall_feature_off`` is the plain (AdaptiveCG
+# disabled) physics reference sharing a byte-identical restart_seed.out.
+# See run_moving_adaptive_wall.py and each fixture's README.md.
+MOVING_WALL_FEATURE_OFF_CASE = "moving_wall_feature_off"
+MOVING_WALL_ADAPTIVE_CASE = "moving_wall_adaptive"
+
 
 def all_e2e_cases() -> tuple[str, ...]:
     """Return every e2e directory referenced by either executable harness."""
@@ -95,5 +105,6 @@ def all_e2e_cases() -> tuple[str, ...]:
         MOVING_FEATURE_OFF_CASE, MOVING_ALL_FINE_CASE,
         MOVING_FEATURE_OFF_WIDE_CASE, MOVING_ALL_FINE_WIDE_CASE, *MOVING_ALL_COARSE_CASES,
         *MOVING_STATIC_MIXED_CASES,
+        MOVING_WALL_FEATURE_OFF_CASE, MOVING_WALL_ADAPTIVE_CASE,
     }
     return tuple(sorted(names))

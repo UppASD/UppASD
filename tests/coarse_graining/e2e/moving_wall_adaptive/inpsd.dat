@@ -1,41 +1,43 @@
-simid cg105y
+simid cg105gad
 alat 1.0
-ncell 6 2 2
+ncell 24 2 2
 BC P P P
 cell 1.0 0.0 0.0
      0.0 1.0 0.0
      0.0 0.0 1.0
 Sym 1
 posfile ../posfile
-momfile ../momfile
+momfile ./momfile
 exchange ../jfile
+anisotropy ./kfile_cg_wall
 SDEalgh 1
-Initmag 3
+Initmag 4
+restartfile ./restart_seed.out
 Mensemble 1
-ip_mode Y
-qpoints F
-qfile qfile
-qm_nvec 0.0 0.0 1.0
+ip_mode N
 mode S
 temp 0.0
 damping 0.05
-Nstep 2
+timestep 1.0e-16
+Nstep 900
 do_avrg N
 do_cumu N
-do_tottraj N
+do_tottraj Y
+tottraj_step 25
 plotenergy 0
 do_adaptive_cg Y
-block_size_x 2
+block_size_x 1
 block_size_y 2
 block_size_z 2
 cg_operator PROJECTED
 cg_mask_mode ADAPTIVE
 cg_selector MAX_ANGLE
-cg_refine_threshold 0.80
-cg_coarsen_threshold 0.20
+cg_refine_threshold 0.20
+cg_coarsen_threshold 0.05
+cg_polarization_threshold 0.9
 cg_update_interval 1
 cg_minimum_dwell_updates 0
 cg_buffer_blocks 0
 cg_reconstruction ALIGNED
-cg_energy_jump_limit 1.0e9
-cg_diagnostics 3
+cg_energy_jump_limit 1.0e-15
+cg_diagnostics 2

@@ -97,7 +97,7 @@ contains
       integer(c_int) :: status
       character(len=512) :: message
       real(c_double) :: cell(3,3)
-      integer :: atom, block, first_atom
+      integer :: atom, block, i1, i2, i3, expected_block
       integer :: membership_count(48)
 
       cell = identity_cell()
@@ -116,10 +116,23 @@ contains
       end do
       call check(all(membership_count == 1), &
          'non-cubic CSR membership covers every atom exactly once')
-      do block = 1, 8
-         first_atom = 1 + 6 * (block - 1)
-         call check(all(topology%atom_to_block(first_atom:first_atom+5) == block), &
-            'spatial block ids follow the FFT x-fastest block grid')
+      ! atom_to_block must be indexed by the canonical global atom index
+      ! (I0+I1*NA+I2*N1*NA+I3*N2*N1*NA, matching geometry.f90/
+      ! magnetizationinit.f90), not by a block-major traversal counter: a
+      ! block spanning more than one cell along more than one axis (as here,
+      ! block_shape=(2,3,1) with repetitions=(4,6,2)) makes the two orderings
+      ! genuinely different, which is exactly what this check must catch
+      ! (see docs/RCG-04_MOVING_E2E_EVIDENCE.md's RCG-04G atom_to_block
+      ! finding).
+      do i3 = 0, 1
+         do i2 = 0, 5
+            do i1 = 0, 3
+               atom = 1 + i1 + 4 * i2 + 24 * i3
+               expected_block = 1 + i1 / 2 + 2 * ((i2 / 3) + 2 * (i3 / 1))
+               call check(topology%atom_to_block(atom) == expected_block, &
+                  'spatial block ids follow the canonical global atom index')
+            end do
+         end do
       end do
       call check(regular_spatial_block_id((/1,1,1/),(/2,2,2/)) == 8, &
          'FFT spatial block id helper is x-fastest')

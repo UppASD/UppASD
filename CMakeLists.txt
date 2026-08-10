@@ -1127,6 +1127,20 @@ if(BUILD_TESTING)
    set_tests_properties(adaptive-cg-moving-static-mixed
       PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;moving-parity"
                  ENVIRONMENT "OMP_NUM_THREADS=1")
+   # RCG-04G E2E-MOVING-ADAPTIVE: accepted adaptive-resolution transitions
+   # during genuine domain-wall motion (a deterministic periodic Neel
+   # wall-pair, RCG-04B's domain_wall_pair_state), with independent
+   # nontriviality gates, wall-centre/block-boundary-crossing tracking, full
+   # transition-history and RCG-03 polarization-safety assertions, and
+   # defect-sensitivity negative controls. CPU-only in this slice; CPU/GPU
+   # backend parity is RCG-04I's responsibility, not claimed here.
+   add_test(NAME adaptive-cg-moving-adaptive-wall
+      COMMAND python3
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_moving_adaptive_wall.py
+         --binary $<TARGET_FILE:${UppASD_EXE}>)
+   set_tests_properties(adaptive-cg-moving-adaptive-wall
+      PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;moving-parity"
+                 ENVIRONMENT "OMP_NUM_THREADS=1")
    add_test(NAME adaptive-cg-fixture-dependencies
       COMMAND python3
          ${CMAKE_SOURCE_DIR}/tests/coarse_graining/audit_fixture_dependencies.py)

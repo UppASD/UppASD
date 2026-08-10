@@ -355,3 +355,94 @@ def coordination_numbers(geometry: Geometry, shells: tuple[ExchangeShell, ...], 
         geometry, shells, alat=alat, distance_tolerance=distance_tolerance,
     )
     return {atom: len(neighbours) for atom, neighbours in bonds.items()}
+
+
+# ---------------------------------------------------------------------------
+# RCG-04G: uniaxial anisotropy field/torque extension
+# ---------------------------------------------------------------------------
+#
+# Formula read directly from the production code path this fixture actually
+# exercises -- ``source/CoarseGraining/adaptivecgproduction.f90:
+# evaluate_atomistic_anisotropy`` (the atomistic-onsite term used by
+# AdaptiveCG's own energy evaluator, not the legacy Hamiltonian this module's
+# exchange convention above was calibrated against) -- rather than guessed:
+#
+#   c = S_i . e_axis
+#   E_i = k1*c**2 + k2*(2*c**2 - c**4)
+#   field_i = -(2*c*(k1 + 2*k2*(1-c**2))) * e_axis / (mub * moment_mub_i)
+#
+# For every RCG-04G fixture, k2=0 and moment_mub_i is uniform across atoms
+# (moment_magnitude passed to domain_wall_pair_state), so the reported
+# torque below omits the common positive prefactor 1/(mub*moment_mub) --
+# exactly the same "uniform, positive, atom-independent" omission this
+# module's docstring already justifies for the exchange field's gyromagnetic
+# prefactor: it cannot change a zero-vs-nonzero torque conclusion or the
+# relative comparison across atoms, only its absolute scale.
+
+
+def anisotropy_field(direction: Vector, axis: Vector, k1: float, k2: float = 0.0) -> Vector:
+    """Uniaxial anisotropy field for one atom, in the calibrated production convention."""
+    axis_norm = _norm(axis)
+    axis_unit = tuple(component / axis_norm for component in axis)
+    c = _dot(direction, axis_unit)
+    derivative = 2.0 * c * (k1 + 2.0 * k2 * (1.0 - c * c))
+    return tuple(-derivative * component for component in axis_unit)
+
+
+def combined_torque_report(geometry: Geometry, shells: tuple[ExchangeShell, ...],
+                            direction_by_atom: dict[int, Vector], *,
+                            anisotropy_axis: Vector, anisotropy_k1: dict[int, float],
+                            anisotropy_k2: dict[int, float] | None = None,
+                            alat: float = 1.0,
+                            distance_tolerance: float = 1.0e-6) -> TorqueReport:
+    """Exchange-plus-uniaxial-anisotropy initial torque, independent of production.
+
+    ``anisotropy_k1``/``anisotropy_k2`` are keyed by basis site id (1-based,
+    matching ``Geometry.iter_atoms``'s ``i0``), matching how ``kfile_cg``
+    assigns one (k1, k2) pair per basis site. Used as the RCG-04G
+    pre-acceptance nontriviality gate for the domain-wall-pair fixture, the
+    same role RCG-04D's exchange-only ``initial_torque_report`` plays for
+    the conical-spiral fixture -- extended here because a domain wall's
+    existence depends on the exchange/anisotropy competition, not exchange
+    alone.
+    """
+    k2_by_site = anisotropy_k2 or {}
+    bonds = build_geometric_bonds(
+        geometry, shells, alat=alat, distance_tolerance=distance_tolerance,
+    )
+    field_by_atom: dict[int, Vector] = {}
+    torque_by_atom: dict[int, Vector] = {}
+    misalignment_degrees: list[float] = []
+    atom_basis: dict[int, int] = {atom: i0 for atom, i0, _, _, _ in geometry.iter_atoms()}
+    for atom, neighbours in bonds.items():
+        field = [0.0, 0.0, 0.0]
+        for neighbour, jij in neighbours:
+            neighbour_direction = direction_by_atom[neighbour]
+            for component in range(3):
+                field[component] += jij * neighbour_direction[component]
+        basis = atom_basis[atom]
+        aniso = anisotropy_field(
+            direction_by_atom[atom], anisotropy_axis,
+            anisotropy_k1[basis], k2_by_site.get(basis, 0.0),
+        )
+        field_vector = (field[0] + aniso[0], field[1] + aniso[1], field[2] + aniso[2])
+        field_by_atom[atom] = field_vector
+        torque_by_atom[atom] = _cross(direction_by_atom[atom], field_vector)
+        field_norm = _norm(field_vector)
+        if field_norm > 0.0:
+            cos_angle = max(-1.0, min(1.0,
+                _dot(direction_by_atom[atom], field_vector) / field_norm))
+            misalignment_degrees.append(math.degrees(math.acos(cos_angle)))
+    torque_magnitudes = [_norm(torque) for torque in torque_by_atom.values()]
+    max_torque = max(torque_magnitudes) if torque_magnitudes else 0.0
+    rms_torque = (
+        math.sqrt(sum(t * t for t in torque_magnitudes) / len(torque_magnitudes))
+        if torque_magnitudes else 0.0
+    )
+    return TorqueReport(
+        field_by_atom=field_by_atom,
+        torque_by_atom=torque_by_atom,
+        max_torque=max_torque,
+        rms_torque=rms_torque,
+        max_field_misalignment_deg=max(misalignment_degrees) if misalignment_degrees else 0.0,
+    )

@@ -125,9 +125,12 @@ contains
 
    !> Build a complete regular topology or return an allocation-free failure.
    !>
-   !> Atom numbering follows the same block-major traversal used by
-   !> create_pme_macrocell_layout.  The builder never renumbers an atom or
-   !> modifies an atomistic array.
+   !> atom_to_block/atom_to_basis/etc. are indexed by the canonical global
+   !> atom index (geometry.f90's I0+I1*NA+I2*N1*NA+I3*N2*N1*NA, matching
+   !> magnetizationinit.f90's loop nesting), the same numbering emom/ham%nlist
+   !> use -- NOT the block-major traversal create_pme_macrocell_layout uses
+   !> internally for its own, separate pme_cell_index array. The builder
+   !> never renumbers an atom or modifies an atomistic array.
    subroutine build_block_topology(topology, geometry_mode, NA, repetitions, Natom, &
          block_shape, cell_vectors, basis_dynamic_channel, status, diagnostic)
       type(block_topology_type), intent(out) :: topology
@@ -284,6 +287,20 @@ contains
       topology%block_center = 0.0_c_double
       topology%block_volume = volume
 
+      ! Atom numbering must match the canonical global atom index used
+      ! everywhere else in the codebase (geometry.f90's I0+I1*NA+I2*N1*NA+
+      ! I3*N2*N1*NA, basis fastest then I1, I2, I3 slowest -- see
+      ! magnetizationinit.f90's identical loop nesting), NOT a block-major
+      ! traversal counter: atom_to_block is queried downstream (selector
+      ! misalignment, polarization-gate channel restriction, static/adaptive
+      ! ownership) using real atom indices taken from emom/bond lists, which
+      ! are always in this canonical order, with no translation layer. A
+      ! block-major counter here silently mislabels which physical atom
+      ! belongs to which spatial block whenever a block spans more than one
+      ! cell along any axis (RCG-04G finding: previously masked because every
+      ! prior fixture's state was uniform, random, or checked only
+      ! atom-count aggregates, none of which are sensitive to *which* atom
+      ! carries which block label).
       atom = 0
       do ib3 = 0, grid(3) - 1
          do ib2 = 0, grid(2) - 1
@@ -300,7 +317,8 @@ contains
                   do i2 = ib2 * block_shape(2), (ib2 + 1) * block_shape(2) - 1
                      do i1 = ib1 * block_shape(1), (ib1 + 1) * block_shape(1) - 1
                         do basis = 1, NA
-                           atom = atom + 1
+                           atom = basis + i1 * NA + i2 * repetitions(1) * NA + &
+                              i3 * repetitions(2) * repetitions(1) * NA
                            topology%atom_to_block(atom) = int(block, c_int)
                            topology%atom_to_basis(atom) = int(basis, c_int)
                            topology%atom_to_dynamic_channel(atom) = &
@@ -325,7 +343,7 @@ contains
             end do
          end do
       end do
-      if (atom /= Natom) then
+      if (any(topology%atom_to_block < 1) .or. any(topology%atom_to_block > nblocks)) then
          call clear_topology(topology)
          call fail(BLOCK_TOPOLOGY_INTERNAL_ERROR, &
             'Internal error: regular topology did not assign every atom')

@@ -1,0 +1,27 @@
+simid cg105gof
+alat 1.0
+ncell 24 2 2
+BC P P P
+cell 1.0 0.0 0.0
+     0.0 1.0 0.0
+     0.0 0.0 1.0
+Sym 1
+posfile ../posfile
+momfile ./momfile
+exchange ../jfile
+anisotropy ./kfile_cg_wall
+SDEalgh 1
+Initmag 4
+restartfile ./restart_seed.out
+Mensemble 1
+ip_mode N
+mode S
+temp 0.0
+damping 0.05
+timestep 1.0e-16
+Nstep 900
+do_avrg N
+do_cumu N
+do_tottraj Y
+tottraj_step 25
+plotenergy 0

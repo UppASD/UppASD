@@ -2415,6 +2415,510 @@ All eighteen RCG-04F checklist items are complete and evidenced.
 
 ---
 
+## 15. RCG-04G: E2E-MOVING-ADAPTIVE
+
+**Status: RCG-04G complete, including a real, previously-undiscovered
+production defect found, fixed, and regression-tested (explicitly
+authorized by the user after the finding was reported, per the governing
+rules' "must be demonstrated and reported... before expanding the slice"
+clause).**
+
+**Base commit:** `6b8a0781` ("RCG-04F: validate static mixed interface
+dynamics"), the accepted RCG-04F commit. `git status --short` at session
+start showed no modified/untracked tracked files beyond the pre-existing
+untracked scratch/build directories already present in the worktree.
+
+### 15.1 A real production defect found, root-caused, and fixed
+
+While calibrating a domain-wall-pair ADAPTIVE-mode fixture (§15.3), every
+one of 12 physical blocks reported an *identical* MAX_ANGLE misalignment
+score (0.7756, the wall's own peak value) instead of a spatially varying
+one, and the selector never coarsened a single far-from-wall block across
+300 steps — even though an independent Python recomputation of the same
+per-block score (reusing `torque_oracle.build_geometric_bonds`) gave
+correctly varying values (`5.5e-5` to `0.78` across the 12 blocks).
+
+**Root cause**, confirmed by a disposable debug `write` (added, verified,
+then reverted; `git diff`/`git status` confirmed byte-identical restoration
+before any further work): `source/CoarseGraining/blocktopology.f90:
+build_block_topology`'s `REGULAR_REPLICATED_CELL` construction assigns
+`topology%atom_to_block(atom)` using its own sequential counter
+(`atom = atom + 1`) inside a **block-major** traversal (every atom of block
+1, then every atom of block 2, ...). Every other array in the codebase —
+`emom`, restart/momfile reading, `ham%nlist` — numbers atoms in the
+**cell-major** order fixed by `geometry.f90`/`magnetizationinit.f90` (basis
+fastest, then `I1`, `I2`, `I3` slowest, `i=I0+I1*NA+I2*N1*NA+I3*N2*N1*NA`).
+These two orderings coincide only when a block spans exactly one cell in
+every direction — never true for any fixture in this suite, since
+`block_size_y=2=n2`/`block_size_z=2=n3` always (only `block_size_x` ever
+varies). The old module docstring even stated the (mistaken) intent
+explicitly: *"Atom numbering follows the same block-major traversal used by
+`create_pme_macrocell_layout`"* — a separate, legacy PME/dipole-gridding
+routine (`source/CoarseGraining/macrocells.f90`) that has the identical
+`iatom=iatom+1`-inside-a-block-major-loop construction, indexing `coord`
+(the canonical, cell-major position array) by that same mismatched counter;
+out of RCG-04G's scope to fix (a different, dipole/FFT-specific code path,
+not exercised by any AdaptiveCG fixture), noted here only because it is the
+same defect pattern and may warrant its own future review.
+
+**Concretely verified** on the already-committed, RCG-04F-validated
+`moving_static_mixed_bs1` fixture (`block_size 1,2,2`, `ncell 24 2 2`): the
+runtime reported `atom_to_block(1:24) =
+1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,3,3,3,3,3,3,3,3`; the true physical mapping
+(independently derived from `geometry.f90`'s own formula, cross-checked
+against `moving_state_generator.Geometry`) is
+`1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12`.
+
+**Blast radius:** `topology%atom_to_block` is read directly (no translation
+layer) by the MAX_ANGLE selector's misalignment score
+(`blockselector.f90:evaluate_misalignment`), the RCG-03 polarization gate's
+channel restriction (`adaptivehybridsolver.f90:restrict_channel_moments`),
+STATIC-mode ownership (`statichybridoperator.f90`), and the PROJECTED
+operator's ghost stencils (`smoothprojectedoperator.f90`) — i.e. every
+block-atom association in the entire AdaptiveCG production path, on both
+CPU and GPU (the GPU path reads the same Fortran-built array via
+`fortranData.cpp`, inheriting the identical defect rather than having an
+independent one). Every *prior* fixture's pass/fail conclusion is
+structurally insensitive to this bug: uniform states (mislabelling is
+invisible — every atom is identical), random states (mislabelling doesn't
+change the aggregate/statistical claim being tested), or count-only
+assertions (block populations are permutation-invariant). RCG-04F's own
+`static_topology_oracle` comparison matched despite the bug for exactly
+this reason (it validates atom *counts* per resolution class, which the
+scrambled-but-still-a-bijection mapping preserves) — RCG-04F's raw
+ownership-count and aggregate-error conclusions are not invalidated by
+this, but its finer spatial-locality narrative should be read as validated
+against the corrected, not the buggy, mapping (this document's earlier
+sections are not retroactively edited, per the "avoid unrelated churn"
+rule; this note is the authoritative correction).
+
+**Fix** (`source/CoarseGraining/blocktopology.f90`, `build_block_topology`):
+compute each atom's index from its own `(I0,I1,I2,I3)` directly (matching
+the canonical formula) inside the existing per-block loop nest, instead of
+incrementing a separate block-major counter; the post-loop sanity check was
+changed from `atom /= Natom` (meaningless once `atom` is no longer a
+running total) to `any(atom_to_block < 1) .or. any(atom_to_block > nblocks)`
+(every entry was actually assigned and in range). The module docstring was
+corrected to state the true (canonical) numbering. No other file's
+`atom_to_block`-consuming logic was changed — only the array's own
+construction.
+
+**Verified correct** by re-running the same debug print after the fix:
+`atom_to_block(1:24)` on `moving_static_mixed_bs1` now reads
+`1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12`, exactly matching
+the independent derivation; `interface_atoms=32`/`resolution_counts
+fine=6 interface=4 coarse=14` (the RCG-04F-documented counts) are
+unchanged, and the final `resolution_state` vector
+(`2,2,2,2,2,2,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1`) is now a spatially
+*contiguous* fine-seed/interface/coarse pattern (it was not checked for
+contiguity before, only for count, by RCG-04F's own assertions).
+
+**Regression fallout, found and fixed in the same pass** (full `cg13-cpu`
+label run after the fix, before any new RCG-04G fixture was added):
+
+1. `coarse-graining-block-topology` (`test_block_topology.f90`,
+   `test_non_cubic_blocks`): asserted `atom_to_block(first_atom:first_atom+5)
+   == block` for `first_atom = 1 + 6*(block-1)` — i.e. it asserted the *old,
+   buggy* block-major contiguity as the expected behavior, for a
+   `block_shape=(2,3,1)` case that genuinely exercises multi-cell blocks
+   along two axes. Fixed by replacing the range-contiguity check with an
+   explicit independent recomputation (nested `i1,i2,i3` loop over the true
+   `repetitions=(4,6,2)` geometry, computing both the canonical atom index
+   and its expected block id from `(i1/2, i2/3, i3/1)`), asserting
+   `topology%atom_to_block(atom) == expected_block` for all 48 atoms.
+2. `adaptive-cg-production-e2e` (`run_production_e2e.py`): `initial_phase_y`
+   started failing with `Ghost prolongation failed: Normalized prolongation
+   encountered a zero or cancelling interpolant`
+   (`smoothprojectedoperator.f90:prolongate_with_norm`). Root-caused (via a
+   second disposable debug print, added/verified/reverted) to a genuine,
+   not-previously-exposed mathematical degeneracy: this fixture's `ip_mode
+   Y` quasi-Newton minimization (against a `qfile` seed exactly commensurate
+   with `ncell_x=6`) converges to a state where two *adjacent* blocks
+   (`block_size_x=1`) are *exactly* antiparallel (`(0,0,-1)` and `(0,0,1)`),
+   and every basis-site-2 atom sits at exactly `fraction_x=0.5` in the
+   trilinear ghost-interpolation stencil for `block_size_x=1` (a structural
+   consequence of the basis offset `(0.5,0.5,0.5)`, not a coincidence) — an
+   exact cancellation, `(1-0.5)*(0,0,-1) + 0.5*(0,0,1) = 0`, that the
+   *correct* (no longer scrambled) block-atom association now genuinely
+   reaches. Confirmed isolated to this one fixture: `initial_phase_q`/
+   `initial_phase_z` (same family, same shared `ip_mode`-based construction)
+   both pass unmodified after the fix. A parameter scan (`q` values `0.05`
+   to `0.4`, `cant`/geometry variants) found the minimizer's attractor
+   basins are either this exact degeneracy or a trivial uniform state,
+   neither useful; the clean fix (verified) is `block_size_x 1` ->
+   `block_size_x 2` for `e2e/initial_phase_y/inpsd.dat` only — a pure
+   coarse-graining-granularity choice (no physics/qfile/threshold change),
+   which moves the basis-site-2 stencil fraction off the exact `0.5`
+   midpoint and gives `direction_sum=24.0` (comfortably inside the existing
+   `|direction_sum|<40` assertion) with `returncode=0` and every existing
+   assertion (`handoff_state_validated`, `initial_state_source`, ordering)
+   intact.
+
+**Full regression after both fixes** (fresh build, `/tmp/rcg04g-cpu-build`,
+GNU Fortran/C/C++ 13.3.0/12.4.0/12.4.0, CMake 3.28.3, CPU, fp64, Release):
+`ctest -L cg13-cpu` **20/20 passing** (before adding any new RCG-04G
+fixture/target), `ctest -R '^asd-tests$'` (legacy non-CG regression suite)
+**passing**, `audit_fixture_dependencies.py` **PASS**. This is the
+before-RCG-04G-fixture-work regression baseline; §15.7 below records the
+final 21/21 baseline including the new fixture.
+
+### 15.2 Why no external field is used, or usable
+
+Before designing a drive mechanism, `source/CoarseGraining/
+adaptivecgproduction.f90:validate_configuration` was read in full (per the
+governing "read source before design" rule). Line ~774:
+
+```fortran
+if (any(abs(hfield) > 0.0_dblprec) .or. do_bpulse /= 0 .or. demag == 'Y') then
+   call reject('hfield/do_bpulse/demag: external or time-dependent fields '// &
+      'are not supported by the first production CG path', status, diagnostic)
+```
+
+Any nonzero `hfield` is rejected outright at setup — confirmed empirically
+(a disposable input with `hfield 0 0 0.01` fails setup with exactly this
+diagnostic). The RCG-04G prompt's "such as a field compatible with the
+accepted Hamiltonian and integrator" is illustrative, not literal: the
+*accepted* Hamiltonian/integrator (per the same `validate_configuration`,
+line ~753, "adaptive CG supports scalar exchange, DMI, and deterministic
+uniaxial anisotropy only") has no field term at all. The drive used here is
+therefore the wall pair's own intrinsic exchange/anisotropy relaxation
+under damped LLG — the same category of mechanism RCG-04D/E/F already use
+(a deliberately nonstationary initial condition relaxing under the real,
+accepted Hamiltonian and integrator, not an externally applied torque), not
+a new capability request.
+
+### 15.3 Fixture construction
+
+`tests/coarse_graining/e2e/moving_wall_feature_off/` (plain physics
+reference) and `tests/coarse_graining/e2e/moving_wall_adaptive/`
+(`cg_mask_mode ADAPTIVE`); full construction, parameters, and provenance in
+each directory's own `README.md`. Both consume a byte-identical
+`restart_seed.out` (verified by content hash in
+`run_moving_adaptive_wall.py`) generated by RCG-04B's
+`moving_state_generator.domain_wall_pair_state`:
+
+```python
+geometry = gen.Geometry(na=2, n1=24, n2=2, n3=2,
+                         basis=((0.0, 0.0, 0.0), (0.5, 0.5, 0.5)))
+state = gen.domain_wall_pair_state(
+    geometry, axis_cell_index=0, wall_centers_cells=(9.0, 15.0),
+    width_cells=1.0, easy_axis=(0.0, 0.0, 1.0), wall_type="NEEL",
+    chirality=1, cant_deg=2.0, moment_magnitude=2.23, simid="cg105gw",
+    separation_margin_widths=4.0,
+)
+```
+
+`Initmag 4` (the RCG-04B capability this fixture is the first genuinely
+moving-dynamics consumer of), standard `ncell 24 2 2` host geometry
+(`../posfile`/`../jfile`), a new `kfile_cg_wall` uniaxial anisotropy
+(K1=-0.5 per basis site, easy axis `(0,0,1)` matching the wall's own) —
+much stronger than the shared `e2e/kfile_cg`'s K1=-0.002/-0.003. This
+choice was itself parameter-searched (§15.3.1): with the shared fixture's
+weak anisotropy, the natural equilibrium domain-wall width
+(`~sqrt(J/K)`) is roughly twenty cells, far wider than any geometry this
+suite uses, so an imposed `width_cells=1` wall would immediately blow up
+toward that width rather than exhibiting genuine pair dynamics at a
+trackable scale. `block_size_x 1` (24 physical blocks, one cell each),
+`cg_operator PROJECTED`, `cg_selector MAX_ANGLE`, `cg_refine_threshold
+0.20`/`cg_coarsen_threshold 0.05` (non-saturated, unlike the pre-existing
+`adaptive_mixed`/`parity_adaptive_*` fixtures), `cg_polarization_threshold
+0.9` (RCG-03, unweakened), `cg_energy_jump_limit 1.0e-15`, `damping 0.05`,
+`timestep 1.0e-16`, `Nstep 900`, `do_tottraj Y`/`tottraj_step 25` (37
+sampled steps).
+
+`simid` was kept to 8 characters (`cg105gof`/`cg105gad`) after an initial
+attempt with a 10-character simid (`cg105gwoff`) was silently truncated by
+Fortran's `character(len=8)` field — the exact hazard RCG-04B's evidence
+(§10.4.3) already documented; caught here by `moment.<truncated-simid>.out`
+not matching the expected filename, not by a production diagnostic.
+
+#### 15.3.1 Parameter search for a genuine, trackable moving wall
+
+Summarized here (raw session data, not separately filed) because it
+directly explains this fixture's chosen parameters and the "reviewed
+limitation" in §15.5:
+
+- **Separation/width ratio controls whether motion is observable at all.**
+  At `separation_margin_widths=4` (the generator's own default, walls ~12
+  cells apart), 3000 steps produced no measurable motion
+  (displacement `~1e-4` cells) — the pair-interaction force decays
+  exponentially with separation/width and is negligible at this spacing on
+  this timescale. At walls 4 cells apart (`ratio=4`), motion is large and
+  fast but the pair fully **annihilates** by step ~1240 (centres run away
+  to a single merged point) — too destructive for a stable "moving
+  interval" with trackable, distinct walls throughout. Walls 6 cells apart
+  (`ratio=6`, this fixture's choice) gives a damped, oscillatory excursion
+  that crosses a block boundary without annihilating within `Nstep=900`.
+- **The observed dynamics is pair *repulsion*, not attraction**: both wall
+  centres are essentially static for ~350 steps (local profile relaxation,
+  not yet translational), then move *outward* (the confined "down" domain
+  between them *expands*), crossing their nearest block boundary at
+  `step=400`, continuing to a turning point around `step~700-900`, then
+  reversing. Reproduced identically with `cant_deg=0` (ruling out the
+  small symmetry-breaking cant as the driver) and independently confirmed
+  by the plain (AdaptiveCG-disabled) `moving_wall_feature_off` reference
+  showing the *same* crossing steps and blocks — this is genuine
+  Hamiltonian-driven physics, not an AdaptiveCG or generator artifact. A
+  plausible mechanism (not independently proven beyond the `cant_deg=0`
+  check): both kinks share one global `chirality` parameter (the generator
+  does not support independently-signed walls), so the pair behaves as two
+  same-handedness Neel solitons, and same-topological-handedness kink
+  pairs are a known class that repels rather than attracts.
+- **A REFINE (coarse-to-atomistic) event was actively sought but not
+  achieved cleanly.** A tighter geometry (`ncell 16 2 2`, walls 6 cells
+  apart, same width/anisotropy) does produce genuine refine-**requests**
+  as the wall's larger excursion (crossing back and forth several times
+  over 2500 steps) approaches blocks that coarsened during initial setup —
+  but every one is rejected with `outcome=reconstruction-rejected` (all
+  logged with `energy_jump_j=0.0`, i.e. rejected by `RECONSTRUCTION_ALIGNED`
+  itself, not the energy-jump gate: `reconstruct_block_aligned`
+  (`adaptivehybridsolver.f90`) requires the coarse block's own resultant to
+  be near-fully polarized before it will assign every atom that single mean
+  direction, and this specific reconstruction fails that check for these
+  blocks). This is real, informative evidence (a genuine "rejected
+  transitions due to ... safety policy" case, distinct from an
+  energy-jump rejection) but was not adopted as this fixture's accepted
+  case, to keep the primary evidence clean and unambiguous; recorded as a
+  reviewed, open limitation in §15.5/§15.9, not fabricated.
+
+### 15.4 Independent pre-acceptance nontriviality gate
+
+`torque_oracle.py` was extended (`anisotropy_field`/`combined_torque_report`)
+with a uniaxial-anisotropy field term, its formula read directly from the
+exact production code path this fixture exercises
+(`adaptivecgproduction.f90:evaluate_atomistic_anisotropy`, unit-vector
+convention, `k2=0` here) rather than the legacy Hamiltonian RCG-04D's
+exchange-only calibration targeted — a stronger provenance than
+re-deriving-then-recalibrating, since it is the same formula the fixture's
+own atomistic path evaluates. On the actual fixture:
+`max_torque=0.178198`, `rms_torque=0.0729135`,
+`max_field_misalignment_deg=0.799311` — all comfortably nonzero (floors
+`0.02`/`0.02`/`0.1` deg, an order of magnitude below observed).
+
+### 15.5 Results
+
+**Wall tracking** (`trajectory_evidence.domain_wall_centers`/
+`track_wall_crossings`, periodic unwrapping, independent of any production
+diagnostic): both `moving_wall_feature_off` and `moving_wall_adaptive`
+show **identical** crossing steps/blocks —
+`[(step=400, block 9->8), (step=400, block 14->15)]` — cross-validating the
+physical claim independently of AdaptiveCG. Net displacement (initial to
+final centre, over the damped-oscillatory trajectory) `0.1762`/`0.1742`
+cells respectively (feature-off/adaptive) — smaller than the peak
+mid-run excursion because of the oscillation, but both comfortably above
+the `0.1`-cell floor, and the crossing event itself (at `step=400`, not
+`step=0` or `step=1`) is the primary, unambiguous evidence of real,
+motion-driven boundary crossing well after initialization.
+
+**Transition history** (`parse_transition_events`, full field set): 11
+events at `step=1` (blocks 1-6, 20-24; all comfortably away from either
+wall at `t=0`; **initial-ownership setup, not a motion claim** — classified
+and asserted as such, separately from motion-window events, in
+`run_moving_adaptive_wall.py`). One further event at **`step=788`**
+(strictly after the `step=400` wall crossing): block 13 (deep in the
+expanding confined domain's interior) `1(ATOMISTIC)->3(COARSE)`,
+`accepted=True`, `reason=coarsen-request`, `polarization_ratio=0.99996`.
+This is the fixture's core motion-driven accepted-transition claim: a real
+transition, spatially inside the region the moving wall vacated, occurring
+well after real motion began.
+
+**RCG-03 polarization safety**: every accepted `coarsen-request`'s
+`polarization_ratio` exceeds `0.9998` (min observed `0.99993`), comfortably
+above the unweakened `cg_polarization_threshold=0.9` gate — no wall-core or
+wall-adjacent block is ever coarsened; the wall-following atomistic region
+tracks the wall's own position throughout (every `resolution_state` sample
+shows the fine/interface region centred on the current wall positions, not
+a fixed initial footprint).
+
+**Trajectory/energy/restart parity vs. the all-atomistic reference**:
+`spin_displacement` `0.7325`/`0.7249` rad (feature-off/adaptive, both far
+above the `0.02` rad floor); `angular_trajectory_error` max `0.0766` rad
+(`4.39` deg), rms `0.0159` rad; `component_trajectory_error` max_abs
+`0.0755`; restart-state max_abs `0.0755` (same value — the restart file *is*
+the final trajectory step, a genuine cross-file consistency check, not a
+tautology, since it is written by a different code path); independent
+exchange-only-oracle energy series max abs error `0.408` J (reduced units)
+against an energy scale of `~2405` (relative `~1.7e-4`); production's own
+single-sample `last_energy_j.atomistic_onsite` (the anisotropy term)
+nonzero (`-7.10e-20` J), confirming the anisotropy path is genuinely
+exercised. Provisional budgets (`MAX_ANGULAR_ERROR_RAD=0.15` etc., §
+constants in `run_moving_adaptive_wall.py`) give roughly 2x headroom over
+these observed values, following the RCG-04E/F precedent of absorbing a
+real, already-documented physical approximation (the coarse operator's own
+precession-rate mismatch, RCG-04E's open item, carried forward) rather than
+fitting it away; final cross-precision budgets remain RCG-04I's
+responsibility.
+
+**Reviewed limitation, not fabricated**: no accepted refine-request
+(coarse-to-atomistic) transition occurs in this specific fixture — see
+§15.3.1 for the parameter search that produced genuine (but
+reconstruction-rejected) refine-requests at a different geometry, and the
+reasoning for not adopting that geometry as the primary accepted case.
+`run_moving_adaptive_wall.py` prints this limitation explicitly (not
+silently) whenever it re-confirms the absence of an accepted refine event.
+
+### 15.6 Negative controls
+
+**Generic trajectory-comparison defect-sensitivity** (always run, in-memory
+`Trajectory` mutation, no tracked file touched, RCG-04D/E/F precedent):
+freeze-to-initial (`max_radians=0.7325 > budget 0.15`), drop-step (raises
+`TrajectoryKeyMismatchError`), single-component perturbation
+(`max_radians=0.5282 > budget`) — all fail as expected, proving the parity
+assertions above are not vacuous.
+
+**Boundary-crossing-claim defect-sensitivity** (always run): a synthetic
+trajectory holding every step at the *initial* wall centres (no motion at
+all) reports zero `crossing_events` — the boundary-crossing assertion
+itself is defect-sensitive, not automatically satisfied by any input.
+
+**Selector-disabled control** (RCG-04G-specific requirement; disposable,
+not committed — a scratch copy of `moving_wall_adaptive/inpsd.dat` outside
+the repository, `cg_update_interval` changed from `1` to `5000` (greater
+than `Nstep=900`, so `mod(step, update_interval) != 0` for every step in
+range and the selector never synchronizes again after setup), everything
+else byte-identical): the real binary run with this input produces **zero**
+`AdaptiveCG: transition` lines at all (not even the initial-setup
+coarsening), and the final `resolution_state` stays `2` (fine) on every
+block for the entire run. Fed through `run_moving_adaptive_wall.py`'s own
+transition-history assertions, this fails immediately
+(`assert setup_events` — "expected initial-ownership coarsening at the
+first synchronization step" — is the first check to fire), directly
+demonstrating that selector advancement, not something else, produces the
+observed transition history. No tracked file was modified; nothing to
+restore.
+
+**Stationary/zero-drive control** (RCG-04G-specific requirement;
+disposable, not committed — the identical construction at
+`wall_centers_cells=(6.0, 18.0)` instead of `(9.0, 15.0)`, i.e. walls 12
+cells apart, the generator's own default `separation_margin_widths=4`):
+over 3000 steps (more than 3x this fixture's `Nstep`), net wall
+displacement is `1.17e-4` cells — three orders of magnitude below this
+fixture's own `MIN_WALL_DISPLACEMENT_CELLS=0.1` floor. (Numerical jitter at
+this scale, exactly at a block boundary, does produce a handful of
+spurious `crossing_events` entries — a useful finding in its own right,
+showing why the boundary-crossing claim must be paired with a genuine
+displacement floor, not a bare crossing-event count.) Fed through the same
+assertion logic, the displacement-floor check fails as expected
+(`"feature-off wall displacement 1.17e-4 does not exceed floor 0.1
+cells"`), confirming the accepted case's motion is not an artifact of the
+tracking/crossing-detection method applied to an effectively-stationary
+input.
+
+Both disposable controls' commands, exact diagnostics, and outcomes are
+recorded above in full; neither modified a tracked file, so there is
+nothing to "restore" beyond re-running the unmodified, tracked
+`moving_wall_adaptive` fixture (§15.7) to confirm it still passes.
+
+### 15.7 Fresh build/test evidence
+
+**Environment:** GNU Fortran 13.3.0, GNU C/C++ 12.4.0, CMake 3.28.3, CPU
+backend, fp64 (default precision), Release build type. No CUDA/HIP evidence
+gathered in this slice (not available in this environment; RCG-04G's scope
+per the prompt pack does not require backend parity — that is RCG-04I's,
+which already carries the RCG-04C-documented GPU transition-log/resolution-
+history gap and the atom_to_block fix's own GPU-path re-verification, §15.1,
+forward).
+
+```text
+$ cmake -S . -B /tmp/rcg04g-cpu-build -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
+-- Git tag found: VERSION="v6.0.2-454-g6b8a07-dirty".   # dirty from this
+                                                          # slice's own
+                                                          # uncommitted files
+$ cmake --build /tmp/rcg04g-cpu-build -j$(nproc)
+...
+[100%] Built target sd.f95   # exit 0, only the one pre-existing
+                               # executable-stack linker warning
+
+$ ctest --test-dir /tmp/rcg04g-cpu-build -L cg13-cpu --output-on-failure
+...
+21: coarse-graining-block-topology .............. Passed   # fixed assertion
+23: adaptive-cg-production-e2e .................... Passed   # initial_phase_y fixed
+ 3: adaptive-cg-moving-adaptive-wall .............. Passed    8.83 sec
+100% tests passed, 0 tests failed out of 21
+
+$ ctest --test-dir /tmp/rcg04g-cpu-build -R '^(adaptive-cg-fixture-dependencies|asd-tests)$'
+1/2 Test #2: asd-tests ...................... Passed 8.96 sec   # legacy
+                                                # non-CG regression suite,
+                                                # unaffected
+2/2 Test #24: adaptive-cg-fixture-dependencies  Passed 0.04 sec
+
+$ python3 tests/coarse_graining/audit_fixture_dependencies.py
+adaptive-CG fixture dependency audit: PASS (52 fixture directories, 99 input paths)
+```
+
+**Worktree check after all runs:** `adaptive-cg-production-e2e` again
+touched the three tracked `examples/AdaptiveCoarseGraining/*/uppasd.adaptive.yaml`
+provenance files as a test-run side effect (same behaviour documented in
+every prior RCG-04 slice); restored with `git checkout` after the run.
+Running the new fixtures directly (during construction/debugging, outside
+CTest) produced runtime byproducts inside their own tracked directories
+(`moment.<simid>.out`, `restart.<simid>.out`, `inp.<simid>.json`,
+`uppasd.<simid>.yaml`), all deleted (not committed) after confirming they
+were byproducts. `restart_seed.out` in both new fixture directories
+required `git add -f` to stage (matches the repository's broad `*.out`
+ignore pattern, same precedent as RCG-04B's `initmag_restart_atomistic`).
+After restoration, `git status --short` showed exactly this slice's
+intended files: `CMakeLists.txt` (new test registration),
+`source/CoarseGraining/blocktopology.f90` (the atom_to_block fix),
+`tests/coarse_graining/{fixture_dependencies,test_block_topology,
+torque_oracle}.py` (constants, corrected unit test, anisotropy-oracle
+extension), `tests/coarse_graining/e2e/initial_phase_y/inpsd.dat`
+(`block_size_x` fix), one new file
+(`tests/coarse_graining/run_moving_adaptive_wall.py`), and the two new
+`e2e/moving_wall_{feature_off,adaptive}/` fixture directories. No debug
+`write` statement survived in any source file (both were added, used, and
+reverted via `git checkout` mid-session, confirmed byte-identical
+afterward).
+
+### 15.8 Comparison with the RCG-04F static-mixed case
+
+Both RCG-04F (`moving_static_mixed_bs1`, static-mixed conical spiral) and
+this fixture use `cg_operator PROJECTED` on the same `ncell 24 2 2` host
+geometry and share the same underlying ghost-interpolation/ownership
+machinery (§15.1's fix applies identically to both). RCG-04F's own
+angular-error range (`bs1`: `1.35`-`1.5` rad, against a maximum possible
+antipodal angle of `pi~3.14`) reflects a *static*, fixed fine/coarse
+partition continuously coupled to a *continuously precessing* conical
+spiral for 50 steps — a much larger cumulative divergence budget than this
+fixture's *adaptive*, wall-following partition compared over a shorter,
+partly-quiescent 900-step window (`angular max=0.0766` rad). The two are
+not directly comparable claims (different state, different partition
+policy, different run length) but are consistent in direction: an
+adaptively-tracking fine region that follows the actual moving feature
+(this fixture) shows substantially smaller cumulative error against the
+all-atomistic reference than a statically-fixed partition continuously
+exposed to a moving/precessing texture (RCG-04F) — the qualitative result
+the RCG-04G prompt's own framing anticipates ("the atomistic region follows
+the feature while coherent regions can coarsen").
+
+### 15.9 RCG-04G checklist
+
+- [x] Deterministic periodic wall-pair input and provenance are verified. (§15.3, `GENERATOR_MANIFEST.json`, content-hash check in `run_moving_adaptive_wall.py`)
+- [x] The chosen drive and its expected direction are physically documented. (§15.2 no-field capability finding; §15.3.1 observed repulsion, cross-validated against the plain physics reference)
+- [x] Initial torque and subsequent wall motion exceed nontriviality floors. (§15.4 independent oracle; §15.5 wall tracking/displacement)
+- [x] Wall centres are tracked from the full trajectory with periodic unwrapping. (§15.5, `trajectory_evidence.domain_wall_centers`/`track_wall_crossings`)
+- [x] At least one wall crosses at least one physical block boundary. (§15.5: both walls cross at `step=400`)
+- [x] Per-step resolution state is recorded and tied to physical block locations. (§15.5; `resolution_state` history, corrected `atom_to_block`)
+- [x] Accepted transitions occur during motion, not solely at initialization. (§15.5: `step=788` accepted coarsen, strictly after the `step=400` crossing)
+- [x] Transition step, block, old/new state, reason, acceptance, and outcome are asserted. (`run_moving_adaptive_wall.py`, full `TransitionEvent` field set)
+- [x] Transition energy jumps and polarization ratios are recorded where available. (§15.5; polarization ratios; energy jumps recorded, all near-zero for accepted coarsens)
+- [x] Polarization-unsafe wall regions remain protected from unsafe coarsening. (§15.5: every accepted coarsen ratio > 0.9998, gate at 0.9, unweakened)
+- [x] Safe coherent regions demonstrate permitted coarsening where physically achievable. (§15.5: 11 initial-setup + 1 motion-driven accepted coarsen)
+- [ ] Accepted refinement and coarsening are both demonstrated, or a reviewed limitation remains open. **Only coarsening is demonstrated as an accepted transition; refinement remains a reviewed, documented, open limitation** (§15.3.1, §15.5) — genuine refine-requests were produced and investigated at a different geometry but rejected by reconstruction, not adopted for the accepted case, per the prompt's explicit allowance for this outcome.
+- [x] The adaptive fine region follows or responds spatially to the moving wall. (§15.5: resolution state tracks current wall position every sample; §15.8 comparison)
+- [x] Adaptive and all-fine trajectories/energies are compared. (§15.5: full per-step comparison against `moving_wall_feature_off`)
+- [x] Selector-disabled or request-neutralized negative control fails as expected. (§15.6: `cg_update_interval` control, zero transitions, assertion fails immediately)
+- [x] Zero-drive/stationary control does not satisfy the moving-crossing claim. (§15.6: wide-separation control, displacement floor fails as expected)
+- [x] Restored unmodified source passes the complete slice again. (§15.1 debug-print reverts confirmed byte-identical; §15.7 full 21/21 regression on the final, clean source tree)
+- [x] `E2E-MOVING-ADAPTIVE` evidence is tracked with full provenance. (this section: commands, environment, raw data, and interpretation all recorded)
+- [x] Unrelated worktree changes remain untouched and unstaged. (§15.7 worktree check)
+
+Seventeen of eighteen RCG-04G checklist items are complete and evidenced;
+the refine-direction item is explicitly, honestly left open per the
+prompt's own allowance rather than fabricated.
+
+---
+
 ## Open items (carried forward, not blocking RCG-04A/B/C/D/E)
 
 - **Coarse-vs-atomistic precession-rate quantitative reconciliation is not
@@ -2507,3 +3011,21 @@ All eighteen RCG-04F checklist items are complete and evidenced.
   8 atoms each. Not corrected retroactively in §3 per the "avoid unrelated
   churn" rule; flagged here for a future documentation pass (e.g. RCG-04J)
   to fix without a separate churn-only commit.
+- **New in RCG-04G: `atom_to_block` fix's GPU-path re-verification is
+  outstanding.** §15.1's fix is Fortran-only (`blocktopology.f90`); the GPU
+  path reads the same corrected array via `fortranData.cpp` (no separate
+  GPU-side construction was found), so it should inherit the fix
+  automatically, but this was not confirmed by running any GPU-backed
+  fixture (no GPU hardware in this environment). RCG-04I (or any slice
+  first exercising a GPU AdaptiveCG fixture with a genuinely non-uniform,
+  non-random spatial state) should confirm this directly before relying on
+  GPU spatial-locality claims.
+- **New in RCG-04G: no accepted refine (coarse-to-atomistic) transition is
+  demonstrated for a moving wall.** §15.3.1/§15.5/§15.9: a tighter geometry
+  produces genuine refine-requests but every one is rejected by
+  `RECONSTRUCTION_ALIGNED` (`reconstruct_block_aligned`'s polarization-based
+  precondition), not by the energy-jump gate. Whether `RECONSTRUCTION_CONE`
+  (the alternative `cg_reconstruction` scheme, not tried in this slice)
+  would accept where `ALIGNED` rejects, and whether that represents a
+  genuine capability gap or correct, conservative behavior, is open for a
+  future slice.
