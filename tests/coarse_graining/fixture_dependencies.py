@@ -91,6 +91,27 @@ MOVING_STATIC_MIXED_CASES = (
 MOVING_WALL_FEATURE_OFF_CASE = "moving_wall_feature_off"
 MOVING_WALL_ADAPTIVE_CASE = "moving_wall_adaptive"
 
+# RCG-04H DMI-HYBRID-CROSSING: RCG-04B's deterministic +q/-q chiral partner
+# pair (Initmag=8) on the RCG-04F fine/interface/coarse partition, with DMI
+# (``dmfile_chiral``) and uniaxial anisotropy (``kfile_cg_x``) both enabled,
+# asserting signed chirality, +q/-q DMI energy ordering, named DMI/
+# anisotropy energy series, a spatial-refinement pair, and DMI-specific
+# interface ownership -- plus a sign-reversed-DMI negative control
+# (``dmfile_chiral_reversed``, a tracked exact ``D -> -D`` negation, not a
+# temporary source mutation). See run_moving_dmi_chiral.py and each
+# fixture's README.md.
+MOVING_DMI_CHIRAL_ALL_FINE_PLUS_CASE = "moving_dmi_chiral_all_fine_plus"
+MOVING_DMI_CHIRAL_BS1_PLUS_CASE = "moving_dmi_chiral_bs1_plus"
+MOVING_DMI_CHIRAL_BS1_MINUS_CASE = "moving_dmi_chiral_bs1_minus"
+MOVING_DMI_CHIRAL_BS2_PLUS_CASE = "moving_dmi_chiral_bs2_plus"
+MOVING_DMI_CHIRAL_BS1_PLUS_REVERSED_CASE = "moving_dmi_chiral_bs1_plus_reversed"
+MOVING_DMI_CHIRAL_BS1_MINUS_REVERSED_CASE = "moving_dmi_chiral_bs1_minus_reversed"
+MOVING_DMI_CHIRAL_CASES = (
+    MOVING_DMI_CHIRAL_ALL_FINE_PLUS_CASE, MOVING_DMI_CHIRAL_BS1_PLUS_CASE,
+    MOVING_DMI_CHIRAL_BS1_MINUS_CASE, MOVING_DMI_CHIRAL_BS2_PLUS_CASE,
+    MOVING_DMI_CHIRAL_BS1_PLUS_REVERSED_CASE, MOVING_DMI_CHIRAL_BS1_MINUS_REVERSED_CASE,
+)
+
 
 def all_e2e_cases() -> tuple[str, ...]:
     """Return every e2e directory referenced by either executable harness."""
@@ -106,5 +127,6 @@ def all_e2e_cases() -> tuple[str, ...]:
         MOVING_FEATURE_OFF_WIDE_CASE, MOVING_ALL_FINE_WIDE_CASE, *MOVING_ALL_COARSE_CASES,
         *MOVING_STATIC_MIXED_CASES,
         MOVING_WALL_FEATURE_OFF_CASE, MOVING_WALL_ADAPTIVE_CASE,
+        *MOVING_DMI_CHIRAL_CASES,
     }
     return tuple(sorted(names))

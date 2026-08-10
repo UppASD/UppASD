@@ -1141,6 +1141,22 @@ if(BUILD_TESTING)
    set_tests_properties(adaptive-cg-moving-adaptive-wall
       PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;moving-parity"
                  ENVIRONMENT "OMP_NUM_THREADS=1")
+   # RCG-04H DMI-HYBRID-CROSSING: RCG-04B's deterministic +q/-q chiral-partner
+   # pair on the RCG-04F fine/interface/coarse partition, with DMI and
+   # uniaxial anisotropy both enabled, asserting signed chirality, +q/-q DMI
+   # energy ordering, named DMI/anisotropy energy series, a complete
+   # mixed-vs-all-fine trajectory comparison, a spatial-refinement pair, and
+   # DMI-specific interface ownership -- plus a sign-reversed-DMI negative
+   # control against a fixed handedness oracle anchored to RCG-02. CPU-only
+   # in this slice; CPU/GPU backend parity is RCG-04I's responsibility, not
+   # claimed here.
+   add_test(NAME adaptive-cg-moving-dmi-chiral
+      COMMAND python3
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_moving_dmi_chiral.py
+         --binary $<TARGET_FILE:${UppASD_EXE}>)
+   set_tests_properties(adaptive-cg-moving-dmi-chiral
+      PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;moving-parity"
+                 ENVIRONMENT "OMP_NUM_THREADS=1")
    add_test(NAME adaptive-cg-fixture-dependencies
       COMMAND python3
          ${CMAKE_SOURCE_DIR}/tests/coarse_graining/audit_fixture_dependencies.py)

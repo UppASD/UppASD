@@ -2919,6 +2919,284 @@ prompt's own allowance rather than fabricated.
 
 ---
 
+## 16. RCG-04H: DMI-HYBRID-CROSSING
+
+### 16.1 Accepted sign convention, restated (fixed before any run below)
+
+Per `docs/RCG-02_DMI_HANDEDNESS_EVIDENCE.md` (closed, governing): for a
+directed neighbour list carrying both orientations of every physical bond
+(`D_ji = -D_ij`, supplied explicitly, never inferred),
+
+```text
+E_D = (mu_B/2) * sum_i sum_j D_ij . (M_i x M_j)
+B_i = sum_j D_ij x M_j
+```
+
+and for the dimer `M_1=+x`, `M_2=+y`, `D_12=+D*z`, `D_21=-D*z`: `E=mu_B*D`,
+`B_1=-D*x`, `B_2=-D*y` — positive `D_zx` raises the right-handed `+q`
+planar chain `m=(cos(qx),sin(qx),0)` and favours its left-handed `-q`
+partner, exactly the already-accepted `DMI-HYBRID-CROSSING` *operator*
+fixture's own result (`test_static_hybrid_operator.f90`). Signed chirality
+uses `trajectory_evidence.signed_chirality` with `axis=(0,0,1)` and
+directed bonds `i -> i+1` along increasing `x` at basis site 1
+(`axis_chain_bonds` default) — the *same* triple-product orientation as the
+RCG-02 formula (see that function's docstring). For the planar chain,
+`S_i x S_{i+1} = (0,0,sin(q*a))`, so `chi=sin(q*a)`: positive for `+q`,
+negative for `-q`. This entire derivation — restated in
+`torque_oracle.py`'s new DMI section and `run_moving_dmi_chiral.py`'s
+module docstring — is fixed **before** any dmfile under test is read, and
+independently cross-checked in `test_torque_oracle.py:DmiOracleTests`
+(including reproducing RCG-02's own dimer numbers exactly and confirming
+`negate_dmi_bonds` flips both the field and the `+q`/`-q` ordering).
+
+**Fixed oracle, stated once:** for the accepted sign (`D_zx=+0.02`,
+`e2e/dmfile_chiral`), `-q` must have lower DMI energy than `+q`. This
+expectation is derived purely from the formula above and this fixture's own
+bond convention — never from parsing `dmfile_chiral`'s sign — and is reused
+unchanged against the sign-reversed negative control.
+
+### 16.2 Fixture construction
+
+`GEOMETRY = Geometry(na=2, n1=24, n2=2, n3=2, ...)`, the same wide geometry
+and shared `posfile`/`jfile` RCG-04E/F use. `+q`/`-q` states are
+`moving_state_generator.chiral_partner_pair(cone_angle_deg=40.0, turns=±1,
+axis=(0,0,1), moment_magnitude=2.23, landeg=2.0)` — a genuinely conical
+(not planar) spiral so the state has nonzero *exchange* torque independent
+of DMI, matching the RCG-04B/D convention. Both partners' `momfile` text is
+byte-identical (verified); only `inpsd.dat`'s `initpropvec` sign differs.
+
+**DMI** (`e2e/dmfile_chiral`): `D_zx=+0.02` on the `(1,0,0)`/`(-1,0,0)`
+site-1 nearest-neighbour shell (the same shell RCG-04D/E/F's oracle
+calibrated as `A=0.75703576545650`), explicitly listing both directions
+with `D_21=-D_12` per the accepted convention — not relying on `Sym 1`
+symmetry expansion to synthesize the reciprocal bond. `e2e/dmfile_chiral_reversed`
+is the same file with every `D` negated (`D_zx=-0.02`); its exact
+`D -> -D` relationship to `dmfile_chiral` is verified programmatically
+(`verify_reversed_dmfile_is_exact_negation`) before it is used, so the
+negative control below evaluates a *rigorously* equivalent reversed
+operator, not an arbitrary different file.
+
+**Displaced from the DMI minimum:** `q_used = 2*pi*turns/n1 = 0.2618`
+rad/cell; the small-`D` linear estimate `q_min ~ D_zx/(2*A) = 0.0132`
+rad/cell (RCG-02's own dimer formula). Ratio `19.8` — asserted `>5` in the
+harness — confirms the chosen `q` is not a delicate perturbation near the
+DMI-favoured wavevector.
+
+**Anisotropy** (`e2e/kfile_cg_x`, already tracked/accepted since RCG-03):
+uniaxial, easy axis `(1,0,0)`, `k1={site1: -0.002, site2: -0.003}` —
+spatially uniform per basis site (RCG-03's `ANI-UNIFORM-TRANSLATED`
+contract), not aligned with the spiral for most atoms (only the `x=0`
+reference atom), so it contributes real per-atom torque that varies with
+each atom's spiral phase.
+
+**Ownership** reuses the exact RCG-04F `bs1`/`bs2` fine/interface/coarse
+partition (blocks 1-6 of 24 FINE at `block_size_x=1` → 48 fine/32
+interface/112 coarse atoms; blocks 1-3 of 12 FINE at `block_size_x=2`,
+same physical atoms) and its `mask.dat`, re-verified here against
+`static_topology_oracle.compute_expected_topology` independently of RCG-04F.
+
+Six fixtures (`e2e/moving_dmi_chiral_*`): `all_fine_plus` (all-fine
+reference), `bs1_plus`/`bs1_minus` (mixed, accepted sign, `+q`/`-q`),
+`bs2_plus` (mixed, accepted sign, refinement point), and
+`bs1_plus_reversed`/`bs1_minus_reversed` (mixed, **reversed** sign,
+negative control). `damping 0.05`, `timestep 1.0e-16`, `Nstep 50`,
+`do_tottraj Y`/`tottraj_step 5` — the same integration parameters as every
+other RCG-04E/F/G fixture.
+
+### 16.3 Independent pre-acceptance nontriviality gate
+
+`torque_oracle.py` gained a DMI section (`DmiBond`, `parse_dmfile_bonds`,
+`build_directed_dmi_bonds` — matched by full displacement *vector*, not
+just magnitude, since `D` is direction-dependent — `dmi_field`,
+`dmi_energy_reduced`, `negate_dmi_bonds`, `anisotropy_energy_reduced`,
+`dmi_anisotropy_torque_report`), calibrated against RCG-02's own worked
+dimer example rather than guessed, and cross-checked in
+`test_torque_oracle.py:DmiOracleTests` (9 new tests, all passing).
+
+Computed purely from the `+q` generator state, before any production run
+(all reduced units, per the module's calibration convention):
+
+```text
+exchange_only.max_torque   = 0.0400269
++DMI.max_torque             = 0.0451246   (DMI isolated via max_torque)
++DMI.rms_torque             = 0.0451246
++DMI+anisotropy.rms_torque  = 0.0439186   (anisotropy isolated via rms_torque)
+```
+
+DMI's isolated effect is visible in `max_torque` (the worst atom moves);
+anisotropy's easy axis happens not to move that same worst atom, so it is
+isolated via `rms_torque` (the whole-distribution effect) instead — both
+differences exceed `1e-4`, asserted. `+DMI+anisotropy.max_field_misalignment_deg
+= 0.204` (floor `0.05`), consistent with RCG-04E's documented long-wave-limit
+scaling at this wide geometry (`n1=24`).
+
+t=0 fixed oracle, independent of any production run:
+
+```text
+DMI energy:      plus=0.410641   minus=-0.410641   (minus lower, as expected for D_zx>0)
+signed chirality: plus=0.106938  minus=-0.106938   (plus positive, minus negative)
+```
+
+### 16.4 Results (accepted sign, `D_zx=+0.02`)
+
+All fixtures ran successfully (`returncode==0`, `"AdaptiveCG: capability
+accepted"`), with normalization error `<7e-10` (budget `1e-8`) and
+displacement exceeding the nontriviality floor (`all_fine_plus=0.00836`,
+`bs1_plus=0.0534`, `bs1_minus=0.0669`, `bs2_plus=0.134` rad, floor
+`0.005`).
+
+**Ownership** (`bs1_plus`/`bs1_minus`, independently re-derived, matching
+RCG-04F's own bs1 partition exactly): `fine=6/interface=4/coarse=14` blocks
+(`48/32/112` atoms); resolution-state history agrees with the independent
+expectation at both sampled labels. **16 active DMI bonds** (independently
+counted via `dmi_interface_bond_count`, a new function paralleling
+`static_topology_oracle.interface_bond_count` for the DMI operator
+specifically) cross the atomistic-to-coarse boundary — DMI, not merely
+exchange, structurally engages the interface, at every accepted and
+negative-control fixture alike.
+
+**Complete trajectory vs. all-fine reference** (`bs1_plus` vs.
+`all_fine_plus`): initial-step agreement `<1e-9` rad (byte-identical seed);
+component `max_abs=0.0544` `rms=0.0180`; angular `max=0.0598` rad (3.43°)
+`rms=0.0313` rad.
+
+**Spatial/interface error and refinement point** (`bs2_plus[block_size_x=2]
+-> bs1_plus[block_size_x=1]`, same physical 48/32/112 partition):
+`angular_max_rad` `0.142 -> 0.0598`, a genuine improvement under
+refinement. Both spatial-error tables show a clean, monotonic pattern absent
+from RCG-04F's own table (that slice's own documented open item: a
+too-fast coarse precession rate homogenizing the perturbation across the
+narrow fine region) — here `coarse` error decreases monotonically with
+distance from the interface and `fine` error is small and decreasing away
+from it, at both block sizes.
+
+**Named DMI and anisotropy energy series** (`bs1_plus`, reduced units,
+independent oracle, not read back from production — production's own
+`atomistic_bilinear` folds exchange and DMI together and cannot separate
+them, see `torque_oracle.py`'s DMI section docstring):
+
+```text
+DMI:         {0: 0.4106, 10: 0.4098, 20: 0.4095, 30: 0.4093, 40: 0.4091, 50: 0.4089}
+anisotropy:  {0: -0.0992, 10: -0.0988, 20: -0.0987, 30: -0.0987, 40: -0.0986, 50: -0.0986}
+```
+
+**`+q`/`-q` DMI energy ordering and signed chirality** (`bs1_plus` vs.
+`bs1_minus`, mixed geometry, accepted sign): the fixed oracle (`minus`
+lower energy, `plus` positive/`minus` negative chirality) holds at every
+one of the 11 sampled steps (`0,5,...,50`), not merely at `t=0`.
+
+**Signed dynamical response:** the fitted order-parameter phase frequency
+(`conical_mode_series`/`fit_conical_mode_frequency`) is *same*-sign for
+both partners (`plus=2.57e12`, `minus=1.87e12` rad/s) — this is the
+common-mode Larmor precession set by the shared local field along the cone
+axis, not a `q`-dependent signal, and is reported for context only, not
+asserted. The genuinely signed observable is the **chirality drift** over
+the run: `plus` drifts `-0.000433`, `minus` drifts `+0.000121` — opposite
+sign, consistent with damping relaxing the mirror-related `+q`/`-q` pair
+from their opposite DMI-preferred deviations back toward the shared
+nonchiral exchange optimum.
+
+### 16.5 Sign negative control (`D_zx=-0.02`, `dmfile_chiral_reversed`)
+
+Both reversed-sign fixtures ran successfully with the same ownership
+(`48/32/112` atoms, `16` active DMI interface bonds — the *mechanism* is
+unaffected by the sign, only the preference is).
+
+**Why a trajectory-level evaluation of the accepted oracle does not work
+here (found during this session, not assumed):** signed chirality is
+computed purely from a spin snapshot's directions — it has no dependence on
+which DMI operator produced that snapshot. Over 50 damped steps the
+accepted-sign run's own chirality only drifted `~0.1%` of its magnitude (§16.4);
+evaluating the *accepted* `DMI_BONDS` formula on the *reversed-dynamics*
+trajectory therefore still shows `minus` lower at every step (the spatial
+texture baked into the initial state hasn't had time to invert), which is
+**not** a meaningful sign-reversal test. The correct construction —
+substantively different from a first draft of this harness that made
+exactly this mistake — evaluates the *original, unchanged* fixed claim
+(`minus` lower) against the bonds parsed from the operator *under test*
+(`dmfile_chiral_reversed`), applied to the production-consumed `t=0` state:
+
+```text
+plus=-0.410641   minus=0.410641   (now plus is lower)
+```
+
+The original claim ("minus lower, i.e. the negative-chirality partner is
+DMI-preferred") **fails**, as required — this is a genuine derivation using
+the same fixed formula and expectation, never a chirality regenerated from
+the reversed input. Self-consistency (not merely "the assertion happened to
+fail"): evaluated with its *own* reversed bonds as the oracle throughout the
+real dynamical trajectory it actually drove, the reversed run is internally
+consistent with a genuinely flipped preference (`plus` lower) at every
+sampled step — confirming a real sign reversal, not a broken/incoherent run.
+(Signed chirality itself, as expected from the kinematic argument above, is
+unaffected by the reversed operator — reported for completeness, not used
+as a negative-control target.)
+
+**Restoration:** `bs1_plus`/`bs1_minus` were rerun (fresh subprocess
+invocations) after the reversed-sign runs and the complete ordering/
+chirality slice passes again, from `dmfile_chiral` — a separate, always-
+tracked file that was never mutated by the negative control (no
+mutate-and-restore step was needed or performed on the accepted-sign
+source).
+
+### 16.6 Fresh build/test evidence
+
+```text
+cmake -S . -B /tmp/rcg04h-cpu-build -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build /tmp/rcg04h-cpu-build -j2
+ctest --test-dir /tmp/rcg04h-cpu-build -L cg13-cpu
+# 22/22 passed, including the new adaptive-cg-moving-dmi-chiral (10.58s) and
+# coarse-graining-torque-oracle (now 29 tests, including 9 new DmiOracleTests)
+python3 tests/coarse_graining/audit_fixture_dependencies.py
+# adaptive-CG fixture dependency audit: PASS (58 fixture directories, 118 input paths)
+python3 tests/coarse_graining/run_setup_rejection_matrix.py --binary /tmp/rcg04h-cpu-build/bin/sd.f95
+# CG-13 setup-rejection matrix passed (30 cases)
+```
+
+Environment: GNU Fortran 13.3.0, GNU C/C++ 12.4.0, CMake, CPU backend,
+fp64, `git describe --tags` `v6.0.2-455-g021b-dirty` (dirty only from this
+session's own new/modified files; base commit `021bd7f2`, RCG-04G's
+closing commit). No CUDA/HIP hardware was exercised in this slice; CPU/GPU
+backend parity for this fixture is RCG-04I's responsibility, not claimed
+here, matching every prior RCG-04D-G slice.
+
+Production output artifacts (`moment.*.out`, `restart.*.out`,
+`inp.*.json`, `uppasd.*.yaml`) generated by running the harness were
+removed from the six new tracked fixture directories after each run
+(matching the RCG-03/RCG-04F precedent that only inputs, not run outputs,
+are tracked); the three pre-existing `examples/AdaptiveCoarseGraining/*/uppasd.adaptive.yaml`
+files touched by `adaptive-cg-production-e2e`'s ordinary side effect were
+restored with `git checkout` after every test run.
+
+### 16.7 RCG-04H checklist
+
+- [x] Accepted RCG-02 directed-bond and Hamiltonian sign conventions are restated. (§16.1)
+- [x] Signed chirality definition and orientation are fixed before test execution. (§16.1, `run_moving_dmi_chiral.py` module docstring, cross-checked in `test_torque_oracle.py:DmiOracleTests`)
+- [x] Expected handedness is independent of the tested DMI input contents. (§16.1, §16.5 — the fixed claim is reused unchanged, never regenerated from either dmfile)
+- [x] Deterministic `+q` and `-q` partners use identical non-DMI inputs. (§16.2 — momfile byte-identical across all 6 fixtures, verified programmatically)
+- [x] The chosen state is displaced from the DMI minimum and has nonzero torque. (§16.2 ratio 19.8; §16.3 independent torque report)
+- [x] Fine, coarse, and interface ownership are all exercised. (§16.4 — `48/32/112` atoms, independently verified)
+- [x] Supported uniform anisotropy contributes to a state-sensitive dynamic observable. (§16.3 — isolated via rms_torque; §16.4 named anisotropy energy series)
+- [x] Initial DMI/anisotropy field or torque is independently checked. (§16.3)
+- [x] `+q`/`-q` energy ordering is asserted with the accepted sign. (§16.4 — t=0 and throughout the trajectory)
+- [x] Signed time-dependent chirality or phase/frequency response is asserted. (§16.4 — per-step chirality sign across 11 samples; chirality-drift sign)
+- [x] Named DMI and anisotropy energy series are asserted. (§16.4)
+- [x] Complete mixed and all-fine trajectories are compared. (§16.4)
+- [x] Spatial/interface error and at least one refinement point are reported. (§16.4 — `bs2_plus -> bs1_plus`, monotonic improvement)
+- [x] Reversed-DMI control fails the original handedness assertion. (§16.5)
+- [x] The oracle is not regenerated from the reversed input. (§16.5 — same fixed formula/claim, only the operator being evaluated changes)
+- [x] Restored accepted-sign source/input passes the complete slice again. (§16.5 — fresh reruns after the negative control)
+- [x] `DMI-HYBRID-CROSSING` evidence is tracked with full provenance. (this section: construction, oracle, commands, raw results, negative control)
+- [ ] Human handedness/oracle review is recorded or remains visibly unchecked. **Not yet reviewed by a human independent of this session — left open for explicit Human sign-off**, per this prompt pack's own RCG-04H "Suggested review: Human handedness review" assignment.
+- [x] Unrelated worktree changes remain untouched and unstaged. (§16.6 — only the intended RCG-04H files are modified/new; the three ordinary production-e2e side-effect files were restored)
+
+Seventeen of eighteen RCG-04H checklist items are complete and evidenced;
+the human handedness-review item is explicitly left open, matching every
+other RCG-04 slice's treatment of a review step this session cannot itself
+provide.
+
+---
+
 ## Open items (carried forward, not blocking RCG-04A/B/C/D/E)
 
 - **Coarse-vs-atomistic precession-rate quantitative reconciliation is not

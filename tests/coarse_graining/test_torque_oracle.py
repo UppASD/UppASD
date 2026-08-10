@@ -17,7 +17,7 @@ import pathlib
 import unittest
 
 import torque_oracle as orc
-from moving_state_generator import Geometry, conical_spiral_state
+from moving_state_generator import Geometry, chiral_partner_pair, conical_spiral_state
 
 E2E_JFILE = pathlib.Path(__file__).with_name("e2e") / "jfile"
 
@@ -212,6 +212,104 @@ class TorqueReportSerializationTests(unittest.TestCase):
         directions = {1: (0.0, 0.0, 1.0), 2: (1.0, 0.0, 0.0)}
         report = orc.initial_torque_report(geometry, shells, directions)
         json.dumps(report.as_dict())  # must not raise
+
+
+class DmiOracleTests(unittest.TestCase):
+    """RCG-04H: independent DMI field/energy oracle, cross-checked against
+    RCG-02's own accepted worked dimer example
+    (docs/RCG-02_DMI_HANDEDNESS_EVIDENCE.md), independent of the harness
+    this oracle will gate."""
+
+    def test_rcg02_dimer_cross_check(self) -> None:
+        # RCG-02: M_1=+x, M_2=+y, D_12=+D*z, D_21=-D*z -> E_reduced=D,
+        # B_1=-D*x, B_2=-D*y.
+        geometry = Geometry(na=1, n1=2, n2=1, n3=1, basis=((0.0, 0.0, 0.0),))
+        d = 2.5
+        dmi_bonds = (
+            orc.DmiBond(dx=1.0, dy=0.0, dz=0.0, d=(0.0, 0.0, d)),
+            orc.DmiBond(dx=-1.0, dy=0.0, dz=0.0, d=(0.0, 0.0, -d)),
+        )
+        directions = {1: (1.0, 0.0, 0.0), 2: (0.0, 1.0, 0.0)}
+        field = orc.dmi_field(geometry, dmi_bonds, directions)
+        self.assertAlmostEqual(field[1][0], -d, places=12)
+        self.assertAlmostEqual(field[1][1], 0.0, places=12)
+        self.assertAlmostEqual(field[1][2], 0.0, places=12)
+        self.assertAlmostEqual(field[2][1], -d, places=12)
+        energy = orc.dmi_energy_reduced(geometry, dmi_bonds, directions)
+        self.assertAlmostEqual(energy, d, places=12)
+
+    def test_negate_dmi_bonds_reverses_field_and_energy(self) -> None:
+        geometry = Geometry(na=1, n1=2, n2=1, n3=1, basis=((0.0, 0.0, 0.0),))
+        dmi_bonds = (
+            orc.DmiBond(dx=1.0, dy=0.0, dz=0.0, d=(0.0, 0.0, 1.0)),
+            orc.DmiBond(dx=-1.0, dy=0.0, dz=0.0, d=(0.0, 0.0, -1.0)),
+        )
+        directions = {1: (1.0, 0.0, 0.0), 2: (0.0, 1.0, 0.0)}
+        energy = orc.dmi_energy_reduced(geometry, dmi_bonds, directions)
+        reversed_bonds = orc.negate_dmi_bonds(dmi_bonds)
+        reversed_energy = orc.dmi_energy_reduced(geometry, reversed_bonds, directions)
+        self.assertAlmostEqual(reversed_energy, -energy, places=12)
+
+    def test_planar_chiral_partner_energy_ordering_matches_rcg02(self) -> None:
+        """Positive D_zx must favour -q over +q, matching RCG-02's own stated
+        result and the accepted DMI-HYBRID-CROSSING operator fixture --
+        independent of the run_moving_dmi_chiral.py harness this gates."""
+        geometry = _host_geometry()
+        d = 0.02
+        dmi_bonds = (
+            orc.DmiBond(dx=1.0, dy=0.0, dz=0.0, d=(0.0, 0.0, d)),
+            orc.DmiBond(dx=-1.0, dy=0.0, dz=0.0, d=(0.0, 0.0, -d)),
+        )
+        plus, minus = chiral_partner_pair(
+            geometry, cone_angle_deg=40.0, turns=1, axis=(0.0, 0.0, 1.0),
+        )
+        energy_plus = orc.dmi_energy_reduced(geometry, dmi_bonds, plus.direction_by_atom)
+        energy_minus = orc.dmi_energy_reduced(geometry, dmi_bonds, minus.direction_by_atom)
+        self.assertLess(energy_minus, energy_plus)
+        # Reversed operator must flip the ordering, not merely change magnitude.
+        reversed_bonds = orc.negate_dmi_bonds(dmi_bonds)
+        reversed_energy_plus = orc.dmi_energy_reduced(geometry, reversed_bonds, plus.direction_by_atom)
+        reversed_energy_minus = orc.dmi_energy_reduced(geometry, reversed_bonds, minus.direction_by_atom)
+        self.assertGreater(reversed_energy_minus, reversed_energy_plus)
+
+    def test_parse_dmfile_bonds_roundtrip(self) -> None:
+        text = "1 1 1.0 0.0 0.0 0.0 0.0 0.02\n1 1 -1.0 0.0 0.0 0.0 0.0 -0.02\n"
+        bonds = orc.parse_dmfile_bonds(text)
+        self.assertEqual(len(bonds), 2)
+        self.assertEqual(bonds[0].d, (0.0, 0.0, 0.02))
+        self.assertEqual(bonds[1].d, (0.0, 0.0, -0.02))
+
+    def test_parse_dmfile_bonds_rejects_wrong_field_count(self) -> None:
+        with self.assertRaises(orc.MalformedJfileError):
+            orc.parse_dmfile_bonds("1 1 1.0 0.0 0.0 0.02\n")
+
+    def test_parse_dmfile_bonds_rejects_empty_text(self) -> None:
+        with self.assertRaises(orc.MalformedJfileError):
+            orc.parse_dmfile_bonds("\n\n")
+
+    def test_anisotropy_energy_reduced_uniaxial(self) -> None:
+        geometry = Geometry(na=1, n1=1, n2=1, n3=1, basis=((0.0, 0.0, 0.0),))
+        directions = {1: (1.0, 0.0, 0.0)}
+        energy = orc.anisotropy_energy_reduced(
+            geometry, directions, axis=(1.0, 0.0, 0.0), k1_by_site={1: -0.002},
+        )
+        self.assertAlmostEqual(energy, -0.002, places=12)
+
+    def test_dmi_anisotropy_torque_report_nonzero_for_displaced_state(self) -> None:
+        geometry = _host_geometry()
+        shells = orc.parse_jfile_shells(E2E_JFILE.read_text())
+        d = 0.02
+        dmi_bonds = (
+            orc.DmiBond(dx=1.0, dy=0.0, dz=0.0, d=(0.0, 0.0, d)),
+            orc.DmiBond(dx=-1.0, dy=0.0, dz=0.0, d=(0.0, 0.0, -d)),
+        )
+        state = conical_spiral_state(geometry, cone_angle_deg=40.0, turns=1)
+        report = orc.dmi_anisotropy_torque_report(
+            geometry, shells, dmi_bonds, state.direction_by_atom,
+            anisotropy_axis=(1.0, 0.0, 0.0), anisotropy_k1={1: -0.002, 2: -0.003},
+        )
+        self.assertGreater(report.max_torque, 1.0e-3)
+        self.assertGreater(report.rms_torque, 1.0e-3)
 
 
 if __name__ == "__main__":
