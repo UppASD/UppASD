@@ -3762,3 +3762,407 @@ open, not silently marked passing.
   bit-identity persists or whether it was an artifact of these small
   fixtures' block-reduction size — either outcome is useful evidence, but
   RCG-04I could not distinguish them within its own accepted geometries.
+- **New in RCG-04J: `adaptive-cg-production-e2e` (pre-existing, non-RCG-04
+  harness) fails reproducibly on a fresh out-of-tree CUDA fp32 build** —
+  found only because RCG-04J ran the full `cg13`/`-L cg13` label fresh at
+  fp32, which no prior slice had done (RCG-04I's own fp32 evidence, §17.11,
+  ran only `-R adaptive-cg-moving-backend-parity`, never the full label, on
+  its fp32 build). Full characterization in RCG-04J §18.3 below; not part
+  of any RCG-04 exit-evidence package (the failing fixture,
+  `gpu_fft_static_mixed`, predates RCG-04A — see RCG-04A §3.6 — and no
+  RCG-04D-I fixture uses the dipole/`EWALD3D_FFT` term at all). Recommended
+  as a new, independent remediation task, not fixed here.
+- **New in RCG-04J: no CI workflow executes any `cg13`/`moving-parity`
+  labelled test, on any backend.** Full finding in RCG-04J §18.2. Not a
+  correctness gap in the evidence gathered — every claim in this document is
+  backed by a fresh, reproducible manual out-of-tree build/test run — but it
+  means none of RCG-04's evidence is continuously re-verified, and the
+  RCG-04J prompt's instruction to distinguish CI-scale from longer
+  validation-scale cases has no CI signal to distinguish against.
+
+---
+
+## 18. RCG-04J: evidence reconciliation and closure
+
+**Status: RCG-04J audit slice. No production code, selector behavior,
+integration semantics, or accepted tolerance was changed in this slice.
+Only this evidence document was edited (this section and the two `Open
+items` bullets immediately above it).**
+
+**Base commit:** `d8da049918388fed137b54175a19dd73440d22ca` ("RCG-04I:
+establish backend precision parity"), the accepted tip of the RCG-04A-I
+chain. Session date: 2026-08-10.
+
+### 18.1 Ancestry and worktree audit
+
+**Ancestry** — confirmed by direct inspection, not assumed from commit
+messages:
+
+```text
+$ git log --oneline e382423c..d8da0499 --reverse
+3fe7d600 RCG-04A: define moving e2e evidence contract
+64832ed9 RCG-04B: add deterministic moving-state generators
+4d48cf53 RCG-04C: add state-sensitive trajectory evidence
+ab0267bd RCG-04D: establish moving off fine parity
+c44d126a RCG-04E: validate all-coarse moving dynamics
+6b8a0781 RCG-04F: validate static mixed interface dynamics
+021bd7f2 RCG-04G: validate adaptive boundary-crossing dynamics
+dd5c2754 RCG-04H: validate chiral DMI hybrid dynamics
+d8da0499 RCG-04I: establish backend precision parity
+
+$ git merge-base --is-ancestor e382423cec73537aad4023bcf6f7a9d78d5bc444 HEAD
+$ echo $?
+0   # e382423c (accepted RCG-03 close) is an ancestor of HEAD
+```
+
+The chain is linear, in the exact dependency order required by the prompt
+pack §2, with no branch point, no missing slice, and no commit beyond
+RCG-04I. `HEAD` is exactly `d8da0499`.
+
+**Worktree** — `git status --short` at session start showed 91 untracked
+top-level entries and **zero modified tracked files** (`git diff --stat
+HEAD` was empty). The untracked entries are: eighteen leftover local build
+directories from prior sessions (`build`, `build_a`, `build_ab`,
+`build_cpu`, `build_deb`, `build_fastcopy`, `build_gpu*`, `build_ptds`,
+`build_rcg04i_cpu`, `build_rcg04i_cuda_fp32`, `build_rcg04i_cuda_fp64`,
+`build_rcg04i_cuda_fp64`), a root-level `CMakeCache.txt`/`CMakeFiles/`/
+`Testing/`/`CMakeLists.txt.local` (an in-tree configure, never used by this
+audit), `bin/`, `conv_bench.txt`, the untracked
+`docs/RCG-04_MOVING_E2E_PROMPT_PACK.md` (present but untracked since
+RCG-04A, per that slice's own note), a handful of untracked example/test
+scratch directories, and `lib/`. **None of these were read as evidence,
+built from, or relied upon anywhere in this closure audit** — every
+configure/build/test command below used a brand-new directory under `/tmp`,
+never one of the pre-existing `build_*` trees, per the prompt pack's "Do not
+use incremental build trees as closure evidence" instruction. `git describe
+--tags` at session start reported `v6.0.2-457-gd8da0499` with **no `-dirty`
+suffix**, independently confirming no tracked file differs from `HEAD`.
+
+Two of this session's own fresh-build test runs (`adaptive-cg-production-e2e`,
+both the CPU-only and CUDA-fp32 builds) reproduced the same tracked-file
+side effect every prior RCG-04 slice's evidence documented: three
+provenance-stamped `examples/AdaptiveCoarseGraining/*/uppasd.adaptive.yaml`
+files were rewritten with a new `date`/`git_revision` header by the ordinary
+production run. Both times, `git checkout --` restored them immediately
+after the run; `git status --short | grep -v '^??'` was empty at the end of
+the session, confirming byte-identical restoration and that no unrelated
+tracked change survived this audit.
+
+### 18.2 Fresh fixture-dependency, packaging, and backend/precision evidence (this slice)
+
+**Environment:** GNU Fortran 13.3.0, GNU C/C++ 12.4.0, CMake 3.28.3, CUDA
+13.3 (`nvcc`), 2x NVIDIA RTX A4000 (shared host; both GPUs were concurrently
+running an unrelated third-party workload — `oskarn/GNN_project`, ~2.2 GiB/
+~93% utilization each, confirmed via `nvidia-smi --query-compute-apps` —
+throughout this session; this affected wall-clock time only, not any
+pass/fail result, which was independently re-verified). No `hipcc`/
+`rocm-smi` on this host — **HIP evidence deferred**, matching every prior
+RCG-04 slice's identical, unresolved deferral; required command unchanged
+from RCG-04I §17.3.
+
+**Fixture-dependency/packaging audit** (run first, no build required):
+
+```text
+$ python3 tests/coarse_graining/audit_fixture_dependencies.py
+adaptive-CG fixture dependency audit: PASS (58 fixture directories, 118 input paths)
+```
+
+**Fresh out-of-tree CPU fp64 build** (new directory, never used before this
+session):
+
+```text
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=OFF -DUPPASD_PRECISION=DOUBLE \
+   -DBUILD_TESTING=ON -S . -B /tmp/rcg04j-cpu
+-- Git tag found: VERSION="v6.0.2-457-gd8da0499".   # clean, no -dirty
+-- Configuring done
+$ cmake --build /tmp/rcg04j-cpu -j2
+...
+[100%] Built target polarization_gate_tests   # exit 0
+
+$ ctest --test-dir /tmp/rcg04j-cpu -L cg13-cpu --output-on-failure
+...
+18/22  adaptive-cg-moving-off-fine ..................... Passed 0.48 sec
+19/22  adaptive-cg-moving-all-coarse ................... Passed 12.90 sec
+20/22  adaptive-cg-moving-static-mixed ................. Passed 9.80 sec
+21/22  adaptive-cg-moving-adaptive-wall ................ Passed 10.87 sec
+22/22  adaptive-cg-moving-dmi-chiral .................... Passed 12.59 sec
+100% tests passed, 0 tests failed out of 22
+```
+
+All five RCG-04D-H moving-parity CTest targets pass fresh, out-of-tree, on
+CPU fp64, in addition to every pre-existing `cg13-cpu` reference/setup test.
+
+**Fresh out-of-tree CUDA fp64 build:**
+
+```text
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=CUDA -DUPPASD_PRECISION=DOUBLE \
+   -DBUILD_TESTING=ON -DCMAKE_CUDA_COMPILER=/usr/local/cuda-13.3/bin/nvcc \
+   -S . -B /tmp/rcg04j-cuda-fp64
+$ cmake --build /tmp/rcg04j-cuda-fp64 -j2      # exit 0
+
+$ ctest --test-dir /tmp/rcg04j-cuda-fp64 -L cg13 --output-on-failure
+...
+23/28  adaptive-cg-moving-backend-parity ................ Passed 71.27 sec
+100% tests passed, 0 tests failed out of 28
+```
+
+All 28 `cg13` tests pass, including `adaptive-cg-moving-backend-parity`
+(the RCG-04I CPU/GPU parity test covering all 19 tracked moving fixtures at
+fp64).
+
+**Fresh out-of-tree CUDA fp32 build:**
+
+```text
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=CUDA -DUPPASD_PRECISION=SINGLE \
+   -DBUILD_TESTING=ON -DCMAKE_CUDA_COMPILER=/usr/local/cuda-13.3/bin/nvcc \
+   -S . -B /tmp/rcg04j-cuda-fp32
+$ cmake --build /tmp/rcg04j-cuda-fp32 -j2      # exit 0
+
+$ ctest --test-dir /tmp/rcg04j-cuda-fp32 -L cg13 --output-on-failure
+...
+18/28  adaptive-cg-moving-off-fine ...................... Passed 0.29 sec
+19/28  adaptive-cg-moving-all-coarse ..................... Passed 10.94 sec
+20/28  adaptive-cg-moving-static-mixed .................. Passed 8.03 sec
+21/28  adaptive-cg-moving-adaptive-wall .................. Passed 8.75 sec
+22/28  adaptive-cg-moving-dmi-chiral ...................... Passed 11.18 sec
+23/28  adaptive-cg-moving-backend-parity ................. Passed 47.34 sec
+96% tests passed, 1 tests failed out of 28
+The following tests FAILED:
+   19 - adaptive-cg-production-e2e (Failed)
+```
+
+All six RCG-04 moving/backend-parity targets pass fresh at fp32. **One
+pre-existing, non-RCG-04 test — `adaptive-cg-production-e2e` — fails**;
+characterized in §18.3, since this is a newly discovered defect this slice
+must report rather than silently absorb.
+
+This is genuinely new evidence, not a citation of RCG-04I's own fp32
+evidence: RCG-04I's fp32 build (§17.11) ran only
+`ctest -R adaptive-cg-moving-backend-parity`, never the full `cg13`/`-L
+cg13` label, so this gap was never exercised before. Running the complete
+label fresh, as RCG-04J's own instructions require ("fresh out-of-tree
+configure/build/test workflows for every available accepted backend and
+precision"), is what surfaced it.
+
+### 18.3 New finding: `adaptive-cg-production-e2e` / `gpu_fft_static_mixed` fails at CUDA fp32 (out of RCG-04 scope, not fixed here)
+
+**Reproducibility:** confirmed twice, independently, in the same fresh
+`/tmp/rcg04j-cuda-fp32` build (`-L cg13` run and a follow-up isolated
+`-R '^adaptive-cg-production-e2e$'` run); both fail identically:
+
+```text
+Traceback (most recent call last):
+  File ".../tests/coarse_graining/run_production_e2e.py", line 445, in <module>
+    main()
+  File ".../tests/coarse_graining/run_production_e2e.py", line 435, in main
+    assert abs(float_metric(fft.stdout, "coarse_dipole")) > 0.0
+AssertionError
+```
+
+**Root-cause characterization** (diagnostic only, source unchanged): the
+failing assertion is production_e2e.py:435, checking that
+`gpu_fft_static_mixed`'s reported `coarse_dipole` energy term is nonzero.
+Running that one fixture's binary directly and comparing precisions:
+
+```text
+# fp64 CUDA (/tmp/rcg04j-cuda-fp64):
+Gpu: AdaptiveCG last_energy_j ... coarse_dipole=-3.2397309101121701e-52 total=4.5682482683662658e-20
+
+# fp32 CUDA (/tmp/rcg04j-cuda-fp32):
+Gpu: AdaptiveCG last_energy_j ... coarse_dipole=0.0000000000000000e+00 total=4.5682493663138653e-20
+```
+
+The fp64 value is not a physically meaningful dipole coupling: at
+`-3.24e-52` J against a `total` energy scale of `~4.57e-20` J, it is
+**32 orders of magnitude below the term it is nominally part of** —
+consistent with floating-point noise at or below fp64's own relative
+precision (`~1e-16 x 4.57e-20 ~= 1e-36`, itself 16 orders above the printed
+value), not a resolved physical dipole field. `float32`'s minimum
+representable subnormal magnitude is `~1.4e-45`; a true value at the
+`1e-52` scale necessarily underflows to bit-exact `0.0` in fp32, which is
+exactly what is observed. This assertion was, in other words, never a
+meaningful physics check even where it happened to pass — it asserts
+"nonzero" on a quantity that is, at both precisions, indistinguishable from
+representational noise around an actual value of zero for this fixture's
+particular geometry/field configuration.
+
+**Not part of any RCG-04 exit-evidence package:** `gpu_fft_static_mixed` and
+this exact assertion predate RCG-04A (inventoried, unchanged, in RCG-04A
+§3.6, as a pre-existing "setup smoke" case, `Nstep 1`, no dynamics claim).
+No RCG-04D-I fixture enables the dipole/`EWALD3D_FFT` term at all
+(confirmed: none of the 19 tracked `MOVING_*` fixture directories reference
+a dipole-enabling key). This finding therefore does not touch, weaken, or
+retroactively invalidate any of the five required RCG-04 exit-evidence
+packages, all of which pass, fresh, at every precision tested.
+
+**Disposition:** per the governing rule that "a newly discovered defect
+returns to the owning slice or becomes a new remediation task," and since
+RCG-04J may not expand its own scope to fix it, this is recorded as a new,
+independent remediation item (recommended title: "harden or replace the
+`gpu_fft_static_mixed` `coarse_dipole` nonzero assertion; determine whether
+CUDA fp32 EWALD3D_FFT dipole coupling has a genuine precision floor problem
+or whether the fixture's field configuration simply has no resolvable
+dipole signal at this geometry"). Not fixed, and no test file, assertion,
+or tolerance was touched, in this slice.
+
+### 18.4 The five required exit-evidence packages
+
+| Package | Slice | Commit | Evidence section | Fixtures | Backend/precision evidence | Checklist |
+| --- | --- | --- | --- | --- | --- | --- |
+| `E2E-MOVING-OFF-FINE` | RCG-04D | `ab0267bd2549721e3752ad673c02f6482e04d066` | §12 | `moving_feature_off`, `moving_all_fine` | CPU fp64 (own slice, §12.6); CUDA fp64/fp32 backend-parity (RCG-04I §17, re-verified fresh §18.2) | 18/18 |
+| `E2E-MOVING-ALL-COARSE` | RCG-04E | `c44d126a66ecf6aa1aec763ec994c7709b6a86dc` | §13 | `moving_all_fine_wide`, `moving_all_coarse_bs{1,2,4,8}` | CPU fp64 (own slice, §13.8); CUDA fp64/fp32 backend-parity (RCG-04I; re-verified fresh §18.2) | 17/17 (Open item: quantitative coarse-precession-rate reconciliation incomplete — non-blocking per RCG-04E's own claim basis, which rests on the monotonic refinement trend and independent sign checks) |
+| `E2E-MOVING-STATIC` | RCG-04F | `6b8a0781b4401262fd66d99d9cef7ea7e1693613` | §14 | `moving_static_mixed_bs{1,2}`, `moving_static_mixed_bs1_shifted` | CPU fp64 (own slice, §14.7); CUDA fp64/fp32 backend-parity (RCG-04I; re-verified fresh §18.2) | 18/18 |
+| `E2E-MOVING-ADAPTIVE` | RCG-04G | `021bd7f2a8a8107ace314728efcf1a2f1551a626` | §15 | `moving_wall_feature_off`, `moving_wall_adaptive` | CPU fp64 (own slice, §15.7); CUDA fp64/fp32 backend-parity (RCG-04I; re-verified fresh §18.2) | 17/18 (Open item: only coarsening, not refinement, demonstrated as an accepted transition — explicitly reviewed and left open per the RCG-04G prompt's own allowance) |
+| `DMI-HYBRID-CROSSING` | RCG-04H | `dd5c2754b6bd5cf74190ac361222a2dfb67a0ebd` | §16 | `moving_dmi_chiral_{all_fine_plus,bs1_plus,bs1_minus,bs2_plus}` (+2 reversed-sign control fixtures) | CPU fp64 (own slice, §16.6); CUDA fp64/fp32 backend-parity (RCG-04I; re-verified fresh §18.2) | 17/18 (Open item: Human handedness/oracle review not yet performed) |
+
+All five packages: fresh CPU fp64 evidence from this slice's own
+`/tmp/rcg04j-cpu` build (§18.2, 5/5 passing); fresh CUDA fp64 and fp32
+backend-parity evidence from this slice's own `/tmp/rcg04j-cuda-fp64`/
+`/tmp/rcg04j-cuda-fp32` builds (§18.2, 6/6 passing at each precision,
+including the aggregate `adaptive-cg-moving-backend-parity` test covering
+all 19 fixtures); HIP evidence deferred, no toolchain on this host (§18.2).
+Every fixture directory, generator manifest, and CTest registration named
+above was independently confirmed to exist and to be git-tracked (not just
+described in prose) during this audit (`git ls-files`, `grep` on
+`CMakeLists.txt`).
+
+**CI-scale vs. longer-validation-scale finding:** every individual moving
+fixture's own CTest target completes in under 13 seconds on CPU fp64 in
+this session's fresh run (§18.2); the aggregate backend-parity test (all 19
+fixtures, one CTest target) completes in 47-75 seconds depending on
+precision. None of this is intrinsically too slow for ordinary CI. However,
+**no CI workflow in this repository invokes any of it.** Direct inspection
+of every workflow file:
+
+```text
+$ grep -rn "ctest" .github/workflows/
+.github/workflows/adaptive-cg-clean.yml:55:  ctest --test-dir "$CLEAN_BUILD_DIR" --output-on-failure \
+                                                 -R 'adaptive-cg-fixture-dependencies|adaptive-cg-production-e2e'
+```
+
+`adaptive-cg-clean.yml` (CPU-only `ubuntu-latest` runner) invokes exactly
+two named tests by `-R`: the fixture-dependency audit, and the **old,
+still-vacuous** `adaptive-cg-production-e2e` (the harness RCG-04A itself
+found "cannot carry moving-dynamics claims") — never `-L cg13`, `-L
+cg13-cpu`, or `-L moving-parity`, so none of the five RCG-04 exit-evidence
+packages run on any push or pull request. `gpubuilds.yml` builds a
+CUDA/HIP-enabled binary but contains no `ctest` invocation at all — GPU
+correctness is never checked in CI, only that it compiles. No other
+workflow schedules or dispatches a longer/nightly run. **The ordinary
+CTest labels (`cg13`, `cg13-cpu`, `cg13-cuda`, `moving-parity`) are
+internally honest about what they require** (a `cg13-cuda`-labelled test is
+never run without a CUDA-enabled configuration) **but there is no CI-scale
+subset actually wired into CI at all, so there is nothing for a
+longer-validation subset to be distinguished from in practice.** This is a
+process/packaging gap, not a defect in the evidence gathered — every claim
+in this document is independently reproducible by a human running the
+commands above — but it means none of RCG-04's evidence is currently
+re-verified automatically. Recommended nonblocking follow-up: add a CI job
+(CPU-only is sufficient, matching `adaptive-cg-clean.yml`'s existing
+runner) that runs `-L cg13-cpu` or at minimum `-R
+'adaptive-cg-moving-(off-fine|all-coarse|static-mixed|adaptive-wall|dmi-chiral)'`
+on every push/PR.
+
+### 18.5 Parent RCG-04 checklist reconciliation (from `docs/RCG-04_MOVING_E2E_PROMPT_PACK.md` §14)
+
+- [x] Uniform fixed-point cases are labelled as smoke/zero-torque tests only. (RCG-04A §3, all claim-category columns; unchanged and re-confirmed present in this session's worktree)
+- [x] Feature-off/all-fine parity begins from the same moving state. (RCG-04D §12.1: byte-identical, content-hash-verified `momfile`; re-run fresh, passing, this session, §18.2)
+- [x] Initial torque exceeds a documented nontriviality floor. (RCG-04D §12.2: `max_torque=0.672` > `0.05` floor; independent oracle, not read back from the diagnostic under test; equivalent independent gates exist in RCG-04E §13.2, RCG-04F §14.2, RCG-04G §15.4, RCG-04H §16.3)
+- [x] Final displacement exceeds a documented nontriviality floor. (RCG-04D §12.4 item 4: `0.1245`/`0.1244` rad > `0.02` rad floor, both legs independently; equivalent per-package floors in RCG-04E-H)
+- [x] Complete state-sensitive trajectories agree within the fp64 budget. (RCG-04D §12.4 item 4, 528 `(step,ensemble,atom)` samples; RCG-04I §17.6 across all 19 fixtures; re-verified fresh at CPU fp64 and CUDA fp64, §18.2, 100% passing)
+- [x] All-coarse long-wave dynamics match an analytic or atomistic reference. (RCG-04E §13.4-§13.6: compared against the accepted `moving_all_fine_wide` atomistic reference at 4 block sizes, with an independent nontriviality oracle and a documented analytic long-wave interpretation. **Caveat carried from RCG-04E's own Open items, not new:** a full quantitative coarse-precession-rate derivation was not completed — the accepted claim rests on the monotonic refinement trend and independent sign/nontriviality checks, not on quantitative rate agreement, exactly as RCG-04E itself stated.)
+- [x] Static mixed work exercises atomistic, coarse, and interface ownership. (RCG-04F §14.2-§14.3: `48/32/112` atoms respectively, independent topology oracle, runtime ownership diagnostics matched exactly, every fixture)
+- [x] Adaptive mixed work performs accepted transitions during real motion. (RCG-04G §15.5: accepted coarsen transition at `step=788`, strictly after the tracked wall's `step=400` block-boundary crossing. **Caveat carried from RCG-04G's own Open items, not new:** only coarsening, not refinement, was demonstrated as an accepted transition in the accepted case; explicitly reviewed and left open, per the RCG-04G prompt's own allowance for this outcome, not fabricated.)
+- [x] DMI/anisotropy tests assert chirality and dynamics, not merely nonzero terms. (RCG-04H §16.4: signed chirality, `+q`/`-q` energy ordering under the accepted RCG-02 sign, time-dependent chirality drift, and named DMI/anisotropy energy series — not only nonzero-magnitude checks)
+- [x] Interface error is measured under spatial refinement. (RCG-04F §14.4: `bs2`->`bs1` refinement pair at fixed physical partition; RCG-04H §16.4: `bs2_plus`->`bs1_plus`, monotonic improvement)
+- [x] At least one wall or skyrmion crosses a static/adaptive boundary. (RCG-04G §15.5: both tracked wall centres cross a physical block boundary at `step=400`)
+- [x] A broken coarse operator fails at least one fixture. (RCG-04E §13.7: disposable sign-flip mutation of `coarse_exchange_stiffness_j_per_m`, fails the independent sign check and the CTest; restored byte-identical, confirmed by empty `git diff --stat`; re-confirmed unmutated in this session's own fresh CPU/CUDA builds)
+- [x] A reversed DMI sign fails the chiral fixture. (RCG-04H §16.5: `dmfile_chiral_reversed` evaluated against the fixed, unregenerated accepted-sign oracle fails the original ordering claim (`plus=-0.410641` vs `minus=0.410641`, i.e. the claim inverts); restored and reverified)
+- [x] CPU/GPU parity uses identical initial data and observable definitions. (RCG-04I §17.2: SHA-256/byte comparison of generated initial state across all 19 fixtures; §17.6 same `trajectory_evidence.py` parser/observable definitions for both backends; this session's own fresh CUDA fp64 and fp32 builds reproduce `adaptive-cg-moving-backend-parity` passing, §18.2. **Only CUDA is available on this host; HIP parity is not established** — tracked as its own, separately unchecked item below, not silently folded into this one.)
+- [x] Every fixture and generator is tracked with provenance. (RCG-04B §10.2 manifest/`GENERATOR_MANIFEST.json`; every `e2e/moving_*`/`e2e/*chiral*` directory carries its own `README.md`; all confirmed git-tracked in this session via `git ls-files`, §18.4)
+- [x] Precision-specific tolerances are justified from observed error scaling. (RCG-04I §17.8-§17.9: fp64/fp32 budgets derived from observed error across 48 vs 192 atoms, 50 vs 900 steps; a flat budget was tried and rejected before freezing the final one; this session's fresh CUDA fp64/fp32 runs pass against the frozen budgets unchanged, §18.2)
+
+**All sixteen parent checklist items are supported by direct evidence,
+independently re-confirmed fresh in this session wherever a build/test was
+required.** Two items carry an explicit, non-blocking caveat inherited
+unchanged from the owning slice's own Open items (all-coarse quantitative
+rate reconciliation; adaptive refine-direction). Neither caveat was
+introduced, resolved, or altered by RCG-04J.
+
+### 18.6 RCG-04J closure-audit checklist
+
+- [x] Accepted ancestry of RCG-04A through RCG-04I is recorded. (§18.1)
+- [x] Worktree state and exclusion of unrelated changes are recorded. (§18.1)
+- [x] Fresh CPU configure/build/test evidence is recorded. (§18.2: `/tmp/rcg04j-cpu`, 22/22 `cg13-cpu`)
+- [x] Fresh available GPU backend/precision evidence is recorded. (§18.2: `/tmp/rcg04j-cuda-fp64` 28/28; `/tmp/rcg04j-cuda-fp32` 27/28 with the one non-RCG-04 failure disclosed and characterized in §18.3, not hidden; HIP deferred, no toolchain)
+- [x] Fixture dependency and packaging audits pass. (§18.2: PASS, 58 fixture directories, 118 input paths)
+- [x] All five required exit-evidence packages are linked and complete. (§18.4; two carry pre-existing, explicitly reviewed, non-blocking open sub-items, not silent gaps)
+- [x] Every parent checkbox has a direct evidence pointer. (§18.5)
+- [ ] CI-scale and longer validation cases are distinguished. **No CI workflow runs any `cg13`/`moving-parity` test at all (§18.4 finding), so there is no CI-scale subset to distinguish from a longer-validation one in practice; the CTest label taxonomy itself does not overstate hardware coverage, but nothing is currently wired into CI.** Left open; recommended nonblocking follow-up in §18.4.
+- [x] Negative-control failures and restoration reruns are retained. (RCG-04D §12.5, RCG-04E §13.7, RCG-04F §14.6, RCG-04G §15.6, RCG-04H §16.5 — each documents the exact failing assertion and a confirmed byte-identical restoration)
+- [ ] Error-budget review and acceptance are recorded. **Review and derivation are recorded** (RCG-04D §12.4 provisional budgets; RCG-04I §17.8-§17.9 frozen fp64/fp32 budgets from observed scaling) **but explicit Human acceptance of those budgets is not yet recorded** — left open, matching RCG-04I's own unchecked item, not resolved by RCG-04J.
+- [x] Any HIP, hardware, or independent-review gap remains visibly unchecked unless explicitly decided. (HIP: §18.2; RCG-04H handedness review: §16.7; RCG-04I budget acceptance: immediately above — all remain `[ ]` with an exact stated reason, none silently marked passing)
+- [x] No new physics or tolerance change was introduced in the closure slice. (§18.1/§18.2: `git diff --stat HEAD` empty at session end, confirmed after restoring the two test-run provenance-file side effects; no `source/` file was opened for editing in this session, only read for the §18.3 diagnostic)
+- [x] The document states either ready-for-Human-decision or remains-open. (§18.7, immediately below)
+- [ ] Human closure or deferral decision is recorded before parent status changes. **Not recorded — this is exactly the decision this document is now ready to receive; RCG-04J cannot and does not make it.**
+
+**Twelve of fourteen closure-audit items are complete. Two remain open**:
+the CI-integration gap found by this audit (a process gap, not a
+correctness gap in the evidence itself), and the Human decision this
+document exists to request.
+
+### 18.7 Outcome
+
+**Ready for Human closure decision.**
+
+All required evidence for RCG-04's five exit-evidence packages is complete,
+fresh, and independently reproduced in this closure session at every
+backend/precision available on this host (CPU fp64, CUDA fp64, CUDA fp32).
+Every one of the sixteen parent checklist items has a direct, specific
+evidence pointer, not an inference from commit count. No production
+physics, selector behavior, integration semantics, or accepted tolerance
+was changed by RCG-04A-J.
+
+The following nonblocking deferrals require explicit Human acceptance
+before (or as part of) any closure decision — none were newly introduced by
+RCG-04J, except where marked "(RCG-04J finding)":
+
+1. **HIP execution evidence** — no HIP toolchain on any host used across
+   RCG-04A-J. Required command recorded (RCG-04I §17.3, unchanged).
+2. **Independent Human handedness/oracle review** for `DMI-HYBRID-CROSSING`
+   (RCG-04H §16.7) — the chirality convention and its reversed-sign
+   negative control are recorded and internally self-consistent, but have
+   not been reviewed by a human independent of the authoring session.
+3. **Human acceptance of the frozen fp64/fp32 precision budgets**
+   (RCG-04I §17.9, §17.12) — derived and frozen from observed error
+   scaling, re-verified passing fresh in this session, but not yet
+   Human-accepted.
+4. **RCG-04G refine-direction limitation** (§15.3.1, §15.9) — only an
+   accepted coarsening transition, not a refinement transition, was
+   demonstrated for the accepted moving-wall case; a genuine refine-request
+   was produced and investigated at a different geometry but rejected by
+   reconstruction. Explicitly reviewed and left open by RCG-04G itself.
+5. **RCG-04E quantitative coarse-precession-rate reconciliation** (§13.6)
+   — qualitative/order-of-magnitude agreement with the atomistic reference
+   is established; a full quantitative derivation of the rate's block-size
+   dependence is not. Does not undermine RCG-04E's own claim, which rests
+   on the monotonic refinement trend and independent sign/nontriviality
+   checks.
+6. **(RCG-04J finding) No CI workflow executes any RCG-04 evidence.**
+   §18.4/§18.6. A process gap: every claim in this document is manually
+   reproducible, but none is continuously re-verified. Recommended
+   nonblocking follow-up: add a CPU-only CI job running at least the five
+   `adaptive-cg-moving-*` CTest targets.
+7. **(RCG-04J finding) `adaptive-cg-production-e2e`'s `gpu_fft_static_mixed`
+   case fails reproducibly at CUDA fp32** (§18.3) — a pre-existing,
+   non-RCG-04 assertion (`coarse_dipole != 0`) that this audit's fresh
+   full-label fp32 run is the first to have exercised. Characterized as a
+   fragile assertion around a value that is numerical noise at both
+   precisions (fp64 value is 32 orders of magnitude below the term's own
+   energy scale). Does not touch any RCG-04 exit-evidence package.
+   Recommended as an independent new remediation task, not fixed here.
+
+None of these seven items block any of RCG-04's five required exit-evidence
+packages, all of which pass, fresh, at every precision available on this
+host. They are listed here precisely so the Human closure decision is made
+with each one visible, not obscured by this slice's own passing result.
