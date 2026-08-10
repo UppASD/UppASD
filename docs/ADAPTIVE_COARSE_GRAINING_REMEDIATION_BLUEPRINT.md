@@ -841,26 +841,94 @@ accepted error budgets
 
 #### Checklist
 
-- [ ] Uniform fixed-point cases are labelled as smoke/zero-torque tests only.
-- [ ] Feature-off/all-fine parity begins from the same moving state.
-- [ ] Initial torque exceeds a documented nontriviality floor.
-- [ ] Final displacement exceeds a documented nontriviality floor.
-- [ ] Complete state-sensitive trajectories agree within the fp64 budget.
-- [ ] All-coarse long-wave dynamics match an analytic or atomistic reference.
-- [ ] Static mixed work exercises atomistic, coarse, and interface ownership.
-- [ ] Adaptive mixed work performs accepted transitions during real motion.
-- [ ] DMI/anisotropy tests assert chirality and dynamics, not merely nonzero terms.
-- [ ] Interface error is measured under spatial refinement.
-- [ ] At least one wall or skyrmion crosses a static/adaptive boundary.
-- [ ] A broken coarse operator fails at least one fixture.
-- [ ] A reversed DMI sign fails the chiral fixture.
-- [ ] CPU/GPU parity uses identical initial data and observable definitions.
-- [ ] Every fixture and generator is tracked with provenance.
-- [ ] Precision-specific tolerances are justified from observed error scaling.
+- [x] Uniform fixed-point cases are labelled as smoke/zero-torque tests only.
+- [x] Feature-off/all-fine parity begins from the same moving state.
+- [x] Initial torque exceeds a documented nontriviality floor.
+- [x] Final displacement exceeds a documented nontriviality floor.
+- [x] Complete state-sensitive trajectories agree within the fp64 budget.
+- [x] All-coarse long-wave dynamics match an analytic or atomistic reference.
+- [x] Static mixed work exercises atomistic, coarse, and interface ownership.
+- [x] Adaptive mixed work performs accepted transitions during real motion.
+- [x] DMI/anisotropy tests assert chirality and dynamics, not merely nonzero terms.
+- [x] Interface error is measured under spatial refinement.
+- [x] At least one wall or skyrmion crosses a static/adaptive boundary.
+- [x] A broken coarse operator fails at least one fixture.
+- [x] A reversed DMI sign fails the chiral fixture.
+- [x] CPU/GPU parity uses identical initial data and observable definitions.
+- [x] Every fixture and generator is tracked with provenance.
+- [x] Precision-specific tolerances are justified from observed error scaling.
 
 **Exit evidence:** `E2E-MOVING-OFF-FINE`,
 `E2E-MOVING-ALL-COARSE`, `E2E-MOVING-STATIC`,
 `E2E-MOVING-ADAPTIVE`, and `DMI-HYBRID-CROSSING`.
+
+**RCG-04 evidence (2026-08-10, CLOSED):** `docs/RCG-04_MOVING_E2E_EVIDENCE.md`
+records nine sliced sessions (RCG-04A-I: evidence contract, deterministic
+moving-state generators, trajectory/observable infrastructure, then the five
+exit-evidence packages and CPU/GPU precision-budget derivation) followed by
+an independent RCG-04J closure audit. The closure audit confirmed the linear
+RCG-04A-I ancestry, ran fresh out-of-tree configure/build/test on every
+backend/precision available (CPU fp64, CUDA fp64, CUDA fp32 — HIP deferred,
+no toolchain on any host used), and reconciled all sixteen checklist items
+above against direct evidence rather than commit count; every fixture and
+generator was independently confirmed git-tracked. All five required
+exit-evidence packages pass fresh at every tested precision. Two real
+production defects were found and fixed during RCG-04D/E (a missing physical
+gyromagnetic-ratio factor in the AdaptiveCG atomistic step; a coarse
+`channel_gamma` scaling gap), each with a defect-sensitivity negative control
+proving the fix matters. The closure audit itself additionally found, and
+disclosed rather than fixed (out of RCG-04's own scope): no CI workflow
+currently runs any `cg13`/`moving-parity` test, and a pre-existing,
+non-RCG-04 dipole-energy assertion (`gpu_fft_static_mixed`) fails
+reproducibly at CUDA fp32.
+
+**RCG-04 is closed (2026-08-10, Human decision: Anders Bergman).** Two items
+requiring Human judgement were reviewed directly against their underlying
+evidence and accepted: the RCG-04H DMI handedness/chirality convention
+(`docs/RCG-04_MOVING_E2E_EVIDENCE.md` §16.1, consistent with the already-closed
+RCG-02 derivation, with a reversed-sign negative control that correctly
+fails) and the RCG-04I frozen fp64/fp32 precision budgets (§17.9, chosen with
+headroom over observed error but well below each fixture's own physical
+displacement, re-verified against negative controls after freezing). HIP
+execution evidence remains deferred, matching RCG-02/RCG-03 precedent — no
+HIP toolchain or device exists in any environment used so far. Rather than
+leaving the remaining gaps as passive prose deferrals, five were promoted to
+actively tracked, independently pickupable follow-up tasks (RCG-04-FU1
+through RCG-04-FU5, defined immediately below); none blocks this closure or
+RCG-05's start. No physics disagreement or unresolved correctness question
+blocks this closure — every fixture this document requires passes now, on
+every backend/precision available.
+
+#### RCG-04 follow-up tasks (opened 2026-08-10, Human decision: Anders Bergman)
+
+Non-blocking, independently pickupable in any order. Each may become its own
+session; none is a dependency of RCG-05.
+
+- **RCG-04-FU1 — HIP execution evidence.** Re-run the five RCG-04 exit-evidence
+  packages and the RCG-04I backend-parity harness on real HIP hardware once a
+  toolchain/device is available. Dependencies: HIP toolchain/hardware only.
+- **RCG-04-FU2 — CI wiring.** Add a CI job (CPU-only is sufficient, matching
+  `adaptive-cg-clean.yml`'s existing runner) that runs at minimum the five
+  `adaptive-cg-moving-*` CTest targets on every push/PR; extend to
+  `adaptive-cg-moving-backend-parity` if a CUDA-capable runner is ever
+  available. Dependencies: none.
+- **RCG-04-FU3 — RCG-04G refine-direction gap.** Find or construct a
+  moving-wall geometry in which an accepted refine (coarse-to-atomistic)
+  transition is genuinely demonstrated during motion, or determine whether
+  `RECONSTRUCTION_CONE` succeeds where `RECONSTRUCTION_ALIGNED` was rejected
+  in RCG-04G's own investigation. Dependencies: accepted RCG-04G.
+- **RCG-04-FU4 — RCG-04E quantitative rate reconciliation.** Derive the
+  coarse operator's precession-rate dependence on block size quantitatively
+  and reconcile it against the atomistic reference, resolving whether the
+  discrete-Laplacian dispersion argument (§13.6) fully explains the residual
+  mismatch or whether an additional scale factor remains. Dependencies:
+  accepted RCG-04E.
+- **RCG-04-FU5 — fp32 `gpu_fft_static_mixed` failure.** Determine whether
+  CUDA fp32 `EWALD3D_FFT` dipole coupling has a genuine precision-floor
+  problem, or replace the fragile `coarse_dipole != 0` assertion (found by
+  RCG-04J to test a quantity indistinguishable from floating-point noise at
+  both precisions) with a physically meaningful check. Dependencies: none —
+  pre-existing, non-RCG-04 harness (`run_production_e2e.py`).
 
 ---
 

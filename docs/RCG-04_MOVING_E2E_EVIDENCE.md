@@ -3187,12 +3187,14 @@ restored with `git checkout` after every test run.
 - [x] The oracle is not regenerated from the reversed input. (§16.5 — same fixed formula/claim, only the operator being evaluated changes)
 - [x] Restored accepted-sign source/input passes the complete slice again. (§16.5 — fresh reruns after the negative control)
 - [x] `DMI-HYBRID-CROSSING` evidence is tracked with full provenance. (this section: construction, oracle, commands, raw results, negative control)
-- [ ] Human handedness/oracle review is recorded or remains visibly unchecked. **Not yet reviewed by a human independent of this session — left open for explicit Human sign-off**, per this prompt pack's own RCG-04H "Suggested review: Human handedness review" assignment.
+- [x] Human handedness/oracle review is recorded or remains visibly unchecked. **Reviewed and accepted (Anders Bergman, 2026-08-10)** — see §18.8. The §16.1 sign derivation, its consistency with the already-closed RCG-02 convention, and the reversed-DMI negative control's correct failure were reviewed directly against this evidence.
 - [x] Unrelated worktree changes remain untouched and unstaged. (§16.6 — only the intended RCG-04H files are modified/new; the three ordinary production-e2e side-effect files were restored)
 
-Seventeen of eighteen RCG-04H checklist items are complete and evidenced;
-the human handedness-review item is explicitly left open, matching every
-other RCG-04 slice's treatment of a review step this session cannot itself
+**Eighteen of eighteen RCG-04H checklist items are complete and evidenced**
+as of the 2026-08-10 Human review recorded in §18.8; at the time this slice
+was originally authored, seventeen of eighteen were complete and
+the human handedness-review item was explicitly left open, matching
+every other RCG-04 slice's treatment of a review step that session could not itself
 provide.
 
 ---
@@ -3609,13 +3611,16 @@ executed inside an out-of-tree scratch workspace
 - [x] fp64 and fp32 budgets are separately justified from the observed scaling. (§17.8/§17.9 — including the explicit finding that a large fp32/fp64 gap is *not* supported by the data for two of the three fixture classes)
 - [x] Budgets are frozen before the final acceptance run. (§17.9 — frozen as named constants in `run_moving_backend_parity.py` before §17.10's run; the rejected flat-budget attempt is recorded, not hidden)
 - [x] Negative controls remain failing under the proposed budgets. (§17.10 — all four controls, both precisions, re-verified against the frozen values)
-- [ ] Human acceptance of precision budgets is recorded or remains unchecked. **Not yet reviewed by a Human independent of this session** — left open for explicit sign-off, matching every other RCG-04 slice's treatment of a review step this session cannot itself provide.
+- [x] Human acceptance of precision budgets is recorded or remains unchecked. **Reviewed and accepted (Anders Bergman, 2026-08-10)** — see §18.8. The §17.9 frozen fp64/fp32 budgets (headroom over observed error, well below each fixture's own physical displacement, re-verified against negative controls after freezing) were reviewed directly against this evidence.
 - [x] Missing hardware/toolchain evidence is represented as a deferral, never a pass. (§17.3 — HIP fp64/fp32 both explicitly `[ ]` with the exact blocker and required command)
 - [x] Unrelated worktree changes remain untouched and unstaged. (§17.11 — only `tests/coarse_graining/run_moving_backend_parity.py` (new), `tests/coarse_graining/trajectory_evidence.py` (§17.5 fix), `CMakeLists.txt`, and this document are touched; `docs/RCG-04_MOVING_E2E_PROMPT_PACK.md` remains untracked and unmodified, matching RCG-04A's own note about this file)
 
-Sixteen of eighteen RCG-04I checklist items are complete and evidenced; HIP
-evidence and the Human precision-budget acceptance are explicitly left
-open, not silently marked passing.
+**Seventeen of eighteen RCG-04I checklist items are complete and evidenced**
+as of the 2026-08-10 Human review recorded in §18.8 (HIP evidence remains
+open — no toolchain exists on any host used so far, tracked as RCG-04-FU1);
+at the time this slice was originally authored, sixteen of eighteen were
+complete and both HIP evidence and the Human precision-budget acceptance
+were explicitly left open, not silently marked passing.
 
 ---
 
@@ -4010,10 +4015,10 @@ or tolerance was touched, in this slice.
 | Package | Slice | Commit | Evidence section | Fixtures | Backend/precision evidence | Checklist |
 | --- | --- | --- | --- | --- | --- | --- |
 | `E2E-MOVING-OFF-FINE` | RCG-04D | `ab0267bd2549721e3752ad673c02f6482e04d066` | §12 | `moving_feature_off`, `moving_all_fine` | CPU fp64 (own slice, §12.6); CUDA fp64/fp32 backend-parity (RCG-04I §17, re-verified fresh §18.2) | 18/18 |
-| `E2E-MOVING-ALL-COARSE` | RCG-04E | `c44d126a66ecf6aa1aec763ec994c7709b6a86dc` | §13 | `moving_all_fine_wide`, `moving_all_coarse_bs{1,2,4,8}` | CPU fp64 (own slice, §13.8); CUDA fp64/fp32 backend-parity (RCG-04I; re-verified fresh §18.2) | 17/17 (Open item: quantitative coarse-precession-rate reconciliation incomplete — non-blocking per RCG-04E's own claim basis, which rests on the monotonic refinement trend and independent sign checks) |
+| `E2E-MOVING-ALL-COARSE` | RCG-04E | `c44d126a66ecf6aa1aec763ec994c7709b6a86dc` | §13 | `moving_all_fine_wide`, `moving_all_coarse_bs{1,2,4,8}` | CPU fp64 (own slice, §13.8); CUDA fp64/fp32 backend-parity (RCG-04I; re-verified fresh §18.2) | 17/17 (Open item: quantitative coarse-precession-rate reconciliation incomplete — non-blocking per RCG-04E's own claim basis, which rests on the monotonic refinement trend and independent sign checks; promoted to active follow-up task **RCG-04-FU4** at closure, §18.8) |
 | `E2E-MOVING-STATIC` | RCG-04F | `6b8a0781b4401262fd66d99d9cef7ea7e1693613` | §14 | `moving_static_mixed_bs{1,2}`, `moving_static_mixed_bs1_shifted` | CPU fp64 (own slice, §14.7); CUDA fp64/fp32 backend-parity (RCG-04I; re-verified fresh §18.2) | 18/18 |
-| `E2E-MOVING-ADAPTIVE` | RCG-04G | `021bd7f2a8a8107ace314728efcf1a2f1551a626` | §15 | `moving_wall_feature_off`, `moving_wall_adaptive` | CPU fp64 (own slice, §15.7); CUDA fp64/fp32 backend-parity (RCG-04I; re-verified fresh §18.2) | 17/18 (Open item: only coarsening, not refinement, demonstrated as an accepted transition — explicitly reviewed and left open per the RCG-04G prompt's own allowance) |
-| `DMI-HYBRID-CROSSING` | RCG-04H | `dd5c2754b6bd5cf74190ac361222a2dfb67a0ebd` | §16 | `moving_dmi_chiral_{all_fine_plus,bs1_plus,bs1_minus,bs2_plus}` (+2 reversed-sign control fixtures) | CPU fp64 (own slice, §16.6); CUDA fp64/fp32 backend-parity (RCG-04I; re-verified fresh §18.2) | 17/18 (Open item: Human handedness/oracle review not yet performed) |
+| `E2E-MOVING-ADAPTIVE` | RCG-04G | `021bd7f2a8a8107ace314728efcf1a2f1551a626` | §15 | `moving_wall_feature_off`, `moving_wall_adaptive` | CPU fp64 (own slice, §15.7); CUDA fp64/fp32 backend-parity (RCG-04I; re-verified fresh §18.2) | 17/18 (Open item: only coarsening, not refinement, demonstrated as an accepted transition — explicitly reviewed and left open per the RCG-04G prompt's own allowance; promoted to active follow-up task **RCG-04-FU3** at closure, §18.8) |
+| `DMI-HYBRID-CROSSING` | RCG-04H | `dd5c2754b6bd5cf74190ac361222a2dfb67a0ebd` | §16 | `moving_dmi_chiral_{all_fine_plus,bs1_plus,bs1_minus,bs2_plus}` (+2 reversed-sign control fixtures) | CPU fp64 (own slice, §16.6); CUDA fp64/fp32 backend-parity (RCG-04I; re-verified fresh §18.2) | **18/18** — Human handedness/oracle review reviewed and accepted 2026-08-10, §18.8 |
 
 All five packages: fresh CPU fp64 evidence from this slice's own
 `/tmp/rcg04j-cpu` build (§18.2, 5/5 passing); fresh CUDA fp64 and fp32
@@ -4098,22 +4103,27 @@ introduced, resolved, or altered by RCG-04J.
 - [x] Fixture dependency and packaging audits pass. (§18.2: PASS, 58 fixture directories, 118 input paths)
 - [x] All five required exit-evidence packages are linked and complete. (§18.4; two carry pre-existing, explicitly reviewed, non-blocking open sub-items, not silent gaps)
 - [x] Every parent checkbox has a direct evidence pointer. (§18.5)
-- [ ] CI-scale and longer validation cases are distinguished. **No CI workflow runs any `cg13`/`moving-parity` test at all (§18.4 finding), so there is no CI-scale subset to distinguish from a longer-validation one in practice; the CTest label taxonomy itself does not overstate hardware coverage, but nothing is currently wired into CI.** Left open; recommended nonblocking follow-up in §18.4.
+- [x] CI-scale and longer validation cases are distinguished. **No CI workflow runs any `cg13`/`moving-parity` test at all (§18.4 finding), so there is no CI-scale subset to distinguish from a longer-validation one in practice; the CTest label taxonomy itself does not overstate hardware coverage, but nothing is currently wired into CI.** Per the 2026-08-10 Human decision (§18.8) this gap was not accepted as a passive deferral: it is now tracked as active follow-up task **RCG-04-FU2**. This box is ticked because the gap is now recorded with a concrete owner/task, not because the gap itself is closed.
 - [x] Negative-control failures and restoration reruns are retained. (RCG-04D §12.5, RCG-04E §13.7, RCG-04F §14.6, RCG-04G §15.6, RCG-04H §16.5 — each documents the exact failing assertion and a confirmed byte-identical restoration)
-- [ ] Error-budget review and acceptance are recorded. **Review and derivation are recorded** (RCG-04D §12.4 provisional budgets; RCG-04I §17.8-§17.9 frozen fp64/fp32 budgets from observed scaling) **but explicit Human acceptance of those budgets is not yet recorded** — left open, matching RCG-04I's own unchecked item, not resolved by RCG-04J.
-- [x] Any HIP, hardware, or independent-review gap remains visibly unchecked unless explicitly decided. (HIP: §18.2; RCG-04H handedness review: §16.7; RCG-04I budget acceptance: immediately above — all remain `[ ]` with an exact stated reason, none silently marked passing)
+- [x] Error-budget review and acceptance are recorded. **Review and derivation are recorded** (RCG-04D §12.4 provisional budgets; RCG-04I §17.8-§17.9 frozen fp64/fp32 budgets from observed scaling) **and explicit Human acceptance is now recorded (Anders Bergman, 2026-08-10, §18.8).**
+- [x] Any HIP, hardware, or independent-review gap remains visibly unchecked unless explicitly decided. (HIP: §18.2, now tracked as active follow-up task **RCG-04-FU1** per §18.8 rather than a passive deferral — the underlying hardware gap is unchanged, but it is no longer merely "left open" prose)
 - [x] No new physics or tolerance change was introduced in the closure slice. (§18.1/§18.2: `git diff --stat HEAD` empty at session end, confirmed after restoring the two test-run provenance-file side effects; no `source/` file was opened for editing in this session, only read for the §18.3 diagnostic)
-- [x] The document states either ready-for-Human-decision or remains-open. (§18.7, immediately below)
-- [ ] Human closure or deferral decision is recorded before parent status changes. **Not recorded — this is exactly the decision this document is now ready to receive; RCG-04J cannot and does not make it.**
+- [x] The document states either ready-for-Human-decision or remains-open. (§18.7)
+- [x] Human closure or deferral decision is recorded before parent status changes. **Recorded — see §18.8.** RCG-04 is closed, 2026-08-10, Human decision: Anders Bergman.
 
-**Twelve of fourteen closure-audit items are complete. Two remain open**:
-the CI-integration gap found by this audit (a process gap, not a
-correctness gap in the evidence itself), and the Human decision this
-document exists to request.
+**All fourteen closure-audit items are complete** as of the 2026-08-10
+Human decision recorded in §18.8. At the time this audit was originally
+performed, twelve of fourteen were complete and two remained open (the
+CI-integration gap found by this audit, and the Human decision itself);
+both are now resolved, the second by definition and the first by being
+promoted to an actively tracked task rather than being silently treated as
+closed.
 
 ### 18.7 Outcome
 
-**Ready for Human closure decision.**
+**RCG-04 is closed.** (Originally recorded here as "Ready for Human closure
+decision"; the decision itself — and its exact content — is now recorded in
+§18.8, added the same day, 2026-08-10.)
 
 All required evidence for RCG-04's five exit-evidence packages is complete,
 fresh, and independently reproduced in this closure session at every
@@ -4123,9 +4133,11 @@ evidence pointer, not an inference from commit count. No production
 physics, selector behavior, integration semantics, or accepted tolerance
 was changed by RCG-04A-J.
 
-The following nonblocking deferrals require explicit Human acceptance
-before (or as part of) any closure decision — none were newly introduced by
-RCG-04J, except where marked "(RCG-04J finding)":
+The following items were presented to the Human reviewer as nonblocking
+deferrals requiring explicit disposition before closure — none were newly
+introduced by RCG-04J, except where marked "(RCG-04J finding)". §18.8
+records what was actually decided for each; the list below is preserved as
+originally written, as the request this document made before that decision:
 
 1. **HIP execution evidence** — no HIP toolchain on any host used across
    RCG-04A-J. Required command recorded (RCG-04I §17.3, unchanged).
@@ -4166,3 +4178,54 @@ None of these seven items block any of RCG-04's five required exit-evidence
 packages, all of which pass, fresh, at every precision available on this
 host. They are listed here precisely so the Human closure decision is made
 with each one visible, not obscured by this slice's own passing result.
+
+### 18.8 Human closure decision (2026-08-10, Anders Bergman)
+
+Each of the seven items in §18.7 was reviewed directly against its
+underlying evidence (not against this document's summary of it) and given
+one of two dispositions: **accepted**, or **promoted to an active,
+independently tracked follow-up task** (in place of leaving it as passive
+deferral prose, which is how RCG-02 and RCG-03 handled their own HIP/
+independent-review deferrals). Both dispositions are recorded in
+`docs/ADAPTIVE_COARSE_GRAINING_REMEDIATION_BLUEPRINT.md`'s Task RCG-04
+entry, which is the authoritative parent-blueprint location for this
+closure per that document's own "only the Human decision may change the
+parent blueprint status to closed" rule.
+
+**Accepted (2 items):**
+
+1. **DMI handedness/chirality convention (§16.1)** — reviewed directly:
+   the fixed sign derivation, its consistency with the already-closed RCG-02
+   dimer/handedness convention, and the reversed-DMI negative control's
+   correct failure (§16.5) together satisfy the RCG-04H "independent Human
+   handedness review" requirement. RCG-04H §16.7's checklist item is updated
+   to `[x]` above.
+2. **Frozen fp64/fp32 precision budgets (§17.9)** — reviewed directly: the
+   budgets carry headroom over observed error while staying well below each
+   fixture's own physical displacement, the flat-budget alternative's
+   rejection is itself evidence the derivation was not merely convenient,
+   and all four negative controls were re-verified failing under the frozen
+   values at both precisions (§17.10). RCG-04I §17.12's checklist item is
+   updated to `[x]` above.
+
+**Promoted to active follow-up tasks, not passively deferred (5 items):**
+HIP execution evidence (**RCG-04-FU1**), the CI-integration gap
+(**RCG-04-FU2**), the RCG-04G refine-direction limitation
+(**RCG-04-FU3**), the RCG-04E quantitative rate-reconciliation limitation
+(**RCG-04-FU4**), and the fp32 `gpu_fft_static_mixed` failure
+(**RCG-04-FU5**). Full scope/dependencies for each are recorded in the
+"RCG-04 follow-up tasks" subsection of
+`docs/ADAPTIVE_COARSE_GRAINING_REMEDIATION_BLUEPRINT.md`'s Task RCG-04
+entry. None blocks this closure or RCG-05; each may be picked up
+independently, in any order, whenever convenient. Unlike a passive
+deferral, each now has a task ID, a stated scope, and a stated dependency,
+so it cannot be silently lost.
+
+**RCG-04 is closed (2026-08-10, Human decision: Anders Bergman).** All
+sixteen parent checklist items (§18.5) and all fourteen closure-audit items
+(§18.6) are evidenced; the two items that specifically required Human
+judgement (handedness review, precision-budget acceptance) are accepted
+above; the five remaining items are active, tracked, non-blocking follow-up
+work, not open correctness questions. RCG-05 ("Restore CPU/GPU geometry and
+ownership equivalence," dependencies: RCG-04) may now begin on this
+accepted base.
