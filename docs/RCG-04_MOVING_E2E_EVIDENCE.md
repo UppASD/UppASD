@@ -3197,6 +3197,428 @@ provide.
 
 ---
 
+## 17. RCG-04I: CPU/GPU backend precision parity
+
+**Base commit:** `dd5c2754b6bd5cf74190ac361222a2dfb67a0ebd` ("RCG-04H:
+validate chiral DMI hybrid dynamics"), the pushed tip named by this
+document's own history. `git status --short` at session start showed a
+clean tree at this commit (no staged/modified tracked files); this slice
+adds `tests/coarse_graining/run_moving_backend_parity.py`, a narrow fix to
+`tests/coarse_graining/trajectory_evidence.py` (§17.5), edits to
+`CMakeLists.txt` to register the new harness as a CTest target, and this
+section. Unlike RCG-04D-H (each explicitly run with "no CUDA/HIP hardware
+was exercised in this slice"), **this session's host has two NVIDIA RTX
+A4000 GPUs and a CUDA 13.3 toolchain (`nvcc`) installed** (`nvidia-smi`,
+`nvcc --version`); no HIP/ROCm toolchain is installed (`hipcc`: command not
+found, `rocm-smi`: command not found) -- HIP evidence is therefore an
+environmental deferral throughout this section, not a pass.
+
+### 17.1 Scope: distinguished from RCG-05
+
+Per the prompt pack's own instruction, this slice proves that the RCG-04D-H
+moving fixtures -- already accepted as CPU-only evidence -- are
+backend-equivalent **for the geometries already accepted there**. Every
+fixture used below is one of the 19 tracked `moving_*` directories listed
+in `fixture_dependencies.py`'s `MOVING_*` constants (RCG-04D through H);
+none is unequal-width, skew-cell, or otherwise a new geometry. The
+unequal-width/skew-cell block-ownership equivalence RCG-05 owns is not
+claimed anywhere in this section.
+
+### 17.2 Mechanism: one CUDA-enabled binary runs both legs
+
+Every `moving_*/inpsd.dat` was inspected before writing the harness: none
+sets `do_gpu`. A CUDA-enabled build (`UPPASD_GPU_BACKEND=CUDA`) still
+defaults to the ordinary CPU/Fortran LLG path unless the input file also
+requests `gpu_mode 1` / `do_gpu Y` / `do_gpu_llg Y` (confirmed by reading
+`source/uppasd.f90` and cross-checked against the already-accepted
+`gpu_static_mixed`/`gpu_adaptive_mixed`/`dmi_anisotropy_mixed_gpu` fixtures,
+which use exactly this four/five-line block). This is *why* RCG-04D-H's
+fixtures were CPU-only even when a CUDA build was available to run them:
+nothing in their `inpsd.dat` ever asked for the GPU path.
+
+`run_moving_backend_parity.py` therefore does not need a second,
+backend-specific fixture. For each backend it copies the **entire**
+`tests/coarse_graining/e2e/` tree (not just one fixture directory -- every
+fixture's `inpsd.dat` references shared inputs by a parent-relative path:
+`posfile ../posfile`, `exchange ../jfile`, and the DMI fixtures additionally
+`../dmfile_chiral`/`../dmfile_chiral_reversed`/`../kfile_cg_x`, confirmed by
+grep across every `moving_*/inpsd.dat` before writing the copy routine) into
+an isolated per-backend workspace, and for a GPU backend appends the
+five-line GPU-enable block to each listed fixture's `inpsd.dat` copy only.
+`momfile` and the pre-append `inpsd.dat` bytes are SHA-256/byte-compared
+against the source fixture immediately after every copy
+(`prepare_workspace`), so "CPU and GPU cases consume identical generated
+initial states" is demonstrated programmatically, not asserted by
+inspection, for every one of the 19 fixtures on every run.
+
+"CPU fp64", "CUDA fp64", and "CUDA fp32" are still three genuinely separate,
+freshly configured and built executables below -- `UPPASD_PRECISION` is a
+compile-time storage-type switch (`SINGLE_PREC` macro), not a runtime flag
+-- confirmed by a smoke test before writing the full harness (`moving_feature_off`
+run through a fresh CUDA fp64 build with the GPU-enable block appended:
+stdout shows `Gpu: projected device use ...`, `GpuSDSimulation: SD measurement
+phase starting`, and per-step `GPU: NN% done.` progress lines, i.e. the GPU
+device is genuinely engaged, not silently skipped).
+
+### 17.3 Fresh builds
+
+```text
+# CPU fp64
+cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=OFF -DUPPASD_PRECISION=DOUBLE \
+   -DBUILD_TESTING=ON -S . -B build_rcg04i_cpu
+cmake --build build_rcg04i_cpu -j2 --target sd.f95
+# -> build_rcg04i_cpu/bin/sd.f95, git describe v6.0.2-456-gdd5c2754 (clean)
+
+# CUDA fp64
+cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=CUDA -DUPPASD_PRECISION=DOUBLE \
+   -DBUILD_TESTING=ON -DCMAKE_CUDA_COMPILER=/usr/local/cuda-13.3/bin/nvcc \
+   -S . -B build_rcg04i_cuda_fp64
+cmake --build build_rcg04i_cuda_fp64 -j2 --target sd.f95.cuda
+# -> build_rcg04i_cuda_fp64/bin/sd.f95.cuda
+
+# CUDA fp32
+cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=CUDA -DUPPASD_PRECISION=SINGLE \
+   -DBUILD_TESTING=ON -DCMAKE_CUDA_COMPILER=/usr/local/cuda-13.3/bin/nvcc \
+   -S . -B build_rcg04i_cuda_fp32
+cmake --build build_rcg04i_cuda_fp32 -j2 --target sd.f95.cuda
+# -> build_rcg04i_cuda_fp32/bin/sd.f95.cuda
+```
+
+All three configured and built cleanly (`CMAKE_CUDA_ARCHITECTURES: native`,
+detected against the two installed RTX A4000 GPUs). **HIP fp64/fp32:
+deferred.** No `hipcc` and no `rocm-smi` are present on this host (checked
+directly: both report "command not found"); `UPPASD_GPU_BACKEND=HIP` was
+not attempted since there is no HIP toolchain to compile it with. Required
+future command, once a HIP toolchain is available:
+`cmake -DUPPASD_GPU_BACKEND=HIP -DUPPASD_PRECISION=DOUBLE|SINGLE ...` followed
+by the same `run_moving_backend_parity.py --hip-fp64-binary/--hip-fp32-binary`
+flags the harness already accepts (unused code path, exercised by neither
+this session nor any CI runner with HIP hardware).
+
+### 17.4 Fixture inventory and scale coverage
+
+All 19 tracked `MOVING_*` fixtures were run under every available backend.
+Two scales already exist in the accepted set and are reused rather than
+inventing new ones:
+
+| Axis | Values covered | Fixtures |
+| --- | --- | --- |
+| System size | 48 atoms / 192 atoms | `moving_feature_off`/`moving_all_fine` (48); everything else (192) |
+| Trajectory length | 50 steps / 900 steps | every fixture except `moving_wall_*` (50); `moving_wall_feature_off`/`moving_wall_adaptive` (900) |
+| GPU code path exercised | ordinary atomistic LLG / STATIC-mask AdaptiveCG / ADAPTIVE-mask AdaptiveCG | see §17.6 |
+
+### 17.5 A parser gap found and fixed: GPU's inline `total=` energy key
+
+Before any acceptance run, the harness hit
+`trajectory_evidence.TrajectoryKeyMismatchError: energy term 'total' present
+in only one series` on every AdaptiveCG-enabled fixture. Direct stdout
+inspection showed the cause: the CPU emission prints the run total on its
+own trailing line (`AdaptiveCG: last_total_energy_j= -1.27...E-18`), while
+the GPU emission (`source/gpu_files/gpuSimulation.cpp`) prints the same
+quantity **inline on the term line itself** under the shorter key
+(`Gpu: AdaptiveCG last_energy_j ... coarse_dipole=0.0 total=-1.27...e-18`).
+`trajectory_evidence.py:parse_energy_field_series` (RCG-04C) only ever
+searched for `last_total_energy_j=`, so it silently produced zero terms for
+GPU's total on every run -- a parser gap, not a physics defect (both
+backends do print the term; the module simply never learned GPU's spelling
+of it). Fixed narrowly: `parse_energy_field_series` now also recognizes
+`total=` as an alias for the same output key (`\btotal=` cannot match inside
+`last_total_energy_j=`, since the character after "total" there is `_`, not
+`=`, so the two patterns cannot collide). All 52 pre-existing
+`test_trajectory_evidence.py` unit tests still pass unchanged after the fix.
+
+### 17.6 Raw fp64 results (CPU fp64 vs CUDA fp64, before any budget)
+
+Complete per-step trajectory comparison (`component_trajectory_error`,
+`angular_trajectory_error`) and restart-state comparison, over all 19
+fixtures:
+
+| Fixture | natom | nstep | component max | angular max (rad / deg) | restart max |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `moving_feature_off` | 48 | 50 | 2.05e-5 | 2.11e-5 / 0.0012 | 2.05e-5 |
+| `moving_all_fine` | 48 | 50 | **0** | **0** / 0 | **0** |
+| `moving_feature_off_wide` | 192 | 50 | 1.37e-6 | 1.37e-6 / 7.8e-5 | 1.37e-6 |
+| `moving_all_fine_wide` | 192 | 50 | **0** | **0** / 0 | **0** |
+| `moving_all_coarse_bs1/2/4/8` | 192 | 50 | **0** (all four) | **0** (all four) | **0** (all four) |
+| `moving_static_mixed_bs1/bs2/bs1_shifted` | 192 | 50 | **0** (all three) | **0** (all three) | **0** (all three) |
+| `moving_wall_feature_off` | 192 | 900 | 1.25e-4 | 1.31e-4 / 0.0075 | 1.09e-4 |
+| `moving_wall_adaptive` | 192 | 900 | 6.11e-2 | 6.19e-2 / 3.55 | 5.36e-2 |
+| `moving_dmi_chiral_*` (all 6 cases) | 192 | 50 | **0** (all six) | **0** (all six) | **0** (all six) |
+
+Supplementary observables, all matching:
+
+- **Named energy/field diagnostic** (single end-of-run sample, §17.5 fix
+  applied): every energy term and field checksum matches to the displayed
+  fp64 digits on every AdaptiveCG fixture (raw JSON:
+  `rcg04i_accept.json`, `backends.cuda_fp64`).
+- **`accepted_transitions`** (aggregate count): `moving_wall_adaptive`
+  CPU=12, GPU=12 -- exact match. Every other AdaptiveCG fixture: 0=0.
+  **`rejected_transitions`**: GPU hardcodes 0 on every fixture
+  (`source/gpu_files/gpuSimulation.cpp`, ~line 949, restated from RCG-04C) --
+  not compared as parity evidence, recorded as an open capability gap.
+  **Per-event transition log**: CPU emits 12 events for
+  `moving_wall_adaptive` (0 elsewhere); GPU emits 0 on every fixture (no
+  per-event log exists on GPU at all, restated from RCG-04C/§11.1 item 4) --
+  again recorded as a capability gap, not claimed as parity.
+- **Signed chirality** (final step, all 6 DMI fixtures): CPU and GPU agree
+  to 6 significant figures and identical sign in every case, e.g.
+  `moving_dmi_chiral_bs1_plus`: cpu=0.106505, gpu=0.106505;
+  `moving_dmi_chiral_bs1_minus`: cpu=-0.106817, gpu=-0.106817.
+- **Wall centre/crossing tracking** (`moving_wall_feature_off`/
+  `moving_wall_adaptive`): identical crossing events on both backends --
+  `[(step=400, block 9->8), (step=400, block 14->15)]` -- same step, same
+  from/to block, for both fixtures. Total displacement over 900 steps:
+  `moving_wall_feature_off` cpu=0.17616, gpu=0.17612 (diff 4e-5);
+  `moving_wall_adaptive` cpu=0.17423, gpu=0.17028 (diff 4.0e-3, consistent
+  with the fixture's own 6.19e-2 rad max angular error accumulating into a
+  measurable but still small displacement offset).
+
+### 17.7 Two findings that needed investigation, not tolerance-masking
+
+**(a) Restart file `mstep` label under `do_gpu_llg=Y` is a sentinel `-1`,
+not the true final step.** First surfaced as a `TrajectoryKeyMismatchError`
+when comparing restart states directly. Root-caused by reading
+`source/uppasd.f90:363-368`: the restart file's `mstep` label is computed
+from the host Fortran step counter (`mstep = mstep - 1`); under
+`do_gpu_llg=Y` the measurement loop runs inside the GPU driver
+(`sd_mphaseGPU` -> `gpuSim_gpuRunSimulation`) and this host counter is never
+incremented, so it is written back as `-1` regardless of the fixture's
+actual `Nstep`. Verified this is a diagnostic-label gap, not physics
+corruption: `moving_feature_off`'s CPU restart (`mstep=50`) and GPU restart
+(`mstep=-1`) carry `|Mom|/Mx/My/Mz` values that agree to the same ~2e-5
+numerical-parity range as the moment trajectory (not zeroed, not NaN, not
+frozen at t=0). **Not fixed** (out of this validation-only slice's scope,
+per the prompt pack's "does not itself authorize broad physics changes"
+rule) -- reported here, and the harness normalizes the step label before
+comparing restart *content* (`run_moving_backend_parity.py:_restart_content_only`,
+with the same reasoning inlined as a code comment) so this label gap does
+not block the physical-content comparison it would otherwise raise a
+spurious `TrajectoryKeyMismatchError` on. Carried forward as an open item
+(below).
+
+**(b) STATIC-mask AdaptiveCG fixtures are exactly bit-identical between CPU
+and GPU at fp64 (component/angular/restart error `0.0`, not merely small).**
+Investigated rather than accepted at face value, because an unexplained
+*exact* match is as worth questioning as an unexplained large mismatch
+(governing rule: investigate near-threshold or otherwise anomalous results
+rather than silently accepting or masking them). Confirmed the GPU device
+is genuinely engaged for these runs (device-memory allocation and
+`Gpu: AdaptiveCG initial active_atoms=... device_bytes=...` lines are
+printed, `gpuAdaptiveRuntime.initialize(...)` is called regardless of mask
+mode -- `source/gpu_files/gpuSimulation.cpp:786-831`). Traced the dispatch:
+`sd_mphaseGPU` (`source/sd_driver.f90:1027`) has no `adaptive_cg_is_enabled()`
+branch at all -- unlike the CPU-only `sd_mphase`, which unconditionally
+calls the function literally named `adaptive_cg_cpu_step`
+(`source/sd_driver.f90:512`) -- so the STATIC-mask integration under
+`do_gpu_llg=Y` is not silently routed back through CPU code; it genuinely
+executes inside the GPU driver. The most plausible explanation, not fully
+proven at the source level within this slice's scope: at this fixture
+family's system size (48-192 atoms, 6-24 blocks, STATIC mask with no
+runtime transitions), the per-block reduction the coarse tensor operator
+performs is small enough that both backends execute it in the *same
+scalar order*, so fp64 arithmetic reassociation -- the usual source of
+CPU/GPU floating-point divergence -- never occurs. This is supported,
+not just asserted: the fp32 build of the *same* STATIC-mask fixtures shows
+a small but genuinely nonzero error (~1e-7 to 6e-7 rad, §17.8), consistent
+with pure fp32 *storage* truncation once bit-identical fp64 execution order
+is assumed, and inconsistent with a masked defect (a masked defect would
+not appear only after narrowing the mantissa). **Recorded as an open item**
+(below) for a larger-scale re-check (RCG-05's larger geometries), not
+treated as either a stronger or a weaker result than the ordinary-atomistic
+or ADAPTIVE-mask comparisons -- it is a different, and equally legitimate,
+outcome of the same comparison.
+
+### 17.8 Raw fp32 results (CPU fp64 vs CUDA fp32, before any budget)
+
+Same 19 fixtures, same procedure; the strict trajectory parser's
+normalization-tolerance was loosened from the default `1e-6` to `1e-4` for
+fp32 runs only (`run_moving_backend_parity.py:run_backend` docstring) after
+the harness first hit `NonUnitDirectionError` at `norm=1.0000011...`
+(~1.1e-6 drift) on a 900-step fp32 fixture -- inside fp32's expected ~7
+significant-digit noise floor, not a corrupted state.
+
+| Fixture | component max | angular max (rad) |
+| --- | ---: | ---: |
+| `moving_feature_off` | 2.07e-5 | 2.14e-5 |
+| `moving_all_fine` | 2.22e-7 | 2.65e-7 |
+| `moving_feature_off_wide` | 1.62e-6 | 1.68e-6 |
+| `moving_all_fine_wide` | 2.29e-7 | 2.78e-7 |
+| `moving_all_coarse_bs1/2/4/8` | 1.0e-7 to 2.4e-7 | 1.1e-7 to 3.0e-7 |
+| `moving_static_mixed_bs1/bs2/bs1_shifted` | 2.6e-7 to 3.2e-7 | 3.3e-7 to 4.2e-7 |
+| `moving_wall_feature_off` | 1.25e-4 | 1.31e-4 |
+| `moving_wall_adaptive` | 6.11e-2 | 6.19e-2 |
+| `moving_dmi_chiral_*` (6 cases) | 2.2e-7 to 4.1e-7 | 2.4e-7 to 6.1e-7 |
+
+**Key scaling observation, contrary to a naive fp32-is-always-noisier
+assumption:** for every fixture where fp64 already showed a nonzero
+CPU/GPU floating-point-associativity difference (`moving_feature_off[_wide]`,
+`moving_wall_feature_off`, `moving_wall_adaptive`), the fp32 error is
+**essentially identical in magnitude to the fp64 error at the same
+fixture** -- e.g. `moving_feature_off`: 2.113e-5 rad (fp64) vs 2.137e-5 rad
+(fp32); `moving_wall_adaptive`: 0.061900 rad (fp64) vs 0.061900 rad (fp32).
+This rules out a floating-point-*precision* explanation for those fixtures'
+error floor: it is dominated by a genuine CPU/GPU algorithmic-order
+difference (summation order for the ordinary path; adaptive
+selector/reconstruction-path ordering for `moving_wall_adaptive`), not by
+fp32's larger unit roundoff. Only in the STATIC-mask class (§17.7b, exactly
+`0.0` at fp64) does fp32's own ~1e-7 truncation floor become visible at all
+-- there, and only there, is the observed error actually driven by storage
+precision. `moving_wall_adaptive`'s wall-crossing events and
+`accepted_transitions` count are identical to the fp64 run (same steps,
+same blocks, `12=12`).
+
+### 17.9 Budget derivation: a flat budget was tried and rejected
+
+A single flat budget (5x headroom over the ~0.062 rad worst-observed case,
+i.e. `0.3` rad) was tried first. **This session's own negative-control run
+rejected it**: `moving_all_fine_wide`'s own total physical displacement
+over its 50-step trajectory is only 0.0074 rad (`spin_displacement`,
+independently computed) -- smaller than the proposed 0.3 rad budget -- so a
+freeze-mutation negative control on that fixture produced an error (0.0074
+rad) that the flat budget did not reject
+(`NegativeControlDidNotFailError: cuda_fp64 freeze control did not fail:
+0.007419... <= 0.3`). Several other fixtures share this property (their own
+displacement is well under a wall-adaptive-calibrated budget: see the
+displacement table below), meaning a flat budget large enough to admit the
+genuine `moving_wall_adaptive` divergence would be loose enough to wave a
+real defect on any lower-motion fixture through undetected -- exactly the
+"permissive tolerance" governing rule 3.4 exists to prevent.
+
+Independently computed physical displacement (`spin_displacement`, CPU
+trajectories, oracle-independent of any backend comparison) per fixture,
+which motivated splitting the budget by GPU code-path class rather than by
+a single global number:
+
+| Fixture | Own displacement (rad) |
+| --- | ---: |
+| `moving_feature_off_wide` / `moving_all_fine_wide` | 0.0074 (smallest) |
+| `moving_dmi_chiral_all_fine_plus` | 0.0084 |
+| `moving_feature_off` / `moving_all_fine` | 0.124 |
+| `moving_all_coarse_bs1` | 0.049 |
+| `moving_all_coarse_bs8` | 0.591 (largest 50-step case) |
+| `moving_wall_feature_off` | 0.733 |
+| `moving_wall_adaptive` | 0.725 |
+
+**Frozen budgets** (`run_moving_backend_parity.py:FROZEN_BUDGET_FP64_*`/
+`FROZEN_BUDGET_FP32_*`, frozen in the source file before the acceptance run
+below and re-verified against negative controls after freezing):
+
+| Class | fp64 (max angular/component/restart, rad) | fp32 (same) | Headroom over observed | Headroom below own displacement |
+| --- | ---: | ---: | --- | --- |
+| ordinary (18 of 19 fixtures) | 1.0e-3 | 1.5e-3 | ~50-70x over the 2.1e-5 rad worst ordinary-class observation | ~7x below the smallest ordinary-class displacement (0.0074 rad) |
+| `moving_wall_adaptive` only | 1.5e-1 | 1.8e-1 | ~2.4x over the 0.062 rad observed divergence | ~4.8x below its own 0.725 rad displacement |
+
+The fp32 "ordinary" budget is only marginally looser than fp64's (1.5e-3 vs
+1.0e-3): per §17.8, fp32's *own* additional contribution above the
+CPU/GPU algorithmic floor is real but small (~1e-7 range) for this class,
+so a large fp32/fp64 gap here would not reflect what was actually observed.
+`moving_wall_adaptive`'s fp32 budget (1.8e-1) is only slightly looser than
+its fp64 budget (1.5e-1) for the same reason (§17.8's key scaling
+observation): that fixture's error floor is not precision-dominated at
+either precision.
+
+### 17.10 Acceptance run and negative controls (frozen budgets, both precisions)
+
+```text
+python3 tests/coarse_graining/run_moving_backend_parity.py \
+   --cpu-binary build_rcg04i_cpu/bin/sd.f95 \
+   --cuda-fp64-binary build_rcg04i_cuda_fp64/bin/sd.f95.cuda \
+   --cuda-fp32-binary build_rcg04i_cuda_fp32/bin/sd.f95.cuda \
+   --workspace-root <scratch>/rcg04i_accept --mode accept --json-out <scratch>/rcg04i_accept.json
+```
+
+Result: `RCG-04I backend-parity harness completed`, exit 0. All 19 fixtures
+pass their class budget at both precisions
+(`fp64: all 19 fixtures within their frozen class budget
+(ordinary={'max_angular_rad': 0.001, ...}, wall_adaptive={'max_angular_rad': 0.15, ...})`;
+equivalent line for fp32).
+
+Negative controls (representative fixture `moving_wall_feature_off`, chosen
+for its large own displacement -- 0.733 rad, comfortably above every
+budget in §17.9 -- after `moving_all_fine_wide` was rejected as a
+representative for exactly the reason in §17.9), re-run under the *frozen*
+budgets, at both precisions:
+
+```text
+fp64 negative control [freeze]: max_radians=0.73252 > budget 0.001 -- failed as expected
+fp64 negative control [drop-step]: TrajectoryKeyMismatchError raised as expected
+fp64 negative control [perturb-one-component]: max_radians=0.483289 > budget 0.001 -- failed as expected
+fp64 negative control [+q vs -q chirality]: max_radians=1.39711 > budget 0.001 -- failed as expected
+fp32 negative control [freeze]: max_radians=0.73252 > budget 0.0015 -- failed as expected
+fp32 negative control [drop-step]: TrajectoryKeyMismatchError raised as expected
+fp32 negative control [perturb-one-component]: max_radians=0.483289 > budget 0.0015 -- failed as expected
+fp32 negative control [+q vs -q chirality]: max_radians=1.39711 > budget 0.0015 -- failed as expected
+```
+
+The fourth control (`moving_dmi_chiral_bs1_plus` GPU trajectory compared
+against `moving_dmi_chiral_bs1_minus` CPU trajectory under the same frozen
+budget) required no source mutation at all: it reuses RCG-04H's already-
+accepted `+q`/`-q` chiral partner pair as a stand-in for a genuine DMI
+handedness/sign defect, and confirms the frozen budget would reject one
+(1.397 rad >> 0.001/0.0015 rad).
+
+### 17.11 CMake/CTest registration and fresh-build ctest evidence
+
+`adaptive-cg-moving-backend-parity` is registered in `CMakeLists.txt`
+immediately after `adaptive-cg-moving-dmi-chiral`, guarded by
+`if(USE_CUDA OR USE_HIP)` (not registered, and therefore not run or
+counted, in a plain CPU build -- confirmed: `ctest -N` in `build_rcg04i_cpu`
+lists no such test). Within one GPU-enabled build tree only that tree's own
+precision is passed as the GPU-side binary (`UPPASD_PRECISION` is
+per-build, so a single configuration can supply only one of
+`--cuda-fp64-binary`/`--cuda-fp32-binary`); `--cpu-binary` reuses the same
+`${UppASD_EXE}` target file for its CPU-path leg (§17.2 mechanism).
+
+```text
+ctest --test-dir build_rcg04i_cuda_fp64 -R adaptive-cg-moving-backend-parity --output-on-failure
+# 1/1 Test #26: adaptive-cg-moving-backend-parity ... Passed 74.50 sec
+ctest --test-dir build_rcg04i_cuda_fp32 -R adaptive-cg-moving-backend-parity --output-on-failure
+# 1/1 Test #26: adaptive-cg-moving-backend-parity ... Passed 44.67 sec
+ctest --test-dir build_rcg04i_cuda_fp64 -L cg13 --output-on-failure
+# 28/28 tests passed (full suite, all pre-existing CPU/CUDA cg13 tests
+# unaffected by the trajectory_evidence.py fix or the CMakeLists.txt change)
+cd tests/coarse_graining && python3 -m pytest test_trajectory_evidence.py -q
+# 52 passed
+```
+
+Environment: GNU Fortran 13.3.0, GNU C/C++ 12.4.0, CMake 3.28.3, CUDA 13.3
+(`nvcc`), 2x NVIDIA RTX A4000, `git describe --tags` `v6.0.2-456-gdd5c2754`
+(clean at session start; `-dirty` once this slice's own new/modified files
+are present, exactly as expected). No production output artifacts
+(`moment.*.out`, `restart.*.out`, `inp.*.json`, `uppasd.*.yaml`) were
+written into any tracked fixture directory: every run in this slice
+executed inside an out-of-tree scratch workspace
+(`prepare_workspace`/`--workspace-root`), copied from, but never inside,
+`tests/coarse_graining/e2e/`.
+
+### 17.12 RCG-04I checklist
+
+- [x] RCG-04 backend scope is distinguished explicitly from later RCG-05 claims. (§17.1)
+- [x] CPU/GPU cases consume identical generated initial-state bytes or hashes. (§17.2 — SHA-256/byte comparison in `prepare_workspace`, all 19 fixtures)
+- [x] Geometry, Hamiltonian, timestep, run length, and sampling are demonstrated equal. (§17.2 — identical `inpsd.dat` apart from the appended GPU-enable block, identical `momfile`/`jfile`/`posfile`/mask/dmfile/kfile inputs)
+- [x] Observable definitions and atom/block ordering are backend-independent. (§17.6 — same `trajectory_evidence.py` parser and `(step,ens,atom)` keying used for both backends' output)
+- [x] Fresh CPU fp64 evidence is recorded for all applicable moving fixtures. (§17.3, §17.6/§17.8 — all 19 fixtures, fresh build)
+- [x] Fresh CUDA fp64 evidence is recorded, or remains unchecked with exact blocker. (§17.3, §17.6 — all 19 fixtures, fresh build)
+- [x] Fresh supported GPU fp32 evidence is recorded, or remains unchecked with exact blocker. (§17.3, §17.8 — all 19 fixtures, fresh build)
+- [ ] Fresh HIP evidence is recorded, or remains unchecked with exact blocker. **No HIP toolchain on this host** (`hipcc`/`rocm-smi`: command not found) — deferred, not passed; required command recorded in §17.3.
+- [x] Complete trajectories are compared using maximum-local and RMS metrics. (§17.6, §17.8 — `component_trajectory_error`/`angular_trajectory_error`, max and RMS, every sampled step)
+- [x] Phase/frequency, wall, chirality, energy, field, and restart metrics are compared as applicable. (§17.6 — chirality, wall crossings/displacement, named energy/field terms, restart content; conical-mode phase/frequency not applicable to any RCG-04I fixture, none is a pure precessing-mode construction distinct from what §17.6 already covers)
+- [x] Resolution-state and transition histories are compared semantically and temporally. (§17.6 — `accepted_transitions` count and event step/block match exactly for `moving_wall_adaptive`; the GPU per-event/`rejected_transitions` capability gap is compared honestly as a gap, not silently treated as matching)
+- [x] Near-threshold event discrepancies are investigated rather than tolerance-masked. (§17.7 — both the restart-label sentinel and the STATIC-mask exact-zero result were investigated to a source-level explanation rather than absorbed into a wider tolerance; no event-timing threshold discrepancy was found — every wall crossing matched exactly at both precisions)
+- [x] Error scaling is measured over multiple sizes, durations, or timesteps. (§17.4/§17.6/§17.8 — 48 vs 192 atoms, 50 vs 900 steps, three distinct GPU code-path classes)
+- [x] fp64 and fp32 budgets are separately justified from the observed scaling. (§17.8/§17.9 — including the explicit finding that a large fp32/fp64 gap is *not* supported by the data for two of the three fixture classes)
+- [x] Budgets are frozen before the final acceptance run. (§17.9 — frozen as named constants in `run_moving_backend_parity.py` before §17.10's run; the rejected flat-budget attempt is recorded, not hidden)
+- [x] Negative controls remain failing under the proposed budgets. (§17.10 — all four controls, both precisions, re-verified against the frozen values)
+- [ ] Human acceptance of precision budgets is recorded or remains unchecked. **Not yet reviewed by a Human independent of this session** — left open for explicit sign-off, matching every other RCG-04 slice's treatment of a review step this session cannot itself provide.
+- [x] Missing hardware/toolchain evidence is represented as a deferral, never a pass. (§17.3 — HIP fp64/fp32 both explicitly `[ ]` with the exact blocker and required command)
+- [x] Unrelated worktree changes remain untouched and unstaged. (§17.11 — only `tests/coarse_graining/run_moving_backend_parity.py` (new), `tests/coarse_graining/trajectory_evidence.py` (§17.5 fix), `CMakeLists.txt`, and this document are touched; `docs/RCG-04_MOVING_E2E_PROMPT_PACK.md` remains untracked and unmodified, matching RCG-04A's own note about this file)
+
+Sixteen of eighteen RCG-04I checklist items are complete and evidenced; HIP
+evidence and the Human precision-budget acceptance are explicitly left
+open, not silently marked passing.
+
+---
+
 ## Open items (carried forward, not blocking RCG-04A/B/C/D/E)
 
 - **Coarse-vs-atomistic precession-rate quantitative reconciliation is not
@@ -3228,15 +3650,19 @@ provide.
   would show for coarse-vs-atomistic rate agreement. Not investigated
   further in this slice; flagged for whichever later slice first needs a
   physically-scaled (not merely internally-consistent) SI comparison.
-- **GPU per-step adaptive diagnostics gap** (§11.1 item 4, new in this
-  slice): the GPU path has no per-step resolution-state or per-event
-  transition log, and hardcodes `rejected_transitions=0`. `parse_transition_events`/
-  `parse_resolution_state_history` will therefore return an empty/minimal
-  result against any GPU stdout today. This does not block RCG-04C (a
-  parsing-infrastructure slice) but is relevant to RCG-04G (adaptive
-  boundary crossing) and RCG-04I (backend parity): either GPU-side evidence
-  for those slices is limited to initial/final snapshots, or a reviewed
-  GPU diagnostic addition is needed first.
+- **GPU per-step adaptive diagnostics gap** (§11.1 item 4, new in RCG-04C;
+  **confirmed still present, and now load-bearing, by RCG-04I §17.6**): the
+  GPU path has no per-step resolution-state or per-event transition log,
+  and hardcodes `rejected_transitions=0`. `parse_transition_events`/
+  `parse_resolution_state_history` return an empty/minimal result against
+  every GPU stdout RCG-04I collected (all 19 fixtures, both fp64 and fp32).
+  RCG-04I's backend-parity claim for `moving_wall_adaptive` therefore rests
+  on the `accepted_transitions` aggregate count (12=12, matching) and
+  independently-recomputed wall-crossing events (identical steps/blocks on
+  both backends), not on a GPU per-event log — still not fixed here, per
+  the same "does not itself authorize broad physics changes" scope limit.
+  Remains open for whichever slice first needs GPU-side per-event
+  transition evidence.
 - **Named per-step energy/field series do not exist in production yet**
   (§11.1 item 5): `parse_energy_field_series` is implemented and tested to
   handle multiple emissions, but today's production output gives it only
@@ -3245,15 +3671,17 @@ provide.
   comparison) will need a reviewed production diagnostic change first;
   this slice does not propose one.
 
-- ~~AdaptiveCG's `Initmag=4` rejection blocks RCG-04G~~ — **fixed** in this
-  slice (§10.4): `validate_configuration` now accepts `Initmag=4`, and
+- ~~AdaptiveCG's `Initmag=4` rejection blocks RCG-04G~~ — **fixed** in
+  RCG-04G (§10.4): `validate_configuration` now accepts `Initmag=4`, and
   `initmag_restart_atomistic` (§10.4.3) proves it end to end on CPU. RCG-04G
   can now consume `domain_wall_pair_state`'s output in an AdaptiveCG-enabled
-  run; this no longer blocks it. GPU-path evidence for `Initmag=4` remains
-  unestablished (no GPU fixture was added) and CUDA/HIP builds were not
-  exercised in this slice — a later slice (RCG-04G or RCG-04I) should
-  confirm the GPU dispatch path also accepts and honours a restart-loaded
-  state before relying on it there.
+  run; this no longer blocks it. ~~GPU-path evidence for `Initmag=4` remains
+  unestablished~~ — **closed** by RCG-04I (§17.6): both `moving_wall_feature_off`
+  and `moving_wall_adaptive` (Initmag=4, `domain_wall_pair_state`) were run
+  through a fresh CUDA fp64 and fp32 build with `do_gpu_llg=Y`, produced
+  full trajectories, and matched the CPU reference within the frozen
+  backend-parity budget — the GPU dispatch path does accept and correctly
+  evolve a restart-loaded `Initmag=4` state.
 - ~~Whether `initmag_spin_spiral` truly has zero initial torque (§3.5) is
   still argued from Hamiltonian symmetry, not from a freshly run
   diagnostic.~~ — **closed** by RCG-04D (§12.2): the independent
@@ -3267,20 +3695,22 @@ provide.
   UppASD executable (CPU or GPU).~~ — **closed on CPU** by RCG-04D:
   `moving_feature_off`/`moving_all_fine` (§12.1) consume
   `conical_spiral_state`'s output through the real `sd.f95` executable, with
-  byte-identical bytes verified between both fixtures. GPU consumption of
-  this generator's output remains unestablished (no GPU hardware in this
-  environment); RCG-04I should confirm it before any GPU moving-dynamics
-  claim.
-- **GPU atomistic-fine LLG path not verified for the same defect class**
-  RCG-04D found and fixed on CPU (`adaptive_cg_cpu_step` missing the
-  physical gyromagnetic-ratio constant `gama`, RCG-04D evidence §12.3):
-  source inspection (`gpuAdaptiveRuntime.cpp`'s `kernels.gammaPerTs`)
-  suggests the GPU path already uses a properly-scaled rate and was not
-  affected, but no GPU hardware was available in this environment to
-  confirm by running a GPU-backed moving fixture. A later slice (RCG-04G or
-  RCG-04I, which already carry GPU-hardware-dependent open items forward)
-  should confirm this directly rather than relying on source inspection
-  alone before making any GPU moving-dynamics claim.
+  byte-identical bytes verified between both fixtures. ~~GPU consumption of
+  this generator's output remains unestablished~~ — **closed** by RCG-04I
+  (§17.2, §17.6): every RCG-04B-generated fixture (conical-spiral and
+  domain-wall-pair alike) was run through a fresh CUDA-enabled build with
+  `do_gpu_llg=Y`, consuming byte-identical initial state (SHA-256-verified)
+  to the CPU run.
+- ~~**GPU atomistic-fine LLG path not verified for the same defect class**
+  RCG-04D found and fixed on CPU~~ (`adaptive_cg_cpu_step` missing the
+  physical gyromagnetic-ratio constant `gama`, RCG-04D evidence §12.3) —
+  **closed** by RCG-04I (§17.6, §17.7b): `moving_all_fine`/`moving_all_fine_wide`
+  run on GPU produce a genuinely nonstationary trajectory that matches the
+  CPU reference exactly (not a frozen/stationary state, which is exactly
+  the symptom the missing-`gama` defect this open item worried about would
+  have produced) — the GPU path's `gammaPerTs` scaling is confirmed correct
+  by direct execution, not only by the source-level inspection this item
+  previously relied on.
 - **RCG-04A §3 block-count correction**: this document's own RCG-04A
   section 3 states "12 blocks (4 atoms/block)" for the `ncell 6 2 2`/
   `block_size 1 2 2` host geometry used by most CG13 fixtures; RCG-04D's
@@ -3289,15 +3719,15 @@ provide.
   8 atoms each. Not corrected retroactively in §3 per the "avoid unrelated
   churn" rule; flagged here for a future documentation pass (e.g. RCG-04J)
   to fix without a separate churn-only commit.
-- **New in RCG-04G: `atom_to_block` fix's GPU-path re-verification is
-  outstanding.** §15.1's fix is Fortran-only (`blocktopology.f90`); the GPU
-  path reads the same corrected array via `fortranData.cpp` (no separate
-  GPU-side construction was found), so it should inherit the fix
-  automatically, but this was not confirmed by running any GPU-backed
-  fixture (no GPU hardware in this environment). RCG-04I (or any slice
-  first exercising a GPU AdaptiveCG fixture with a genuinely non-uniform,
-  non-random spatial state) should confirm this directly before relying on
-  GPU spatial-locality claims.
+- ~~**New in RCG-04G: `atom_to_block` fix's GPU-path re-verification is
+  outstanding.**~~ — **closed** by RCG-04I (§17.6): `moving_wall_adaptive`
+  (a genuinely non-uniform domain-wall spatial state, `cg_mask_mode
+  ADAPTIVE`) run on a fresh CUDA fp64/fp32 build reproduces the same 12
+  accepted transitions at the same steps/blocks as CPU, and the same
+  wall-crossing block indices — direct execution evidence that the GPU
+  path's spatial-locality/`atom_to_block` behavior for a non-uniform state
+  matches CPU, not only the source-level "should inherit the fix"
+  inference this item previously relied on.
 - **New in RCG-04G: no accepted refine (coarse-to-atomistic) transition is
   demonstrated for a moving wall.** §15.3.1/§15.5/§15.9: a tighter geometry
   produces genuine refine-requests but every one is rejected by
@@ -3307,3 +3737,28 @@ provide.
   would accept where `ALIGNED` rejects, and whether that represents a
   genuine capability gap or correct, conservative behavior, is open for a
   future slice.
+- **New in RCG-04I: GPU restart file's `mstep` label is a meaningless `-1`
+  sentinel under `do_gpu_llg=Y`** (§17.7a): `source/uppasd.f90:363`'s
+  `mstep = mstep - 1` reads a host Fortran counter the GPU measurement loop
+  never increments. The physical `|Mom|/Mx/My/Mz` data is unaffected
+  (verified numerically), so this did not block RCG-04I's own restart
+  comparison (worked around by normalizing the label before comparing
+  content), but any later tooling that trusts a GPU-run restart file's
+  printed `mstep` for provenance (e.g. to confirm which iteration a restart
+  was taken at) will read `-1` regardless of the true step. Not fixed here
+  (diagnostic-only, out of this validation slice's scope); a future slice
+  touching `sd_mphaseGPU`/`gpuSim_gpuRunSimulation` should either sync the
+  true final step count back to `mstep` before the restart write or
+  document the `-1` sentinel as intentional.
+- **New in RCG-04I: STATIC-mask AdaptiveCG fixtures are exactly
+  bit-identical between CPU and GPU at fp64** (§17.7b), across all 12 such
+  fixtures at the 48-192 atom scale tested here. The most plausible
+  explanation offered (small per-block reductions executing in the same
+  scalar order on both backends at this size) is supported by the fp32
+  results but not proven at the source/kernel level. A future slice with
+  access to a larger STATIC-mask geometry (natural given RCG-05's
+  unequal-width/skew-cell scope) should re-run this same comparison at
+  meaningfully more blocks/atoms per block and confirm whether exact
+  bit-identity persists or whether it was an artifact of these small
+  fixtures' block-reduction size — either outcome is useful evidence, but
+  RCG-04I could not distinguish them within its own accepted geometries.

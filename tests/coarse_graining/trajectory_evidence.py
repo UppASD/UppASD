@@ -688,13 +688,23 @@ def parse_energy_field_series(stdout: str) -> list[EnergyFieldSample]:
                 flush()
             if current_energies is None:
                 current_energies = {}
-            for key in _ENERGY_TERM_KEYS + ("last_total_energy_j",):
+            # RCG-04I finding: the CPU emission prints the total on its own
+            # trailing line as ``last_total_energy_j=``; the GPU emission
+            # (``Gpu: AdaptiveCG last_energy_j ... total=...``,
+            # ``source/gpu_files/gpuSimulation.cpp``) prints the same
+            # quantity inline on the term line itself under the shorter key
+            # ``total=``. Both are accepted as aliases for the same output
+            # key so a backend-parity comparison does not spuriously see a
+            # "total present in only one series" mismatch; ``\btotal=``
+            # cannot accidentally match inside ``last_total_energy_j=``
+            # (the character following "total" there is "_", not "=").
+            for key in _ENERGY_TERM_KEYS + ("last_total_energy_j", "total"):
                 # es24.16 is a fixed-width field: '=' may be followed by
                 # padding spaces before the (possibly signed) number, e.g.
                 # 'atomistic_bilinear= -1.33...' or 'coarse_dipole=  0.0...'.
                 found = re.search(rf"\b{re.escape(key)}=\s*({_FLOAT_RE})", line)
                 if found:
-                    out_key = "total" if key == "last_total_energy_j" else key
+                    out_key = "total" if key in ("last_total_energy_j", "total") else key
                     current_energies[out_key] = float(found.group(1))
         elif _FIELD_LINE_RE.search(line):
             if current_fields is None:

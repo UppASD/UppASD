@@ -1157,6 +1157,42 @@ if(BUILD_TESTING)
    set_tests_properties(adaptive-cg-moving-dmi-chiral
       PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;moving-parity"
                  ENVIRONMENT "OMP_NUM_THREADS=1")
+   # RCG-04I: CPU/GPU backend precision parity for every RCG-04D-H accepted
+   # moving fixture (this build's own executable run twice per fixture --
+   # once as-is for the CPU path, once with an appended do_gpu/do_gpu_llg
+   # block for the GPU path -- see run_moving_backend_parity.py's module
+   # docstring for why one CUDA/HIP-enabled binary suffices for both legs).
+   # Only meaningful, and only registered, in a GPU-enabled configuration;
+   # a plain CPU build has no second backend to compare against and does
+   # not register this test (matching adaptive-cg-production-e2e's
+   # existing --gpu-binary-only-if-GPU-configured pattern).
+   set(RCG04I_GPU_BINARY_ARGS)
+   if(USE_CUDA)
+      set(RCG04I_BACKEND_LABEL cg13-cuda)
+      if(UPPASD_PRECISION STREQUAL "SINGLE")
+         list(APPEND RCG04I_GPU_BINARY_ARGS --cuda-fp32-binary $<TARGET_FILE:${UppASD_EXE}>)
+      else()
+         list(APPEND RCG04I_GPU_BINARY_ARGS --cuda-fp64-binary $<TARGET_FILE:${UppASD_EXE}>)
+      endif()
+   elseif(USE_HIP)
+      set(RCG04I_BACKEND_LABEL cg13-hip)
+      if(UPPASD_PRECISION STREQUAL "SINGLE")
+         list(APPEND RCG04I_GPU_BINARY_ARGS --hip-fp32-binary $<TARGET_FILE:${UppASD_EXE}>)
+      else()
+         list(APPEND RCG04I_GPU_BINARY_ARGS --hip-fp64-binary $<TARGET_FILE:${UppASD_EXE}>)
+      endif()
+   endif()
+   if(USE_CUDA OR USE_HIP)
+      add_test(NAME adaptive-cg-moving-backend-parity
+         COMMAND python3
+            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_moving_backend_parity.py
+            --cpu-binary $<TARGET_FILE:${UppASD_EXE}>
+            ${RCG04I_GPU_BINARY_ARGS}
+            --workspace-root ${CMAKE_CURRENT_BINARY_DIR}/rcg04i_backend_parity_workspace)
+      set_tests_properties(adaptive-cg-moving-backend-parity
+         PROPERTIES LABELS "coarse-graining;cg13;${RCG04I_BACKEND_LABEL};moving-parity;backend-parity"
+                    ENVIRONMENT "OMP_NUM_THREADS=1")
+   endif()
    add_test(NAME adaptive-cg-fixture-dependencies
       COMMAND python3
          ${CMAKE_SOURCE_DIR}/tests/coarse_graining/audit_fixture_dependencies.py)
