@@ -262,7 +262,8 @@ module Chelper
          integer(c_int), intent(inout) :: projection_block(*), bonds, bond_atom(*)
          integer(c_int), intent(inout) :: selector_edges, selector_edge(*), anisotropy_axis_count(*)
          integer(c_int), intent(inout) :: adaptive_mask, update_interval, minimum_dwell
-         integer(c_int), intent(inout) :: buffer_dilation, reconstruction_scheme, diagnostics
+         integer(c_int), intent(inout) :: buffer_dilation(*)
+         integer(c_int), intent(inout) :: reconstruction_scheme, diagnostics
       end subroutine FortranData_setAdaptiveKernels
    end interface
 

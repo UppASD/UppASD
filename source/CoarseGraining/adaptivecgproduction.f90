@@ -110,7 +110,9 @@ module AdaptiveCGProduction
       integer(c_int) :: gpu_adaptive_mask = 0_c_int
       integer(c_int) :: gpu_reconstruction_scheme = 1_c_int
       integer(c_int) :: gpu_diagnostics = 0_c_int
-      integer(c_int) :: gpu_buffer_dilation = 0_c_int
+      ! Per-axis (x,y,z) buffer dilation width in blocks, staged unchanged
+      ! in shape from runtime%hybrid%buffer_width_blocks(3) -- RCG-05D.
+      integer(c_int) :: gpu_buffer_dilation(3) = 0_c_int
       real(c_double) :: gpu_magnetic_moment_si = 9.274009994d-24
       integer(c_int), allocatable :: gpu_pending_state(:)
       integer(c_int), allocatable :: gpu_state_age(:)
@@ -612,8 +614,8 @@ contains
       adaptive_cg_state%gpu_reconstruction_scheme = &
          adaptive_cg_state%reconstruction%scheme
       adaptive_cg_state%gpu_diagnostics = int(adaptive_cg%diagnostics,c_int)
-      adaptive_cg_state%gpu_buffer_dilation = int(maxval( &
-         adaptive_cg_state%runtime%hybrid%buffer_width_blocks),c_int)
+      adaptive_cg_state%gpu_buffer_dilation = int( &
+         adaptive_cg_state%runtime%hybrid%buffer_width_blocks,c_int)
       adaptive_cg_state%gpu_state_age = adaptive_cg_state%runtime%selector%state_age
       adaptive_cg_state%gpu_transition_epoch = &
          adaptive_cg_state%runtime%selector%transition_epoch

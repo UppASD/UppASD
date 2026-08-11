@@ -1228,12 +1228,26 @@ if(BUILD_TESTING)
          list(APPEND RCG05C_GPU_BINARY_ARGS --hip-fp64-binary $<TARGET_FILE:${UppASD_EXE}>)
       endif()
    endif()
+   # RCG-05D: the buffer-width scalarization defect RCG-05C demonstrated
+   # above is now fixed (per-axis dilation restored end to end). GPU's own
+   # reported map, re-dilated from GPU's own FINE seed set, must match the
+   # correct per-axis oracle and no longer the isotropic-collapsed one --
+   # --expect-buffer-width-fixed isolates that claim from a separate,
+   # already-documented seed-set gap (GPU's hardAtomisticBlockMask is
+   # sourced only from the polarization gate, not cg_static_mask_file) that
+   # keeps the full CPU/GPU maps from agreeing exactly on this fixture and
+   # is out of RCG-05D's authorized scope. This registration is also the
+   # permanent regression against the buffer-width defect being
+   # reintroduced: if bufferDilationBlocks were ever scalarized again, GPU
+   # would once more match the isotropic oracle and this assertion would
+   # fail.
    if(USE_CUDA OR USE_HIP)
       add_test(NAME adaptive-cg-ownership-map-comparator
          COMMAND python3
             ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_ownership_map_comparator.py
             --cpu-binary $<TARGET_FILE:${UppASD_EXE}>
             ${RCG05C_GPU_BINARY_ARGS}
+            --expect-buffer-width-fixed
             --workspace-root ${CMAKE_CURRENT_BINARY_DIR}/rcg05c_ownership_comparator_workspace)
       set_tests_properties(adaptive-cg-ownership-map-comparator
          PROPERTIES LABELS "coarse-graining;cg13;${RCG05C_BACKEND_LABEL};moving-parity;backend-parity;ownership"

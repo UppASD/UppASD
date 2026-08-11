@@ -236,7 +236,11 @@ struct GpuAdaptiveSelectorPolicy {
    real refineThreshold = real(0.25);
    real coarsenThreshold = real(0.10);
    unsigned int minimumDwellUpdates = 0;
-   unsigned int bufferDilationBlocks = 0;
+   // Per-axis (x,y,z) buffer dilation width in blocks, matching the CPU's
+   // directional statichybridoperator%buffer_width_blocks(3) exactly
+   // (RCG-05D). Index order matches blockGridCoordinate/blockGrid: 0=x,
+   // 1=y, 2=z.
+   unsigned int bufferDilationBlocks[3] = {0, 0, 0};
 };
 
 enum class GpuAdaptiveReconstruction {

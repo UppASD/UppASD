@@ -176,6 +176,8 @@ public:
    static real* adaptive_coarsen_threshold;
    static real* adaptive_polarization_threshold;
    static unsigned int* adaptive_minimum_dwell;
+   // Points to a contiguous 3-element per-axis (x,y,z) buffer dilation
+   // width in blocks (RCG-05D); previously a single scalar.
    static unsigned int* adaptive_buffer_dilation;
    static int* adaptive_reconstruction_scheme;
    static real* adaptive_cone_angle_rad;
@@ -402,6 +404,7 @@ public:
       unsigned int* update_interval, real* refine_threshold,
       real* coarsen_threshold, real* polarization_threshold,
       unsigned int* minimum_dwell,
+      // 3-element per-axis (x,y,z) buffer dilation width in blocks (RCG-05D).
       unsigned int* buffer_dilation, int* reconstruction_scheme,
       real* cone_angle_rad, real* energy_jump_limit_j, int* diagnostics);
     static void clearMacrocellPointers();

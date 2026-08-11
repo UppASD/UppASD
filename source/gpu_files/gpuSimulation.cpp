@@ -802,8 +802,9 @@ bool GpuSimulation::initiateMatrices(int is_mc) {
                adaptiveSelectorPolicy.minimumDwellUpdates =
                   *FortranData::adaptive_minimum_dwell;
             if(FortranData::adaptive_buffer_dilation)
-               adaptiveSelectorPolicy.bufferDilationBlocks =
-                  *FortranData::adaptive_buffer_dilation;
+               for(int axis = 0; axis < 3; ++axis)
+                  adaptiveSelectorPolicy.bufferDilationBlocks[axis] =
+                     FortranData::adaptive_buffer_dilation[axis];
             if(FortranData::adaptive_reconstruction_scheme &&
                *FortranData::adaptive_reconstruction_scheme == 2)
                adaptiveReconstructionPolicy.scheme =

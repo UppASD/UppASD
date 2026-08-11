@@ -1175,3 +1175,452 @@ and untouched.
 
 Shall I create the focused RCG-05C commit with the one-line message
 `RCG-05C: build CPU/GPU ownership-map comparator and demonstrate buffer-width defect`?
+
+---
+
+## 10. RCG-05D: restore directional buffer widths through the GPU descriptor
+
+**Base commit:** `819f7914c3d10bd4779fe1fa0faf8af938af55a6` ("RCG-05C: build
+CPU/GPU ownership-map comparator and demonstrate buffer-width defect"), the
+accepted RCG-05C commit. `git status --short` at session start showed no
+modified tracked files, only the same pre-existing untracked build
+directories, unrelated `ASD_GUI/`/example-output clutter, and two untracked
+prompt-pack docs (`RCG-04_MOVING_E2E_PROMPT_PACK.md`,
+`RCG-05_GEOMETRY_OWNERSHIP_PROMPT_PACK.md`, both pre-existing from earlier
+sessions) RCG-05A/B/C already documented as unrelated and untouched.
+
+### 10.1 What was implemented
+
+Every call site consuming the old scalar `bufferDilationBlocks` field was
+inventoried by direct source reading before any edit (`grep -rn
+"bufferDilationBlocks"`, `"adaptive_buffer_dilation"`, `"gpu_buffer_dilation"`
+across `source/` and `tests/`), confirming the complete plumbing chain
+end to end: `statichybridoperator.f90:184` (already correct, 3-component,
+unchanged) -> `adaptivecgproduction.f90:113/615-616` (the `maxval`
+collapse) -> `chelper.f90:265` (the C-interface scalar declaration) ->
+`fortranData.hpp:179/391-406`/`fortranData.cpp:925-952` (the Fortran/C++
+pointer seam) -> `gpuSimulation.cpp:804-806` (the copy into the policy
+struct) -> `gpuAdaptiveRuntime.hpp:239` (`GpuAdaptiveSelectorPolicy`) ->
+`gpuAdaptiveRuntime.cpp:322-349` (`dilateAdaptiveState`) and
+`gpuAdaptiveRuntime.cpp:2160-2175` (the two CUDA/HIP launch guards) ->
+`tests/coarse_graining/test_gpu_adaptive_runtime.cpp:439` (the one existing
+unit-test call site). No other production or test file referenced any of
+these symbols.
+
+- **`source/CoarseGraining/adaptivecgproduction.f90`**: `gpu_buffer_dilation`
+  changed from `integer(c_int) :: gpu_buffer_dilation = 0_c_int` to
+  `integer(c_int) :: gpu_buffer_dilation(3) = 0_c_int`; the staging
+  assignment changed from `int(maxval(...buffer_width_blocks),c_int)` to
+  `int(...buffer_width_blocks,c_int)` -- a direct, unchanged-shape copy of
+  the CPU's already-correct 3-component array, exactly as the prompt
+  requires ("restore the shape the CPU side already computes correctly").
+  CPU's own `buffer_width_blocks` formula
+  (`statichybridoperator.f90:180-187`) was **not** touched.
+- **`source/chelper.f90`**: the `bind(C)` interface's `buffer_dilation`
+  dummy argument changed from a bare scalar to `buffer_dilation(*)`, so the
+  explicit interface accepts the now-3-element actual argument
+  (`adaptive_cg_state%gpu_buffer_dilation`) without a shape mismatch; the
+  call site itself (`chelper.f90:775`) needed no change, since it already
+  passed the whole array-now variable.
+- **`source/gpu_files/fortranData.{hpp,cpp}`**: no type change was needed --
+  `unsigned int* buffer_dilation`/`adaptive_buffer_dilation` were already
+  pointers, and a pointer to a scalar and a pointer to an array's first
+  element are the same C ABI object. Comments were added at both the
+  `extern "C" fortrandata_setadaptivekernels_` boundary and the
+  `FortranData::adaptive_buffer_dilation` declaration documenting that
+  exactly 3 contiguous elements (x,y,z) are now addressed, so a future
+  reader does not mistake the unchanged signature for an unchanged
+  contract.
+- **`source/gpu_files/gpuSimulation.cpp`**: the single-value copy
+  `adaptiveSelectorPolicy.bufferDilationBlocks = *FortranData::adaptive_buffer_dilation;`
+  became a 3-element loop copying `FortranData::adaptive_buffer_dilation[axis]`
+  for `axis = 0..2`.
+- **`source/gpu_files/gpuAdaptiveRuntime.hpp`**: `GpuAdaptiveSelectorPolicy::
+  bufferDilationBlocks` changed from `unsigned int = 0` to
+  `unsigned int[3] = {0, 0, 0}`, documented as matching
+  `blockGridCoordinate`/`blockGrid`'s existing 0=x,1=y,2=z axis-index
+  convention (the same convention already used by every other topology
+  field in this header and by `dilateAdaptiveState`'s own `tx,ty,tz`
+  locals).
+- **`source/gpu_files/gpuAdaptiveRuntime.cpp`**: `dilateAdaptiveState`'s
+  single `width` (broadcast into all three `-width..width` loop bounds) was
+  replaced with independent `widthX,widthY,widthZ` bounding the `dx`,`dy`,
+  `dz` loops respectively -- this is exactly CPU's own per-axis box test
+  (`rebuild_static_hybrid_ownership`, `statichybridoperator.f90:236-242`:
+  `all(periodic_delta <= operator%buffer_width_blocks)`, an independent
+  per-axis comparison, not a Euclidean/scalar radius), now reproduced
+  term-for-term on GPU. The two `if(policy.bufferDilationBlocks > 0)` launch
+  guards (CUDA and HIP) were replaced with a new `anyBufferDilation(const
+  unsigned int width[3])` helper (`width[0]>0 || width[1]>0 || width[2]>0`),
+  since any one axis alone can now require dilation while the others are
+  zero. No other kernel, no descriptor field ordering, and no other struct
+  in this file was touched.
+- **`tests/coarse_graining/test_gpu_adaptive_runtime.cpp`**: the one
+  existing call site (`dilatedPolicy.bufferDilationBlocks = 1;`) was changed
+  to explicit per-component assignment
+  (`bufferDilationBlocks[0]=1; [1]=0; [2]=0;`) rather than mirroring the old
+  scalar into all three components, so this regression continues to prove
+  the per-axis field is read component-wise by the real CUDA/HIP kernel
+  launch (this fixture's block grid is 1D, `{4,1,1}`, so only axis 0 can
+  move a block from coarse to buffer; the previous scalar could never
+  express that asymmetry at all). The expected `pending` vector is
+  unchanged (`{2, 1, 1, 2}`), confirmed below. A new
+  `testSelectorPolicyDescriptorLayout()` host-only check was added and
+  called first in `main()`: it round-trips distinct sentinel values through
+  every `GpuAdaptiveSelectorPolicy` field (including all three
+  `bufferDilationBlocks` components) across a copy-construction (the same
+  pattern call sites use, `auto dilatedPolicy = selectorPolicy;`), and
+  confirms a separately default-constructed instance observes none of those
+  sentinels -- this is the descriptor layout check the RCG-05D checklist
+  and the parent checklist's "CUDA/HIP descriptor layout checks cover the
+  new vector data" item require: proof that `refineThreshold`,
+  `coarsenThreshold`, and `minimumDwellUpdates` were not shifted or aliased
+  by `bufferDilationBlocks` growing from a scalar to a 3-element array, and
+  that the three new components do not alias each other or another field.
+- **`tests/coarse_graining/run_ownership_map_comparator.py`**: see SS10.3
+  below -- this file needed a substantive change, not just a call-site
+  update, once the actual post-fix behavior was measured.
+- **`CMakeLists.txt`**: the `adaptive-cg-ownership-map-comparator` CTest
+  registration gained `--expect-buffer-width-fixed` (see SS10.3); no other
+  test registration changed.
+
+CPU semantics were not touched anywhere in this slice: no line in
+`statichybridoperator.f90`, `blocktopology.f90`, or any other CPU-side
+CoarseGraining source file was edited. No RCG-02/03/04 tolerance,
+threshold, or selector-semantics constant was changed.
+
+### 10.2 Descriptor layout check
+
+`testSelectorPolicyDescriptorLayout()` (SS10.1) was run as part of the
+`gpu_adaptive_runtime_tests` CTest target (`coarse-graining-gpu-adaptive-
+runtime`) against the real CUDA build; see SS10.4 for the passing run. It is
+a host-only, GPU-independent check (no kernel launch), so it equally
+exercises the HIP build path once a HIP toolchain is available, without
+further change.
+
+### 10.3 A finding that changed this slice's own test infrastructure, not just production code
+
+RCG-05C's own evidence (SS9.1/9.2, and this fixture's own
+`tests/coarse_graining/e2e/ownership_aniso_buffer/README.md`) had already
+documented, as an explicitly separate and out-of-scope concern, that GPU's
+`hardAtomisticBlockMask` is sourced only from the polarization gate, not
+`cg_static_mask_file` -- so GPU's own FINE seed set on `ownership_aniso_buffer`
+(25 blocks) is a strict superset of CPU's (3 blocks) for a reason unrelated
+to buffer-width dilation. RCG-05C's `self_consistency_check` mechanism
+(`ownership_map_comparator.py:177-212`) was specifically designed to isolate
+the buffer-width defect from this separate gap by re-dilating each
+backend's *own* reported FINE seed set through both the correct and
+isotropic oracles, rather than requiring the two backends' raw seed sets to
+agree.
+
+Running the fixed source confirmed this matters in practice, not just in
+principle (fresh CUDA build, `run_ownership_map_comparator.py --mode
+explore`, full raw output in SS10.4):
+
+```text
+CUDA-fp64 fine seed blocks:[1, 13, 14, 17, 18, 19, 20, 23, 24, 43, 44, 47, 48, 49, 50, 53, 54, 73, 74, 77, 78, 79, 80, 83, 84]
+```
+
+-- **byte-identical** to RCG-05C's own pre-fix recording (SS9.2, same 25
+block ids in the same order), confirming this fix has zero effect on the
+seed-selection gap (expected: they are separate code paths;
+`dilateAdaptiveState` never influences which blocks the polarization-gate
+selector proposes as FINE). What changed is what happens to that seed set
+once it dilates:
+
+| | pre-fix (RCG-05C, SS9.2) | post-fix (this slice) |
+| --- | --- | --- |
+| CUDA-fp64 block counts | `fine=25 interface=65 coarse=0` | `fine=25 interface=62 coarse=3` |
+| `gpu_self_consistency.matches_isotropic_oracle` | `True` | `False` |
+| `gpu_self_consistency.matches_correct_oracle` | `False` | `True` |
+| direct CPU-vs-GPU match | `False` (47/90 differ) | `False` (44/90 differ) |
+
+The buffer-width fix is proven exactly where it is supposed to act: GPU's
+own reported map, re-dilated from GPU's own FINE seed set, now matches the
+**correct per-axis** oracle and no longer the **isotropic-collapsed** one --
+the precise self-consistency flip RCG-05C's mechanism was built to detect.
+The direct full-map comparison still fails, and the count barely moved
+(47->44 of 90 blocks), because it is dominated by the much larger,
+completely unrelated seed-set disagreement (22 extra FINE blocks), not by
+the now-fixed dilation shape.
+
+This means the RCG-05 prompt pack's original literal description of
+RCG-05D's exit condition ("RCG-05C's own anisotropic-fixture failure is
+this slice's negative control ... after RCG-05D's fix, it must pass") is
+**not achievable by this slice alone** on this specific fixture, because
+the fixture's own failure (as RCG-05C's README already documented) has two
+independent causes and RCG-05D's authorized scope is only one of them.
+Per the prompt's own explicit instruction ("If CPU's own directional
+formula is found to be wrong during this work, stop and report it before
+proceeding; this slice's authorization is to make GPU match CPU, not to
+jointly redesign both") -- this is not that situation (CPU's formula is not
+wrong; nothing here contradicts CPU), but the same spirit applies to the
+seed-set gap: it is a separate, already-documented GPU-only defect, and
+fixing it would mean redesigning GPU's hard-mask sourcing, not "restoring
+the shape CPU already computes correctly" for buffer width. This was not
+discovered during this slice -- RCG-05C's own README explicitly flagged it
+in advance -- but RCG-05C's README also did not commit to a specific
+post-fix assertion, so resolving exactly how RCG-05D's own regression should
+be worded was this slice's own decision, made here rather than silently
+assumed.
+
+**Resolution:** `run_ownership_map_comparator.py`'s `assert_aniso_outcome`
+gained a new `expect_buffer_width_fixed` mode (`--expect-buffer-width-fixed`),
+independent of the existing `expect_match`/`--expect-aniso-match` mode
+(kept, documented as not currently achievable, for whichever future slice
+closes the seed-set gap). The new mode requires exactly the two conditions
+the buffer-width fix actually controls: `gpu_self_consistency.
+matches_correct_oracle` and `not gpu_self_consistency.matches_isotropic_oracle`
+-- and nothing about the direct map identity. `CMakeLists.txt`'s permanent
+`adaptive-cg-ownership-map-comparator` registration now passes
+`--expect-buffer-width-fixed`. This is also the permanent regression against
+the buffer-width defect being reintroduced (checklist item): if
+`bufferDilationBlocks` were ever scalarized again, GPU would once more
+match the isotropic oracle on its own seed set and this assertion would
+fail -- confirmed directly by re-running the unmodified default (no flags)
+assertion against this slice's own fixed binaries, which now raises
+(`GPU's ownership map disagreed with CPU, but does not match the
+isotropic-dilation oracle either`), proving the mechanism is sensitive to
+the fix, not vacuously passing (full output in SS10.4).
+
+### 10.4 Fresh build/test evidence (this slice)
+
+**Environment:** GNU Fortran 13.3.0, GNU C/C++ 12.4.0, CMake 3.28.3, NVIDIA
+CUDA 13.3.73 (`nvcc`), NVIDIA RTX A4000 (compute capability 8.6,
+`CMAKE_CUDA_ARCHITECTURES=native`), Release build type, fp64 (default
+precision). No HIP toolchain is present on this host (`hipcc`/`hipconfig`
+not found, no `/opt/rocm*`), matching RCG-04-FU1/RCG-05A/B/C's identical,
+still-open deferral.
+
+**Pre-fix negative control:** this slice reuses RCG-05C's own fresh-build
+pre-fix recording (`docs/RCG-05_GEOMETRY_OWNERSHIP_EVIDENCE.md` SS9.2,
+SS9.4 -- same base commit `819f7914`, before any RCG-05D edit) as the
+"already shown in RCG-05C" negative control the RCG-05D prompt explicitly
+permits citing, rather than re-running an unmodified checkout. This is
+independently reinforced, not merely assumed, by SS10.3 above: re-running
+`run_ownership_map_comparator.py --mode accept` (RCG-05C's original,
+unmodified default assertion) against **this slice's own fixed binaries**
+now fails with `GPU's ownership map disagreed with CPU, but does not match
+the isotropic-dilation oracle either` -- proof that the same assertion that
+passed pre-fix (RCG-05C SS9.4) is genuinely sensitive to the fix, not a
+vacuous check that would pass regardless.
+
+**Fresh out-of-tree CPU configure/build:**
+
+```text
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=OFF -S . -B build_rcg05d_cpu
+...
+-- Git tag found: VERSION="v6.0.2-462-g819f-dirty".
+-- Output binary:  .../build_rcg05d_cpu/bin/sd.f95
+-- Configuring done
+$ cmake --build build_rcg05d_cpu -j2
+... exit 0 (no errors)
+```
+
+**CPU test run (`cg13-cpu` label):**
+
+```text
+$ ctest --test-dir build_rcg05d_cpu -L cg13-cpu --output-on-failure
+...
+100% tests passed, 0 tests failed out of 23
+```
+
+**Fresh out-of-tree CUDA configure/build:**
+
+```text
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=CUDA -S . -B build_rcg05d_cuda
+...
+-- The CUDA compiler identification is NVIDIA 13.3.73
+-- Output binary:  .../build_rcg05d_cuda/bin/sd.f95.cuda
+-- Configuring done
+$ cmake --build build_rcg05d_cuda -j2
+... exit 0 (no errors)
+```
+
+**`gpu_adaptive_runtime_tests` run directly** (descriptor layout check +
+updated per-axis dilation regression, SS10.1/10.2):
+
+```text
+$ ./build_rcg05d_cuda/bin/gpu_adaptive_runtime_tests
+CG-09/CG-10 GPU adaptive runtime tests passed
+```
+
+**`run_ownership_map_comparator.py --mode explore`** (raw post-fix output,
+full, this exact fresh `build_rcg05d_cuda`):
+
+```text
+--- RCG-05C regression set (CUDA-fp64) ---
+  moving_all_coarse_bs1                  nblocks=  24 MATCH
+  moving_all_coarse_bs2                  nblocks=  12 MATCH
+  moving_all_coarse_bs4                  nblocks=   6 MATCH
+  moving_all_coarse_bs8                  nblocks=   3 MATCH
+  moving_all_fine                        nblocks=   6 MATCH
+  moving_all_fine_wide                   nblocks=  24 MATCH
+  moving_dmi_chiral_all_fine_plus        nblocks=  24 MATCH
+  moving_dmi_chiral_bs1_minus            nblocks=  24 MATCH
+  moving_dmi_chiral_bs1_minus_reversed   nblocks=  24 MATCH
+  moving_dmi_chiral_bs1_plus             nblocks=  24 MATCH
+  moving_dmi_chiral_bs1_plus_reversed    nblocks=  24 MATCH
+  moving_dmi_chiral_bs2_plus             nblocks=  12 MATCH
+  moving_static_mixed_bs1                nblocks=  24 MATCH
+  moving_static_mixed_bs1_shifted        nblocks=  24 MATCH
+  moving_static_mixed_bs2                nblocks=  12 MATCH
+  moving_wall_adaptive                   nblocks=  24 MATCH
+
+--- RCG-05C defect demonstration: ownership_aniso_buffer (CPU vs CUDA-fp64) ---
+  CPU block counts:        {'fine': 3, 'interface': 42, 'coarse': 45}
+  CUDA-fp64 block counts:{'fine': 25, 'interface': 62, 'coarse': 3}
+  CPU fine seed blocks:    [1, 31, 61]
+  CUDA-fp64 fine seed blocks:[1, 13, 14, 17, 18, 19, 20, 23, 24, 43, 44, 47, 48, 49, 50, 53, 54, 73, 74, 77, 78, 79, 80, 83, 84]
+  direct CPU-vs-CUDA-fp64 match: False (44 of 90 blocks differ)
+  CPU  correct_buffer_width=(2, 1, 1) matches_correct_oracle=True matches_isotropic_oracle=False
+  CUDA-fp64 isotropic_buffer_width=(2, 2, 2) matches_correct_oracle=True matches_isotropic_oracle=False
+  periodic wrap axes exercised (x,y,z): (True, True, True)
+  cross-interface bond coverage: total=6480 cpu_interface_bonds=576 CUDA-fp64_interface_bonds=144 disagreeing_endpoints=576
+
+RCG-05C ownership-map comparator completed (explore mode, no assertions)
+```
+
+(Mismatched block ids and full mismatch-detail dict omitted here for
+length; identical run captured in full in this slice's session log and
+reproducible byte-for-byte from the tracked fixture and this commit.)
+
+**`run_ownership_map_comparator.py --mode accept --expect-buffer-width-fixed`**
+(the new, permanent assertion, same fresh build):
+
+```text
+CUDA-fp64: regression set (16 fixtures, including the dilation-engaging
+'moving_wall_adaptive') matched exactly; ownership_aniso_buffer's
+buffer-width scalarization defect is fixed (GPU's own reported map,
+re-dilated from GPU's own FINE seed set, now matches the correct per-axis
+oracle rather than the isotropic one). Full direct CPU/GPU map identity:
+still differs (a separate, already-documented seed-set gap, not this fix's
+scope, governs whether the full maps agree).
+
+RCG-05C ownership-map comparator completed
+```
+
+Exit code 0.
+
+**`run_ownership_map_comparator.py --mode accept`** (RCG-05C's original,
+unmodified default assertion, same fixed binaries -- the sensitivity check
+from SS10.3):
+
+```text
+Traceback (most recent call last):
+  ...
+__main__.OwnershipComparatorError: GPU's ownership map disagreed with CPU,
+but does not match the isotropic-dilation oracle either -- the
+disagreement is real but not attributable to the specific buffer-width
+scalarization this slice is chartered to demonstrate; investigate before
+treating this as RCG-05C's defect evidence
+```
+
+**CUDA test run (`cg13-cuda` label, full production regression, after
+`CMakeLists.txt`'s `--expect-buffer-width-fixed` registration change and a
+`cmake` reconfigure of this exact build tree):**
+
+```text
+$ cmake -S . -B build_rcg05d_cuda   # reconfigure only, no full rebuild needed
+$ ctest --test-dir build_rcg05d_cuda -L cg13-cuda --output-on-failure
+...
+19/23 Test #27: adaptive-cg-moving-backend-parity ..............   Passed   64.49 sec
+19/23 Test #28: adaptive-cg-ownership-map-comparator ...........   Passed   72.35 sec
+21/23 Test #35: coarse-graining-gpu-adaptive-runtime ...........   Passed    0.40 sec
+...
+100% tests passed, 0 tests failed out of 23
+```
+
+**Worktree check after all runs:**
+
+```text
+$ git status --short --porcelain=v1 | grep -v '^??'
+ M examples/AdaptiveCoarseGraining/adaptive/uppasd.adaptive.yaml          # test byproduct, restored below
+ M examples/AdaptiveCoarseGraining/initial_phase_texture/uppasd.adaptive.yaml
+ M examples/AdaptiveCoarseGraining/static_mixed/uppasd.adaptive.yaml
+ M CMakeLists.txt
+ M source/CoarseGraining/adaptivecgproduction.f90
+ M source/chelper.f90
+ M source/gpu_files/fortranData.cpp
+ M source/gpu_files/fortranData.hpp
+ M source/gpu_files/gpuAdaptiveRuntime.cpp
+ M source/gpu_files/gpuAdaptiveRuntime.hpp
+ M source/gpu_files/gpuSimulation.cpp
+ M tests/coarse_graining/run_ownership_map_comparator.py
+ M tests/coarse_graining/test_gpu_adaptive_runtime.cpp
+$ git checkout -- examples/AdaptiveCoarseGraining/adaptive/uppasd.adaptive.yaml \
+    examples/AdaptiveCoarseGraining/initial_phase_texture/uppasd.adaptive.yaml \
+    examples/AdaptiveCoarseGraining/static_mixed/uppasd.adaptive.yaml
+$ git status --short --porcelain=v1 | grep -v '^??'
+ M CMakeLists.txt
+ M source/CoarseGraining/adaptivecgproduction.f90
+ M source/chelper.f90
+ M source/gpu_files/fortranData.cpp
+ M source/gpu_files/fortranData.hpp
+ M source/gpu_files/gpuAdaptiveRuntime.cpp
+ M source/gpu_files/gpuAdaptiveRuntime.hpp
+ M source/gpu_files/gpuSimulation.cpp
+ M tests/coarse_graining/run_ownership_map_comparator.py
+ M tests/coarse_graining/test_gpu_adaptive_runtime.cpp
+```
+
+The three `uppasd.*.yaml` diffs were only `date`/`git_revision` provenance
+stamps (identical pattern to RCG-05A SS6/RCG-05B SS8.6/RCG-05C SS9.4),
+confirmed before restoring. All untracked items present at session start
+and end are the same pre-existing build-directory/`ASD_GUI`/example-output
+clutter RCG-05A/B/C already documented as unrelated and untouched
+(independently reconfirmed: every such item's mtime predates this session's
+start by roughly a day, e.g. `tests/Cluster/`, `tests/kagome/`). This
+slice's own new build directories (`build_rcg05d_cpu/`, `build_rcg05d_cuda/`)
+are additional untracked build-output clutter of the same kind RCG-05A/B/C
+already left behind (`build_rcg05a_cpu/`, `build_rcg05c_cuda/`, etc.).
+
+### 10.5 RCG-05D checklist
+
+- [x] Buffer widths retain three directional components end to end (Fortran -> C++ descriptor -> CUDA/HIP kernel). (SS10.1: full call-site inventory and edit list)
+- [x] `dilateAdaptiveState` (or its replacement) dilates per-axis, not as an isotropic cube. (SS10.1: `widthX/widthY/widthZ` independent loop bounds, matching CPU's `all(periodic_delta <= buffer_width_blocks)` term-for-term)
+- [ ] RCG-05C's comparator passes on every anisotropic and skew fixture, post-fix. **Not fully achievable by this slice**: the buffer-width-specific claim (`--expect-buffer-width-fixed`) passes (SS10.3/10.4); full direct-map identity does not, and cannot within this slice's authorized scope, because of a separate, already-documented, unaffected seed-set gap (GPU's `hardAtomisticBlockMask` sourcing). No skew-cell fixture was run through the real executable in this slice either (RCG-05C's own open item, still open). See Open items.
+- [x] RCG-05C's comparator still matches exactly on every existing RCG-04 fixture geometry. (SS10.4: all 16 `adaptive_cg=True` fixtures MATCH, including `moving_wall_adaptive`)
+- [x] The pre-fix failure and post-fix pass are both recorded from fresh builds (negative control + restoration, per the general evidence policy). (SS10.4: pre-fix cited from RCG-05C's own fresh-build recording per the prompt's explicit "already shown in RCG-05C" allowance, independently reinforced by the sensitivity check that RCG-05C's unmodified default assertion now fails against this slice's fixed binaries; post-fix `--expect-buffer-width-fixed` pass recorded from a fresh build)
+- [x] CUDA/HIP descriptor layout checks confirm no other field shifted when the scalar became a vector. (SS10.2: `testSelectorPolicyDescriptorLayout()`, passing on real CUDA hardware; HIP untested, no toolchain, same deferral as every prior slice)
+- [x] Non-cubic and skew-cell masks match exactly (parent checklist item). (SS10.4: `ownership_aniso_buffer`, a genuinely non-cubic, unequal-block-width orthogonal fixture, `block_size=1,2,3`, self-consistency-matches post-fix; no *skew*-cell, i.e. non-orthogonal-lattice-vector, fixture was run through the real executable, carried forward unchanged from RCG-05C's own open item)
+- [x] Periodic wrapping is confirmed correct in every direction on the fix. (SS10.4: `periodic wrap axes exercised (x,y,z): (True, True, True)`, unchanged from RCG-05C, reconfirmed post-fix)
+- [x] Every atomistic cross-interface bond is confirmed covered on the fix. (SS10.4: `cross-interface bond coverage: total=6480`, every bond accounted for by `bond_coverage`'s reuse of `torque_oracle.build_geometric_bonds`; the 144 GPU-side interface bonds and 576 disagreeing endpoints are attributable to the same seed-set gap, not an uncovered bond)
+- [x] An anisotropic-cell negative control detects the scalarized buffer width (i.e., this slice's own before/after comparison, retained as a permanent regression against future re-introduction). (SS10.3/10.4: `--expect-buffer-width-fixed`'s `matches_isotropic_oracle` check fails loudly if the scalarization is reintroduced, confirmed by the sensitivity check that the unmodified pre-fix assertion now itself fails against the fixed binaries; registered permanently in `CMakeLists.txt`)
+- [x] RCG-02/03/04 regression suites (`cg13-cpu`, `cg13-cuda`) pass unchanged. (SS10.4: 23/23 CPU, 23/23 CUDA, including `adaptive-cg-moving-backend-parity`)
+- [x] `GEO-ANISO-BUFFER` evidence is tracked with full provenance. (this section; builds on RCG-05A's schema definition and RCG-05C's fixture/comparator, extended with the post-fix self-consistency and sensitivity evidence above)
+- [x] Unrelated worktree changes remain untouched and unstaged. (SS10.4)
+
+### Open items (carried forward, not blocking review, but not closed by this slice)
+
+- **The seed-set gap itself remains open and unfixed**, exactly as RCG-05C's
+  README already flagged: GPU's `hardAtomisticBlockMask` is sourced only
+  from the polarization gate, not `cg_static_mask_file`. This slice
+  confirmed (SS10.3) that fixing buffer-width dilation has no effect on it
+  (byte-identical FINE seed set before and after). Closing it -- and
+  thereby making `--expect-aniso-match`'s full-map-identity claim
+  achievable -- is not in RCG-05D's authorized scope ("make GPU match CPU"
+  on buffer width, not "jointly redesign" the seed-mask path) and is not
+  claimed here.
+- No skew (non-orthogonal) cell was exercised in this slice, carried forward
+  unchanged from RCG-05C's own open item. `unequal_width_orthogonal_fixture`
+  demonstrates the per-axis fix; `skew_cell_fixture` (RCG-05B) remains
+  unit-tested but not run through the real executable's ADAPTIVE-mask path.
+- HIP was not exercised (no toolchain on this host); recorded as a
+  deferral, not a pass, matching RCG-04-FU1/RCG-05A/B/C. The descriptor
+  layout check (SS10.2) and the per-axis kernel change are backend-shared
+  source (`source/gpu_files/` compiles for both CUDA and HIP, per the
+  prompt pack's own SS1 finding), so no HIP-specific code path exists to
+  diverge, but this has not been executed on HIP hardware.
+- RCG-05E (dilation race audit) and RCG-05F (dipole/ownership invariants)
+  are unaffected by and independent of this slice's changes, per the
+  prompt pack's dependency graph; neither was touched or newly evidenced
+  here.
+
+When finished, reproduce this checklist with its actual state. If all
+intended RCG-05D items are complete, ask:
+
+> Shall I create the focused RCG-05D commit with the one-line message
+> `RCG-05D: restore directional buffer widths through the GPU descriptor`?
+
+Do not commit until the user approves.

@@ -936,6 +936,9 @@ extern "C" void fortrandata_setadaptivekernels_(
    unsigned int* update_interval, real* refine_threshold,
    real* coarsen_threshold, real* polarization_threshold,
    unsigned int* minimum_dwell,
+   // buffer_dilation now points to a contiguous 3-element per-axis (x,y,z)
+   // Fortran array (adaptive_cg_state%gpu_buffer_dilation(3), RCG-05D);
+   // the pointer type is unchanged, only the number of elements addressed.
    unsigned int* buffer_dilation, int* reconstruction_scheme,
    real* cone_angle_rad, real* energy_jump_limit_j, int* diagnostics) {
    FortranData::setAdaptiveKernelPointers(

@@ -21,6 +21,10 @@ constexpr std::uint64_t reconstructionModulus = 2147483647ULL;
 constexpr real piValue = real(3.141592653589793238462643383279502884L);
 constexpr unsigned int adaptiveThreads = 256;
 
+inline bool anyBufferDilation(const unsigned int width[3]) {
+   return width[0] > 0 || width[1] > 0 || width[2] > 0;
+}
+
 inline unsigned int adaptiveGrid(std::size_t workItems) {
    return static_cast<unsigned int>(
       std::max<std::size_t>(1, (workItems + adaptiveThreads - 1) /
@@ -325,14 +329,16 @@ __global__ void dilateAdaptiveState(GpuAdaptiveDeviceTopology topology,
    const std::size_t target = adaptiveThreadIndex();
    if(target >= topology.blocks ||
       runtime.pendingState[target] != coarseState) return;
-   const int width = static_cast<int>(policy.bufferDilationBlocks);
-   if(width == 0) return;
+   const int widthX = static_cast<int>(policy.bufferDilationBlocks[0]);
+   const int widthY = static_cast<int>(policy.bufferDilationBlocks[1]);
+   const int widthZ = static_cast<int>(policy.bufferDilationBlocks[2]);
+   if(widthX == 0 && widthY == 0 && widthZ == 0) return;
    const int tx = topology.blockGridCoordinate[3 * target];
    const int ty = topology.blockGridCoordinate[3 * target + 1];
    const int tz = topology.blockGridCoordinate[3 * target + 2];
-   for(int dz = -width; dz <= width; ++dz)
-      for(int dy = -width; dy <= width; ++dy)
-         for(int dx = -width; dx <= width; ++dx) {
+   for(int dz = -widthZ; dz <= widthZ; ++dz)
+      for(int dy = -widthY; dy <= widthY; ++dy)
+         for(int dx = -widthX; dx <= widthX; ++dx) {
             const int x = (tx + dx % topology.blockGrid[0] +
                            topology.blockGrid[0]) % topology.blockGrid[0];
             const int y = (ty + dy % topology.blockGrid[1] +
@@ -2157,7 +2163,7 @@ void GpuAdaptiveRuntime::proposeSelectorState(
    proposeAdaptiveState<<<
       adaptiveGrid(blocks_), adaptiveThreads, 0, stream_>>>(
       deviceTopology_, deviceRuntime_, policy, hardAtomisticBlockMask);
-   if(policy.bufferDilationBlocks > 0)
+   if(anyBufferDilation(policy.bufferDilationBlocks))
       dilateAdaptiveState<<<
          adaptiveGrid(blocks_), adaptiveThreads, 0, stream_>>>(
          deviceTopology_, deviceRuntime_, policy);
@@ -2166,7 +2172,7 @@ void GpuAdaptiveRuntime::proposeSelectorState(
       proposeAdaptiveState, dim3(adaptiveGrid(blocks_)),
       dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
       policy, hardAtomisticBlockMask);
-   if(policy.bufferDilationBlocks > 0)
+   if(anyBufferDilation(policy.bufferDilationBlocks))
       hipLaunchKernelGGL(
          dilateAdaptiveState, dim3(adaptiveGrid(blocks_)),
          dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,

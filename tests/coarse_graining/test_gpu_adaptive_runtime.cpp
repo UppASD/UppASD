@@ -436,7 +436,14 @@ void testKernelParityAndWorkflow() {
    selectorPolicy.refineThreshold = real(0.5);
    selectorPolicy.coarsenThreshold = real(0.1);
    auto dilatedPolicy = selectorPolicy;
-   dilatedPolicy.bufferDilationBlocks = 1;
+   // RCG-05D: this fixture's block grid is 1D ({4,1,1}), so only axis 0 (x)
+   // can move a block from coarse to buffer; y/z are deliberately left at 0
+   // (rather than mirroring the old isotropic scalar into all three) to
+   // confirm the per-axis field is actually read component-wise by the real
+   // CUDA/HIP kernel launch, not broadcast from a single value.
+   dilatedPolicy.bufferDilationBlocks[0] = 1;
+   dilatedPolicy.bufferDilationBlocks[1] = 0;
+   dilatedPolicy.bufferDilationBlocks[2] = 0;
    runtime.proposeSelectorState(dilatedPolicy);
    std::vector<int> pending(KernelFixture::blocks);
    ASSERT_GPU(GPU_MEMCPY(pending.data(), runtime.deviceRuntime().pendingState,
@@ -608,9 +615,53 @@ void testPolarizationGate() {
    runtime.release();
 }
 
+// RCG-05D descriptor layout check: GpuAdaptiveSelectorPolicy::
+// bufferDilationBlocks changed from a single scalar to a 3-element per-axis
+// array. This is a host-only, GPU-independent proof that the other fields
+// (refineThreshold, coarsenThreshold, minimumDwellUpdates) were not shifted
+// or aliased by that change, and that all three new components are
+// independently addressable, by round-tripping distinct sentinel values
+// through every field (including a copy, since call sites copy-construct a
+// dilated variant from a base policy) and confirming none of them observe
+// any other field's value.
+void testSelectorPolicyDescriptorLayout() {
+   GpuAdaptiveSelectorPolicy policy;
+   policy.refineThreshold = real(0.123456);
+   policy.coarsenThreshold = real(0.654321);
+   policy.minimumDwellUpdates = 777u;
+   policy.bufferDilationBlocks[0] = 11u;
+   policy.bufferDilationBlocks[1] = 22u;
+   policy.bufferDilationBlocks[2] = 33u;
+
+   const auto copied = policy;
+   require(static_cast<double>(copied.refineThreshold) == 0.123456,
+           "descriptor layout: refineThreshold shifted across a copy");
+   require(static_cast<double>(copied.coarsenThreshold) == 0.654321,
+           "descriptor layout: coarsenThreshold shifted across a copy");
+   require(copied.minimumDwellUpdates == 777u,
+           "descriptor layout: minimumDwellUpdates shifted across a copy");
+   require(copied.bufferDilationBlocks[0] == 11u &&
+           copied.bufferDilationBlocks[1] == 22u &&
+           copied.bufferDilationBlocks[2] == 33u,
+           "descriptor layout: bufferDilationBlocks components shifted, "
+           "aliased each other, or aliased another field across a copy");
+
+   // A default-constructed policy must not observe any of the sentinels
+   // above (rules out a static/shared-storage aliasing bug).
+   const GpuAdaptiveSelectorPolicy fresh;
+   require(fresh.bufferDilationBlocks[0] == 0 &&
+           fresh.bufferDilationBlocks[1] == 0 &&
+           fresh.bufferDilationBlocks[2] == 0,
+           "descriptor layout: default bufferDilationBlocks is not zero-initialized");
+   require(static_cast<double>(fresh.refineThreshold) != 0.123456,
+           "descriptor layout: default-constructed policy observed a sentinel from another instance");
+}
+
 } // namespace
 
 int main() {
+   testSelectorPolicyDescriptorLayout();
+
    Fixture fixture;
    const auto topology = fixture.topology();
    const auto input = fixture.runtime();
