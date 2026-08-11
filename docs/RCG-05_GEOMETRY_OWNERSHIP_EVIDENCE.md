@@ -465,5 +465,369 @@ other than this new evidence document.
 
 ---
 
-Shall I create the focused RCG-05A commit with the one-line message
-`RCG-05A: reproduce buffer-width scalarization and define geometry evidence contract`?
+## 8. RCG-05B: skew and unequal-width geometry generators
+
+**Base commit:** `d190a169f6052b77c73184e259e156620f989a55` ("RCG-05A:
+reproduce buffer-width scalarization and define geometry evidence
+contract"), the accepted RCG-05A commit. `git status --short` at session
+start showed no modified tracked files.
+
+### 8.1 Inspection of existing conventions (before implementation)
+
+Read before writing any code, per the prompt pack's explicit instruction
+not to write a second ownership-map/geometry mechanism:
+
+- `tests/coarse_graining/moving_state_generator.py` in full — the
+  `Geometry`/manifest/provenance dataclass pattern RCG-04B established.
+  `Geometry.cartesian()` was hard-restricted to the identity cell; nothing
+  else in that module assumes identity beyond that one method.
+- `tests/coarse_graining/static_topology_oracle.py` in full — the exact 1D
+  restriction (`block_grid_y == block_grid_z == 1`, `UnsupportedTopologyError`)
+  and its algorithm, confirmed still present and unchanged at this commit.
+- `source/CoarseGraining/blocktopology.f90:build_block_topology` (lines
+  134-437) — the authoritative 3D block-numbering algorithm
+  (`regular_spatial_block_id`,
+  `block_id = 1 + coord(1) + grid(1)*(coord(2)+grid(2)*coord(3))`),
+  atom-to-block floor division on every axis independently, and
+  `block_vectors(:,axis) = block_shape(axis)*cell_vectors(:,axis)` for a
+  general (including skew) cell — this is the metric the buffer-width
+  formula must actually invert, not a per-axis shortcut.
+- `source/CoarseGraining/statichybridoperator.f90:180-187` and its
+  `inverse3` (lines 414-430) — the exact per-axis buffer-width formula
+  (`radius * |inverse3(block_vectors)(axis,:)|`) already partially
+  transcribed by RCG-05A's inventory and independently re-confirmed here by
+  direct reading, term-for-term, before writing `_inverse3` in Python.
+- `source/Input/inputdata.f90:335` (`posfiletype = 'C'` default) and
+  `source/Input/inputhandler_ext.f90:1079-1080` (`posfiletype=='C'` ->
+  `r_red=r_tmp`, no cell-vector conversion of the basis) — confirms a
+  fixture's basis offsets are valid unchanged under any `cell_vectors`,
+  skew or not, so no new basis/posfile generator was needed; the existing
+  shared `tests/coarse_graining/e2e/posfile` basis is reused directly.
+- `source/Hamiltonian/neighbourmap.f90:266-290` — production's own
+  periodic-image convention for matching a declared jfile bond to a real
+  neighbour atom (`dfrac = dcart @ inverse(cell_matrix)`, `itrans =
+  nint(dfrac)`, `rescart = dcart - itrans @ cell_matrix`) — the convention
+  `_lattice_minimum_image` reproduces exactly, term-for-term, rather than
+  inventing an equivalent one.
+- `tests/coarse_graining/torque_oracle.py` in full — `build_geometric_bonds`
+  and `_minimum_image` are calibrated against real production exchange-energy
+  output (module docstring), but restricted to a plain per-axis orthogonal
+  box wrap; not modified (regression risk on RCG-04's calibration), reused
+  unchanged for every orthogonal-cell case, and used as the regression
+  target for the new general bond builder (§8.3).
+- `tests/coarse_graining/run_moving_static_mixed.py`,
+  `run_moving_dmi_chiral.py`, `run_moving_all_coarse.py` — grepped for
+  every real call site of `compute_expected_topology`/`interface_bond_count`
+  before changing either function's signature. Every call site passes
+  `block_size_y=2, block_size_z=2` (matching `GEOMETRY.n2=n3=2` exactly, the
+  degenerate 1D case) and no `cell_vectors`, and depends on the
+  `.nblocks_x` attribute name directly (`run_moving_static_mixed.py:197`).
+  This fixed the compatibility contract the generalization below had to
+  preserve exactly: same signature plus one new optional `cell_vectors`
+  keyword (default identity), same `.nblocks_x` attribute name (now holding
+  the total block count, numerically identical to the old per-axis count
+  whenever `grid_y == grid_z == 1`).
+- `tests/coarse_graining/e2e/*/inpsd.dat` — grepped for every distinct
+  `(ncell, block_size_x/y/z)` combination any tracked fixture actually uses.
+  Every one uses `ncell _ 2 2` / `block_size_y=block_size_z=2`; the distinct
+  `(ncell_x, block_size_x)` pairs are `(10,1) (24,1) (24,2) (24,4) (24,8)
+  (6,1) (6,2)`, plus one deliberate negative control
+  (`invalid_partial_block`, `ncell 5`/`block_size_x 2`, non-divisible).
+
+### 8.2 What was implemented
+
+**`tests/coarse_graining/moving_state_generator.py`** (extended, not
+replaced): `Geometry` gained an optional `cell_vectors` field (default the
+identity cell every prior caller implicitly used), and `cartesian()` was
+generalized to the full `i1*C1 + i2*C2 + i3*C3 + Bas(i0)` formula
+(`source/System/geometry.f90:445`), reducing exactly to the old
+`(i1+bx, i2+by, i3+bz)` for the default. No RCG-04B generator function
+(`conical_spiral_state` etc.) passes a non-default `cell_vectors`, so none
+of RCG-04's own fixtures are affected — checked by re-running
+`test_moving_state_generator.py`'s full 40-test suite unmodified (§8.4).
+
+**`tests/coarse_graining/static_topology_oracle.py`** (generalized):
+
+- `_inverse3` — a general 3x3 matrix inverse, transcribed term-for-term
+  from Fortran's `inverse3` (three independent copies in
+  `statichybridoperator.f90`/`coarsetensoroperator.f90`/
+  `multichannelcoarsetensoroperator.f90`, confirmed identical to each
+  other before transcribing one), raising a new `DegenerateGeometryError`
+  for a singular (zero-determinant) matrix rather than propagating a
+  divide-by-zero.
+- `buffer_width_blocks(shells, cell_vectors, block_shape, cg_buffer_blocks)`
+  — the general per-axis dilation width for an arbitrary (including skew)
+  metric. `buffer_width_blocks_x` (every existing caller's entry point) is
+  now defined *in terms of* this general function on an identity cell with
+  `block_shape=(block_size_x, 1, 1)` — a regression check baked into the
+  implementation itself, not merely asserted by a separate test.
+- `compute_expected_topology` — same name, same required-argument
+  signature, plus one new optional `cell_vectors` keyword (default
+  identity). Internals rewritten to a genuine 3D block grid: `_block_id`/
+  `_block_coord` implement `regular_spatial_block_id`'s exact numbering and
+  its inverse; the divisibility check, the FINE-seed periodic dilation, the
+  atom-to-block floor division, and `distance_from_boundary_blocks` (now a
+  true 3D Chebyshev/L-infinity distance in grid-index space, reducing to
+  the old scalar distance when only one axis is nontrivial) all generalize
+  to all three axes. `UnsupportedTopologyError` is no longer raised (kept,
+  empty, only so `sto.UnsupportedTopologyError` remains importable).
+  `ExpectedTopology.nblocks_x` keeps its exact name (every real caller
+  depends on it) but documents that it now holds the *total* block count;
+  `.nblocks`/`.buffer_width_x` properties were added as clearer aliases
+  without removing the old names.
+- `_lattice_minimum_image` — the general periodic-image reduction
+  (fractional coordinates via `_inverse3`, round-to-nearest integer
+  translation, reduce), matching `neighbourmap.f90`'s own convention
+  exactly. `build_geometric_bonds_general`/`interface_bond_count_general`
+  generalize `torque_oracle.build_geometric_bonds`/`interface_bond_count`
+  for a non-orthogonal cell, wrapping over the *simulation box*
+  (`geometry.n1/n2/n3` replicas of `cell_vectors`) exactly as
+  `torque_oracle._minimum_image`'s calibrated `box=(n1*alat,n2*alat,
+  n3*alat)` convention does — an implementation bug (wrapping over the bare
+  unit cell instead) was caught by the regression test in §8.3 before this
+  document was written; see that section for what the bug looked like and
+  how it was found and fixed. `torque_oracle.py` itself was not modified.
+- `unequal_width_orthogonal_fixture`/`skew_cell_fixture` — the new
+  geometry generators, matching the `moving_state_generator._manifest`
+  provenance-record shape (reimplemented locally, not imported, only
+  because this module's own `GENERATOR_VERSION` must not be shadowed by
+  RCG-04B's; `content_hash` itself is imported and reused directly). Each
+  generator is *self-validating*: it calls `compute_expected_topology` on
+  its own chosen parameters and raises `ValueError` unless every one of
+  fine/buffer/coarse is nonempty, rather than asserting the host is "large
+  enough" without checking. `skew_cell_fixture` additionally rejects a
+  `cell_vectors` that is not actually non-orthogonal (every pairwise dot
+  product ~0), so it cannot silently degrade to an orthogonal fixture that
+  merely calls itself "skew". Both reuse the existing shared 2-atom
+  `e2e/posfile` basis (§8.1) rather than generating a new one.
+
+Per the prompt's explicit scope limit, neither generator's output was
+written into a tracked `e2e/` fixture directory, registered with CTest, or
+run through the real executable in this slice — RCG-05B produces
+generator *functions*, self-validated by this module's own oracle, exactly
+as RCG-04B produced moving-state generator functions without materializing
+fixture directories itself (RCG-04B's one exception, `initmag_restart_atomistic`,
+was triggered by an unplanned production capability-gap fix, not a general
+requirement; no such gap was found in this slice).
+
+### 8.3 A bug found and fixed by this slice's own regression testing
+
+While writing `GeneralBondBuilderRegressionTests` (§8.4), the first version
+of `build_geometric_bonds_general` reduced every displacement using the
+*bare unit cell* (`cell_vectors` as passed in), not the simulation box. On
+`GEOMETRY` (`na=2, n1=24, n2=2, n3=2`, identity cell) this produced 4480
+matched bond-endpoint pairs where `torque_oracle.build_geometric_bonds`
+(the real, production-calibrated function) finds only 176 — every
+single-unit-cell-step image was being treated as a distinct "nearby" atom
+instead of being folded back into the finite periodic box. The fix scales
+`cell_vectors` by `(geometry.n1, geometry.n2, geometry.n3)` before calling
+`_lattice_minimum_image`, exactly matching `torque_oracle._minimum_image`'s
+own `box=(n1*alat, n2*alat, n3*alat)` convention. After the fix,
+`build_geometric_bonds_general(GEOMETRY, SHELLS, _IDENTITY_CELL) ==
+torque_oracle.build_geometric_bonds(GEOMETRY, SHELLS)` exactly (dict
+equality, not just equal counts) — this is now a permanent regression test
+(`test_matches_orthogonal_build_geometric_bonds_exactly`), and is stronger
+evidence than a small synthetic case since `GEOMETRY`/`SHELLS` here are the
+exact fixture `torque_oracle.py`'s own docstring calibrated against real
+production exchange-energy output.
+
+### 8.4 Tests (`tests/coarse_graining/test_static_topology_oracle.py`)
+
+Every one of the original 19 tests (`BufferWidthTests`,
+`ExpectedTopologyTests`, `MaskFileTests`, `InterfaceBondCountTests`) still
+passes **unmodified**, except the one test that specifically exercised the
+now-removed 1D restriction
+(`test_rejects_block_grid_not_spanning_yz`), which is replaced by
+`test_genuine_3d_block_grid_is_now_supported` (same call, now asserting the
+real, hand-derived 2D partition it produces: `block_grid=(24,2,1)`,
+`width=(2,2,1)`, block 2/3/25 all `BUFFER`, hand-derived from
+`block_vectors=diag(1,1,2)` before running any code) and one new negative
+control for the axis-y divisibility check. 26 new tests were added:
+
+- `GeneralBufferWidthTests` — the orthogonal anisotropic case reproduces
+  RCG-05A's own real-hardware result (`block_size=(1,2,4)`, radius 4.0 ->
+  `(4,2,1)`, the exact numbers CPU and CUDA printed in
+  `docs/RCG-05_GEOMETRY_OWNERSHIP_EVIDENCE.md` SS2.3); the skew case
+  (`cell=((1,0,0),(0.5,1,0),(0,0,1))`, radius=|C2|=1.118034) uses widths
+  independently computed by a standalone script *before* this module's
+  generalization was written (`(1,2,2)->(2,1,1)`, `(2,2,2)->(1,1,1)`);
+  `buffer_width_blocks_x`'s equivalence to the general formula is asserted
+  directly; malformed/singular-cell inputs are rejected.
+- `Full3DOwnershipTests` — a genuine `grid=(5,5,5)` case (`na=1`, single
+  distance-1.0 shell, `block_size=(1,1,1)` -> `width=(1,1,1)`), hand-derived
+  (not printed from the module under test): a 3x3x3=27-block box (1 FINE +
+  26 BUFFER) out of 125, 98 COARSE; six specific block states checked by
+  coordinate, plus the atom-to-block floor-division and the 3D Chebyshev
+  `distance_from_boundary_blocks` generalization.
+- `SkewCellOwnershipTests` — the same skew cell at `block_size=(1,2,2)`,
+  `ncell=(8,8,8)`: `block_counts()=={"fine":1,"interface":44,"coarse":83}`,
+  matching a standalone independent computation performed before writing
+  this test.
+- `LatticeMinimumImageTests` — two hand-derived skew reductions
+  (`1*C2 + residual`, `2*C1 - C3 + residual`, each reducing to exactly the
+  residual), an identity-cell sanity check, and a singular-cell rejection.
+- `GeneralBondBuilderRegressionTests` — the bug-and-fix described in §8.3,
+  now a permanent exact-equality regression against
+  `torque_oracle.build_geometric_bonds`/`interface_bond_count`.
+- `RealFixtureGeometryRegressionTests` — every real `(ncell_x,
+  block_size_x)` combination from §8.1's grep, run through
+  `compute_expected_topology` and checked for exact equality (block grid,
+  width, full `block_state_by_id` dict) against
+  `_reference_1d_topology`, an independent transcription of the *original*
+  (removed) 1D algorithm written directly into the test file rather than
+  calling anything from `static_topology_oracle` — an oracle-of-the-oracle.
+  Also confirms this file's `JFILE_TEXT` constant is byte-identical to the
+  tracked `e2e/jfile` every one of these real fixtures actually reads.
+- `BlockGeometryGeneratorTests` — both generators produce all-nonempty
+  partitions matching their independently-computed widths; deterministic
+  regeneration (byte-identical `jfile_text`/`mask_text`, identical
+  `content_sha256`, byte-identical `manifest_json`); a changed parameter
+  changes the hash; malformed inputs (isotropic block size for the
+  "unequal-width" fixture, non-divisible `ncell`, an orthogonal
+  `cell_vectors` for the "skew" fixture, a host too small to leave every
+  state nonempty) all raise `ValueError` with a specific message.
+
+Total: 45 tests (19 original, unmodified except the one repurposed
+restriction test and one added negative control, plus 26 new), all
+passing, run both directly (`python3 test_static_topology_oracle.py -v`,
+from both `tests/coarse_graining/` and a build directory, after a
+CTest-only path bug was found and fixed -- see §8.5) and via the existing
+CTest target `coarse-graining-static-topology-oracle`.
+
+### 8.5 A second bug found by fresh out-of-tree CTest evidence
+
+`RealFixtureGeometryRegressionTests` opened `e2e/jfile` with a bare
+relative path, which only resolves when the interpreter's current working
+directory happens to be `tests/coarse_graining/` -- true when the test is
+run directly from that directory, false under `ctest`, whose working
+directory is the build tree. This was caught by running the actual
+CTest target from a fresh build (§8.6), not just direct `python3 ...`
+invocation from the source directory, exactly the reason the governing
+rules require CTest-based evidence rather than only direct script runs.
+Fixed by resolving the path relative to `Path(__file__)` (`E2E_ROOT =
+Path(__file__).with_name("e2e")`), the same convention
+`run_moving_static_mixed.py`'s `ROOT = Path(__file__).with_name("e2e")`
+already uses -- reused, not invented. Re-verified passing both from
+`tests/coarse_graining/` and from the build directory directly (§8.6).
+
+### 8.6 Fresh build/test evidence (this slice)
+
+**Environment:** GNU Fortran 13.3.0, GNU C/C++ 12.4.0, CMake 3.28.3, CPU
+backend, fp64 (default precision), Release build type. No CUDA/HIP
+evidence was gathered in this slice (not required: RCG-05B produces no
+GPU-path fixture or claim, per the prompt's explicit "do not yet run these
+fixtures through the real executable's GPU path" scope limit).
+
+```text
+$ python3 tests/coarse_graining/test_static_topology_oracle.py -v
+...
+Ran 45 tests in 2.7s
+OK
+
+$ python3 tests/coarse_graining/test_moving_state_generator.py -v
+...
+Ran 40 tests in 0.03s
+OK
+
+$ python3 tests/coarse_graining/test_torque_oracle.py -v
+...
+Ran 29 tests in 0.11s
+OK
+
+$ python3 tests/coarse_graining/audit_fixture_dependencies.py
+adaptive-CG fixture dependency audit: PASS (58 fixture directories, 118 input paths)
+```
+
+(58 directories / 118 input paths -- identical to the count before this
+slice, confirming no new tracked fixture or dangling reference was
+introduced, consistent with RCG-05B producing generator functions only.)
+
+**Fresh out-of-tree configure/build:**
+
+```text
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=OFF \
+    -S . -B build_rcg05b_cpu
+...
+-- Git tag found: VERSION="v6.0.2-460-gd190-dirty".   # dirty solely from
+                                                        # this slice's own
+                                                        # uncommitted
+                                                        # changes
+-- Configuring done
+$ cmake --build build_rcg05b_cpu -j2
+... exit 0
+```
+
+**Test run (`cg13-cpu` label, full production regression):**
+
+```text
+$ ctest --test-dir build_rcg05b_cpu -L cg13-cpu --output-on-failure
+...
+100% tests passed, 0 tests failed out of 22
+ 3: coarse-graining-block-topology ................... Passed
+ ...
+17: coarse-graining-static-topology-oracle ........... Passed   # this
+                                                                  # slice's
+                                                                  # 45 tests
+18: adaptive-cg-production-e2e ....................... Passed
+19: adaptive-cg-setup-rejection-matrix ............... Passed
+20: adaptive-cg-moving-off-fine ...................... Passed
+21: adaptive-cg-moving-all-coarse .................... Passed
+22: adaptive-cg-moving-static-mixed .................. Passed
+23: adaptive-cg-moving-adaptive-wall ................. Passed
+24: adaptive-cg-moving-dmi-chiral .................... Passed
+```
+
+Tests 21/22/24 (`adaptive-cg-moving-all-coarse`/`-static-mixed`/
+`-dmi-chiral`) are the real production harness scripts identified in §8.1
+as live callers of `compute_expected_topology`/`interface_bond_count`;
+their unmodified pass, through the real `sd.f95` binary, is the decisive
+regression evidence that the generalization did not change behaviour for
+any existing RCG-04 caller (a stronger check than re-running this file's
+own unit tests alone, since those callers run the actual executable and
+compare against its actual diagnostic output, not just this module's
+self-consistency).
+
+**Worktree check after the run:**
+
+```text
+$ git status --short --porcelain=v1 | grep -v '^??'
+ M examples/AdaptiveCoarseGraining/adaptive/uppasd.adaptive.yaml         # test byproduct, restored below
+ M examples/AdaptiveCoarseGraining/initial_phase_texture/uppasd.adaptive.yaml
+ M examples/AdaptiveCoarseGraining/static_mixed/uppasd.adaptive.yaml
+ M tests/coarse_graining/moving_state_generator.py
+ M tests/coarse_graining/static_topology_oracle.py
+ M tests/coarse_graining/test_static_topology_oracle.py
+$ git checkout -- examples/AdaptiveCoarseGraining/adaptive/uppasd.adaptive.yaml \
+    examples/AdaptiveCoarseGraining/initial_phase_texture/uppasd.adaptive.yaml \
+    examples/AdaptiveCoarseGraining/static_mixed/uppasd.adaptive.yaml
+$ git status --short --porcelain=v1 | grep -v '^??'
+ M tests/coarse_graining/moving_state_generator.py
+ M tests/coarse_graining/static_topology_oracle.py
+ M tests/coarse_graining/test_static_topology_oracle.py
+```
+
+The three `uppasd.*.yaml` diffs were only `date`/`git_revision` provenance
+stamps (identical pattern to RCG-05A's own evidence §6), confirmed before
+restoring. No other tracked or untracked file was created, modified, or
+deleted by this slice other than this evidence document and the three
+files listed above.
+
+### 8.7 RCG-05B checklist
+
+- [x] Existing RCG-04B generator conventions were inspected and reused, not duplicated. (SS8.1, SS8.2)
+- [x] A deterministic unequal-block-width orthogonal generator is implemented. (SS8.2, `unequal_width_orthogonal_fixture`)
+- [x] A deterministic skew-cell (non-orthogonal lattice vector) generator is implemented. (SS8.2, `skew_cell_fixture`)
+- [x] Atom ordering, basis/material identity, and moment magnitudes are preserved. (SS8.1: reuses the existing shared `e2e/posfile` basis unchanged; no momfile/state claim is made by this slice)
+- [x] `static_topology_oracle.py`'s block-grid restriction is removed and replaced with a general 3D formula. (SS8.2)
+- [x] The generalized oracle is regression-tested against every existing RCG-04 fixture geometry. (SS8.4, `RealFixtureGeometryRegressionTests`; SS8.6, real production harnesses)
+- [x] The generalized oracle is tested against at least one hand-verified anisotropic/skew case. (SS8.4, `Full3DOwnershipTests`, `SkewCellOwnershipTests`, `LatticeMinimumImageTests`)
+- [x] Generator parameters and provenance are tracked in a manifest. (SS8.2, `_manifest`/`content_hash`)
+- [x] Malformed or degenerate generator requests fail clearly. (SS8.4, `BlockGeometryGeneratorTests` malformed-input cases)
+- [x] Tracked-fixture/package audit covers the new generators and required inputs. (SS8.6: `audit_fixture_dependencies.py` unaffected, 58/118 unchanged, consistent with no new tracked fixture directory)
+- [x] No CPU/GPU equivalence or production-fix claim is made in this slice. (SS8.2 explicit scope note)
+- [x] Unrelated worktree changes remain untouched and unstaged. (SS8.6)
+
+---
+
+Shall I create the focused RCG-05B commit with the one-line message
+`RCG-05B: add skew and unequal-width geometry generators`?

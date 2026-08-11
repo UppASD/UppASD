@@ -17,12 +17,22 @@ from the production Fortran source, not reinvented:
   ``source/System/geometry.f90``'s block-ownership loops;
 - the Cartesian coordinate of that atom is
   ``coord = i1*C1 + i2*C2 + i3*C3 + Bas(i0)``
-  (``source/System/geometry.f90:445``). This module only implements the
-  identity-cell case (``cell 1 0 0 / 0 1 0 / 0 0 1``), which is every
-  geometry file under ``tests/coarse_graining/e2e`` today; for that case
-  ``posfile``'s fractional coordinates and Cartesian coordinates coincide,
-  so ``basis`` below is taken directly from ``posfile``-style numbers
-  without a separate direct/Cartesian conversion step.
+  (``source/System/geometry.f90:445``). ``Geometry.cell_vectors`` defaults
+  to the identity cell (``cell 1 0 0 / 0 1 0 / 0 0 1``), which is every
+  geometry file every RCG-04 fixture under ``tests/coarse_graining/e2e``
+  used; for that default case ``posfile``'s numbers and Cartesian
+  coordinates coincide, so ``basis`` is taken directly from
+  ``posfile``-style numbers without a separate direct/Cartesian conversion
+  step. RCG-05B generalized ``cartesian()`` to accept arbitrary (including
+  non-orthogonal/skew) ``cell_vectors``, needed for RCG-05's unequal-width
+  and skew-cell block-topology fixtures
+  (``docs/RCG-05_GEOMETRY_OWNERSHIP_PROMPT_PACK.md`` RCG-05B); every prior
+  RCG-04 caller passes no ``cell_vectors`` and is therefore unaffected,
+  since the default reproduces the old identity-cell-only formula exactly.
+  This module's own generator functions (``conical_spiral_state`` etc.)
+  still only ever construct a default-identity ``Geometry`` -- the
+  generalization is consumed by RCG-05B's own new block-geometry
+  generators, not by anything in this module.
 
 Two output mechanisms are used, matching what AdaptiveCG production
 currently accepts (``source/CoarseGraining/adaptivecgproduction.f90:695``
@@ -103,13 +113,22 @@ class MalformedGeneratorInputError(ValueError):
 # ---------------------------------------------------------------------------
 
 
+_IDENTITY_CELL: tuple[tuple[float, float, float], ...] = (
+    (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0),
+)
+
+
 @dataclass(frozen=True)
 class Geometry:
     """A periodic supercell geometry, matching UppASD's ``posfile``/``ncell``.
 
     ``basis`` gives each basis atom's fractional-of-cell coordinate in the
     same order as ``posfile`` (1-based site index implied by list order).
-    Only the identity ``cell`` (see module docstring) is supported.
+    ``cell_vectors`` gives the three (possibly non-orthogonal/skew) lattice
+    vectors, each as an ``(x, y, z)`` tuple in the same order as ``cell`` in
+    ``inpsd.dat``; it defaults to the identity cell every prior RCG-04
+    fixture uses, so every existing caller that does not pass it is
+    unaffected (see module docstring).
     """
 
     na: int
@@ -117,6 +136,7 @@ class Geometry:
     n2: int
     n3: int
     basis: tuple[tuple[float, float, float], ...]
+    cell_vectors: tuple[tuple[float, float, float], ...] = _IDENTITY_CELL
 
     def __post_init__(self) -> None:
         if self.na <= 0 or self.n1 <= 0 or self.n2 <= 0 or self.n3 <= 0:
@@ -134,6 +154,14 @@ class Geometry:
                 raise MalformedGeneratorInputError(
                     f"basis coordinate {index} must have 3 components, got {coordinate!r}"
                 )
+        if len(self.cell_vectors) != 3 or any(len(vector) != 3 for vector in self.cell_vectors):
+            raise MalformedGeneratorInputError(
+                f"cell_vectors must be exactly 3 vectors of 3 components each, got {self.cell_vectors!r}"
+            )
+        if not all(math.isfinite(component) for vector in self.cell_vectors for component in vector):
+            raise MalformedGeneratorInputError(
+                f"cell_vectors must contain only finite values, got {self.cell_vectors!r}"
+            )
 
     @property
     def natom(self) -> int:
@@ -165,9 +193,18 @@ class Geometry:
                         yield self.atom_index(i0, i1, i2, i3), i0, i1, i2, i3
 
     def cartesian(self, i0: int, i1: int, i2: int, i3: int) -> tuple[float, float, float]:
-        """Cartesian position in alat units (identity cell only)."""
+        """Cartesian position in alat units: ``i1*C1 + i2*C2 + i3*C3 + Bas(i0)``.
+
+        Reduces exactly to ``(i1 + bx, i2 + by, i3 + bz)`` for the default
+        identity cell (every prior RCG-04 caller's case).
+        """
         bx, by, bz = self.basis[i0 - 1]
-        return (i1 + bx, i2 + by, i3 + bz)
+        c1, c2, c3 = self.cell_vectors
+        return (
+            i1 * c1[0] + i2 * c2[0] + i3 * c3[0] + bx,
+            i1 * c1[1] + i2 * c2[1] + i3 * c3[1] + by,
+            i1 * c1[2] + i2 * c2[2] + i3 * c3[2] + bz,
+        )
 
 
 # ---------------------------------------------------------------------------
