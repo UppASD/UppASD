@@ -1018,6 +1018,16 @@ if(BUILD_TESTING)
       COMMAND python3
          ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_static_topology_oracle.py -v)
 
+   # RCG-05C independent unit tests for the CPU/GPU ownership-map comparator
+   # itself (parsing, index-set comparison, self-consistency oracle
+   # cross-checks, bond coverage) against real captured stdout excerpts.
+   # Host-only Python, no UppASD/CUDA/HIP dependency; the e2e comparator run
+   # against the real executable is registered separately below
+   # (adaptive-cg-ownership-map-comparator, GPU-configured builds only).
+   add_test(NAME coarse-graining-ownership-map-comparator
+      COMMAND python3
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_ownership_map_comparator.py -v)
+
    # CG-13 labels are the repeatable suite interface.  Keep the focused
    # analytic/reference tests in the CPU suite even in a GPU build; the
    # production and backend tests below add the matching CUDA/HIP label.
@@ -1037,6 +1047,7 @@ if(BUILD_TESTING)
       coarse-graining-torque-oracle
       coarse-graining-coarse-torque-oracle
       coarse-graining-static-topology-oracle
+      coarse-graining-ownership-map-comparator
       PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;reference")
    if(USE_CUDA)
       set_property(TEST
@@ -1054,6 +1065,7 @@ if(BUILD_TESTING)
          coarse-graining-torque-oracle
          coarse-graining-coarse-torque-oracle
          coarse-graining-static-topology-oracle
+         coarse-graining-ownership-map-comparator
          APPEND PROPERTY LABELS cg13-cuda)
    elseif(USE_HIP)
       set_property(TEST
@@ -1071,6 +1083,7 @@ if(BUILD_TESTING)
          coarse-graining-torque-oracle
          coarse-graining-coarse-torque-oracle
          coarse-graining-static-topology-oracle
+         coarse-graining-ownership-map-comparator
          APPEND PROPERTY LABELS cg13-hip)
    endif()
 
@@ -1191,6 +1204,39 @@ if(BUILD_TESTING)
             --workspace-root ${CMAKE_CURRENT_BINARY_DIR}/rcg04i_backend_parity_workspace)
       set_tests_properties(adaptive-cg-moving-backend-parity
          PROPERTIES LABELS "coarse-graining;cg13;${RCG04I_BACKEND_LABEL};moving-parity;backend-parity"
+                    ENVIRONMENT "OMP_NUM_THREADS=1")
+   endif()
+   # RCG-05C: CPU/GPU ownership-map comparator run against the real
+   # executable -- every RCG-04I adaptive_cg=True moving fixture (regression,
+   # must match exactly) plus the new e2e/ownership_aniso_buffer fixture
+   # (defect demonstration: CPU matches the correct per-axis dilation
+   # oracle, GPU matches the isotropic-collapsed one). Same
+   # GPU-binary-only-if-GPU-configured pattern as RCG-04I immediately above.
+   set(RCG05C_GPU_BINARY_ARGS)
+   if(USE_CUDA)
+      set(RCG05C_BACKEND_LABEL cg13-cuda)
+      if(UPPASD_PRECISION STREQUAL "SINGLE")
+         list(APPEND RCG05C_GPU_BINARY_ARGS --cuda-fp32-binary $<TARGET_FILE:${UppASD_EXE}>)
+      else()
+         list(APPEND RCG05C_GPU_BINARY_ARGS --cuda-fp64-binary $<TARGET_FILE:${UppASD_EXE}>)
+      endif()
+   elseif(USE_HIP)
+      set(RCG05C_BACKEND_LABEL cg13-hip)
+      if(UPPASD_PRECISION STREQUAL "SINGLE")
+         list(APPEND RCG05C_GPU_BINARY_ARGS --hip-fp32-binary $<TARGET_FILE:${UppASD_EXE}>)
+      else()
+         list(APPEND RCG05C_GPU_BINARY_ARGS --hip-fp64-binary $<TARGET_FILE:${UppASD_EXE}>)
+      endif()
+   endif()
+   if(USE_CUDA OR USE_HIP)
+      add_test(NAME adaptive-cg-ownership-map-comparator
+         COMMAND python3
+            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_ownership_map_comparator.py
+            --cpu-binary $<TARGET_FILE:${UppASD_EXE}>
+            ${RCG05C_GPU_BINARY_ARGS}
+            --workspace-root ${CMAKE_CURRENT_BINARY_DIR}/rcg05c_ownership_comparator_workspace)
+      set_tests_properties(adaptive-cg-ownership-map-comparator
+         PROPERTIES LABELS "coarse-graining;cg13;${RCG05C_BACKEND_LABEL};moving-parity;backend-parity;ownership"
                     ENVIRONMENT "OMP_NUM_THREADS=1")
    endif()
    add_test(NAME adaptive-cg-fixture-dependencies

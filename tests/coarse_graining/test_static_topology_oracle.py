@@ -522,5 +522,55 @@ class BlockGeometryGeneratorTests(unittest.TestCase):
             )
 
 
+class IsotropicDilationCrossCheckTests(unittest.TestCase):
+    """RCG-05C: ``compute_isotropic_dilation_topology`` must (a) reduce to
+    ``compute_expected_topology`` whenever the correct per-axis width is
+    already isotropic (no false divergence on a cubic-ish RCG-04 geometry),
+    and (b) actually differ, in the documented way, on a genuinely
+    anisotropic geometry -- reproducing exactly the real-hardware numbers
+    RCG-05A/RCG-05C's own comparator observed."""
+
+    def test_matches_correct_oracle_on_cubic_rcg04_geometry(self):
+        # GEOMETRY/SHELLS (module-level) are RCG-04's own calibration
+        # fixture: block_size_y=n2, block_size_z=n3 (degenerate 1D grid),
+        # so the per-axis width is trivially the same on every axis and the
+        # isotropic collapse changes nothing.
+        for block_size_x in (1, 2, 4, 8):
+            correct = sto.compute_expected_topology(
+                GEOMETRY, SHELLS, block_size_x=block_size_x, block_size_y=GEOMETRY.n2,
+                block_size_z=GEOMETRY.n3, fine_block_ids={1},
+            )
+            isotropic = sto.compute_isotropic_dilation_topology(
+                GEOMETRY, SHELLS, block_size_x=block_size_x, block_size_y=GEOMETRY.n2,
+                block_size_z=GEOMETRY.n3, fine_block_ids={1},
+            )
+            self.assertEqual(correct.block_state_by_id, isotropic.block_state_by_id)
+
+    def test_diverges_on_the_rcg05a_anisotropic_geometry(self):
+        # The exact block_size=(1,2,4), radius=4.0 case RCG-05A reproduced
+        # through the real CPU/CUDA executables (buffer_width_blocks=(4,2,1),
+        # cpu_buffer_dilation_scalar staged as 4).
+        geometry = Geometry(na=2, n1=12, n2=16, n3=16, basis=((0.0, 0.0, 0.0), (0.5, 0.5, 0.5)))
+        shells = orc.parse_jfile_shells("1 1 4.0 0.0 0.0 0.01\n")
+        correct = sto.compute_expected_topology(
+            geometry, shells, block_size_x=1, block_size_y=2, block_size_z=4, fine_block_ids={1},
+        )
+        isotropic = sto.compute_isotropic_dilation_topology(
+            geometry, shells, block_size_x=1, block_size_y=2, block_size_z=4, fine_block_ids={1},
+        )
+        self.assertEqual(correct.buffer_width, (4, 2, 1))
+        self.assertEqual(isotropic.buffer_width, (4, 4, 4))
+        self.assertNotEqual(correct.block_state_by_id, isotropic.block_state_by_id)
+        self.assertEqual(correct.block_counts(), {"fine": 1, "interface": 134, "coarse": 249})
+        self.assertEqual(isotropic.block_counts(), {"fine": 1, "interface": 287, "coarse": 96})
+
+    def test_rejects_empty_fine_block_ids(self):
+        with self.assertRaises(ValueError):
+            sto.compute_isotropic_dilation_topology(
+                GEOMETRY, SHELLS, block_size_x=1, block_size_y=GEOMETRY.n2,
+                block_size_z=GEOMETRY.n3, fine_block_ids=set(),
+            )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

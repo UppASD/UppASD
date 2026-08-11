@@ -112,6 +112,14 @@ MOVING_DMI_CHIRAL_CASES = (
     MOVING_DMI_CHIRAL_BS1_PLUS_REVERSED_CASE, MOVING_DMI_CHIRAL_BS1_MINUS_REVERSED_CASE,
 )
 
+# RCG-05C OWNERSHIP-ANISO-BUFFER: a genuinely anisotropic-block-shape
+# (`buffer_width_blocks=(2,1,1)`), `cg_mask_mode ADAPTIVE` fixture that
+# engages the real GPU adaptive-transition runtime, used by
+# `run_ownership_map_comparator.py` to demonstrate the GPU buffer-width
+# scalarization defect through the real executable. See
+# `e2e/ownership_aniso_buffer/README.md`.
+OWNERSHIP_ANISO_BUFFER_CASE = "ownership_aniso_buffer"
+
 
 def all_e2e_cases() -> tuple[str, ...]:
     """Return every e2e directory referenced by either executable harness."""
@@ -128,5 +136,6 @@ def all_e2e_cases() -> tuple[str, ...]:
         *MOVING_STATIC_MIXED_CASES,
         MOVING_WALL_FEATURE_OFF_CASE, MOVING_WALL_ADAPTIVE_CASE,
         *MOVING_DMI_CHIRAL_CASES,
+        OWNERSHIP_ANISO_BUFFER_CASE,
     }
     return tuple(sorted(names))

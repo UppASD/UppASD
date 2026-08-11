@@ -246,39 +246,19 @@ class ExpectedTopology:
         return tuple(self.block_state_by_id[bid] for bid in range(1, self.nblocks_x + 1))
 
 
-def compute_expected_topology(
-    geometry: Geometry, shells: tuple[ExchangeShell, ...], *,
-    block_size_x: int, block_size_y: int, block_size_z: int,
-    fine_block_ids: set[int], cg_buffer_blocks: int = 0,
-    cell_vectors: Matrix3 = _IDENTITY_CELL,
-) -> ExpectedTopology:
-    """Compute the expected fine/buffer/coarse ownership map for a genuine 3D
-    block grid and an arbitrary (including skew) ``cell_vectors`` metric.
-
-    ``cell_vectors`` defaults to the identity cell every RCG-04 caller
-    implicitly used; every RCG-04 call site also happens to pass
-    ``block_size_y=geometry.n2, block_size_z=geometry.n3`` (a degenerate
-    ``grid_y == grid_z == 1`` grid), for which this reduces to exactly the
-    original 1D formula and ``nblocks_x``/``buffer_width_x`` semantics
-    (checked by regression test against real RCG-04 fixture geometries, not
-    merely asserted).
+def _dilate_periodic_box(
+    fine_block_ids: set[int], grid: tuple[int, int, int], width: tuple[int, int, int],
+) -> dict[int, int]:
+    """Core of ``rebuild_static_hybrid_ownership``'s periodic Chebyshev/box
+    dilation (``statichybridoperator.f90:196-256``): every block within
+    ``width`` blocks (per axis, independently, under periodic wrap) of any
+    FINE seed becomes BUFFER; the seeds themselves stay FINE; everything else
+    is COARSE. Factored out of ``compute_expected_topology`` so the isotropic
+    (``width=(m,m,m)`` for ``m=max(width)``) cross-check
+    ``compute_isotropic_dilation_topology`` below shares the exact same
+    periodic-box logic and cannot silently diverge from it (RCG-05C).
     """
-    block_shape = (block_size_x, block_size_y, block_size_z)
-    if any(size <= 0 for size in block_shape):
-        raise ValueError(f"block_size_x/y/z must all be positive, got {block_shape}")
-    repetitions = (geometry.n1, geometry.n2, geometry.n3)
-    if any(repetitions[axis] % block_shape[axis] != 0 for axis in range(3)):
-        raise ValueError(
-            f"(n1,n2,n3)={repetitions} must each be divisible by the matching "
-            f"block_size, got block_size={block_shape}"
-        )
-    grid = tuple(repetitions[axis] // block_shape[axis] for axis in range(3))
     nblocks = grid[0] * grid[1] * grid[2]
-    if not fine_block_ids or not fine_block_ids <= set(range(1, nblocks + 1)):
-        raise ValueError(f"fine_block_ids {fine_block_ids} must be a nonempty subset of 1..{nblocks}")
-
-    width = buffer_width_blocks(shells, cell_vectors, block_shape, cg_buffer_blocks)
-
     fine_coords = [_block_coord(bid, grid) for bid in fine_block_ids]
     atomistic: set[int] = set(fine_block_ids)
     for bid in range(1, nblocks + 1):
@@ -300,12 +280,23 @@ def compute_expected_topology(
             block_state_by_id[bid] = BUFFER
         else:
             block_state_by_id[bid] = COARSE
+    return block_state_by_id
 
+
+def _atom_block_map(
+    geometry: Geometry, block_shape: tuple[int, int, int], grid: tuple[int, int, int],
+) -> dict[int, int]:
     atom_block_by_atom: dict[int, int] = {}
     for atom, _i0, i1, i2, i3 in geometry.iter_atoms():
-        coord = (i1 // block_size_x, i2 // block_size_y, i3 // block_size_z)
+        coord = (i1 // block_shape[0], i2 // block_shape[1], i3 // block_shape[2])
         atom_block_by_atom[atom] = _block_id(coord, grid)
+    return atom_block_by_atom
 
+
+def _distance_from_boundary(
+    block_state_by_id: dict[int, int], grid: tuple[int, int, int],
+) -> dict[int, int]:
+    nblocks = grid[0] * grid[1] * grid[2]
     distance_from_boundary_blocks: dict[int, int] = {}
     block_coords = {bid: _block_coord(bid, grid) for bid in range(1, nblocks + 1)}
     for bid in range(1, nblocks + 1):
@@ -321,6 +312,102 @@ def compute_expected_topology(
             chebyshev = max(periodic_delta)
             best = min(best, chebyshev)
         distance_from_boundary_blocks[bid] = best
+    return distance_from_boundary_blocks
+
+
+def _block_shape_and_grid(
+    geometry: Geometry, *, block_size_x: int, block_size_y: int, block_size_z: int,
+) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+    block_shape = (block_size_x, block_size_y, block_size_z)
+    if any(size <= 0 for size in block_shape):
+        raise ValueError(f"block_size_x/y/z must all be positive, got {block_shape}")
+    repetitions = (geometry.n1, geometry.n2, geometry.n3)
+    if any(repetitions[axis] % block_shape[axis] != 0 for axis in range(3)):
+        raise ValueError(
+            f"(n1,n2,n3)={repetitions} must each be divisible by the matching "
+            f"block_size, got block_size={block_shape}"
+        )
+    grid = tuple(repetitions[axis] // block_shape[axis] for axis in range(3))
+    return block_shape, grid
+
+
+def compute_expected_topology(
+    geometry: Geometry, shells: tuple[ExchangeShell, ...], *,
+    block_size_x: int, block_size_y: int, block_size_z: int,
+    fine_block_ids: set[int], cg_buffer_blocks: int = 0,
+    cell_vectors: Matrix3 = _IDENTITY_CELL,
+) -> ExpectedTopology:
+    """Compute the expected fine/buffer/coarse ownership map for a genuine 3D
+    block grid and an arbitrary (including skew) ``cell_vectors`` metric.
+
+    ``cell_vectors`` defaults to the identity cell every RCG-04 caller
+    implicitly used; every RCG-04 call site also happens to pass
+    ``block_size_y=geometry.n2, block_size_z=geometry.n3`` (a degenerate
+    ``grid_y == grid_z == 1`` grid), for which this reduces to exactly the
+    original 1D formula and ``nblocks_x``/``buffer_width_x`` semantics
+    (checked by regression test against real RCG-04 fixture geometries, not
+    merely asserted).
+    """
+    block_shape, grid = _block_shape_and_grid(
+        geometry, block_size_x=block_size_x, block_size_y=block_size_y,
+        block_size_z=block_size_z,
+    )
+    nblocks = grid[0] * grid[1] * grid[2]
+    if not fine_block_ids or not fine_block_ids <= set(range(1, nblocks + 1)):
+        raise ValueError(f"fine_block_ids {fine_block_ids} must be a nonempty subset of 1..{nblocks}")
+
+    width = buffer_width_blocks(shells, cell_vectors, block_shape, cg_buffer_blocks)
+    block_state_by_id = _dilate_periodic_box(fine_block_ids, grid, width)
+    atom_block_by_atom = _atom_block_map(geometry, block_shape, grid)
+    distance_from_boundary_blocks = _distance_from_boundary(block_state_by_id, grid)
+
+    return ExpectedTopology(
+        geometry=geometry, block_size=block_shape, block_grid=grid,
+        nblocks_x=nblocks, buffer_width=width, fine_block_ids=frozenset(fine_block_ids),
+        block_state_by_id=block_state_by_id, atom_block_by_atom=atom_block_by_atom,
+        distance_from_boundary_blocks=distance_from_boundary_blocks,
+    )
+
+
+def compute_isotropic_dilation_topology(
+    geometry: Geometry, shells: tuple[ExchangeShell, ...], *,
+    block_size_x: int, block_size_y: int, block_size_z: int,
+    fine_block_ids: set[int], cg_buffer_blocks: int = 0,
+    cell_vectors: Matrix3 = _IDENTITY_CELL,
+) -> ExpectedTopology:
+    """RCG-05C cross-check: the ownership map production's GPU/CUDA/HIP path
+    *actually* computes, reproducing the isotropic-cube dilation defect
+    (``gpu_buffer_dilation = int(maxval(buffer_width_blocks))``,
+    ``adaptivecgproduction.f90:615-616``, consumed by ``dilateAdaptiveState``'s
+    single-scalar-radius periodic box scan, ``gpuAdaptiveRuntime.cpp:322-349``)
+    rather than the correct per-axis ``buffer_width_blocks(3)``
+    ``compute_expected_topology`` above uses.
+
+    Same signature and same ``_dilate_periodic_box`` core as
+    ``compute_expected_topology`` -- the *only* difference is collapsing the
+    correct per-axis width to ``(m,m,m)`` with ``m=max(width)`` before
+    dilating, exactly mirroring the Fortran ``maxval`` collapse. This is a
+    test-oracle cross-check, not a second production code path: it lets a
+    comparator ask "does this backend's actual reported map match the
+    *correct* directional dilation of its own reported FINE seeds, or does it
+    match the *isotropic* one instead" -- the precise question RCG-05C's
+    defect demonstration needs, tying an observed mismatch back to this exact
+    scalarization rather than leaving it as an unexplained raw diff.
+    """
+    block_shape, grid = _block_shape_and_grid(
+        geometry, block_size_x=block_size_x, block_size_y=block_size_y,
+        block_size_z=block_size_z,
+    )
+    nblocks = grid[0] * grid[1] * grid[2]
+    if not fine_block_ids or not fine_block_ids <= set(range(1, nblocks + 1)):
+        raise ValueError(f"fine_block_ids {fine_block_ids} must be a nonempty subset of 1..{nblocks}")
+
+    correct_width = buffer_width_blocks(shells, cell_vectors, block_shape, cg_buffer_blocks)
+    isotropic = max(correct_width)
+    width = (isotropic, isotropic, isotropic)
+    block_state_by_id = _dilate_periodic_box(fine_block_ids, grid, width)
+    atom_block_by_atom = _atom_block_map(geometry, block_shape, grid)
+    distance_from_boundary_blocks = _distance_from_boundary(block_state_by_id, grid)
 
     return ExpectedTopology(
         geometry=geometry, block_size=block_shape, block_grid=grid,

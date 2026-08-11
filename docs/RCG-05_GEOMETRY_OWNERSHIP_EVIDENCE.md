@@ -829,5 +829,349 @@ files listed above.
 
 ---
 
-Shall I create the focused RCG-05B commit with the one-line message
-`RCG-05B: add skew and unequal-width geometry generators`?
+## 9. RCG-05C: CPU/GPU ownership-map comparator and buffer-width defect demonstration
+
+**Base commit:** `2b9066427492c6fefaeaa84d692e66fc16a84f29` ("RCG-05B: add
+skew and unequal-width geometry generators"), the accepted RCG-05B commit.
+`git status --short` at session start showed no modified tracked files,
+only the same pre-existing untracked build directories and unrelated
+`ASD_GUI/`/example-output files RCG-05A/B already documented.
+
+### 9.1 What was implemented
+
+- **`tests/coarse_graining/static_topology_oracle.py`** (extended): the
+  dilation core of `compute_expected_topology` was factored into
+  `_dilate_periodic_box`/`_atom_block_map`/`_distance_from_boundary`/
+  `_block_shape_and_grid` (behaviour-preserving refactor -- every existing
+  RCG-04F/RCG-05B test still passes unmodified), and a new
+  `compute_isotropic_dilation_topology` was added: the *same* dilation core,
+  called with the correct per-axis width collapsed to `(m,m,m)`,
+  `m=max(width)` -- an independent, source-line-tied reproduction of the
+  exact GPU-staged defect (`adaptivecgproduction.f90:615-616`'s
+  `int(maxval(buffer_width_blocks))`, consumed by
+  `gpuAdaptiveRuntime.cpp:322-349`'s single-scalar-radius dilation kernel).
+  This is a test-oracle cross-check, not a second production code path.
+- **`tests/coarse_graining/e2e/ownership_aniso_buffer/`** (new, tracked
+  fixture): `block_size_x/y/z=1/2/3`, `ncell 6 10 9` (`block_grid=6 5 3`,
+  1080 atoms), single exchange shell `dx=2.0` (an exact same-sublattice
+  lattice-vector neighbour), single FINE seed (block 1, via `mask.dat`),
+  `cg_mask_mode ADAPTIVE` with a small built-in spin-spiral modulation
+  (`Initmag 8`, `initpropvec 0.03580986219567645 0 0`) so the `MAX_ANGLE`
+  selector sees genuine, small, nonzero misalignment rather than an
+  exactly-uniform state. Geometry/`jfile`/`mask.dat` come directly from
+  RCG-05B's own `unequal_width_orthogonal_fixture` generator (reused, not
+  reinvented); see `README.md` in that directory for the full construction
+  rationale, including a documented negative result (a perfectly uniform
+  initial state was tried first and rejected -- it coarsens the entire
+  initial mask on both backends immediately, vacuous rather than
+  defect-sensitive, and separately trips GPU's already-documented
+  hard-mask-porting gap). Correct per-axis `buffer_width_blocks = (2, 1, 1)`;
+  GPU's staged isotropic collapse is `(2, 2, 2)`.
+- **`tests/coarse_graining/ownership_map_comparator.py`** (new): the
+  reusable comparator itself.
+  - `parse_final_ownership_map` extracts a backend's complete per-block
+    state via `run_production_e2e.final_state` (already validated,
+    already used in production to assert `final_state(cpu) ==
+    final_state(gpu)` elsewhere -- reused, not a new parser).
+  - `compare_ownership_maps` compares two maps by block-id **identity**
+    (raising `MapShapeMismatchError` if the block-id sets themselves
+    differ), returning every mismatched block id and its two states, never
+    a bare count.
+  - `self_consistency_check` is the mechanism that isolates the
+    buffer-width defect specifically: it feeds a backend's own reported
+    FINE seed set back into both `compute_expected_topology` (correct) and
+    `compute_isotropic_dilation_topology` (defective), and reports which
+    one (if either) the backend's *actual* reported map matches -- so a
+    disagreement between CPU and GPU is attributed to a specific,
+    source-line-identified cause rather than left as an unexplained diff,
+    and is not confounded by whether the two backends agree on *which*
+    blocks are FINE seeds in the first place (a separate, honestly-noted
+    capability gap: GPU's `hardAtomisticBlockMask` is sourced only from the
+    polarization gate, not from `cg_static_mask_file` -- see
+    `gpuSimulation.cpp`'s own RCG-03 comment above the
+    `Gpu: AdaptiveCG resolved diagnostics=` print).
+  - `periodic_wrap_axes` determines, per axis, whether the periodic
+    (wrapped) reduction was actually load-bearing for at least one
+    atomistic block, so a "periodic wrapping checked" claim is not vacuous.
+  - `bond_coverage` reuses `torque_oracle.build_geometric_bonds` (RCG-04's
+    own production-calibrated directed-bond neighbour list, not
+    re-derived) and reports every bond endpoint pair whose
+    atomistic/coarse classification disagrees between two compared maps.
+  - `evidence_record` assembles the canonical schema RCG-05A SS5 defined.
+- **`tests/coarse_graining/test_ownership_map_comparator.py`** (new): 16
+  fast, host-only unit tests against real captured CPU/CUDA stdout
+  excerpts from this exact fixture (not hand-synthesized), covering
+  parsing, index-set comparison (including the shape-mismatch rejection and
+  a fabricated-negative-control check that the two oracle checks are not
+  vacuously both true), the real fixture's 47/90-block CPU/GPU disagreement,
+  self-consistency (CPU matches correct, GPU matches isotropic), periodic
+  wrap coverage (including a negative case where wrap is *not* exercised),
+  bond coverage (576 disagreeing endpoints on the real fixture), and JSON
+  evidence-record serialization.
+- **`tests/coarse_graining/run_ownership_map_comparator.py`** (new): drives
+  the real executable. Reuses `run_moving_backend_parity`'s
+  `GPU_ENABLE_BLOCK`/`sha256_file`/isolated-workspace pattern (its own
+  `prepare_workspace` generalizes that exact pattern to cover this slice's
+  new fixture, which is not in RCG-04I's hardcoded `FIXTURES` tuple) and
+  its `FIXTURES` list itself for the regression set (filtered to
+  `adaptive_cg=True`, 16 fixtures). Two independently meaningful checks:
+  1. **Regression**: every RCG-04I `adaptive_cg=True` fixture (16, cubic-ish
+     `block_size_y=block_size_z=2` geometries, including
+     `moving_wall_adaptive` -- the *only* one that engages the genuine GPU
+     adaptive-transition runtime, per `run_moving_backend_parity.py`'s own
+     documented finding) must match exactly.
+  2. **Defect demonstration**: `ownership_aniso_buffer` must currently
+     disagree, and CPU must match the correct oracle while GPU matches the
+     isotropic one specifically (`assert_aniso_outcome`).
+  A `--expect-aniso-match` flag controls which of these last two outcomes
+  is required (default: expect disagreement, matching today's reality and
+  keeping this slice's own registered CTest green; RCG-05D passes this flag
+  once its fix lands, reusing this exact script/CTest registration as its
+  own negative control per the prompt pack's explicit instruction, rather
+  than requiring a script edit to flip the assertion).
+- **`CMakeLists.txt`**: registered `coarse-graining-ownership-map-comparator`
+  (host-only unit tests, `cg13-cpu`/`cg13-cuda`/`cg13-hip` reference label,
+  mirroring `coarse-graining-static-topology-oracle`) and
+  `adaptive-cg-ownership-map-comparator` (the real-executable e2e run,
+  GPU-configured builds only, mirroring `adaptive-cg-moving-backend-parity`
+  exactly, including the GPU-binary-only-if-GPU-configured pattern).
+- **`tests/coarse_graining/fixture_dependencies.py`**: added
+  `OWNERSHIP_ANISO_BUFFER_CASE` to `all_e2e_cases()` so
+  `audit_fixture_dependencies.py` covers the new fixture and its inputs.
+
+### 9.2 Raw comparator output (fresh CUDA build, `ctest -V`, this slice)
+
+The regression set (16 fixtures) matched exactly, block for block, on
+every one, and the defect was reproduced exactly as designed:
+
+```text
+28: --- RCG-05C regression set (CUDA-fp64) ---
+28:   moving_all_coarse_bs1                  nblocks=  24 MATCH
+28:   moving_all_coarse_bs2                  nblocks=  12 MATCH
+28:   moving_all_coarse_bs4                  nblocks=   6 MATCH
+28:   moving_all_coarse_bs8                  nblocks=   3 MATCH
+28:   moving_all_fine                        nblocks=   6 MATCH
+28:   moving_all_fine_wide                   nblocks=  24 MATCH
+28:   moving_dmi_chiral_all_fine_plus        nblocks=  24 MATCH
+28:   moving_dmi_chiral_bs1_minus            nblocks=  24 MATCH
+28:   moving_dmi_chiral_bs1_minus_reversed   nblocks=  24 MATCH
+28:   moving_dmi_chiral_bs1_plus             nblocks=  24 MATCH
+28:   moving_dmi_chiral_bs1_plus_reversed    nblocks=  24 MATCH
+28:   moving_dmi_chiral_bs2_plus             nblocks=  12 MATCH
+28:   moving_static_mixed_bs1                nblocks=  24 MATCH
+28:   moving_static_mixed_bs1_shifted        nblocks=  24 MATCH
+28:   moving_static_mixed_bs2                nblocks=  12 MATCH
+28:   moving_wall_adaptive                   nblocks=  24 MATCH
+28:
+28: --- RCG-05C defect demonstration: ownership_aniso_buffer (CPU vs CUDA-fp64) ---
+28:   CPU block counts:        {'fine': 3, 'interface': 42, 'coarse': 45}
+28:   CUDA-fp64 block counts:{'fine': 25, 'interface': 65, 'coarse': 0}
+28:   CPU fine seed blocks:    [1, 31, 61]
+28:   CUDA-fp64 fine seed blocks:[1, 13, 14, 17, 18, 19, 20, 23, 24, 43, 44, 47, 48, 49, 50, 53, 54, 73, 74, 77, 78, 79, 80, 83, 84]
+28:   direct CPU-vs-CUDA-fp64 match: False (47 of 90 blocks differ)
+28:   mismatched block ids: [4, 10, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 28, 31, 34, 40, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 58, 61, 64, 70, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 88]
+28:   mismatch detail (block: cpu,CUDA-fp64): {4: (0, 1), 10: (0, 1), 13: (0, 2), 14: (0, 2), 15: (0, 1), 16: (0, 1), 17: (0, 2), 18: (0, 2), 19: (0, 2), 20: (0, 2), 21: (0, 1), 22: (0, 1), 23: (0, 2), 24: (0, 2), 28: (0, 1), 31: (2, 1), 34: (0, 1), 40: (0, 1), 43: (0, 2), 44: (0, 2), 45: (0, 1), 46: (0, 1), 47: (0, 2), 48: (0, 2), 49: (0, 2), 50: (0, 2), 51: (0, 1), 52: (0, 1), 53: (0, 2), 54: (0, 2), 58: (0, 1), 61: (2, 1), 64: (0, 1), 70: (0, 1), 73: (0, 2), 74: (0, 2), 75: (0, 1), 76: (0, 1), 77: (0, 2), 78: (0, 2), 79: (0, 2), 80: (0, 2), 81: (0, 1), 82: (0, 1), 83: (0, 2), 84: (0, 2), 88: (0, 1)}
+28:   CPU  correct_buffer_width=(2, 1, 1) matches_correct_oracle=True matches_isotropic_oracle=False
+28:   CUDA-fp64 isotropic_buffer_width=(2, 2, 2) matches_correct_oracle=False matches_isotropic_oracle=True
+28:   periodic wrap axes exercised (x,y,z): (True, True, True)
+28:   cross-interface bond coverage: total=6480 cpu_interface_bonds=576 CUDA-fp64_interface_bonds=0 disagreeing_endpoints=576
+28:
+28: CUDA-fp64: regression set (16 fixtures, including the dilation-engaging 'moving_wall_adaptive') matched exactly; ownership_aniso_buffer's buffer-width scalarization defect was reproduced (CPU matches the correct oracle, GPU matches the isotropic one).
+1/1 Test #28: adaptive-cg-ownership-map-comparator ...   Passed   71.34 sec
+```
+
+**Reading the disagreement, tied to source:** CPU's 47-block correction is
+exactly `compute_expected_topology`'s per-axis dilation of CPU's own FINE
+seed set `{1, 31, 61}` with `buffer_width=(2,1,1)` -- confirmed identical,
+block for block, to CPU's actual reported map
+(`matches_correct_oracle=True`). GPU instead proposed a much larger FINE
+seed set (`25` blocks -- a separate, already-documented effect: GPU's
+`hardAtomisticBlockMask` comes only from the polarization gate, not
+`cg_static_mask_file`, so a currently-FINE block is not protected from the
+selector's ordinary coarsen/refine evaluation the way CPU's hard mask
+protects it), and then dilated *that* set with the isotropic
+`buffer_width=(2,2,2)` (`gpuAdaptiveRuntime.cpp:322-349`'s single-scalar
+radius): feeding GPU's own 25-block FINE set into
+`compute_isotropic_dilation_topology` reproduces GPU's actual reported map
+**exactly** (`matches_isotropic_oracle=True`), while the correct oracle for
+that same seed set does not match at all (`matches_correct_oracle=False`).
+With `grid_y=5` and isotropic width `2 = floor(5/2)`, an isotropic radius-2
+dilation covers *every* y-position from a single seed; the correct width
+there is only `1`. This is exactly why GPU's map has **zero** COARSE blocks
+left (`interface=65 coarse=0`) while CPU still has 45: the y/z over-dilation
+this specific scalarization causes, not a difference in how many blocks
+were proposed FINE. The cross-interface bond coverage confirms this at the
+atom/bond level: 576 directed bonds cross the atomistic/COARSE boundary
+under CPU's map; **zero** do under GPU's (there is no COARSE region left to
+cross into), and all 576 are reported as explicit `(atom_i, atom_j)`
+disagreeing pairs, not a bare count.
+
+### 9.3 Periodic wrapping and bond coverage, confirmed non-vacuous
+
+`periodic_wrap_axes` on `ownership_aniso_buffer` returns `(True, True,
+True)`: on every one of the three axes, at least one atomistic block's
+classification actually depended on the periodic (wrapped) reduction rather
+than the raw one (e.g. axis x: seed at grid-coordinate 0, `width_x=2`,
+`grid_x=6` -- a block at coordinate 5 has raw delta 5 but periodic delta
+`min(5, 6-5)=1 <= 2`, so it is only reachable via wraparound). A dedicated
+negative-control unit test
+(`test_a_single_axis_with_no_wrap_headroom_is_not_reported_as_exercised`)
+confirms this returns `False` for a degenerate single-block axis, so the
+`True` result above is not a vacuous default.
+
+### 9.4 Fresh build/test evidence (this slice)
+
+**Environment:** GNU Fortran 13.3.0, GNU C/C++ 12.4.0, CMake 3.28.3, NVIDIA
+CUDA 13.3.73 (`nvcc`), 2x NVIDIA RTX A4000 (compute capability 8.6,
+`CMAKE_CUDA_ARCHITECTURES=native`), Release build type, fp64 (default
+precision). No HIP toolchain is present on this host (`hipcc`/`hipconfig`
+not found, no `/opt/rocm*`) -- reconfirmed fresh in this session and by the
+user directly ("We lack HIP on this machine. Cuda will have to do."),
+matching RCG-04-FU1/RCG-05A/RCG-05B's identical, still-open deferral.
+
+**Fresh out-of-tree CPU configure/build:**
+
+```text
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=OFF \
+    -S . -B build_rcg05c_cpu
+...
+-- Git tag found: VERSION="v6.0.2-461-g2b90-dirty".
+-- Output binary:  .../build_rcg05c_cpu/bin/sd.f95
+-- Configuring done
+$ cmake --build build_rcg05c_cpu -j2
+... exit 0 (no errors)
+```
+
+**CPU test run (`cg13-cpu` label):**
+
+```text
+$ ctest --test-dir build_rcg05c_cpu -L cg13-cpu --output-on-failure
+...
+16/23 Test #18: coarse-graining-ownership-map-comparator .......   Passed   10.34 sec
+...
+100% tests passed, 0 tests failed out of 23
+```
+
+(23 = the 22 tests RCG-05B's own evidence recorded plus this slice's one
+new host-only unit test; `adaptive-cg-ownership-map-comparator` and
+`adaptive-cg-moving-backend-parity` are GPU-configured-only and correctly
+absent from a plain CPU build, matching RCG-04I's existing pattern.)
+
+**Fresh out-of-tree CUDA configure/build:**
+
+```text
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=CUDA \
+    -S . -B build_rcg05c_cuda
+...
+-- The CUDA compiler identification is NVIDIA 13.3.73
+-- CMAKE_CUDA_ARCHITECTURES: native
+-- Output binary:  .../build_rcg05c_cuda/bin/sd.f95.cuda
+-- Configuring done
+$ cmake --build build_rcg05c_cuda -j2
+... exit 0 (no errors)
+```
+
+**CUDA test run (`cg13-cuda` label, full production regression):**
+
+```text
+$ ctest --test-dir build_rcg05c_cuda -L cg13-cuda --output-on-failure
+...
+15/23 Test #19: coarse-graining-ownership-map-comparator .......   Passed   10.99 sec
+18/23 Test #27: adaptive-cg-moving-backend-parity ..............   Passed   70.95 sec
+19/23 Test #28: adaptive-cg-ownership-map-comparator ...........   Passed   70.15 sec
+...
+100% tests passed, 0 tests failed out of 23
+```
+
+`adaptive-cg-ownership-map-comparator`'s full verbose output (`ctest -R
+'^adaptive-cg-ownership-map-comparator$' -V`, this exact fresh
+`build_rcg05c_cuda`) is reproduced verbatim in SS9.2 above.
+
+**`adaptive-cg-fixture-dependencies` (`packaging` label, not part of
+`cg13-cpu`/`cg13-cuda`):** fails against the current, not-yet-staged
+worktree (the new `e2e/ownership_aniso_buffer/{inpsd.dat,jfile,mask.dat}`
+are correctly flagged as untracked); re-verified passing once staged
+(`git add`, then reset again afterward -- no commit made):
+
+```text
+$ git add tests/coarse_graining/e2e/ownership_aniso_buffer/
+$ ctest --test-dir build_rcg05c_cpu -R adaptive-cg-fixture-dependencies --output-on-failure
+...
+1/1 Test #26: adaptive-cg-fixture-dependencies ...   Passed    0.06 sec
+$ git reset tests/coarse_graining/e2e/ownership_aniso_buffer/
+```
+
+**Worktree check after the runs:**
+
+```text
+$ git status --short --porcelain=v1 | grep -v '^??'
+ M examples/AdaptiveCoarseGraining/adaptive/uppasd.adaptive.yaml         # test byproduct, restored below
+ M examples/AdaptiveCoarseGraining/initial_phase_texture/uppasd.adaptive.yaml
+ M examples/AdaptiveCoarseGraining/static_mixed/uppasd.adaptive.yaml
+ M CMakeLists.txt
+ M tests/coarse_graining/fixture_dependencies.py
+ M tests/coarse_graining/static_topology_oracle.py
+ M tests/coarse_graining/test_static_topology_oracle.py
+$ git checkout -- examples/AdaptiveCoarseGraining/adaptive/uppasd.adaptive.yaml \
+    examples/AdaptiveCoarseGraining/initial_phase_texture/uppasd.adaptive.yaml \
+    examples/AdaptiveCoarseGraining/static_mixed/uppasd.adaptive.yaml
+$ git status --short --porcelain=v1 | grep -v '^??'
+ M CMakeLists.txt
+ M tests/coarse_graining/fixture_dependencies.py
+ M tests/coarse_graining/static_topology_oracle.py
+ M tests/coarse_graining/test_static_topology_oracle.py
+```
+
+The three `uppasd.*.yaml` diffs were only `date`/`git_revision` provenance
+stamps (identical pattern to RCG-05A SS6/RCG-05B SS8.6), confirmed before
+restoring. New untracked files/directories introduced by this slice (not
+yet staged): `tests/coarse_graining/e2e/ownership_aniso_buffer/`,
+`tests/coarse_graining/ownership_map_comparator.py`,
+`tests/coarse_graining/run_ownership_map_comparator.py`,
+`tests/coarse_graining/test_ownership_map_comparator.py`. Every other
+untracked item in the worktree is the same pre-existing build-directory/
+`ASD_GUI`/example-output clutter RCG-05A/B already documented as unrelated
+and untouched.
+
+### 9.5 RCG-05C checklist
+
+- [x] The comparator extracts full per-block ownership maps from CPU and CUDA runs. (SS9.1 `parse_final_ownership_map`; SS9.2 raw output)
+- [x] HIP is included if available on the build host, or explicitly recorded as unavailable. (SS9.4: no `hipcc`/`hipconfig`/`/opt/rocm*`, re-confirmed this session and by the user directly; `run_ownership_map_comparator.py` accepts `--hip-fp64-binary`/`--hip-fp32-binary` and would include it if present)
+- [x] Comparison is by index-set identity, not cardinality/count alone. (SS9.1 `compare_ownership_maps`/`MapShapeMismatchError`; SS9.2 full per-block mismatch detail)
+- [x] Periodic wrapping is checked in every direction. (SS9.3: `periodic_wrap_axes` returns `(True, True, True)` on the real fixture, confirmed non-vacuous by a dedicated negative-control test)
+- [x] Every atomistic cross-interface bond is verified covered by the compared maps, reusing the existing directed-bond neighbour list. (SS9.1 `bond_coverage` reuses `torque_oracle.build_geometric_bonds`; SS9.2: 6480 total bonds, 576 disagreeing endpoints itemized)
+- [x] The comparator matches exactly on every existing RCG-04 fixture geometry (regression). (SS9.2: all 16 `adaptive_cg=True` RCG-04I fixtures MATCH, including the dilation-engaging `moving_wall_adaptive`)
+- [x] The comparator is run against RCG-05B's anisotropic and skew fixtures. (SS9.1/9.2: `ownership_aniso_buffer`, built from RCG-05B's `unequal_width_orthogonal_fixture` generator; a skew-cell e2e run is an **open item**, see below)
+- [x] The disagreement on the anisotropic fixture is recorded with the actual differing blocks/atoms, not only a mismatch count. (SS9.2: full mismatch detail, full bond-endpoint list)
+- [x] The disagreement is explained (isotropic-cube GPU dilation vs. directional CPU dilation), tying it back to the exact source lines in SS1. (SS9.2 "Reading the disagreement, tied to source")
+- [x] No production fix is introduced in this slice -- the comparator demonstrates the defect, it does not repair it. (SS9.1: only `static_topology_oracle.py` (test oracle), new test/e2e infrastructure, `CMakeLists.txt`, `fixture_dependencies.py` were touched; no `source/` file was modified)
+- [x] Fresh out-of-tree CPU and CUDA (and HIP, if available) build/test evidence is recorded. (SS9.4)
+- [x] Unrelated worktree changes remain untouched and unstaged. (SS9.4)
+
+### Open items (carried forward, not blocking RCG-05D)
+
+- `ownership_aniso_buffer` is an orthogonal (identity-cell) fixture only;
+  RCG-05B's `skew_cell_fixture` generator exists and is unit-tested, but no
+  skew-cell fixture was run through the real executable's ADAPTIVE-mask
+  path in this slice. The orthogonal case already demonstrates the exact
+  defect (the isotropic collapse is agnostic to whether the cell is skew --
+  it is a per-axis-vs-scalar bug, not an orthogonality-specific one), but a
+  skew-cell e2e run would be additional, not yet gathered, evidence.
+  RCG-05D/RCG-05G should decide whether this is required before closure.
+- GPU's `hardAtomisticBlockMask` sourcing only from the polarization gate,
+  not `cg_static_mask_file` (noted in SS9.1/9.2, and previously in
+  `gpuSimulation.cpp`'s own RCG-03 comment), remains an open, separate
+  capability gap. It is not this slice's defect to fix or fully
+  characterize, but it means `ownership_aniso_buffer`'s CPU/GPU FINE-seed
+  sets differ for a reason independent of the buffer-width scalarization;
+  this comparator's self-consistency mechanism (SS9.1) was specifically
+  designed to isolate the buffer-width defect regardless of this gap, and
+  the evidence in SS9.2 shows that isolation holding, but the seed-set gap
+  itself is not validated or fixed here.
+- HIP was not exercised (no toolchain on this host); recorded as a
+  deferral, not a pass, matching RCG-04-FU1/RCG-05A/RCG-05B.
+
+---
+
+Shall I create the focused RCG-05C commit with the one-line message
+`RCG-05C: build CPU/GPU ownership-map comparator and demonstrate buffer-width defect`?
