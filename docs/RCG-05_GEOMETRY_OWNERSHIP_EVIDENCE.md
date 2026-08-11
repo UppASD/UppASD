@@ -1624,3 +1624,553 @@ intended RCG-05D items are complete, ask:
 > `RCG-05D: restore directional buffer widths through the GPU descriptor`?
 
 Do not commit until the user approves.
+
+---
+
+## 11. RCG-05E: dilation race audit and sanitizer wiring
+
+**Base commit:** `94f7ea65d7d78040ce12324b38fb0139c8adb26b` ("RCG-05D: restore
+directional buffer widths through the GPU descriptor"), the accepted RCG-05D
+commit. `git status
+--short` at session start showed no modified tracked files, only the same
+pre-existing untracked build directories, unrelated `ASD_GUI/`/example-output
+clutter, and the two untracked prompt-pack docs RCG-05A/B/C/D already
+documented as unrelated and untouched.
+
+### 11.1 racecheck's actual scope, established before trusting any "clean" result
+
+Before running anything, `compute-sanitizer --tool racecheck --help` was
+read in full (`/usr/local/cuda-13.3/bin/compute-sanitizer`, CUDA 13.3.73).
+Its own `--tool` description states, verbatim:
+
+```text
+racecheck : Shared memory hazard checking
+```
+
+`dilateAdaptiveState` (`source/gpu_files/gpuAdaptiveRuntime.cpp`, pre-fix
+lines 322-349) uses no `__shared__` memory at all -- confirmed by `grep -n
+"__shared__" source/gpu_files/gpuAdaptiveRuntime.cpp`, zero matches in the
+entire file. Its only shared state is `runtime.pendingState`, a `__global__`
+(device) array. **racecheck is therefore structurally incapable of
+examining this kernel's actual hazard**: it would report "0 hazards" against
+this kernel regardless of whether the global-memory read/write pattern is
+safe, because global memory is entirely outside what the tool checks. This
+was verified directly, not merely inferred from the `--help` text. The
+in-place write (`runtime.pendingState[target] = bufferState;`) was
+temporarily restored via `git stash push -- source/gpu_files/
+gpuAdaptiveRuntime.cpp source/gpu_files/gpuAdaptiveRuntime.hpp` (reverting
+this slice's own not-yet-committed fix back to the exact RCG-05D racy
+kernel), `gpu_adaptive_runtime_tests` rebuilt, and racecheck run against it
+identically to the post-fix run below:
+
+```text
+$ git stash push -- source/gpu_files/gpuAdaptiveRuntime.cpp source/gpu_files/gpuAdaptiveRuntime.hpp
+$ cmake --build build_rcg05e_cuda -j2 --target gpu_adaptive_runtime_tests
+$ /usr/local/cuda-13.3/bin/compute-sanitizer --tool racecheck --racecheck-report all \
+    --kernel-name kernel_substring=dilateAdaptiveState --error-exitcode 1 \
+    ./build_rcg05e_cuda/bin/gpu_adaptive_runtime_tests
+========= COMPUTE-SANITIZER
+CG-09/CG-10 GPU adaptive runtime tests passed
+========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)
+$ git stash pop   # fix restored; gpu_adaptive_runtime_tests rebuilt again below (SS11.8)
+```
+
+`compute-sanitizer --tool racecheck` reported `0 hazards` on both the racy
+pre-fix kernel and the race-free post-fix kernel -- an identical,
+uninformative result either way, proving the trivial pass was not evidence
+of safety. (The fix was rebuilt and the full CG-09/CG-10 unit test, dilation
+sanitizer CTest target, and `cg13-cpu`/`cg13-cuda` regression suites were
+all re-run after `git stash pop`, SS11.8, so this temporary revert left no
+residual effect on this slice's evidence.)
+
+This is the central finding of this slice: **sanitizer evidence alone
+cannot prove `dilateAdaptiveState` safe**, for the specific reason the
+prompt pack's own governing rule anticipates ("If no sanitizer is available
+for the configured backend, say so explicitly rather than asserting
+safety") -- racecheck is available, but not applicable to this kernel's
+address space. Per the RCG-05 task prompt's explicit instruction ("remove
+any read/write race if sanitizer or reasoning cannot prove it safe"), this
+alone is sufficient reason to fix the kernel rather than rest on reasoning
+about value-domain safety (see SS11.2), even though that reasoning is
+independently sound.
+
+### 11.2 The monotonic pending-state invariant (documented, not just reasoned about once)
+
+Re-reading the pre-fix kernel in this session (independently of RCG-05A's
+own re-confirmation, which only re-confirmed the pattern's presence, not its
+safety): `dilateAdaptiveState` reads `runtime.pendingState[source]` for
+neighbouring blocks and, when a neighbour is `fineState`, writes
+`runtime.pendingState[target] = bufferState`, all within one kernel launch,
+one thread per block (`target = adaptiveThreadIndex()`).
+
+The invariant that makes this benign in *value*, independent of timing:
+
+1. `runtime.pendingState` is populated by the separate, prior
+   `proposeAdaptiveState` kernel launch (`gpuAdaptiveRuntime.cpp:302-324`,
+   unchanged by this slice), which writes only `coarseState` or `fineState`
+   -- never `bufferState`. Two kernels launched on the same stream execute
+   in launch order with the first fully complete before the second begins
+   (ordinary CUDA/HIP stream semantics, unchanged by this slice); this
+   precondition therefore holds for every thread of the `dilateAdaptiveState`
+   launch, not probabilistically.
+2. The pre-fix `dilateAdaptiveState` kernel itself never wrote `fineState`
+   anywhere, and only ever wrote `bufferState` to a thread's own `target`
+   index (never any other thread's index -- `target` is unique per thread,
+   so there is no writer-writer collision either). The set of blocks holding
+   `fineState` is therefore invariant (monotonically unchanged) for the
+   entire lifetime of the launch.
+3. Consequently, any thread's read of a neighbour's `runtime.pendingState`
+   can only ever observe `fineState`, `coarseState`, or `bufferState` --
+   and critically, a neighbour can only be read as `fineState` if it
+   genuinely started that way, regardless of what any other thread is
+   concurrently doing to *other* slots. A race between one thread's read of
+   slot X and another thread's write to slot X (`X` owned by the second
+   thread) can only ever resolve X's observed value between "coarseState"
+   (not yet written) and "bufferState" (already written) -- both of which
+   fail the `== fineState` check identically. The read/write race is real
+   under the CUDA/HIP memory model (formally undefined behaviour, and
+   exactly why racecheck-if-it-covered-global-memory would still be right to
+   flag it structurally), but it cannot change which blocks get dilated.
+
+This reasoning is sound on its own, but per SS11.1 it is not backed by
+sanitizer evidence (racecheck cannot see it), and the prompt pack's
+governing rule treats "reasoning cannot [be corroborated by sanitizer]" as
+triggering the same remediation as "reasoning cannot prove it safe" --
+rather than resting on an uncorroborated argument for physics-relevant GPU
+code, this slice removes the race by construction (SS11.3). The invariant
+argument itself is now permanently recorded as a comment directly above
+`dilateAdaptiveState` in `source/gpu_files/gpuAdaptiveRuntime.cpp` (the
+exact code locations that establish it: `proposeAdaptiveState`,
+`gpuAdaptiveRuntime.cpp:302-324`, and the same-stream launch ordering at
+`proposeSelectorState`'s launch site) and the code locations that could
+violate it (any future edit making `dilateAdaptiveState` write
+`runtime.pendingState` directly again).
+
+### 11.3 The fix: a genuine double buffer, not a value-domain argument
+
+`dilateAdaptiveState` now reads only `runtime.pendingState` (never written by
+this kernel) and writes only a separate `dilatedState` buffer (each thread
+still writes only its own unique `target` index). The read set and write set
+of the kernel are therefore disjoint by construction -- there is no address
+any thread of this launch both reads and writes, so the question of whether
+the CUDA/HIP memory model permits observing a stale or fresh value at a
+racing address no longer arises for this kernel at all, independent of the
+value-domain argument in SS11.2 (which remains true and is kept as
+documentation, but is no longer load-bearing for correctness).
+
+**`source/gpu_files/gpuAdaptiveRuntime.hpp`:** a new member,
+`GpuTensor<int, 1> dilatedState_;`, declared next to `pendingState_`,
+documented with the double-buffer rationale.
+
+**`source/gpu_files/gpuAdaptiveRuntime.cpp`:**
+
+- `dilateAdaptiveState`'s signature gained a fourth parameter, `int*
+  dilatedState`; its one write site changed from
+  `runtime.pendingState[target] = bufferState;` to `dilatedState[target] =
+  bufferState;`. No other line of the kernel's logic (widths, neighbour
+  scan, periodic wrap, early-return guards) was touched -- this is a target
+  change, not an algorithm change, which is exactly why SS11.4's byte-for-
+  byte re-verification is expected to (and does) show no physical-answer
+  difference.
+- `proposeSelectorState` (the sole call site of `dilateAdaptiveState`,
+  confirmed by `grep -rn "dilateAdaptiveState"` across `source/` and
+  `tests/`, one launch site, both CUDA and HIP branches) now does, only when
+  `anyBufferDilation(policy.bufferDilationBlocks)`: `dilatedState_.copy_async
+  (pendingState_, stream_)` (baseline copy, so blocks the kernel never
+  visits keep their `proposeAdaptiveState` value) before the kernel launch,
+  and `pendingState_.copy_async(dilatedState_, stream_)` (publish the merged
+  result back) after it -- both on the same `stream_` as the kernel launch,
+  so ordering is guaranteed by the same stream semantics SS11.2 already
+  relies on, no new explicit synchronization primitive required. Every other
+  consumer of `deviceRuntime().pendingState` (`publishAdaptiveState`, the
+  compaction kernels, `test_gpu_adaptive_runtime.cpp`'s own read-back) is
+  unaffected: it still sees exactly the merged, fully-dilated result the
+  in-place kernel used to write, just assembled via two device-to-device
+  copies instead of in-kernel aliasing.
+- `allocate()` gained `dilatedState_.Allocate(b);` next to
+  `pendingState_.Allocate(b);`; `release()` gained
+  `freeIfAllocated(dilatedState_);`; `estimateBytes()` gained one more
+  `checkedAdd(total, t.blocks, sizeof(int))` term for the new buffer, kept
+  accurate rather than left as a now-slight underestimate (this diagnostic
+  total is cached verbatim into `allocatedBytes_` at `initialize()` time, not
+  independently re-derived, so `test_gpu_adaptive_runtime.cpp`'s existing
+  `allocatedBytes() == estimateBytes(...)` self-consistency check, SS11.4,
+  could not have caught an inaccurate estimate either way -- fixing it here
+  was a correctness choice, not a test-driven one).
+
+No CPU-side file (`statichybridoperator.f90`, `blocktopology.f90`, or any
+other CoarseGraining source) and no other kernel in `gpuAdaptiveRuntime.cpp`
+was touched. `proposeAdaptiveState`'s own logic (which decides *which*
+blocks start `coarseState` vs `fineState`) is unchanged; only how
+`dilateAdaptiveState` publishes its per-block dilation decision changed.
+
+Both `#if defined(CUDA_V)` and the HIP `hipLaunchKernelGGL` branch received
+the identical change (extra kernel argument, identical `copy_async` pair
+around the launch) -- `source/gpu_files/` is backend-shared source compiled
+for both CUDA and HIP (per the prompt pack's own SS1 finding), so this is
+the same edit applied once per launch-syntax branch, not two independent
+implementations that could drift.
+
+### 11.4 Sanitizer evidence against the actual kernel, post-fix
+
+**Kernel-name filter, confirmed to target the real, singular kernel, not
+assumed from the substring alone:** `nm`/`c++filt` against
+`gpu_adaptive_runtime_tests` shows the CUDA device-stub symbol
+`...19dilateAdaptiveStateE...`; `cuobjdump -symbols` against the same
+binary's embedded `sm_86` cubin shows exactly one `STT_FUNC` symbol whose
+name contains `dilateAdaptiveState` (out of 59 total device functions in
+that binary) -- `--kernel-name kernel_substring=dilateAdaptiveState`
+therefore addresses exactly the one real, compiled, actually-launched
+kernel this slice is auditing, not a name that happens not to match
+anything (which would make every tool below trivially and vacuously
+"clean").
+
+**Direct run, fresh `build_rcg05e_cuda` (Release, fp64, `CMAKE_CUDA_
+ARCHITECTURES=native`, NVIDIA RTX A4000, compute capability 8.6), via
+`gpu_adaptive_runtime_tests` (its CG-09/CG-10 test already calls
+`proposeSelectorState` with `bufferDilationBlocks = {1, 0, 0}`, i.e. it
+already launches `dilateAdaptiveState` with real, nonzero dilation, exactly
+the "dilation-engaging" precondition this audit requires):**
+
+```text
+$ /usr/local/cuda-13.3/bin/compute-sanitizer --tool racecheck --racecheck-report all \
+    --kernel-name kernel_substring=dilateAdaptiveState --error-exitcode 1 \
+    ./build_rcg05e_cuda/bin/gpu_adaptive_runtime_tests
+========= COMPUTE-SANITIZER
+CG-09/CG-10 GPU adaptive runtime tests passed
+========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)
+
+$ /usr/local/cuda-13.3/bin/compute-sanitizer --tool memcheck --error-exitcode 1 \
+    --kernel-name kernel_substring=dilateAdaptiveState \
+    ./build_rcg05e_cuda/bin/gpu_adaptive_runtime_tests
+========= COMPUTE-SANITIZER
+CG-09/CG-10 GPU adaptive runtime tests passed
+========= ERROR SUMMARY: 0 errors
+
+$ /usr/local/cuda-13.3/bin/compute-sanitizer --tool synccheck --error-exitcode 1 \
+    --kernel-name kernel_substring=dilateAdaptiveState \
+    ./build_rcg05e_cuda/bin/gpu_adaptive_runtime_tests
+========= COMPUTE-SANITIZER
+CG-09/CG-10 GPU adaptive runtime tests passed
+========= ERROR SUMMARY: 0 errors
+
+$ /usr/local/cuda-13.3/bin/compute-sanitizer --tool initcheck --error-exitcode 1 \
+    --kernel-name kernel_substring=dilateAdaptiveState \
+    ./build_rcg05e_cuda/bin/gpu_adaptive_runtime_tests
+[... 65 "Host API memory access error ... cudaMemcpy source" findings, all
+     backtraced to (anonymous namespace)::testPolarizationGate(), an
+     unrelated CG-10 test in the same binary ...]
+========= ERROR SUMMARY: 65 errors
+```
+
+**A finding, investigated rather than reported as-is:** the 65 `initcheck`
+findings are a *host-side* API-memory-access check (`cudaMemcpy` source
+buffer initialization), which is not gated by `--kernel-name` at all --
+`--kernel-name` only filters device-side kernel checks. Every one of the 65
+findings backtraces to `testPolarizationGate()`, a completely different
+CG-10 test elsewhere in the same binary, unrelated to `dilateAdaptiveState`
+or its call path. Re-run with `--check-api-memory-access no` (disabling only
+that host-side check, confirmed by `compute-sanitizer --tool initcheck
+--help` to control exactly this check and no device-side one):
+
+```text
+$ /usr/local/cuda-13.3/bin/compute-sanitizer --tool initcheck --check-api-memory-access no \
+    --error-exitcode 1 --kernel-name kernel_substring=dilateAdaptiveState \
+    ./build_rcg05e_cuda/bin/gpu_adaptive_runtime_tests
+========= COMPUTE-SANITIZER
+CG-09/CG-10 GPU adaptive runtime tests passed
+========= ERROR SUMMARY: 0 errors
+```
+
+confirming the 65 findings are pre-existing, unrelated host-buffer behaviour
+in a different test, not a device-memory initialization defect in
+`dilateAdaptiveState` or anything this slice touched -- out of RCG-05E's
+scope to fix, and not conflated with this kernel's own clean result.
+`tests/gpu_regression/sanitize.py`'s `sanitize()` wrapper now applies
+`--check-api-memory-access no` automatically whenever a `kernel_name` filter
+is passed with `initcheck`, so this distinction is permanent rather than a
+one-off manual flag (SS11.5).
+
+**Net result: `racecheck` (0 hazards, but see SS11.1 -- not proof for this
+kernel), `memcheck` (0 errors -- no out-of-bounds/misaligned global
+access), `synccheck` (0 errors), and `initcheck` scoped to device memory (0
+errors -- no uninitialized global-memory read) all pass against the actual,
+confirmed-matched `dilateAdaptiveState` kernel, post-fix.** Combined with
+SS11.3's by-construction argument (disjoint read/write sets), this is
+materially stronger evidence than the pre-fix state, where the same tools
+would report the identical "clean" result for a structural reason (SS11.1)
+that had nothing to do with whether the kernel was actually safe.
+
+### 11.5 Sanitizer wiring: extended, not duplicated
+
+Per the prompt's explicit instruction, `tests/gpu_regression/sanitize.py`
+(RCG-05's own SS1 inventory item 6: exists, wraps `compute-sanitizer`, but
+targeted only the unrelated `USE_FAST_COPY` measurement path and was not
+referenced by CTest) was extended, not replaced:
+
+- A new `--dilation-kernel` mode reuses the existing `sanitize()` wrapper
+  function (the actual `subprocess.run([sanitizer, --tool, tool, ...])`
+  invocation, log-writing, and `ERROR SUMMARY` parsing) unchanged in its
+  core, adding only an optional `kernel_name` parameter that threads
+  `--kernel-name kernel_substring=...` (and, for `initcheck`,
+  `--check-api-memory-access no`, per SS11.4's finding) into the command
+  line. No fixture/case machinery (`regression.prepare_run`, `cases.json`)
+  is invoked in this mode -- `gpu_adaptive_runtime_tests` needs no
+  `inpsd.dat`, it already drives the kernel directly.
+- `DEFAULT_DILATION_BINARY` (`build_gpu/bin/gpu_adaptive_runtime_tests`) and
+  `DILATION_KERNEL_NAME` (`"dilateAdaptiveState"`) are new module constants,
+  overridable via `--binary`/`--kernel-name`; `--tool` and `--workdir`/
+  `--keep`/`--timeout`/`--sanitizer` are shared, unchanged CLI options
+  reused from the existing fast-copy path.
+- `main()` branches to a new `sanitize_dilation_kernel()` helper when
+  `--dilation-kernel` is set; the pre-existing fast-copy path (default mode,
+  no flag) is otherwise byte-for-byte unchanged -- verified by reading the
+  diff: every line of the original `main()` fast-copy body is preserved,
+  only reached via an `if args.dilation_kernel: return ...` branch taken
+  first.
+
+**`CMakeLists.txt`:** a new CTest target,
+`adaptive-cg-dilation-sanitizer`, registered immediately after
+`coarse-graining-gpu-adaptive-runtime` (so it runs against the exact same
+`gpu_adaptive_runtime_tests` binary via `$<TARGET_FILE:...>`, no separately
+built binary to drift out of sync), gated on `USE_CUDA AND
+find_program(compute-sanitizer)` -- `find_program` fails closed (test not
+registered) if a CUDA build's toolkit installation happens to lack the
+sanitizer, rather than failing the build or the test. Labeled
+`coarse-graining;cg13;sanitizer` -- deliberately **not** `cg13-cuda`, so it
+does not become a silent new requirement of "the baseline regression suite
+passes" (per the checklist's own "`cg13-cpu`, `cg13-cuda` pass unchanged"
+framing) and so its real instrumentation overhead (sanitized runs are
+markedly slower than native, per the existing fast-copy script's own
+docstring) never taxes the default regression loop; it remains directly
+runnable via `ctest -R adaptive-cg-dilation-sanitizer` or `ctest -L
+sanitizer`. HIP's equivalent tool is not wired: this repository has no HIP
+toolchain to build `gpu_adaptive_runtime_tests` against in HIP mode or to
+verify any HIP-specific sanitizer invocation actually runs (`hipcc`/
+`hipconfig` absent, no `/opt/rocm*`, re-confirmed this session) -- recorded
+as an explicit, unattempted deferral (matching RCG-04-FU1/RCG-05A-D) rather
+than speculative, unverified CMake for a tool this host cannot exercise.
+
+**Fresh CTest run of the new target, `build_rcg05e_cuda` (after a `cmake -S
+. -B build_rcg05e_cuda` reconfigure to pick up the `CMakeLists.txt` change):**
+
+```text
+$ ctest --test-dir build_rcg05e_cuda -R adaptive-cg-dilation-sanitizer -V
+...
+36: sanitizer:   /usr/local/cuda-13.3/bin/compute-sanitizer
+36: binary:      .../build_rcg05e_cuda/bin/gpu_adaptive_runtime_tests
+36: kernel-name: kernel_substring=dilateAdaptiveState
+36: tools:       racecheck memcheck synccheck initcheck
+36: PASS dilateAdaptiveState [racecheck]: 0 errors
+36: PASS dilateAdaptiveState [memcheck]: 0 errors
+36: PASS dilateAdaptiveState [synccheck]: 0 errors
+36: PASS dilateAdaptiveState [initcheck]: 0 errors
+1/1 Test #36: adaptive-cg-dilation-sanitizer ...   Passed    2.81 sec
+100% tests passed, 0 tests failed out of 1
+```
+
+Confirmed **not** pulled into the baseline labels: `ctest --test-dir
+build_rcg05e_cuda -L cg13-cuda -N | grep dilation-sanitizer` and `ctest
+--test-dir build_rcg05e_cpu -N | grep dilation-sanitizer` (a CPU-only,
+non-CUDA build, where `USE_CUDA` is false so the `find_program` guard is
+moot) both matched nothing.
+
+### 11.6 CPU/CUDA/HIP dilation semantics
+
+CPU (`rebuild_static_hybrid_ownership`,
+`source/CoarseGraining/statichybridoperator.f90:198-256`, unchanged by this
+or any RCG-05E edit) computes each block's state from the immutable
+`fine_mask` input and geometry-only `buffer_width_blocks`, never reading
+another block's freshly-written output within the same rebuild -- confirmed
+unchanged at this commit, matching RCG-05A/D's own re-confirmations. GPU's
+`dilateAdaptiveState` now shares this same "never read what this pass just
+wrote" property by construction (SS11.3), so the two are structurally
+aligned in a way they were not pre-fix (pre-fix, GPU's self-referential
+read/write pattern had no CPU analogue at all, per RCG-05A SS3). CUDA and
+HIP compile the identical source (`source/gpu_files/gpuAdaptiveRuntime.cpp`,
+no `#ifdef`-guarded divergence in the kernel body or the `proposeSelectorState`
+double-buffer logic, only in launch syntax, SS11.3) -- their semantics are
+identical by construction, not by separate verification. **HIP hardware
+execution itself remains an explicit, open deferral**: no HIP toolchain
+exists on this host (`hipcc`/`hipconfig` absent, no `/opt/rocm*`,
+re-confirmed SS11.5), so neither the pre-fix race nor the post-fix fix has
+been exercised on HIP hardware, matching every prior RCG-04/RCG-05 slice's
+identical, still-open deferral (RCG-04-FU1).
+
+### 11.7 RCG-05D comparator/descriptor evidence re-run: no physical-answer change
+
+Per the prompt's explicit requirement ("re-run RCG-05D's descriptor/
+comparator evidence to confirm the fix didn't change which physical answer
+is produced, only its safety"):
+
+**Descriptor layout check** (`testSelectorPolicyDescriptorLayout()`,
+RCG-05D's own regression against field aliasing) and the per-axis dilation
+regression, both part of `gpu_adaptive_runtime_tests`, direct run against
+the fresh, fixed `build_rcg05e_cuda`:
+
+```text
+$ ./build_rcg05e_cuda/bin/gpu_adaptive_runtime_tests
+CG-09/CG-10 GPU adaptive runtime tests passed
+```
+
+(this single line covers both `testSelectorPolicyDescriptorLayout()` and
+the `pending == {2, 1, 1, 2}` per-axis dilation assertion,
+`tests/coarse_graining/test_gpu_adaptive_runtime.cpp:439-447` -- unmodified
+by this slice; both still pass with `dilatedState` as the kernel's actual
+write target, confirming the double buffer did not change the one-axis
+dilation outcome RCG-05D's own regression checks.)
+
+**RCG-05C/D's ownership-map comparator, `--expect-buffer-width-fixed`, fresh
+`build_rcg05e_cpu`/`build_rcg05e_cuda`:**
+
+```text
+$ python3 tests/coarse_graining/run_ownership_map_comparator.py \
+    --cpu-binary .../build_rcg05e_cpu/bin/sd.f95 \
+    --cuda-fp64-binary .../build_rcg05e_cuda/bin/sd.f95.cuda \
+    --workspace-root <scratch> --mode accept --expect-buffer-width-fixed
+...
+  CPU block counts:        {'fine': 3, 'interface': 42, 'coarse': 45}
+  CUDA-fp64 block counts:{'fine': 25, 'interface': 62, 'coarse': 3}
+  direct CPU-vs-CUDA-fp64 match: False (44 of 90 blocks differ)
+  CPU  correct_buffer_width=(2, 1, 1) matches_correct_oracle=True matches_isotropic_oracle=False
+  CUDA-fp64 isotropic_buffer_width=(2, 2, 2) matches_correct_oracle=True matches_isotropic_oracle=False
+  periodic wrap axes exercised (x,y,z): (True, True, True)
+  cross-interface bond coverage: total=6480 cpu_interface_bonds=576 CUDA-fp64_interface_bonds=144 disagreeing_endpoints=576
+
+CUDA-fp64: regression set (16 fixtures, including the dilation-engaging 'moving_wall_adaptive') matched exactly; ...
+RCG-05C ownership-map comparator completed
+$ echo $?
+0
+```
+
+**Byte-for-byte identical** to RCG-05D's own post-fix recording
+(`docs/RCG-05_GEOMETRY_OWNERSHIP_EVIDENCE.md` SS10.4: `fine=25 interface=62
+coarse=3`, `44 of 90 blocks differ`, both `matches_correct_oracle=True`/
+`matches_isotropic_oracle=False`, identical bond-coverage counts) -- proving
+the double buffer changed *only* the kernel's safety property (SS11.1-11.3),
+not which blocks it classifies as buffer, on the same real fixture RCG-05D
+used as its own restoration evidence. `--expect-buffer-width-fixed`, the
+permanent regression against the buffer-width defect being reintroduced,
+still exits 0 against the fixed-and-now-race-free kernel.
+
+### 11.8 Fresh build/test evidence (this slice)
+
+**Environment:** GNU Fortran 13.3.0, GNU C/C++ 12.4.0, CMake 3.28.3, NVIDIA
+CUDA 13.3.73 (`nvcc`/`compute-sanitizer`, same install), 2x NVIDIA RTX A4000
+(compute capability 8.6, `CMAKE_CUDA_ARCHITECTURES=native`), Release build
+type, fp64 (default precision). No HIP toolchain present (SS11.6).
+
+**Fresh out-of-tree CPU and CUDA configure/build:**
+
+```text
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=OFF -S . -B build_rcg05e_cpu
+...
+-- Git tag found: VERSION="v6.0.2-463-g94f7-dirty".
+-- Configuring done
+$ cmake --build build_rcg05e_cpu -j2   # exit 0
+
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=CUDA -S . -B build_rcg05e_cuda
+...
+-- The CUDA compiler identification is NVIDIA 13.3.73
+-- Configuring done
+$ cmake --build build_rcg05e_cuda -j2   # exit 0 (includes the new adaptive-cg-dilation-sanitizer registration)
+```
+
+**`cg13-cpu` (fresh `build_rcg05e_cpu`):**
+
+```text
+$ ctest --test-dir build_rcg05e_cpu -L cg13-cpu --output-on-failure
+...
+100% tests passed, 0 tests failed out of 23
+```
+
+**`cg13-cuda` (fresh `build_rcg05e_cuda`), run three times across this
+slice: after the initial fix, again after the final source-comment tweak in
+SS11.3/11.5 with a full incremental rebuild, and a third time after the
+`git stash`/`stash pop` cycle in SS11.1 (which rebuilt
+`gpu_adaptive_runtime_tests` and `sd.f95.cuda` from the pre-fix source and
+back) to confirm that temporary revert left no residual effect -- every run
+identical:**
+
+```text
+$ ctest --test-dir build_rcg05e_cuda -L cg13-cuda --output-on-failure
+...
+100% tests passed, 0 tests failed out of 23
+(includes adaptive-cg-moving-backend-parity and adaptive-cg-ownership-map-comparator, both Passed)
+```
+
+**`adaptive-cg-dilation-sanitizer` (new, `sanitizer` label, fresh
+`build_rcg05e_cuda`):** SS11.5, `Passed 2.81-3.06 sec` across repeated runs,
+exit 0 every time, including the final run after the SS11.1 stash/pop cycle.
+
+**Worktree check after all runs:**
+
+```text
+$ git status --short --porcelain=v1 | grep -v '^??'
+ M CMakeLists.txt
+ M docs/RCG-05_GEOMETRY_OWNERSHIP_EVIDENCE.md
+ M examples/AdaptiveCoarseGraining/adaptive/uppasd.adaptive.yaml          # test byproduct, restored below
+ M examples/AdaptiveCoarseGraining/initial_phase_texture/uppasd.adaptive.yaml
+ M examples/AdaptiveCoarseGraining/static_mixed/uppasd.adaptive.yaml
+ M source/gpu_files/gpuAdaptiveRuntime.cpp
+ M source/gpu_files/gpuAdaptiveRuntime.hpp
+ M tests/gpu_regression/sanitize.py
+$ git checkout -- examples/AdaptiveCoarseGraining/adaptive/uppasd.adaptive.yaml \
+    examples/AdaptiveCoarseGraining/initial_phase_texture/uppasd.adaptive.yaml \
+    examples/AdaptiveCoarseGraining/static_mixed/uppasd.adaptive.yaml
+$ git status --short --porcelain=v1 | grep -v '^??'
+ M CMakeLists.txt
+ M docs/RCG-05_GEOMETRY_OWNERSHIP_EVIDENCE.md
+ M source/gpu_files/gpuAdaptiveRuntime.cpp
+ M source/gpu_files/gpuAdaptiveRuntime.hpp
+ M tests/gpu_regression/sanitize.py
+```
+
+The three `uppasd.*.yaml` diffs were only `date`/`git_revision` provenance
+stamps (identical pattern to every prior RCG-05 slice), confirmed before
+restoring. Exactly five tracked files were modified -- four source/test/build
+files plus this evidence document itself -- matching this slice's own
+intended scope; no `source/CoarseGraining/*.f90` (CPU semantics),
+`tests/coarse_graining/ownership_map_comparator.py`/
+`run_ownership_map_comparator.py`/`static_topology_oracle.py` (RCG-05B/C/D's
+own comparator infrastructure), or `tests/coarse_graining/e2e/
+ownership_aniso_buffer/` fixture was touched. All untracked items present
+at session start and end are the same pre-existing build-directory/
+`ASD_GUI`/example-output clutter RCG-05A-D already documented as unrelated
+and untouched (this slice's own new build directories,
+`build_rcg05e_cpu/`, `build_rcg05e_cuda/`, are additional untracked
+build-output clutter of the same kind).
+
+### 11.9 RCG-05E checklist
+
+- [x] `compute-sanitizer --tool racecheck` (or equivalent) is run against the actual dilation kernel, not assumed safe from source reading. (SS11.4: run via `--kernel-name kernel_substring=dilateAdaptiveState`, confirmed by `nm`/`cuobjdump` to target the one real, compiled kernel; SS11.1 additionally establishes and empirically confirms racecheck's shared-memory-only scope, so its "0 hazards" result is reported honestly, not oversold as proof)
+- [x] The monotonic pending-state invariant is documented, with the exact code locations that establish or could violate it. (SS11.2; permanently recorded as a source comment directly above `dilateAdaptiveState` in `gpuAdaptiveRuntime.cpp`, naming `proposeAdaptiveState` (gpuAdaptiveRuntime.cpp:302-324) and the same-stream launch ordering as the establishing locations, and any future direct write to `runtime.pendingState` from this kernel as the violating case)
+- [x] CPU, CUDA, and HIP dilation semantics are identical, or HIP is recorded as an explicit deferral with exact blocker. (SS11.6: CPU/GPU structurally aligned post-fix; CUDA/HIP share identical source with no kernel-body divergence; HIP hardware execution explicitly deferred -- `hipcc`/`hipconfig` absent, no `/opt/rocm*`, matching RCG-04-FU1)
+- [x] Dilation has no unproved read/write race — either sanitizer-clean, or fixed and then re-verified sanitizer-clean. (SS11.3: fixed via a genuine double buffer, disjoint read/write sets by construction; SS11.4: re-verified racecheck/memcheck/synccheck/initcheck all clean against the actual kernel post-fix)
+- [x] If a fix was needed, RCG-05D's comparator/descriptor evidence is re-run to confirm no physical-answer change. (SS11.7: descriptor layout check and per-axis dilation regression both pass unmodified; ownership-map comparator reproduces RCG-05D's exact post-fix numbers byte-for-byte)
+- [x] Sanitizer invocation is wired into CTest (or clearly documented as a manual-only step with the exact command, if CTest wiring is not appropriate for this tool). (SS11.5: `adaptive-cg-dilation-sanitizer`, gated on `USE_CUDA AND find_program(compute-sanitizer)`, `sanitizer` label, confirmed excluded from `cg13-cuda`/`cg13-cpu`, run and passing from a fresh build)
+- [x] Regression suites (`cg13-cpu`, `cg13-cuda`) pass unchanged after any fix. (SS11.8: 23/23 both, fresh builds, after the final source state)
+- [x] Unrelated worktree changes remain untouched and unstaged. (SS11.8: exactly five tracked files modified -- four source/test/build files plus this evidence document -- matching this slice's own scope)
+
+### Open items (carried forward, not blocking review, but not closed by this slice)
+
+- HIP hardware execution of `dilateAdaptiveState` (pre- or post-fix) remains
+  unexercised; no HIP toolchain exists on this host. The source-level
+  argument for identical CUDA/HIP semantics (SS11.6) is not a substitute for
+  running on HIP hardware, matching RCG-04-FU1's still-open deferral.
+- The GPU `hardAtomisticBlockMask` seed-set gap RCG-05C/D already documented
+  (sourced only from the polarization gate, not `cg_static_mask_file`)
+  remains open and unaffected by this slice, consistent with SS11.7's
+  byte-identical reproduction of RCG-05D's own (still-mismatched) direct
+  CPU/GPU map identity on `ownership_aniso_buffer`.
+- RCG-05F (dipole/short-range/on-site ownership invariants) is unaffected by
+  and independent of this slice's changes, per the prompt pack's dependency
+  graph; not touched or newly evidenced here.
+
+When finished, reproduce this checklist with its actual state. If all
+intended RCG-05E items are complete, ask:
+
+> Shall I create the focused RCG-05E commit with the one-line message
+> `RCG-05E: audit and sanitize the adaptive dilation kernel`?
+
+Do not commit until the user approves.

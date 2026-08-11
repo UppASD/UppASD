@@ -1365,6 +1365,33 @@ if(BUILD_TESTING)
       set_tests_properties(coarse-graining-gpu-adaptive-runtime
          PROPERTIES LABELS "coarse-graining;cg13;${CG13_GPU_LABEL};reference")
 
+      # RCG-05E: compute-sanitizer racecheck/memcheck/synccheck/initcheck
+      # against dilateAdaptiveState specifically (--kernel-name), run through
+      # gpu_adaptive_runtime_tests above, which already launches it with a
+      # nonzero per-axis buffer width. Kept out of cg13-cuda/cg13-hip (a
+      # dedicated "sanitizer" label instead): sanitized runs carry real
+      # instrumentation overhead and an extra tool dependency neither of the
+      # baseline regression labels should require. compute-sanitizer ships
+      # alongside nvcc in every CUDA toolkit that can build USE_CUDA, so
+      # find_program only fails to register this test on a CUDA build whose
+      # toolkit installation was stripped of it. HIP's equivalent
+      # (rocprof/rocgdb-based race detection) is not wired here: this
+      # repository has no HIP toolchain to build or verify it against (see
+      # RCG-04-FU1's still-open deferral); recorded as a deferral, not
+      # attempted blind.
+      find_program(UPPASD_COMPUTE_SANITIZER NAMES compute-sanitizer)
+      if(USE_CUDA AND UPPASD_COMPUTE_SANITIZER)
+         add_test(NAME adaptive-cg-dilation-sanitizer
+            COMMAND python3
+               ${CMAKE_SOURCE_DIR}/tests/gpu_regression/sanitize.py
+               --dilation-kernel
+               --binary $<TARGET_FILE:gpu_adaptive_runtime_tests>
+               --sanitizer ${UPPASD_COMPUTE_SANITIZER}
+               --workdir ${CMAKE_CURRENT_BINARY_DIR}/rcg05e_dilation_sanitizer_workspace)
+         set_tests_properties(adaptive-cg-dilation-sanitizer
+            PROPERTIES LABELS "coarse-graining;cg13;sanitizer")
+      endif()
+
       # Hardware-dependent CG-10 acceptance harness.  This is intentionally
       # not a CTest: it reports paired feature-off noise, selector/compaction
       # overhead, phase timings, and the first statistically separated active

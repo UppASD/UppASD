@@ -323,9 +323,45 @@ __global__ void proposeAdaptiveState(GpuAdaptiveDeviceTopology topology,
    runtime.pendingState[block] = proposed;
 }
 
+// RCG-05E: monotonic pending-state invariant this kernel depends on.
+// dilateAdaptiveState reads runtime.pendingState[source] for neighbouring
+// blocks while (conceptually) deciding whether to promote its own target
+// block to bufferState. runtime.pendingState itself is populated by the
+// separate, prior proposeAdaptiveState kernel launch (gpuAdaptiveRuntime.cpp,
+// proposeSelectorState's launch site) and by construction holds only
+// coarseState or fineState values when this kernel begins -- proposeAdaptive
+// State never writes bufferState (gpuAdaptiveRuntime.cpp:302-324). Two
+// kernels on the same stream execute in launch order with the first fully
+// complete before the second starts (ordinary CUDA/HIP stream semantics), so
+// that precondition holds for every thread of this launch, not just some.
+// This kernel itself never writes runtime.pendingState (see `dilatedState`
+// below) -- the set of blocks holding fineState is therefore invariant
+// (monotonically unchanged) for the entire lifetime of this launch, and is
+// exactly why a thread's read of a neighbour's runtime.pendingState is safe
+// to interpret as "genuinely fineState" regardless of what any other thread
+// is concurrently doing. Any future change that made this kernel write
+// runtime.pendingState directly (as it did before RCG-05E) would violate
+// this invariant and reintroduce the read/write race RCG-05E removed; see
+// the RCG-05E section of docs/RCG-05_GEOMETRY_OWNERSHIP_EVIDENCE.md for the
+// sanitizer evidence and reasoning this comment summarizes.
+//
+// The actual write target is the separate `dilatedState` buffer
+// (GpuAdaptiveRuntime::dilatedState_, gpuAdaptiveRuntime.hpp), not
+// runtime.pendingState: each thread still writes only its own unique
+// `target` index (one thread per block, so there is no writer-writer
+// collision either), but that index now lives in an array no other thread
+// in this launch ever reads, so the read (runtime.pendingState) and write
+// (dilatedState) sets are disjoint by construction -- a real double buffer,
+// not merely a value-domain argument for why a same-array race would have
+// been benign. proposeSelectorState copies pendingState_ into dilatedState_
+// before this launch (so untouched blocks keep their proposed state) and
+// copies dilatedState_ back into pendingState_ after it, on the same stream,
+// so every other consumer of deviceRuntime().pendingState still sees exactly
+// the merged, fully-dilated result this kernel used to write in place.
 __global__ void dilateAdaptiveState(GpuAdaptiveDeviceTopology topology,
                                     GpuAdaptiveDeviceRuntime runtime,
-                                    GpuAdaptiveSelectorPolicy policy) {
+                                    GpuAdaptiveSelectorPolicy policy,
+                                    int* dilatedState) {
    const std::size_t target = adaptiveThreadIndex();
    if(target >= topology.blocks ||
       runtime.pendingState[target] != coarseState) return;
@@ -349,7 +385,7 @@ __global__ void dilateAdaptiveState(GpuAdaptiveDeviceTopology topology,
                x + topology.blockGrid[0] *
                (y + topology.blockGrid[1] * z));
             if(runtime.pendingState[source] == fineState) {
-               runtime.pendingState[target] = bufferState;
+               dilatedState[target] = bufferState;
                return;
             }
          }
@@ -1687,6 +1723,8 @@ std::size_t GpuAdaptiveRuntime::estimateBytes(const GpuAdaptiveTopologyInput& t,
       checkedAdd(total, r.selectorCriteria * t.blocks, sizeof(real)) &&
       checkedAdd(total, 3 * vectorState + scalarState, sizeof(real)) &&
       checkedAdd(total, 2 * t.atoms + t.blocks, sizeof(int)) &&
+      // RCG-05E: dilatedState_, the dilateAdaptiveState double buffer.
+      checkedAdd(total, t.blocks, sizeof(int)) &&
       checkedAdd(total, 3, sizeof(unsigned int)) &&
       checkedAdd(total, 6 * std::max(t.atoms, t.blocks),
                  sizeof(unsigned int));
@@ -1788,6 +1826,7 @@ void GpuAdaptiveRuntime::allocate(const GpuAdaptiveTopologyInput& t,
 
    blockState_.Allocate(b);
    pendingState_.Allocate(b);
+   dilatedState_.Allocate(b);
    stateAge_.Allocate(b);
    transitionEpoch_.Allocate(b);
    atomisticBlockMask_.Allocate(b);
@@ -2159,24 +2198,36 @@ void GpuAdaptiveRuntime::proposeSelectorState(
    if(policy.coarsenThreshold > policy.refineThreshold)
       throw std::invalid_argument("GPU adaptive selector coarsen threshold exceeds refine threshold");
    ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
+   const bool dilate = anyBufferDilation(policy.bufferDilationBlocks);
 #if defined(CUDA_V)
    proposeAdaptiveState<<<
       adaptiveGrid(blocks_), adaptiveThreads, 0, stream_>>>(
       deviceTopology_, deviceRuntime_, policy, hardAtomisticBlockMask);
-   if(anyBufferDilation(policy.bufferDilationBlocks))
+   if(dilate) {
+      // RCG-05E: dilatedState_ starts as a copy of pendingState_ so blocks
+      // the kernel never visits (already fine, or coarse with no fine
+      // neighbour) keep their proposeAdaptiveState value; see the invariant
+      // comment above dilateAdaptiveState for why this makes the read/write
+      // sets of that kernel disjoint.
+      dilatedState_.copy_async(pendingState_, stream_);
       dilateAdaptiveState<<<
          adaptiveGrid(blocks_), adaptiveThreads, 0, stream_>>>(
-         deviceTopology_, deviceRuntime_, policy);
+         deviceTopology_, deviceRuntime_, policy, dilatedState_.data());
+      pendingState_.copy_async(dilatedState_, stream_);
+   }
 #else
    hipLaunchKernelGGL(
       proposeAdaptiveState, dim3(adaptiveGrid(blocks_)),
       dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
       policy, hardAtomisticBlockMask);
-   if(anyBufferDilation(policy.bufferDilationBlocks))
+   if(dilate) {
+      dilatedState_.copy_async(pendingState_, stream_);
       hipLaunchKernelGGL(
          dilateAdaptiveState, dim3(adaptiveGrid(blocks_)),
          dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
-         policy);
+         policy, dilatedState_.data());
+      pendingState_.copy_async(dilatedState_, stream_);
+   }
 #endif
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.selectorMilliseconds);
@@ -2652,6 +2703,7 @@ void GpuAdaptiveRuntime::release() {
    freeIfAllocated(atomisticBlockMask_);
    freeIfAllocated(transitionEpoch_);
    freeIfAllocated(stateAge_);
+   freeIfAllocated(dilatedState_);
    freeIfAllocated(pendingState_);
    freeIfAllocated(blockState_);
    freeIfAllocated(blockVolume_);

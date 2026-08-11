@@ -383,6 +383,13 @@ private:
    GpuTensor<real, 1> blockCenter_, blockVolume_;
 
    GpuTensor<int, 1> blockState_, pendingState_;
+   // RCG-05E: dilateAdaptiveState's write target.  pendingState_ is read-only
+   // for the duration of that kernel launch (see the invariant comment above
+   // dilateAdaptiveState in gpuAdaptiveRuntime.cpp); the dilated result is
+   // written here instead, then copied back into pendingState_ once the
+   // kernel has completed, so no thread ever reads a location another thread
+   // concurrently writes.
+   GpuTensor<int, 1> dilatedState_;
    GpuTensor<unsigned int, 1> stateAge_, transitionEpoch_;
    GpuTensor<unsigned char, 1> atomisticBlockMask_, coarseBlockMask_;
    GpuTensor<unsigned char, 1> atomisticAtomMask_, interfaceAtomMask_;
