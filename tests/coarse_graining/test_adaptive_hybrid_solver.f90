@@ -24,6 +24,7 @@ program test_adaptive_hybrid_solver
    call test_transactional_chain_transitions()
    call test_adaptive_skyrmion_transition()
    call test_polarization_forces_refine_of_coarse_block()
+   call test_transition_workspace_lifecycle()
 
    if (failures /= 0) then
       write(*,'(a,i0)') 'adaptive hybrid solver tests failed: ',failures
@@ -221,6 +222,75 @@ contains
          'repeated domain-wall transitions are accepted and logged')
    end subroutine test_transactional_chain_transitions
 
+   !> RCG-06A (F-17) allocation lifecycle negative control: the persistent
+   !> per-candidate-transition workspace must be allocated exactly once by
+   !> setup_adaptive_hybrid_runtime, reused (not reallocated) on every later
+   !> preflight call with matching geometry, rejected with a diagnostic
+   !> rather than silently corrupting memory if the geometry has drifted,
+   !> and fully deallocated on cleanup.
+   subroutine test_transition_workspace_lifecycle()
+      type(block_topology_type) :: topology
+      type(static_hybrid_operator_type) :: hybrid
+      type(adaptive_hybrid_runtime_type) :: runtime
+      integer, parameter :: n = 16
+      integer :: status
+      character(len=512) :: message
+      integer :: bonds(2,n)
+      real(dblprec) :: displacement(3,n), matrix(3,3,n), moment(n)
+      real(dblprec) :: atom_direction(3,n,1), coarse_direction(3,1,n,1)
+      integer :: atom
+
+      call make_chain_fixture(n,topology,hybrid,bonds,displacement,matrix,status,message)
+      call check(status == ADAPTIVE_HYBRID_OK,'lifecycle fixture builds: '//trim(message))
+      moment = 1.7_dblprec
+      do atom = 1, n
+         atom_direction(:,atom,1) = (/0.0_dblprec,0.0_dblprec,1.0_dblprec/)
+         coarse_direction(:,1,atom,1) = atom_direction(:,atom,1)
+      end do
+      call setup_adaptive_hybrid_runtime(runtime,topology,hybrid,moment,atom_direction, &
+         coarse_direction,status,message)
+      call check(status == ADAPTIVE_HYBRID_OK,'lifecycle runtime initializes')
+      call check(runtime%transition_workspace_ready .and. &
+         allocated(runtime%candidate_atom) .and. &
+         all(shape(runtime%candidate_atom) == (/3,n,1/)) .and. &
+         allocated(runtime%candidate_seeds), &
+         'transition workspace is allocated once at setup with matching shape')
+
+      ! Reuse: a second preflight call at the same geometry must succeed
+      ! without altering the already-correct allocation.
+      call ensure_transition_workspace(runtime,topology,1,status,message)
+      call check(status == ADAPTIVE_HYBRID_OK .and. &
+         all(shape(runtime%candidate_atom) == (/3,n,1/)), &
+         'transition workspace preflight reuses an already-correct allocation')
+
+      ! Drift: simulate a geometry change after allocation (this should
+      ! never happen through the public API, but the preflight must still
+      ! reject it explicitly rather than silently reading/writing past the
+      ! stale allocation on the next apply_adaptive_transitions call).
+      deallocate(runtime%candidate_atom)
+      allocate(runtime%candidate_atom(3,n+1,1))
+      call ensure_transition_workspace(runtime,topology,1,status,message)
+      call check(status == ADAPTIVE_HYBRID_ALLOCATION_FAILED .and. len_trim(message) > 0, &
+         'transition workspace preflight rejects a post-allocation geometry drift')
+
+      ! Cleanup: reassigning the runtime to its default structure
+      ! constructor (as cleanup_adaptive_cg_production does for the whole
+      ! adaptive_cg_state) must deallocate every workspace field.
+      runtime = adaptive_hybrid_runtime_type()
+      call check(.not. runtime%transition_workspace_ready .and. &
+         .not. allocated(runtime%candidate_atom) .and. &
+         .not. allocated(runtime%candidate_seeds), &
+         'cleanup deallocates the transition workspace')
+
+      ! Resize: a fresh setup at a different topology size must allocate at
+      ! the new size, not reuse the (already-deallocated) prior geometry.
+      call setup_adaptive_hybrid_runtime(runtime,topology,hybrid,moment,atom_direction, &
+         coarse_direction,status,message)
+      call check(status == ADAPTIVE_HYBRID_OK .and. runtime%transition_workspace_ready .and. &
+         all(shape(runtime%candidate_atom) == (/3,n,1/)), &
+         'transition workspace reallocates correctly after cleanup and re-setup')
+   end subroutine test_transition_workspace_lifecycle
+
    subroutine test_adaptive_skyrmion_transition()
       type(block_topology_type) :: topology
       type(static_hybrid_operator_type) :: hybrid
@@ -388,7 +458,7 @@ contains
    end subroutine make_single_block_fixture
 
    subroutine hybrid_energy(operator,atom_direction,coarse_direction,energy_j,status,diagnostic)
-      type(static_hybrid_operator_type), intent(in) :: operator
+      type(static_hybrid_operator_type), intent(inout) :: operator
       real(dblprec), intent(in) :: atom_direction(:,:,:)
       real(dblprec), intent(in) :: coarse_direction(:,:,:,:)
       real(dblprec), intent(out) :: energy_j

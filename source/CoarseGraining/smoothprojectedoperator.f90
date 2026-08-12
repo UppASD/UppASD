@@ -55,6 +55,18 @@ module SmoothProjectedOperator
       real(dblprec), allocatable :: shape_weight(:,:)  ! (8,atom)
       real(dblprec), allocatable :: atom_moment_mub(:)
       real(dblprec), allocatable :: coarse_moment_mub(:,:) ! (channel,block)
+      ! RCG-06A (F-13/F-17): persistent per-operator scratch, sized once in
+      ! setup_smooth_projected_operator, replacing the natoms-sized automatic
+      ! (stack) arrays previously declared inside prolongate_smooth_directions,
+      ! restrict_projected_atomistic_field, and evaluate_projected_bilinear.
+      ! Written and consumed within a single call only. See
+      ! coarse_tensor_operator_type's matching comment for the OpenMP caveat.
+      real(dblprec), allocatable :: scratch_local_norm(:)
+      real(dblprec), allocatable :: scratch_restrict_direction(:,:)
+      real(dblprec), allocatable :: scratch_restrict_raw_norm(:)
+      real(dblprec), allocatable :: scratch_bilinear_direction(:,:)
+      real(dblprec), allocatable :: scratch_bilinear_raw_norm(:)
+      real(dblprec), allocatable :: scratch_bilinear_fine_field(:,:)
    end type smooth_projected_operator_type
 
    public :: setup_smooth_projected_operator
@@ -142,6 +154,12 @@ contains
       operator%atom_channel = topology%atom_to_dynamic_channel
       operator%atom_moment_mub = atom_moment_mub
       operator%coarse_moment_mub = 0.0_dblprec
+      allocate(operator%scratch_local_norm(operator%n_atoms), &
+         operator%scratch_restrict_direction(3,operator%n_atoms), &
+         operator%scratch_restrict_raw_norm(operator%n_atoms), &
+         operator%scratch_bilinear_direction(3,operator%n_atoms), &
+         operator%scratch_bilinear_raw_norm(operator%n_atoms), &
+         operator%scratch_bilinear_fine_field(3,operator%n_atoms))
 
       do atom = 1, operator%n_atoms
          channel = operator%atom_channel(atom)
@@ -189,20 +207,20 @@ contains
    !> Apply trilinear interpolation and exact pointwise spin normalization.
    subroutine prolongate_smooth_directions(operator, coarse_variable, &
          atom_direction, status, diagnostic, raw_norm)
-      type(smooth_projected_operator_type), intent(in) :: operator
+      type(smooth_projected_operator_type), intent(inout) :: operator
       real(dblprec), intent(in) :: coarse_variable(:,:,:)
       real(dblprec), intent(out) :: atom_direction(:,:)
       integer, intent(out) :: status
       character(len=*), intent(out) :: diagnostic
       real(dblprec), intent(out), optional :: raw_norm(:)
 
-      real(dblprec) :: local_norm(operator%n_atoms)
-
-      call prolongate_with_norm(operator,coarse_variable,atom_direction,local_norm, &
-         status,diagnostic)
+      call prolongate_with_norm(operator%ready,operator%n_atoms,operator%n_channels, &
+         operator%n_blocks,operator%atom_channel,operator%stencil_block, &
+         operator%shape_weight,operator%normalization_floor,coarse_variable, &
+         atom_direction,operator%scratch_local_norm,status,diagnostic)
       if (present(raw_norm)) then
          if (size(raw_norm) == operator%n_atoms) then
-            raw_norm = local_norm
+            raw_norm = operator%scratch_local_norm
          else if (status == SMOOTH_PROJECTED_OK) then
             status = SMOOTH_PROJECTED_INVALID_STATE
             diagnostic = 'Raw interpolation norms must have length natoms'
@@ -213,15 +231,12 @@ contains
    !> Apply the moment-weighted adjoint of the normalized prolongation.
    subroutine restrict_projected_atomistic_field(operator, coarse_variable, &
          atom_field_t, coarse_field_t, status, diagnostic)
-      type(smooth_projected_operator_type), intent(in) :: operator
+      type(smooth_projected_operator_type), intent(inout) :: operator
       real(dblprec), intent(in) :: coarse_variable(:,:,:)
       real(dblprec), intent(in) :: atom_field_t(:,:)
       real(dblprec), intent(out) :: coarse_field_t(:,:,:)
       integer, intent(out) :: status
       character(len=*), intent(out) :: diagnostic
-
-      real(dblprec) :: atom_direction(3,operator%n_atoms)
-      real(dblprec) :: raw_norm(operator%n_atoms)
 
       if (size(atom_field_t,1) /= 3 .or. &
           size(atom_field_t,2) /= operator%n_atoms .or. &
@@ -230,18 +245,21 @@ contains
          diagnostic = 'Atomistic field must be finite with shape (3,natoms)'
          return
       end if
-      call prolongate_with_norm(operator,coarse_variable,atom_direction,raw_norm, &
+      call prolongate_with_norm(operator%ready,operator%n_atoms,operator%n_channels, &
+         operator%n_blocks,operator%atom_channel,operator%stencil_block, &
+         operator%shape_weight,operator%normalization_floor,coarse_variable, &
+         operator%scratch_restrict_direction,operator%scratch_restrict_raw_norm, &
          status,diagnostic)
       if (status /= SMOOTH_PROJECTED_OK) return
-      call restrict_with_state(operator,atom_direction,raw_norm,atom_field_t, &
-         coarse_field_t,status,diagnostic)
+      call restrict_with_state(operator,operator%scratch_restrict_direction, &
+         operator%scratch_restrict_raw_norm,atom_field_t,coarse_field_t,status,diagnostic)
    end subroutine restrict_projected_atomistic_field
 
    !> Evaluate read-only unique-pair bilinear bonds and their projected field.
    subroutine evaluate_projected_bilinear(operator, coarse_variable, bond_atom, &
          bond_matrix_j, energy_j, coarse_field_t, status, diagnostic, &
          atom_direction, atom_field_t)
-      type(smooth_projected_operator_type), intent(in) :: operator
+      type(smooth_projected_operator_type), intent(inout) :: operator
       real(dblprec), intent(in) :: coarse_variable(:,:,:)
       integer, intent(in) :: bond_atom(:,:)
       real(dblprec), intent(in) :: bond_matrix_j(:,:,:)
@@ -253,9 +271,6 @@ contains
       real(dblprec), intent(out), optional :: atom_field_t(:,:)
 
       integer :: atom_i, atom_j, bond, nbonds
-      real(dblprec) :: direction(3,operator%n_atoms)
-      real(dblprec) :: raw_norm(operator%n_atoms)
-      real(dblprec) :: fine_field(3,operator%n_atoms)
 
       energy_j = 0.0_dblprec
       if (.not. operator%ready) then
@@ -288,8 +303,13 @@ contains
          end do
       end if
 
-      call prolongate_with_norm(operator,coarse_variable,direction,raw_norm, &
-         status,diagnostic)
+      associate (direction => operator%scratch_bilinear_direction, &
+            raw_norm => operator%scratch_bilinear_raw_norm, &
+            fine_field => operator%scratch_bilinear_fine_field)
+      call prolongate_with_norm(operator%ready,operator%n_atoms,operator%n_channels, &
+         operator%n_blocks,operator%atom_channel,operator%stencil_block, &
+         operator%shape_weight,operator%normalization_floor,coarse_variable, &
+         direction,raw_norm,status,diagnostic)
       if (status /= SMOOTH_PROJECTED_OK) return
       fine_field = 0.0_dblprec
       do bond = 1, nbonds
@@ -324,11 +344,23 @@ contains
          end if
          atom_field_t = fine_field
       end if
+      end associate
    end subroutine evaluate_projected_bilinear
 
-   subroutine prolongate_with_norm(operator,coarse_variable,atom_direction, &
+   !> RCG-06A: takes explicit operator fields rather than the whole operator
+   !> so that a caller may pass one of operator's own scratch arrays as
+   !> `atom_direction`/`raw_norm` without violating Fortran's actual-argument
+   !> aliasing rules -- see coarsetensoroperator.f90's matching comment on
+   !> physical_forward_gradient for the underlying hazard this avoids.
+   subroutine prolongate_with_norm(ready,n_atoms,n_channels,n_blocks,atom_channel, &
+         stencil_block,shape_weight,normalization_floor,coarse_variable,atom_direction, &
          raw_norm,status,diagnostic)
-      type(smooth_projected_operator_type), intent(in) :: operator
+      logical, intent(in) :: ready
+      integer, intent(in) :: n_atoms, n_channels, n_blocks
+      integer, intent(in) :: atom_channel(:)
+      integer, intent(in) :: stencil_block(:,:)
+      real(dblprec), intent(in) :: shape_weight(:,:)
+      real(dblprec), intent(in) :: normalization_floor
       real(dblprec), intent(in) :: coarse_variable(:,:,:)
       real(dblprec), intent(out) :: atom_direction(:,:)
       real(dblprec), intent(out) :: raw_norm(:)
@@ -340,38 +372,38 @@ contains
 
       status = SMOOTH_PROJECTED_INVALID_STATE
       diagnostic = ''
-      if (.not. operator%ready) then
+      if (.not. ready) then
          diagnostic = 'Cannot prolong with an uninitialized smooth projected operator'
          return
       end if
       if (size(coarse_variable,1) /= 3 .or. &
-          size(coarse_variable,2) /= operator%n_channels .or. &
-          size(coarse_variable,3) /= operator%n_blocks .or. &
+          size(coarse_variable,2) /= n_channels .or. &
+          size(coarse_variable,3) /= n_blocks .or. &
           .not. all(ieee_is_finite(coarse_variable))) then
          diagnostic = 'Coarse variables must be finite with shape (3,nchannels,nblocks)'
          return
       end if
       if (size(atom_direction,1) /= 3 .or. &
-          size(atom_direction,2) /= operator%n_atoms .or. &
-          size(raw_norm) /= operator%n_atoms) then
+          size(atom_direction,2) /= n_atoms .or. &
+          size(raw_norm) /= n_atoms) then
          diagnostic = 'Prolongation outputs must have atom-compatible shapes'
          return
       end if
 
       atom_direction = 0.0_dblprec
       raw_norm = 0.0_dblprec
-      do atom = 1, operator%n_atoms
-         channel = operator%atom_channel(atom)
+      do atom = 1, n_atoms
+         channel = atom_channel(atom)
          if (channel <= 0) cycle
          interpolated = 0.0_dblprec
          do corner = 1, 8
-            block = operator%stencil_block(corner,atom)
-            interpolated = interpolated + operator%shape_weight(corner,atom) * &
+            block = stencil_block(corner,atom)
+            interpolated = interpolated + shape_weight(corner,atom) * &
                coarse_variable(:,channel,block)
          end do
          raw_norm(atom) = sqrt(sum(interpolated*interpolated))
          if (.not. ieee_is_finite(raw_norm(atom)) .or. &
-             raw_norm(atom) <= operator%normalization_floor) then
+             raw_norm(atom) <= normalization_floor) then
             status = SMOOTH_PROJECTED_ZERO_INTERPOLANT
             diagnostic = 'Normalized prolongation encountered a zero or cancelling interpolant'
             return

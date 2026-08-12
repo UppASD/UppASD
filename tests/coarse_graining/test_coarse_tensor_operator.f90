@@ -672,7 +672,7 @@ contains
    end subroutine make_anisotropy
 
    subroutine finite_energy_derivative(operator,direction,external,selected,tangent,term,numerical)
-      type(coarse_tensor_operator_type), intent(in) :: operator
+      type(coarse_tensor_operator_type), intent(inout) :: operator
       real(dblprec), intent(in) :: direction(:,:), external(:,:), tangent(3)
       integer, intent(in) :: selected, term
       real(dblprec), intent(out) :: numerical

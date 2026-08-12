@@ -71,6 +71,22 @@ module StaticHybridOperator
       logical, allocatable :: atomistic_bond_owner(:)
       type(coarse_tensor_operator_type) :: tensor
       type(smooth_projected_operator_type) :: projection
+      ! RCG-06A (F-13/F-17): persistent per-operator scratch, sized once in
+      ! setup_static_hybrid_operator, replacing the natoms/nblocks-sized
+      ! automatic (stack) arrays previously declared inside
+      ! evaluate_static_hybrid_operator. Written and consumed within a single
+      ! call only; never passed to a subroutine call alongside `operator`
+      ! itself (each is passed as its own actual argument), so no Fortran
+      ! argument-aliasing hazard applies here -- contrast
+      ! coarse_tensor_operator_type's scratch, which required decoupling
+      ! physical_forward_gradient/add_physical_gradient_transpose from
+      ! `operator` for exactly that reason.
+      real(dblprec), allocatable :: scratch_effective_direction(:,:)
+      real(dblprec), allocatable :: scratch_ghost_direction(:,:)
+      real(dblprec), allocatable :: scratch_atomistic_field(:,:)
+      real(dblprec), allocatable :: scratch_ghost_reaction_field(:,:)
+      real(dblprec), allocatable :: scratch_reaction_field(:,:,:)
+      real(dblprec), allocatable :: scratch_tensor_field(:,:)
    end type static_hybrid_operator_type
 
    public :: setup_static_hybrid_operator
@@ -170,6 +186,13 @@ contains
       operator%active_bond = .true.
       if (present(active_bond)) operator%active_bond = active_bond
 
+      allocate(operator%scratch_effective_direction(3,operator%n_atoms), &
+         operator%scratch_ghost_direction(3,operator%n_atoms), &
+         operator%scratch_atomistic_field(3,operator%n_atoms), &
+         operator%scratch_ghost_reaction_field(3,operator%n_atoms), &
+         operator%scratch_reaction_field(3,1,operator%n_blocks), &
+         operator%scratch_tensor_field(3,operator%n_blocks))
+
       operator%maximum_interaction_radius_m = 0.0_dblprec
       do bond = 1, operator%n_bonds
          if (.not. operator%active_bond(bond)) cycle
@@ -262,7 +285,7 @@ contains
    subroutine evaluate_static_hybrid_operator(operator,fine_direction,coarse_direction, &
          bond_matrix_j,fine_field_t,coarse_field_t,energies,status,diagnostic, &
          atomistic_onsite_energy_j,atomistic_onsite_field_t,coarse_external_field_t)
-      type(static_hybrid_operator_type), intent(in) :: operator
+      type(static_hybrid_operator_type), intent(inout) :: operator
       real(dblprec), intent(in) :: fine_direction(:,:)
       real(dblprec), intent(in) :: coarse_direction(:,:,:)
       real(dblprec), intent(in) :: bond_matrix_j(:,:,:)
@@ -277,12 +300,6 @@ contains
 
       integer :: atom, atom_i, atom_j, block, bond, dependency_status
       character(len=512) :: dependency_diagnostic
-      real(dblprec) :: effective_direction(3,operator%n_atoms)
-      real(dblprec) :: ghost_direction(3,operator%n_atoms)
-      real(dblprec) :: atomistic_field(3,operator%n_atoms)
-      real(dblprec) :: ghost_reaction_field(3,operator%n_atoms)
-      real(dblprec) :: reaction_field(3,1,operator%n_blocks)
-      real(dblprec) :: tensor_field(3,operator%n_blocks)
 
       energies = static_hybrid_energy_type()
       status = STATIC_HYBRID_INVALID_STATE
@@ -330,6 +347,12 @@ contains
          end if
       end do
 
+      associate (effective_direction => operator%scratch_effective_direction, &
+            ghost_direction => operator%scratch_ghost_direction, &
+            atomistic_field => operator%scratch_atomistic_field, &
+            ghost_reaction_field => operator%scratch_ghost_reaction_field, &
+            reaction_field => operator%scratch_reaction_field, &
+            tensor_field => operator%scratch_tensor_field)
       call prolongate_smooth_directions(operator%projection,coarse_direction, &
          ghost_direction,dependency_status,dependency_diagnostic)
       if (dependency_status /= SMOOTH_PROJECTED_OK) then
@@ -409,6 +432,7 @@ contains
       energies%total_j = energies%atomistic_bilinear_j + &
          energies%atomistic_onsite_j + energies%coarse%total_j
       status = STATIC_HYBRID_OK
+      end associate
    end subroutine evaluate_static_hybrid_operator
 
    pure function inverse3(matrix) result(inverse)

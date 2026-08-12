@@ -89,6 +89,25 @@ module CoarseTensorOperator
       real(dblprec) :: channel_damping = 0.0_dblprec
       logical :: use_uniform_coarse_dipole = .false.
       type(coarse_anisotropy_type) :: anisotropy
+      ! RCG-06A (F-17): persistent per-operator scratch, sized once in
+      ! setup_coarse_tensor_operator and reused by every
+      ! evaluate_coarse_tensor_operator call instead of the ten nblocks-sized
+      ! temporaries previously heap-allocated on every call (this operator is
+      ! evaluated twice per Heun stage per ensemble, every adaptive step).
+      ! Written and consumed within a single call only; not durable state
+      ! between calls, and (like every other RCG-06A operator scratch field)
+      ! not safe to share across a future OpenMP-parallel evaluation of the
+      ! SAME operator instance from different ensembles -- see RCG-07.
+      real(dblprec), allocatable :: scratch_gradient(:,:,:)
+      real(dblprec), allocatable :: scratch_exchange_derivative(:,:)
+      real(dblprec), allocatable :: scratch_dmi_derivative(:,:)
+      real(dblprec), allocatable :: scratch_anisotropy_derivative(:,:)
+      real(dblprec), allocatable :: scratch_work(:,:)
+      real(dblprec), allocatable :: scratch_exchange_field(:,:)
+      real(dblprec), allocatable :: scratch_dmi_field(:,:)
+      real(dblprec), allocatable :: scratch_anisotropy_field(:,:)
+      real(dblprec), allocatable :: scratch_external_field(:,:)
+      real(dblprec), allocatable :: scratch_dipole_field(:,:)
    end type coarse_tensor_operator_type
 
    public :: setup_coarse_tensor_operator
@@ -333,6 +352,17 @@ contains
          operator%anisotropy%k2 = anisotropy%k2
       end if
 
+      allocate(operator%scratch_gradient(3,3,operator%nblocks), &
+         operator%scratch_exchange_derivative(3,operator%nblocks), &
+         operator%scratch_dmi_derivative(3,operator%nblocks), &
+         operator%scratch_anisotropy_derivative(3,operator%nblocks), &
+         operator%scratch_work(3,operator%nblocks), &
+         operator%scratch_exchange_field(3,operator%nblocks), &
+         operator%scratch_dmi_field(3,operator%nblocks), &
+         operator%scratch_anisotropy_field(3,operator%nblocks), &
+         operator%scratch_external_field(3,operator%nblocks), &
+         operator%scratch_dipole_field(3,operator%nblocks))
+
       operator%ready = .true.
       status = COARSE_TENSOR_OK
       diagnostic = ''
@@ -348,7 +378,7 @@ contains
    subroutine evaluate_coarse_tensor_operator(operator, direction, field_t, energies, &
          status, diagnostic, external_field_t, uniform_coarse_dipole_field_t, term_fields, &
          interaction_owner, onsite_owner)
-      type(coarse_tensor_operator_type), intent(in) :: operator
+      type(coarse_tensor_operator_type), intent(inout) :: operator
       real(dblprec), intent(in) :: direction(:,:)
       real(dblprec), intent(out) :: field_t(:,:)
       type(coarse_energy_terms_type), intent(out) :: energies
@@ -364,10 +394,6 @@ contains
       real(dblprec) :: c, density, conversion
       real(dblprec) :: basis(3), local_derivative(3)
       logical :: owned
-      real(dblprec), allocatable :: gradient(:,:,:), exchange_derivative(:,:)
-      real(dblprec), allocatable :: dmi_derivative(:,:), anisotropy_derivative(:,:)
-      real(dblprec), allocatable :: work(:,:), exchange_field(:,:), dmi_field(:,:)
-      real(dblprec), allocatable :: anisotropy_field(:,:), external_field(:,:), dipole_field(:,:)
 
       energies = coarse_energy_terms_type()
       status = COARSE_TENSOR_INVALID_STATE
@@ -424,18 +450,24 @@ contains
          end if
       end if
 
-      allocate(gradient(3,3,operator%nblocks), exchange_derivative(3,operator%nblocks), &
-         dmi_derivative(3,operator%nblocks), anisotropy_derivative(3,operator%nblocks), &
-         work(3,operator%nblocks), exchange_field(3,operator%nblocks), &
-         dmi_field(3,operator%nblocks), anisotropy_field(3,operator%nblocks), &
-         external_field(3,operator%nblocks), dipole_field(3,operator%nblocks))
+      associate (gradient => operator%scratch_gradient, &
+            exchange_derivative => operator%scratch_exchange_derivative, &
+            dmi_derivative => operator%scratch_dmi_derivative, &
+            anisotropy_derivative => operator%scratch_anisotropy_derivative, &
+            work => operator%scratch_work, &
+            exchange_field => operator%scratch_exchange_field, &
+            dmi_field => operator%scratch_dmi_field, &
+            anisotropy_field => operator%scratch_anisotropy_field, &
+            external_field => operator%scratch_external_field, &
+            dipole_field => operator%scratch_dipole_field)
       exchange_derivative = 0.0_dblprec
       dmi_derivative = 0.0_dblprec
       anisotropy_derivative = 0.0_dblprec
       external_field = 0.0_dblprec
       dipole_field = 0.0_dblprec
 
-      call physical_forward_gradient(operator, direction, gradient)
+      call physical_forward_gradient(operator%nblocks,operator%block_grid, &
+         operator%block_coordinate,operator%inverse_block_transpose_m1,direction,gradient)
 
       do p = 1, 3
          do q = 1, 3
@@ -449,7 +481,9 @@ contains
                work(:,block) = operator%block_volume_m3 * &
                   operator%exchange_stiffness_j_per_m(p,q) * gradient(:,q,block)
             end do
-            call add_physical_gradient_transpose(operator,p,work,exchange_derivative,2.0_dblprec)
+            call add_physical_gradient_transpose(operator%nblocks,operator%block_grid, &
+               operator%block_coordinate,operator%inverse_block_transpose_m1,p,work, &
+               exchange_derivative,2.0_dblprec)
          end do
       end do
 
@@ -470,7 +504,9 @@ contains
                work(:,block) = operator%block_volume_m3 * &
                   operator%spiralization_j_per_m2(k,p) * cross3(basis,direction(:,block))
             end do
-            call add_physical_gradient_transpose(operator,p,work,dmi_derivative,1.0_dblprec)
+            call add_physical_gradient_transpose(operator%nblocks,operator%block_grid, &
+               operator%block_coordinate,operator%inverse_block_transpose_m1,p,work, &
+               dmi_derivative,1.0_dblprec)
          end do
       end do
 
@@ -532,6 +568,7 @@ contains
          term_fields%external_t = external_field
          term_fields%dipole_t = dipole_field
       end if
+      end associate
 
       status = COARSE_TENSOR_OK
       diagnostic = ''
@@ -602,8 +639,19 @@ contains
       status = COARSE_TENSOR_OK
    end subroutine coarse_llg_rhs
 
-   subroutine physical_forward_gradient(operator, values, gradient)
-      type(coarse_tensor_operator_type), intent(in) :: operator
+   !> RCG-06A: takes explicit geometry rather than the whole operator so that
+   !> a caller may pass one of operator's own scratch arrays as `gradient`
+   !> without violating Fortran's actual-argument aliasing rules (an
+   !> intent(out)/intent(inout) actual must not overlap any other actual in
+   !> the same reference; `operator` and `operator%scratch_gradient` would
+   !> overlap if both were passed together). Geometry-only arguments carry no
+   !> such risk since they share no storage with the caller's scratch arrays.
+   subroutine physical_forward_gradient(nblocks, block_grid, block_coordinate, &
+         inverse_block_transpose_m1, values, gradient)
+      integer, intent(in) :: nblocks
+      integer, intent(in) :: block_grid(3)
+      integer, intent(in) :: block_coordinate(:,:)
+      real(dblprec), intent(in) :: inverse_block_transpose_m1(3,3)
       real(dblprec), intent(in) :: values(:,:)
       real(dblprec), intent(out) :: gradient(:,:,:)
 
@@ -611,23 +659,30 @@ contains
       integer :: coordinate(3)
 
       gradient = 0.0_dblprec
-      do block = 1, operator%nblocks
+      do block = 1, nblocks
          do direction_index = 1, 3
-            coordinate = operator%block_coordinate(:,block)
+            coordinate = block_coordinate(:,block)
             coordinate(direction_index) = modulo(coordinate(direction_index)+1, &
-               operator%block_grid(direction_index))
-            plus_block = regular_spatial_block_id(coordinate,operator%block_grid)
+               block_grid(direction_index))
+            plus_block = regular_spatial_block_id(coordinate,block_grid)
             do physical_index = 1, 3
                gradient(:,physical_index,block) = gradient(:,physical_index,block) + &
-                  operator%inverse_block_transpose_m1(physical_index,direction_index) * &
+                  inverse_block_transpose_m1(physical_index,direction_index) * &
                   (values(:,plus_block)-values(:,block))
             end do
          end do
       end do
    end subroutine physical_forward_gradient
 
-   subroutine add_physical_gradient_transpose(operator, physical_index, values, result, scale)
-      type(coarse_tensor_operator_type), intent(in) :: operator
+   !> RCG-06A: see physical_forward_gradient's header comment -- the same
+   !> operator/scratch aliasing hazard applies here (`result` may be one of
+   !> operator's own scratch arrays), so geometry is passed explicitly.
+   subroutine add_physical_gradient_transpose(nblocks, block_grid, block_coordinate, &
+         inverse_block_transpose_m1, physical_index, values, result, scale)
+      integer, intent(in) :: nblocks
+      integer, intent(in) :: block_grid(3)
+      integer, intent(in) :: block_coordinate(:,:)
+      real(dblprec), intent(in) :: inverse_block_transpose_m1(3,3)
       integer, intent(in) :: physical_index
       real(dblprec), intent(in) :: values(:,:)
       real(dblprec), intent(inout) :: result(:,:)
@@ -637,13 +692,13 @@ contains
       integer :: coordinate(3)
       real(dblprec) :: coefficient
 
-      do block = 1, operator%nblocks
+      do block = 1, nblocks
          do direction_index = 1, 3
-            coefficient = scale * operator%inverse_block_transpose_m1(physical_index,direction_index)
-            coordinate = operator%block_coordinate(:,block)
+            coefficient = scale * inverse_block_transpose_m1(physical_index,direction_index)
+            coordinate = block_coordinate(:,block)
             coordinate(direction_index) = modulo(coordinate(direction_index)+1, &
-               operator%block_grid(direction_index))
-            plus_block = regular_spatial_block_id(coordinate,operator%block_grid)
+               block_grid(direction_index))
+            plus_block = regular_spatial_block_id(coordinate,block_grid)
             result(:,plus_block) = result(:,plus_block) + coefficient*values(:,block)
             result(:,block) = result(:,block) - coefficient*values(:,block)
          end do

@@ -669,7 +669,7 @@ contains
    end subroutine atomistic_baseline
 
    subroutine hybrid_finite_difference(hybrid,fine,coarse,matrix,is_fine,index,tangent,numerical)
-      type(static_hybrid_operator_type), intent(in) :: hybrid
+      type(static_hybrid_operator_type), intent(inout) :: hybrid
       real(dblprec), intent(in) :: fine(:,:), coarse(:,:,:), matrix(:,:,:), tangent(3)
       logical, intent(in) :: is_fine
       integer, intent(in) :: index

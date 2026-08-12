@@ -1028,6 +1028,31 @@ if(BUILD_TESTING)
       COMMAND python3
          ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_ownership_map_comparator.py -v)
 
+   # RCG-06A MEM-LARGE-HOST (F-13/F-17): a minimal standalone reproduction of
+   # the automatic-array pattern eliminated from
+   # evaluate_static_hybrid_operator, deliberately NOT linked against
+   # asdlib -- it must remain valid fault-injection evidence independent of
+   # further production source changes. Driven only by
+   # run_mem_large_host.py, never registered as its own passing ctest target
+   # (it is expected to crash under the driver's constrained ulimit).
+   add_executable(stack_overflow_fault_injection_tests
+      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_stack_overflow_fault_injection.f90)
+   set_target_properties(stack_overflow_fault_injection_tests PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/stack_overflow_fault_injection_tests)
+
+   # RCG-06A MEM-LARGE-HOST: the ordinary UppASD executable on a Natom=8000
+   # adaptive-CG host under a constrained process stack limit, paired with
+   # the fault-injection negative control above. See
+   # tests/coarse_graining/e2e/mem_large_host/README.md.
+   add_test(NAME adaptive-cg-mem-large-host
+      COMMAND python3
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_mem_large_host.py
+         --binary $<TARGET_FILE:${UppASD_EXE}>
+         --fault-injection-binary $<TARGET_FILE:stack_overflow_fault_injection_tests>)
+   set_tests_properties(adaptive-cg-mem-large-host
+      PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu"
+                 ENVIRONMENT "OMP_NUM_THREADS=1")
+
    # CG-13 labels are the repeatable suite interface.  Keep the focused
    # analytic/reference tests in the CPU suite even in a GPU build; the
    # production and backend tests below add the matching CUDA/HIP label.

@@ -90,13 +90,37 @@ module AdaptiveHybridSolver
       integer, allocatable :: active_coarse_list(:)
       integer, allocatable :: interface_atom_list(:)
       type(adaptive_transition_log_type) :: transition_log
+      ! RCG-06A (F-17): persistent per-candidate-transition workspace, sized
+      ! once in setup_adaptive_hybrid_runtime and reused by every
+      ! apply_adaptive_transitions call/event instead of being freshly
+      ! (re)allocated -- eliminating full-system heap churn (including a
+      ! deep copy of the whole static_hybrid_operator_type) from the
+      ! selector-update path. Written and consumed within a single
+      ! apply_adaptive_transitions call only.
+      logical :: transition_workspace_ready = .false.
+      type(static_hybrid_operator_type) :: candidate_hybrid
+      real(dblprec), allocatable :: candidate_atom(:,:,:)
+      real(dblprec), allocatable :: candidate_coarse(:,:,:,:)
+      real(dblprec), allocatable :: candidate_resultants(:,:,:,:)
+      real(dblprec), allocatable :: candidate_sums(:,:,:)
+      real(dblprec), allocatable :: candidate_directions(:,:,:,:)
+      logical, allocatable :: candidate_defined(:,:,:)
+      logical, allocatable :: candidate_has_decision(:)
+      integer(int64), allocatable :: candidate_seeds(:,:)
    end type adaptive_hybrid_runtime_type
 
    abstract interface
+      ! RCG-06A: `operator` is intent(inout), not intent(in), because an
+      ! implementer must be able to forward it unchanged to
+      ! evaluate_static_hybrid_operator, whose own `operator` became
+      ! intent(inout) when its automatic (stack) scratch arrays were hoisted
+      ! into persistent operator-owned workspace (F-13). The evaluator itself
+      ! is not expected to redefine operator's immutable topology/interaction
+      ! fields, only to let the evaluate call populate its scratch.
       subroutine adaptive_energy_evaluator(operator,atom_direction,coarse_direction, &
             energy_j,status,diagnostic)
          import :: static_hybrid_operator_type, dblprec
-         type(static_hybrid_operator_type), intent(in) :: operator
+         type(static_hybrid_operator_type), intent(inout) :: operator
          real(dblprec), intent(in) :: atom_direction(:,:,:)
          real(dblprec), intent(in) :: coarse_direction(:,:,:,:)
          real(dblprec), intent(out) :: energy_j
@@ -113,6 +137,7 @@ module AdaptiveHybridSolver
    public :: setup_adaptive_hybrid_runtime
    public :: apply_adaptive_transitions
    public :: clear_adaptive_transition_log
+   public :: ensure_transition_workspace
 
 contains
 
@@ -524,8 +549,51 @@ contains
       end do
       call rebuild_active_lists(runtime,topology,status,diagnostic)
       if (status /= ADAPTIVE_HYBRID_OK) return
+      call ensure_transition_workspace(runtime,topology,size(atom_direction,3), &
+         status,diagnostic)
+      if (status /= ADAPTIVE_HYBRID_OK) return
       runtime%ready = .true.
    end subroutine setup_adaptive_hybrid_runtime
+
+   !> RCG-06A allocation preflight: allocate the persistent transition
+   !> workspace once (idempotent thereafter) and detect a geometry drift
+   !> that would make reuse unsafe. `runtime` is intent(out) in
+   !> setup_adaptive_hybrid_runtime, so transition_workspace_ready is reset
+   !> to .false. by default (re)initialization on every fresh setup call,
+   !> naturally supporting resize across repeated setup/cleanup cycles.
+   subroutine ensure_transition_workspace(runtime,topology,mensemble,status,diagnostic)
+      type(adaptive_hybrid_runtime_type), intent(inout) :: runtime
+      type(block_topology_type), intent(in) :: topology
+      integer, intent(in) :: mensemble
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: diagnostic
+
+      status = ADAPTIVE_HYBRID_OK
+      diagnostic = ''
+      if (runtime%transition_workspace_ready) then
+         if (size(runtime%candidate_atom,2) /= topology%n_atoms .or. &
+             size(runtime%candidate_atom,3) /= mensemble .or. &
+             size(runtime%candidate_coarse,3) /= topology%n_spatial_blocks) then
+            status = ADAPTIVE_HYBRID_ALLOCATION_FAILED
+            diagnostic = 'Adaptive transition workspace geometry changed after allocation'
+         end if
+         return
+      end if
+      allocate(runtime%candidate_atom(3,topology%n_atoms,mensemble), &
+         runtime%candidate_coarse(3,topology%n_dynamic_channels, &
+            topology%n_spatial_blocks,mensemble), &
+         runtime%candidate_resultants(3,topology%n_dynamic_channels, &
+            topology%n_spatial_blocks,mensemble), &
+         runtime%candidate_sums(topology%n_dynamic_channels, &
+            topology%n_spatial_blocks,mensemble), &
+         runtime%candidate_directions(3,topology%n_dynamic_channels, &
+            topology%n_spatial_blocks,mensemble), &
+         runtime%candidate_defined(topology%n_dynamic_channels, &
+            topology%n_spatial_blocks,mensemble), &
+         runtime%candidate_has_decision(topology%n_spatial_blocks), &
+         runtime%candidate_seeds(topology%n_dynamic_channels,mensemble))
+      runtime%transition_workspace_ready = .true.
+   end subroutine ensure_transition_workspace
 
    !> Apply selector transitions only at a complete-step synchronization point.
    !> The energy evaluator must call the complete static hybrid energy path for
@@ -558,13 +626,8 @@ contains
 
       type(block_selector_runtime_type) :: decision, working
       type(selector_transition_log_type) :: decisions
-      type(static_hybrid_operator_type) :: candidate_hybrid
-      real(dblprec), allocatable :: candidate_atom(:,:,:), candidate_coarse(:,:,:,:)
-      real(dblprec), allocatable :: resultants(:,:,:,:), sums(:,:,:), directions(:,:,:,:)
-      logical, allocatable :: defined(:,:,:), has_decision(:)
       integer, allocatable :: candidate_active_atom(:), candidate_active_coarse(:)
       integer, allocatable :: candidate_interface_atom(:)
-      integer(int64), allocatable :: seeds(:,:)
       integer(c_int), allocatable :: old_age(:), old_epoch(:), old_state(:)
       integer(c_int) :: selector_status
       integer :: event, block, channel, ensemble, dependency_status
@@ -603,6 +666,9 @@ contains
          diagnostic = 'Adaptive reconstruction scheme, tolerance, cone angle, or energy limit is invalid'
          return
       end if
+      call ensure_transition_workspace(runtime,topology,size(atom_direction,3), &
+         status,diagnostic)
+      if (status /= ADAPTIVE_HYBRID_OK) return
 
       decision = runtime%selector
       old_state = runtime%selector%resolution_state
@@ -630,34 +696,29 @@ contains
       end if
 
       working = runtime%selector
-      allocate(has_decision(topology%n_spatial_blocks),seeds(topology%n_dynamic_channels, &
-         size(atom_direction,3)),resultants(3,topology%n_dynamic_channels, &
-         topology%n_spatial_blocks,size(atom_direction,3)), &
-         sums(topology%n_dynamic_channels,topology%n_spatial_blocks,size(atom_direction,3)), &
-         directions(3,topology%n_dynamic_channels,topology%n_spatial_blocks, &
-         size(atom_direction,3)),defined(topology%n_dynamic_channels, &
-         topology%n_spatial_blocks,size(atom_direction,3)))
-      has_decision = .false.
+      runtime%candidate_has_decision = .false.
 
       do event = 1, size(decisions%event)
          status = ADAPTIVE_HYBRID_OK
          block = decisions%event(event)%block
-         has_decision(block) = .true.
-         candidate_atom = atom_direction
-         candidate_coarse = coarse_direction
-         candidate_hybrid = runtime%hybrid
+         runtime%candidate_has_decision(block) = .true.
+         runtime%candidate_atom = atom_direction
+         runtime%candidate_coarse = coarse_direction
+         runtime%candidate_hybrid = runtime%hybrid
          accepted = .false.
          outcome = ''
-         seeds = 0_int64
+         runtime%candidate_seeds = 0_int64
 
          if (decisions%event(event)%new_state == RESOLUTION_COARSE) then
-            call restrict_channel_moments(topology,atom_moment_mub,candidate_atom, &
-               resultants,sums,directions,defined,status,dependency_diagnostic)
-            if (status == ADAPTIVE_HYBRID_OK .and. all(defined(:,block,:))) then
+            call restrict_channel_moments(topology,atom_moment_mub,runtime%candidate_atom, &
+               runtime%candidate_resultants,runtime%candidate_sums, &
+               runtime%candidate_directions,runtime%candidate_defined,status, &
+               dependency_diagnostic)
+            if (status == ADAPTIVE_HYBRID_OK .and. all(runtime%candidate_defined(:,block,:))) then
                do ensemble = 1, size(atom_direction,3)
                   do channel = 1, topology%n_dynamic_channels
-                     candidate_coarse(:,channel,block,ensemble) = &
-                        directions(:,channel,block,ensemble)
+                     runtime%candidate_coarse(:,channel,block,ensemble) = &
+                        runtime%candidate_directions(:,channel,block,ensemble)
                   end do
                end do
             else
@@ -668,23 +729,23 @@ contains
             select case (reconstruction_configuration%scheme)
             case (RECONSTRUCTION_ALIGNED)
                call reconstruct_block_aligned(topology,block,atom_moment_mub, &
-                  runtime%coarse_resultant_mub(:,:,block,:),candidate_atom, &
+                  runtime%coarse_resultant_mub(:,:,block,:),runtime%candidate_atom, &
                   reconstruction_configuration%resultant_tolerance,status, &
                   dependency_diagnostic)
             case (RECONSTRUCTION_CONSTRAINED_CONE)
                call reconstruct_block_constrained_cone(topology,block,atom_moment_mub, &
-                  runtime%coarse_resultant_mub(:,:,block,:),candidate_atom, &
+                  runtime%coarse_resultant_mub(:,:,block,:),runtime%candidate_atom, &
                   reconstruction_configuration%cone_angle_rad, &
                   reconstruction_configuration%resultant_tolerance, &
                   reconstruction_configuration%global_seed,decision%transition_epoch(block), &
-                  seeds,status,dependency_diagnostic)
+                  runtime%candidate_seeds,status,dependency_diagnostic)
             end select
             if (status /= ADAPTIVE_HYBRID_OK) outcome = 'reconstruction-rejected'
          end if
 
          if (status == ADAPTIVE_HYBRID_OK) then
             working%resolution_state(block) = decisions%event(event)%new_state
-            call rebuild_static_hybrid_ownership(candidate_hybrid,topology, &
+            call rebuild_static_hybrid_ownership(runtime%candidate_hybrid,topology, &
                working%resolution_state == RESOLUTION_ATOMISTIC,dependency_status, &
                dependency_diagnostic)
             if (dependency_status /= STATIC_HYBRID_OK) then
@@ -697,8 +758,8 @@ contains
          energy_after = energy_before
          energy_jump = 0.0_dblprec
          if (status == ADAPTIVE_HYBRID_OK) then
-            call energy_evaluator(candidate_hybrid,candidate_atom,candidate_coarse, &
-               energy_after,dependency_status,dependency_diagnostic)
+            call energy_evaluator(runtime%candidate_hybrid,runtime%candidate_atom, &
+               runtime%candidate_coarse,energy_after,dependency_status,dependency_diagnostic)
             if (dependency_status /= 0 .or. .not. ieee_is_finite(energy_after)) then
                working%resolution_state(block) = decisions%event(event)%old_state
                status = ADAPTIVE_HYBRID_ENERGY_FAILED
@@ -715,7 +776,7 @@ contains
             end if
          end if
          if (accepted) then
-            call make_active_lists(candidate_hybrid,topology,candidate_active_atom, &
+            call make_active_lists(runtime%candidate_hybrid,topology,candidate_active_atom, &
                candidate_active_coarse,candidate_interface_atom,dependency_status, &
                dependency_diagnostic)
             if (dependency_status /= ADAPTIVE_HYBRID_OK) then
@@ -727,20 +788,21 @@ contains
 
          call append_adaptive_event(runtime%transition_log,decisions%event(event), &
             old_age(block),decision%transition_epoch(block),accepted,trim(outcome), &
-            reconstruction_configuration%scheme,energy_before,energy_after,energy_jump,seeds)
+            reconstruction_configuration%scheme,energy_before,energy_after,energy_jump, &
+            runtime%candidate_seeds)
 
          if (accepted) then
-            atom_direction = candidate_atom
-            coarse_direction = candidate_coarse
-            runtime%hybrid = candidate_hybrid
+            atom_direction = runtime%candidate_atom
+            coarse_direction = runtime%candidate_coarse
+            runtime%hybrid = runtime%candidate_hybrid
             call move_alloc(candidate_active_atom,runtime%active_atom_list)
             call move_alloc(candidate_active_coarse,runtime%active_coarse_list)
             call move_alloc(candidate_interface_atom,runtime%interface_atom_list)
             working%state_age(block) = decision%state_age(block)
             working%transition_epoch(block) = decision%transition_epoch(block)
             if (decisions%event(event)%new_state == RESOLUTION_COARSE) then
-               runtime%coarse_resultant_mub(:,:,block,:) = resultants(:,:,block,:)
-               runtime%channel_moment_sum_mub(:,block,:) = sums(:,block,:)
+               runtime%coarse_resultant_mub(:,:,block,:) = runtime%candidate_resultants(:,:,block,:)
+               runtime%channel_moment_sum_mub(:,block,:) = runtime%candidate_sums(:,block,:)
             end if
             energy_before = energy_after
          else
@@ -751,7 +813,8 @@ contains
       end do
 
       do block = 1, topology%n_spatial_blocks
-         if (.not. has_decision(block)) working%state_age(block) = decision%state_age(block)
+         if (.not. runtime%candidate_has_decision(block)) &
+            working%state_age(block) = decision%state_age(block)
       end do
       runtime%selector = working
       status = ADAPTIVE_HYBRID_OK

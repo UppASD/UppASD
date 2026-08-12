@@ -103,6 +103,37 @@ module AdaptiveCGProduction
       integer, allocatable :: bond_atom(:,:)
       real(dblprec), allocatable :: bond_matrix_j(:,:,:)
       real(dblprec), allocatable :: bond_displacement_m(:,:)
+      ! RCG-06A (F-13/F-17): persistent per-step Heun/reconstruction/onsite
+      ! workspace, allocated once by ensure_step_workspace at the end of
+      ! setup_adaptive_cg_production and reused every step -- replacing the
+      ! eight full-system arrays previously (re)allocated fresh inside
+      ! adaptive_cg_cpu_step on every call, plus the natoms-sized automatic
+      ! (stack) arrays previously declared inside evaluate_all_ensembles and
+      ! production_energy_evaluator. Written and consumed within a single
+      ! step (or, for the candidate_* fields, a single production_energy_evaluator
+      ! call from apply_adaptive_transitions) only; kept as separate fields
+      ! from evaluate_all_ensembles' own onsite_*/atom_field/coarse_field so
+      ! the two call paths never alias even though they are never actually
+      ! reentrant with each other in the current sequential CPU step.
+      logical :: step_workspace_ready = .false.
+      real(dblprec), allocatable :: atom0(:,:,:)
+      real(dblprec), allocatable :: coarse0(:,:,:,:)
+      real(dblprec), allocatable :: atom_predictor(:,:,:)
+      real(dblprec), allocatable :: coarse_predictor(:,:,:,:)
+      real(dblprec), allocatable :: atom_field0(:,:,:)
+      real(dblprec), allocatable :: atom_field1(:,:,:)
+      real(dblprec), allocatable :: coarse_field0(:,:,:,:)
+      real(dblprec), allocatable :: coarse_field1(:,:,:,:)
+      real(dblprec), allocatable :: coarse_rhs0(:,:)
+      real(dblprec), allocatable :: coarse_rhs1(:,:)
+      real(dblprec), allocatable :: onsite_energy_j(:)
+      real(dblprec), allocatable :: onsite_field_t(:,:)
+      real(dblprec), allocatable :: reconstruction_requested(:,:,:)
+      integer(int64), allocatable :: reconstruction_seeds(:,:)
+      real(dblprec), allocatable :: candidate_onsite_energy_j(:)
+      real(dblprec), allocatable :: candidate_onsite_field_t(:,:)
+      real(dblprec), allocatable :: candidate_atom_field(:,:)
+      real(dblprec), allocatable :: candidate_coarse_field(:,:,:)
       ! Persistent host staging for the normal Fortran/C GPU setup seam.
       integer(c_int) :: gpu_selector_criteria = 1_c_int
       integer(c_int) :: gpu_bonds = 0_c_int
@@ -127,18 +158,79 @@ module AdaptiveCGProduction
 
    type(adaptive_cg_production_state_type), save, public :: adaptive_cg_state
 
+   !> RCG-06A negative control: counts every time ensure_step_workspace
+   !> actually performs a fresh allocation (as opposed to reusing existing,
+   !> correctly-sized workspace). A defect-sensitive lifecycle test asserts
+   !> this stays at 1 across repeated adaptive_cg_cpu_step calls within one
+   !> setup, and increments again only after cleanup_adaptive_cg_production
+   !> + a fresh setup_adaptive_cg_production (resize).
+   integer, save :: step_workspace_allocation_count = 0
+
    public :: preflight_adaptive_cg_production
    public :: setup_adaptive_cg_production
    public :: cleanup_adaptive_cg_production
    public :: adaptive_cg_is_enabled
    public :: adaptive_cg_cpu_step
    public :: print_adaptive_cg_summary
+   public :: adaptive_cg_step_workspace_allocation_count
 
 contains
 
    logical function adaptive_cg_is_enabled()
       adaptive_cg_is_enabled = adaptive_cg_state%ready
    end function adaptive_cg_is_enabled
+
+   integer function adaptive_cg_step_workspace_allocation_count()
+      adaptive_cg_step_workspace_allocation_count = step_workspace_allocation_count
+   end function adaptive_cg_step_workspace_allocation_count
+
+   !> RCG-06A allocation preflight (F-13/F-17): allocate the persistent
+   !> per-step workspace once and detect any later geometry drift that would
+   !> make reuse unsafe. Idempotent: a second call with matching Natom/
+   !> Mensemble/n_spatial_blocks is a no-op. Because
+   !> cleanup_adaptive_cg_production() resets adaptive_cg_state to its
+   !> default structure constructor (deallocating step_workspace_ready back
+   !> to .false. along with every other allocatable component), a fresh
+   !> setup_adaptive_cg_production call after cleanup naturally reallocates
+   !> at the new geometry rather than reusing stale storage.
+   subroutine ensure_step_workspace(status,diagnostic)
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: diagnostic
+      integer :: n_blocks
+
+      status = ADAPTIVE_CG_PRODUCTION_OK
+      diagnostic = ''
+      n_blocks = adaptive_cg_state%topology%n_spatial_blocks
+      if (adaptive_cg_state%step_workspace_ready) then
+         if (size(adaptive_cg_state%atom0,2) /= Natom .or. &
+             size(adaptive_cg_state%atom0,3) /= Mensemble .or. &
+             size(adaptive_cg_state%coarse0,3) /= n_blocks) then
+            call setup_failed('adaptive step workspace geometry changed after allocation', &
+               status,diagnostic)
+         end if
+         return
+      end if
+      allocate(adaptive_cg_state%atom0(3,Natom,Mensemble))
+      allocate(adaptive_cg_state%coarse0(3,1,n_blocks,Mensemble))
+      allocate(adaptive_cg_state%atom_predictor(3,Natom,Mensemble))
+      allocate(adaptive_cg_state%coarse_predictor(3,1,n_blocks,Mensemble))
+      allocate(adaptive_cg_state%atom_field0(3,Natom,Mensemble))
+      allocate(adaptive_cg_state%atom_field1(3,Natom,Mensemble))
+      allocate(adaptive_cg_state%coarse_field0(3,1,n_blocks,Mensemble))
+      allocate(adaptive_cg_state%coarse_field1(3,1,n_blocks,Mensemble))
+      allocate(adaptive_cg_state%coarse_rhs0(3,n_blocks))
+      allocate(adaptive_cg_state%coarse_rhs1(3,n_blocks))
+      allocate(adaptive_cg_state%onsite_energy_j(Natom))
+      allocate(adaptive_cg_state%onsite_field_t(3,Natom))
+      allocate(adaptive_cg_state%reconstruction_requested(3,1,Mensemble))
+      allocate(adaptive_cg_state%reconstruction_seeds(1,Mensemble))
+      allocate(adaptive_cg_state%candidate_onsite_energy_j(Natom))
+      allocate(adaptive_cg_state%candidate_onsite_field_t(3,Natom))
+      allocate(adaptive_cg_state%candidate_atom_field(3,Natom))
+      allocate(adaptive_cg_state%candidate_coarse_field(3,1,n_blocks))
+      adaptive_cg_state%step_workspace_ready = .true.
+      step_workspace_allocation_count = step_workspace_allocation_count + 1
+   end subroutine ensure_step_workspace
 
    subroutine preflight_adaptive_cg_production(status, diagnostic)
       integer, intent(out) :: status
@@ -379,6 +471,12 @@ contains
       end if
 
       if (adaptive_cg_state%gpu_requested) call allocate_gpu_staging()
+
+      call ensure_step_workspace(status,diagnostic)
+      if (status /= ADAPTIVE_CG_PRODUCTION_OK) then
+         call cleanup_adaptive_cg_production()
+         return
+      end if
 
       adaptive_cg_state%ready = .true.
       call print_resolved_configuration()
@@ -880,10 +978,6 @@ contains
       integer, intent(out) :: status
       character(len=*), intent(out) :: diagnostic
 
-      real(dblprec), allocatable :: atom0(:,:,:), coarse0(:,:,:,:), atom_predictor(:,:,:)
-      real(dblprec), allocatable :: coarse_predictor(:,:,:,:), atom_field0(:,:,:), atom_field1(:,:,:)
-      real(dblprec), allocatable :: coarse_field0(:,:,:,:), coarse_field1(:,:,:,:)
-      real(dblprec), allocatable :: coarse_rhs0(:,:), coarse_rhs1(:,:)
       real(dblprec) :: rhs0(3), rhs1(3), candidate(3), norm, time0, time1
       integer :: ensemble, atom, block, local_status
 
@@ -892,15 +986,23 @@ contains
       if (.not. adaptive_cg_state%ready) then
          diagnostic = 'adaptive CPU step called without a ready production runtime'; return
       end if
-      allocate(atom0,source=atom_direction)
-      allocate(coarse0,source=adaptive_cg_state%coarse_direction)
-      allocate(atom_predictor,source=atom_direction)
-      allocate(coarse_predictor,source=adaptive_cg_state%coarse_direction)
-      allocate(atom_field0(3,Natom,Mensemble),atom_field1(3,Natom,Mensemble))
-      allocate(coarse_field0(3,1,adaptive_cg_state%topology%n_spatial_blocks,Mensemble))
-      allocate(coarse_field1(3,1,adaptive_cg_state%topology%n_spatial_blocks,Mensemble))
-      allocate(coarse_rhs0(3,adaptive_cg_state%topology%n_spatial_blocks), &
-         coarse_rhs1(3,adaptive_cg_state%topology%n_spatial_blocks))
+      if (.not. adaptive_cg_state%step_workspace_ready) then
+         diagnostic = 'adaptive CPU step called without allocated step workspace'; return
+      end if
+
+      associate (atom0 => adaptive_cg_state%atom0, coarse0 => adaptive_cg_state%coarse0, &
+            atom_predictor => adaptive_cg_state%atom_predictor, &
+            coarse_predictor => adaptive_cg_state%coarse_predictor, &
+            atom_field0 => adaptive_cg_state%atom_field0, &
+            atom_field1 => adaptive_cg_state%atom_field1, &
+            coarse_field0 => adaptive_cg_state%coarse_field0, &
+            coarse_field1 => adaptive_cg_state%coarse_field1, &
+            coarse_rhs0 => adaptive_cg_state%coarse_rhs0, &
+            coarse_rhs1 => adaptive_cg_state%coarse_rhs1)
+      atom0 = atom_direction
+      coarse0 = adaptive_cg_state%coarse_direction
+      atom_predictor = atom_direction
+      coarse_predictor = adaptive_cg_state%coarse_direction
 
       call evaluate_all_ensembles(atom0,coarse0,atom_field0,coarse_field0,local_status,diagnostic)
       if (local_status /= STATIC_HYBRID_OK) return
@@ -981,6 +1083,7 @@ contains
       adaptive_cg_state%active_block_updates = adaptive_cg_state%active_block_updates + &
          int(size(adaptive_cg_state%runtime%active_coarse_list),int64)
       status = ADAPTIVE_CG_PRODUCTION_OK
+      end associate
    end subroutine adaptive_cg_cpu_step
 
    subroutine evaluate_all_ensembles(atom_direction,coarse_direction,atom_field,coarse_field,status,diagnostic)
@@ -991,19 +1094,20 @@ contains
       type(static_hybrid_energy_type) :: energy
       integer :: ensemble
       real(dblprec) :: time0, time1
-      real(dblprec) :: onsite_energy_j(Natom), onsite_field_t(3,Natom)
 
       call cpu_time(time0)
       adaptive_cg_state%last_energy = static_hybrid_energy_type()
       do ensemble = 1, Mensemble
-         call evaluate_atomistic_anisotropy(atom_direction(:,:,ensemble),onsite_energy_j, &
-            onsite_field_t,status,diagnostic)
+         call evaluate_atomistic_anisotropy(atom_direction(:,:,ensemble), &
+            adaptive_cg_state%onsite_energy_j,adaptive_cg_state%onsite_field_t, &
+            status,diagnostic)
          if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
          call evaluate_static_hybrid_operator(adaptive_cg_state%runtime%hybrid, &
             atom_direction(:,:,ensemble),coarse_direction(:,:,:,ensemble), &
             adaptive_cg_state%bond_matrix_j,atom_field(:,:,ensemble), &
             coarse_field(:,:,:,ensemble),energy,status,diagnostic, &
-            atomistic_onsite_energy_j=onsite_energy_j,atomistic_onsite_field_t=onsite_field_t)
+            atomistic_onsite_energy_j=adaptive_cg_state%onsite_energy_j, &
+            atomistic_onsite_field_t=adaptive_cg_state%onsite_field_t)
          if (status /= STATIC_HYBRID_OK) return
          adaptive_cg_state%field_evaluations = adaptive_cg_state%field_evaluations+1_int64
          adaptive_cg_state%last_energy%atomistic_bilinear_j = &
@@ -1101,26 +1205,30 @@ contains
       status = ADAPTIVE_CG_PRODUCTION_OK
    end subroutine update_adaptive_mask
 
+   !> RCG-06A: `operator` is intent(inout) to match adaptive_energy_evaluator
+   !> (AdaptiveHybridSolver) -- evaluate_static_hybrid_operator itself needs
+   !> to write operator's own persistent scratch fields (F-13).
    subroutine production_energy_evaluator(operator,atom_direction,coarse_direction,energy_j,status,diagnostic)
-      type(static_hybrid_operator_type), intent(in) :: operator
+      type(static_hybrid_operator_type), intent(inout) :: operator
       real(dblprec), intent(in) :: atom_direction(:,:,:), coarse_direction(:,:,:,:)
       real(dblprec), intent(out) :: energy_j
       integer, intent(out) :: status
       character(len=*), intent(out) :: diagnostic
-      real(dblprec) :: atom_field(3,Natom), coarse_field(3,1,operator%n_blocks)
-      real(dblprec) :: onsite_energy_j(Natom), onsite_field_t(3,Natom)
       type(static_hybrid_energy_type) :: energy
       integer :: ensemble
 
       energy_j = 0.0_dblprec
       do ensemble = 1, size(atom_direction,3)
-         call evaluate_atomistic_anisotropy(atom_direction(:,:,ensemble),onsite_energy_j, &
-            onsite_field_t,status,diagnostic)
+         call evaluate_atomistic_anisotropy(atom_direction(:,:,ensemble), &
+            adaptive_cg_state%candidate_onsite_energy_j, &
+            adaptive_cg_state%candidate_onsite_field_t,status,diagnostic)
          if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
          call evaluate_static_hybrid_operator(operator,atom_direction(:,:,ensemble), &
             coarse_direction(:,:,:,ensemble),adaptive_cg_state%bond_matrix_j, &
-            atom_field,coarse_field,energy,status,diagnostic, &
-            atomistic_onsite_energy_j=onsite_energy_j,atomistic_onsite_field_t=onsite_field_t)
+            adaptive_cg_state%candidate_atom_field,adaptive_cg_state%candidate_coarse_field, &
+            energy,status,diagnostic, &
+            atomistic_onsite_energy_j=adaptive_cg_state%candidate_onsite_energy_j, &
+            atomistic_onsite_field_t=adaptive_cg_state%candidate_onsite_field_t)
          if (status /= STATIC_HYBRID_OK) return
          energy_j = energy_j+energy%total_j
       end do
@@ -1164,11 +1272,10 @@ contains
       real(dblprec), intent(inout) :: atom_direction(:,:,:)
       integer, intent(out) :: status
       character(len=*), intent(out) :: diagnostic
-      real(dblprec), allocatable :: requested(:,:,:)
-      integer(int64), allocatable :: seeds(:,:)
       integer :: block, local_status, ensemble
 
-      allocate(requested(3,1,Mensemble),seeds(1,Mensemble))
+      associate (requested => adaptive_cg_state%reconstruction_requested, &
+            seeds => adaptive_cg_state%reconstruction_seeds)
       do block = 1, adaptive_cg_state%topology%n_spatial_blocks
          if (.not. adaptive_cg_state%runtime%hybrid%coarse_block(block)) cycle
          do ensemble = 1, Mensemble
@@ -1193,6 +1300,7 @@ contains
       end do
       status = ADAPTIVE_CG_PRODUCTION_OK
       diagnostic = ''
+      end associate
    end subroutine reconstruct_coarse_atoms
 
    subroutine build_unique_bonds(status,diagnostic)
@@ -1538,6 +1646,65 @@ contains
          adaptive_cg_state%runtime%active_coarse_list),int64)*storage_size(1)/8
       if (allocated(adaptive_cg_state%runtime%interface_atom_list)) bytes=bytes+int(size( &
          adaptive_cg_state%runtime%interface_atom_list),int64)*storage_size(1)/8
+      ! RCG-06A: persistent per-step Heun/reconstruction/onsite workspace
+      ! (adaptivecgproduction.f90) and per-candidate-transition workspace
+      ! (AdaptiveHybridSolver's adaptive_hybrid_runtime_type) -- see their
+      ! declaration comments. Every field allocated by ensure_step_workspace
+      ! or AdaptiveHybridSolver's ensure_transition_workspace is accounted
+      ! for here so this diagnostic reflects the complete persistent
+      ! CPU adaptive-workspace footprint, not only the pre-RCG-06 fields.
+      if (allocated(adaptive_cg_state%atom0)) bytes=bytes+int(size( &
+         adaptive_cg_state%atom0),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%coarse0)) bytes=bytes+int(size( &
+         adaptive_cg_state%coarse0),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%atom_predictor)) bytes=bytes+int(size( &
+         adaptive_cg_state%atom_predictor),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%coarse_predictor)) bytes=bytes+int(size( &
+         adaptive_cg_state%coarse_predictor),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%atom_field0)) bytes=bytes+int(size( &
+         adaptive_cg_state%atom_field0),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%atom_field1)) bytes=bytes+int(size( &
+         adaptive_cg_state%atom_field1),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%coarse_field0)) bytes=bytes+int(size( &
+         adaptive_cg_state%coarse_field0),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%coarse_field1)) bytes=bytes+int(size( &
+         adaptive_cg_state%coarse_field1),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%coarse_rhs0)) bytes=bytes+int(size( &
+         adaptive_cg_state%coarse_rhs0),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%coarse_rhs1)) bytes=bytes+int(size( &
+         adaptive_cg_state%coarse_rhs1),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%onsite_energy_j)) bytes=bytes+int(size( &
+         adaptive_cg_state%onsite_energy_j),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%onsite_field_t)) bytes=bytes+int(size( &
+         adaptive_cg_state%onsite_field_t),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%reconstruction_requested)) bytes=bytes+int(size( &
+         adaptive_cg_state%reconstruction_requested),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%reconstruction_seeds)) bytes=bytes+int(size( &
+         adaptive_cg_state%reconstruction_seeds),int64)*storage_size(1_int64)/8
+      if (allocated(adaptive_cg_state%candidate_onsite_energy_j)) bytes=bytes+int(size( &
+         adaptive_cg_state%candidate_onsite_energy_j),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%candidate_onsite_field_t)) bytes=bytes+int(size( &
+         adaptive_cg_state%candidate_onsite_field_t),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%candidate_atom_field)) bytes=bytes+int(size( &
+         adaptive_cg_state%candidate_atom_field),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%candidate_coarse_field)) bytes=bytes+int(size( &
+         adaptive_cg_state%candidate_coarse_field),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%runtime%candidate_atom)) bytes=bytes+int(size( &
+         adaptive_cg_state%runtime%candidate_atom),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%runtime%candidate_coarse)) bytes=bytes+int(size( &
+         adaptive_cg_state%runtime%candidate_coarse),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%runtime%candidate_resultants)) bytes=bytes+int(size( &
+         adaptive_cg_state%runtime%candidate_resultants),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%runtime%candidate_sums)) bytes=bytes+int(size( &
+         adaptive_cg_state%runtime%candidate_sums),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%runtime%candidate_directions)) bytes=bytes+int(size( &
+         adaptive_cg_state%runtime%candidate_directions),int64)*storage_size(1.0_dblprec)/8
+      if (allocated(adaptive_cg_state%runtime%candidate_defined)) bytes=bytes+int(size( &
+         adaptive_cg_state%runtime%candidate_defined),int64)*storage_size(.true.)/8
+      if (allocated(adaptive_cg_state%runtime%candidate_has_decision)) bytes=bytes+int(size( &
+         adaptive_cg_state%runtime%candidate_has_decision),int64)*storage_size(.true.)/8
+      if (allocated(adaptive_cg_state%runtime%candidate_seeds)) bytes=bytes+int(size( &
+         adaptive_cg_state%runtime%candidate_seeds),int64)*storage_size(1_int64)/8
       adaptive_owned_cpu_bytes = bytes
    end function adaptive_owned_cpu_bytes
 
