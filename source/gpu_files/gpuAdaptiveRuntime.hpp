@@ -417,7 +417,12 @@ private:
    GpuTensor<real, 1> ghostDirection_, projectionNorm_, atomFieldScratch_;
    GpuTensor<real, 1> coarseFieldScratch_, predictorAtom_, predictorCoarse_;
    GpuTensor<real, 1> initialAtomField_, initialCoarseField_, predictorCoarseField_;
-   GpuTensor<real, 1> energyTerms_;
+   // RCG-06B (F-11): global energy accumulation is FP64 unconditionally,
+   // independent of `real`'s build precision (SINGLE_PREC/DOUBLE_PREC), per
+   // the parent blueprint's precision contract (section 6.6). Field/output
+   // values remain explicit `real` everywhere else; only this 8-slot
+   // reduction target is widened.
+   GpuTensor<double, 1> energyTerms_;
    GpuTensor<unsigned char, 1> acceptedBlockMask_;
    GpuTensor<unsigned char, 1> polarizationUnsafeBlockMask_;
    GpuTensor<real, 1> polarizationRatioBlock_;

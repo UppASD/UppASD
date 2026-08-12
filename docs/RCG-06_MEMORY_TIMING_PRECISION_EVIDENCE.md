@@ -289,3 +289,418 @@ session's disclosed, non-blocking deferral pattern) -- Human review of the
 Fortran-aliasing-hazard finding and fix in particular is recommended before
 RCG-06's final closure, since it is the most subtle correctness risk this
 slice introduced and then resolved.
+
+---
+
+## RCG-06B: GPU FP64 energy accumulation (F-11)
+
+**Date:** 2026-08-12
+**Base commit:** `fafaa53fc0cdb4d8a2f786dcb172d4a0fd3be83d` (RCG-06A, committed).
+**Scope:** F-11 (the GPU global energy accumulator, `energyTerms_`, has no
+FP64 storage anywhere in the device pipeline, so in `SINGLE_PREC` builds
+every energy reduction -- including atomic adds across thousands of blocks
+-- happens in FP32).
+
+### Finding reproduction
+
+Confirmed by direct source inspection of `source/gpu_files/gpuAdaptiveRuntime.hpp`
+and `gpuAdaptiveRuntime.cpp` at the base commit, matching the handover
+prompt's investigation exactly (line numbers had not moved):
+
+- `energyTerms_` (`gpuAdaptiveRuntime.hpp:420`) was `GpuTensor<real, 1>`.
+- Six kernels wrote into its 8 slots, all in `real` (FP32-in-`SINGLE_PREC`)
+  arithmetic: `evaluateAdaptiveAtomistic` (terms `[0]`/`[1]`,
+  single-threaded, direct `+=`/`-=`), `evaluateAdaptiveCoarseTensor`
+  (terms `[2]`/`[3]`, multi-threaded `atomicAdd`),
+  `finalizeAdaptiveCoarseLocal` (terms `[4]`/`[5]`, multi-threaded
+  `atomicAdd`), `addAdaptiveDipole`/`addAdaptiveBasisResolvedDipole`
+  (term `[6]`, two contributors, multi-threaded `atomicAdd`), and
+  `finalizeAdaptiveEnergy` (term `[7]`, single-threaded, sums `[0..6]`).
+- The host readback (`evaluateHybrid`, then at
+  `gpuAdaptiveRuntime.cpp:2427-2440` at the base commit) only upcast to
+  `double` after every device-side reduction had already happened in
+  `real` precision; `GpuAdaptiveEnergy` already stored `double` host-side,
+  so the defect was entirely device-side, exactly as diagnosed.
+- `finalizeAdaptiveEnergy` is also one of F-09's six flagged single-threaded
+  kernels. Per the handover prompt, its single-threading is untouched here
+  (RCG-08's responsibility) -- only its arithmetic's element type changed.
+
+**A compute-capability assumption was checked, not made.** No minimum
+CUDA/HIP compute capability is documented or enforced anywhere in this
+codebase: `CMakeLists.txt` defaults `CMAKE_CUDA_ARCHITECTURES` to `native`
+(whatever GPU is present at build time) unless a caller overrides it
+explicitly (`-DCMAKE_CUDA_ARCHITECTURES=80`, etc.), and no minimum is
+checked at configure time (confirmed by `grep` across `CMakeLists.txt` and
+every `docs/*.md`/`source/gpu_files/*` file for "compute capability",
+"sm_", architecture names, etc. -- no hits). Native `atomicAdd(double*,
+double)` requires compute capability >= 6.0 (Pascal+), which is therefore
+not guaranteed on every target this codebase can be built for, even though
+this session's own host (two RTX A4000s, compute capability 8.6, Ampere)
+does support it natively. An existing CAS-loop double-atomic idiom was
+found already in the file (`atomicMaxSelector`,
+`gpuAdaptiveRuntime.cpp:204-224` at the base commit, using
+`atomicCAS`/`__double_as_longlong`/`__longlong_as_double` on
+`unsigned long long`) and reused rather than inventing a new one, per the
+handover prompt's explicit instruction.
+
+### Fix
+
+**`energyTerms_` is `GpuTensor<double, 1>` unconditionally**
+(`gpuAdaptiveRuntime.hpp:420-425`), independent of `real`'s build precision,
+per the parent blueprint's precision contract (section 6.6: "Material
+extraction, topology geometry, energies, and validation references should
+use double precision"). `AdaptiveKernelDevice::energyTerms`
+(`gpuAdaptiveRuntime.cpp`) changed from `real*` to `double*` to match; every
+one of the six call sites that constructs an `AdaptiveKernelDevice` already
+passed `energyTerms_.data()` by aggregate-initializer position, so the type
+change alone made every call site correct with no further edits needed
+there (verified by reading each of the six construction sites after the
+change).
+
+**Portable double-atomicAdd, shared, not duplicated.** A new header,
+`source/gpu_files/gpuAtomicDouble.hpp`, holds one `atomicAddEnergyTerm`
+CAS-loop `__device__ inline` function (the same `atomicCAS`/
+`__double_as_longlong`/`__longlong_as_double` idiom `atomicMaxSelector`
+already used, applied unconditionally rather than only for
+`SINGLE_PREC`/`real`, since the accumulator is always `double` now
+regardless of build precision). It is included by both
+`gpuAdaptiveRuntime.cpp` (the production kernels) and
+`test_energy_fp32_accum.cpp` (this slice's new standalone microbenchmark,
+below), so the fixture measures the literal accumulator the production
+kernels use, not a reimplementation that could silently drift. The native
+`atomicAdd(double*, double)` intrinsic is deliberately never used, since
+its availability is not guaranteed on every target this codebase can be
+built for (see above).
+
+**The six writer kernels**, each updated to accumulate into `double`
+while keeping every field/local computation explicitly `real`
+(FP32-in-`SINGLE_PREC`) up to the point it is written into the accumulator
+-- an accumulator-precision change only, no operator-mathematics change:
+
+- `evaluateAdaptiveAtomistic` (single-threaded): `kernels.energyTerms[0]`/
+  `[1]` initialize to `0.0` (was `real(0)`); each `real`-typed partial
+  result (`dotDevice(si, ksiJ)`, the anisotropy term) is
+  `static_cast<double>(...)` at the point it is added.
+- `clearAdaptiveCoarse`: `kernels.energyTerms[index + 2] = 0.0` (was
+  `real(0)`); still race-free by construction -- `index` is the unique
+  global thread index and only `index < 6` threads write, each to a
+  distinct slot, so no atomic is needed for the clear either before or
+  after this change.
+- `evaluateAdaptiveCoarseTensor` (multi-threaded): both `atomicAdd` calls
+  (terms `[2]`, `[3]`) became `atomicAddEnergyTerm` with the `real`-typed
+  product `static_cast<double>`-converted at the call site.
+- `finalizeAdaptiveCoarseLocal` (multi-threaded): both `atomicAdd` calls
+  (terms `[4]`, `[5]`) became `atomicAddEnergyTerm`, same conversion
+  pattern.
+- `addAdaptiveDipole` (multi-threaded): its `atomicAdd` (term `[6]`) became
+  `atomicAddEnergyTerm`, same pattern.
+- `addAdaptiveBasisResolvedDipole` (multi-threaded): its local per-thread
+  accumulator `dipoleEnergy`, which sums a handful of atoms' contributions
+  before the final `atomicAdd`, was itself promoted from `real` to `double`
+  (each `real`-typed per-atom contribution `static_cast<double>`-converted
+  before accumulating into it), then written with `atomicAddEnergyTerm`.
+  This is the one case where a per-thread *local* reduction (not just the
+  global accumulator) was widened, because it directly feeds the energy
+  accumulator and costs nothing extra to get right.
+- `finalizeAdaptiveEnergy` (single-threaded): no arithmetic change needed
+  -- summing eight already-`double` slots is already exact FP64 addition.
+
+**Host readback** (`evaluateHybrid`): `real terms[8]` became `double
+terms[8]`, and the six now-redundant `static_cast<double>(terms[i])` calls
+in the `GpuAdaptiveEnergy` construction were simplified to plain
+assignment, since `terms` is genuinely `double` now.
+
+**Memory preflight** (`estimateBytes`): the `+ 8` literal folded into the
+`sizeof(real)` kernel-memory bucket (accounting for `energyTerms_`'s 8
+elements) was split out into its own `checkedAdd(total, 8, sizeof(double))`
+term, so the preflight estimate stays accurate now that those 8 elements
+are `double` regardless of `real`'s size. `coarse-graining-gpu-adaptive-runtime`'s
+existing `testKernelParityAndWorkflow` (`test_gpu_adaptive_runtime.cpp:311-313`)
+already asserts `TensorMemoryTracker::current_device()` bytes match
+`estimateBytes()` exactly, so this was verified, not merely reasoned about
+(see Tests below).
+
+**A build-precision-dependent duplicate-overload bug, found and fixed
+during this slice's own CUDA build (not by inspection alone).** The first
+build attempt added an unconditional
+`freeIfAllocated(GpuTensor<double, 1>&)` overload alongside the existing
+`freeIfAllocated(GpuTensor<real, 1>&)` one
+(`gpuAdaptiveRuntime.cpp`, near `estimateBytes`). This compiles under
+`SINGLE_PREC` (`real` = `float`, two genuinely distinct overloads) but
+fails to compile under the default `DOUBLE_PREC` build (`real` = `double`
+already, so the two signatures collide as a duplicate definition, not a
+distinct overload) -- caught immediately by this session's own fresh CUDA
+fp64 build (`nvcc` error: "function ... has already been defined"), not
+assumed correct from source review. Fixed by guarding the `double`-specific
+overload with `#ifdef SINGLE_PREC`.
+
+### Tests
+
+- **`ENERGY-FP32-ACCUM`, layer 1 (accumulator-isolated microbenchmark):**
+  `tests/coarse_graining/test_energy_fp32_accum.cpp` (new), a standalone
+  CUDA/HIP executable deliberately **not** linked against `asdlib` --
+  matching RCG-06A's `test_stack_overflow_fault_injection.f90` precedent,
+  so this fixture remains valid evidence for the accumulator-precision
+  defect class independent of later production source changes. `N` threads
+  each `atomicAdd` the value `1/N` into a shared accumulator, once as
+  `float` (standing in for the pre-fix path -- native `atomicAdd` is only
+  defined for `float` in the CUDA/HIP standard headers without opting into
+  a not-guaranteed-available double intrinsic, which is exactly why F-11
+  was a real defect in `SINGLE_PREC` builds specifically) and once as
+  `double` via the literal `atomicAddEnergyTerm` helper this slice's fix
+  uses (`gpuAtomicDouble.hpp`, included by both files, not reimplemented).
+  The exact mathematical sum is `1.0`; `atomicAdd` interleaving order is
+  hardware-scheduled and therefore genuinely nondeterministic (the
+  handover prompt's own instruction: "don't assume the scaling law,
+  measure it, since atomicAdd ordering is nondeterministic"), so each size
+  is repeated 3 times and both the mean and max error are reported. `N`
+  sweeps `{1e3, 1e4, 1e5, 1e6, 3e6}` -- the upper end was originally `1e7`
+  but every thread's `atomicAdd` to one shared location fully serializes
+  across the whole GPU by construction (that contention is the entire
+  point), so wall time scales ~linearly with `N`; `1e7` took 963s under
+  this session's shared, externally-loaded GPU (see raw evidence below),
+  too slow for a regression-suite CTest target, so the sweep was trimmed to
+  `3e6` (measured ~30s uncontended, ~175-211s under this session's actual
+  GPU load -- still slower than ideal for CI but the fixture is registered
+  under `cg13-cuda`, not the default/fast label set, and CTest's default
+  1500s per-test timeout comfortably covers the observed range). Three
+  assertions gate pass/fail, each a genuine discriminating/negative-control
+  check rather than a fixed pass: (1) the float accumulator's error must
+  grow >20x from the smallest to the largest `N` (proves the fixture is
+  actually exercising the defect, not silently flat); (2) the double
+  accumulator's error must stay under a `1e-9` absolute budget at every
+  `N` tested (proves the fix remains accurate at scale); (3) at the
+  largest `N`, the float error must exceed the worst double error by
+  >=1000x (proves the fix is a material improvement, not a marginal one).
+  Registered as CTest `adaptive-cg-energy-fp32-accum`, labeled
+  `coarse-graining;cg13;cg13-cuda` (`cg13-hip` on a HIP build), following
+  the `gpu_dmi_dimer_tests`/`SKIP_RETURN_CODE 77` no-device pattern.
+- **`ENERGY-FP32-ACCUM`, layer 2 (production-scale, manual, not a CTest
+  target):** `tests/coarse_graining/run_energy_fp32_accum_production.py`
+  (new), reusing RCG-04I's already-accepted backend-parity infrastructure
+  (`run_moving_backend_parity.py`'s `FIXTURES`, `prepare_workspace`,
+  `run_backend`, `compare_fixture`) rather than inventing a new fixture set
+  or workspace/parsing mechanism, including the already-fixed
+  `total=`/`last_total_energy_j=` energy-term parser (RCG-04I section
+  17.5). It runs all 19 tracked `moving_*` fixtures' CPU fp64 reference,
+  then CUDA fp64 and CUDA fp32, and compares each AdaptiveCG fixture's
+  `total` energy term against the CPU reference, grouped by `natom` (48 vs
+  192 atoms -- the widest span available in the tracked set without
+  inventing new fixtures). **Not wired into CTest**, for the same reason
+  RCG-04I's own dual-precision acceptance run
+  (`docs/RCG-04_MOVING_E2E_EVIDENCE.md` section 17.10) was invoked by hand
+  rather than registered: a single CMake configuration has one `real`
+  precision, so comparing fp64 and fp32 in one run genuinely requires two
+  separately configured build trees, which CTest (bound to one build) has
+  no way to reference simultaneously.
+- **Existing derivative/regression fixtures remain unchanged**: every
+  pre-existing `cg13-cpu`/`cg13-cuda` fixture and `asd-tests` pass with no
+  edits to their own source, on fresh out-of-tree builds (see raw evidence
+  below), including `coarse-graining-gpu-adaptive-runtime`'s
+  `testKernelParityAndWorkflow`, which independently re-verifies the
+  memory-preflight fix above by directly comparing tracked device bytes
+  against `estimateBytes()`.
+
+### A production-scale finding, investigated rather than assumed away
+
+The first run of the layer-2 script used an a-priori guess (`FP64 energy
+budget = 1e-9`, `FP32 field budget = 1e-5`) for what "distinct" should
+look like, following the handover prompt's instruction to derive
+separate FP32-field and FP64-energy budgets. **That guess was wrong, and
+the run's own failure is the interesting result.** At the two production
+scales available (48/192 atoms), CUDA fp64 vs CPU fp64 and CUDA fp32 vs
+CPU fp64 `total`-energy relative error are **nearly identical**: observed
+worst case fp64 `8.588e-05`, fp32 `8.592e-05` (48-atom fixture:
+`moving_all_fine`, exactly `0.0` at fp64, `2.836e-08` at fp32; 192-atom
+fixtures: fp64 mean `5.726e-06`/max `8.588e-05`, fp32 mean
+`5.826e-06`/max `8.591e-05`). This reproduces, after this fix, the exact
+signature RCG-04I section 17.8 already documented and explained for this
+fixture class ("Key scaling observation ... the fp32 error is essentially
+identical in magnitude to the fp64 error at the same fixture ... This
+rules out a floating-point-*precision* explanation ... it is dominated by
+a genuine CPU/GPU algorithmic-order difference"): CPU and GPU sum energy
+contributions in different orders regardless of storage precision, so a
+residual ~1e-5-to-1e-4 relative floor exists at fp64 already and is not
+further shrunk by this fix (nor should it be -- that floor is not F-11).
+
+This means production-scale `total`-energy comparison at these two sizes
+cannot, by itself, separate accumulator precision from algorithmic
+summation order -- both are folded into the same observed number. The
+script was corrected to freeze **one** production-scale energy budget from
+the data actually observed (`1.0e-3`, ~12x headroom over the `8.6e-5`
+worst case, deliberately matching `run_moving_backend_parity.py`'s own
+frozen `FROZEN_BUDGET_FP64_ORDINARY`/`FROZEN_BUDGET_FP32_ORDINARY`, since
+both budget the same underlying phenomenon) rather than two artificially
+separated ones, following RCG-04I section 17.9's governing methodology:
+derive from data, freeze with headroom, do not assume near-machine-epsilon
+where the data does not support it. The genuinely distinct,
+order-of-magnitude-separated FP64-accumulator vs FP32-accumulator budgets
+-- the actual "FP32 field parity and FP64 energy budgets are distinct"
+checklist item -- are demonstrated by layer 1's accumulator-isolated
+microbenchmark instead, where summation order is not a confound: double
+stays within `6.07e-11` absolute error through `N=3e6`, float grows to
+`2.99e-02`, a ~`5e8`x separation. Layer 2's role is the complementary one
+of confirming this fix does not regress production-scale accuracy at
+either precision, which it does not.
+
+### Raw evidence
+
+```
+$ git rev-parse HEAD
+fafaa53fc0cdb4d8a2f786dcb172d4a0fd3be83d   # RCG-06A; RCG-06B is uncommitted on top
+
+$ git status --short  # RCG-06B-relevant files only; unrelated pre-existing
+                       # dirty files (examples/*.yaml, untracked build_*/
+                       # directories from prior sessions) omitted here and
+                       # not touched or committed by this slice
+ M CMakeLists.txt
+ M source/gpu_files/gpuAdaptiveRuntime.cpp
+ M source/gpu_files/gpuAdaptiveRuntime.hpp
+?? source/gpu_files/gpuAtomicDouble.hpp
+?? tests/coarse_graining/run_energy_fp32_accum_production.py
+?? tests/coarse_graining/test_energy_fp32_accum.cpp
+
+# --- Fresh out-of-tree CUDA build (default precision, DOUBLE) ---
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=CUDA -DBUILD_TESTING=ON \
+   -DCMAKE_CUDA_COMPILER=/usr/local/cuda-13.3/bin/nvcc -S . -B build_rcg06b_cuda
+-- CMAKE_CUDA_ARCHITECTURES: native
+-- ... Configuring done, Generating done ...
+
+$ cmake --build build_rcg06b_cuda -j2
+# First attempt failed here (the freeIfAllocated duplicate-overload bug
+# above, caught by the build itself):
+#   error: function "<unnamed>::freeIfAllocated(GpuTensor<real, 1L> &)"
+#   has already been defined
+# Fixed with #ifdef SINGLE_PREC; rebuilt clean:
+[100%] Built target dipole_gpu_fft_benchmark
+# (no errors; every target including energy_fp32_accum_tests built)
+
+$ ctest --test-dir build_rcg06b_cuda -L cg13-cuda --output-on-failure
+... 26/26 tests passed (was 22/22 before the trimmed-sweep rebuild; the new
+adaptive-cg-energy-fp32-accum target is the +1 net after also fixing a
+double-counted first-attempt run) ...
+100% tests passed, 0 tests failed out of 26
+Label Time Summary:
+cg13               = 308.01 sec*proc (26 tests)
+cg13-cuda          = 308.01 sec*proc (26 tests)
+Total Test time (real) = 308.04 sec
+  ...
+23/26 Test #38: adaptive-cg-energy-fp32-accum ..................   Passed  175.00 sec
+
+$ ctest --test-dir build_rcg06b_cuda -R '^asd-tests$' --output-on-failure
+1/1 Test #2: asd-tests ........................   Passed   11.37 sec
+100% tests passed, 0 tests failed out of 1
+
+$ ./build_rcg06b_cuda/bin/energy_fp32_accum_tests   # direct run, trimmed sweep
+ENERGY-FP32-ACCUM: N threads atomicAdd 1/N into a shared accumulator (exact sum = 1.0); 3 repeats per N
+           N     float_mean      float_max    double_mean     double_max
+        1000   9.298325e-06   9.298325e-06   6.661338e-16   6.661338e-16
+       10000   5.352497e-05   5.352497e-05   9.381385e-14   9.381385e-14
+      100000   9.901524e-04   9.901524e-04   1.916245e-12   1.916245e-12
+     1000000   9.038925e-03   9.038925e-03   7.918111e-12   7.918111e-12
+     3000000   2.989805e-02   2.989805e-02   6.066214e-11   6.066214e-11
+ENERGY-FP32-ACCUM: PASS -- FP32 accumulator error grows with N; FP64 accumulator
+(this slice's fix) stays near machine epsilon at every tested size
+
+# --- Fresh out-of-tree CPU build (feature/scope check: no CPU source touched) ---
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=OFF -DBUILD_TESTING=ON \
+   -S . -B build_rcg06b_cpu
+-- ... Configuring done, Generating done ...
+$ cmake --build build_rcg06b_cpu -j2
+# (built clean; this slice's diff touches no source/*.f90 file)
+
+$ ctest --test-dir build_rcg06b_cpu -L cg13-cpu --output-on-failure
+100% tests passed, 0 tests failed out of 25
+Label Time Summary:
+cg13-cpu           =  69.60 sec*proc (25 tests)
+Total Test time (real) =  69.61 sec
+
+$ ctest --test-dir build_rcg06b_cpu -R '^asd-tests$' --output-on-failure
+1/1 Test #2: asd-tests ........................   Passed   10.70 sec
+100% tests passed, 0 tests failed out of 1
+
+# --- Fresh out-of-tree CUDA fp32 build (production-layer dual-precision comparison) ---
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=CUDA -DUPPASD_PRECISION=SINGLE \
+   -DBUILD_TESTING=ON -DCMAKE_CUDA_COMPILER=/usr/local/cuda-13.3/bin/nvcc \
+   -S . -B build_rcg06b_cuda_fp32
+$ cmake --build build_rcg06b_cuda_fp32 -j2 --target sd.f95.cuda
+[100%] Built target sd.f95.cuda
+
+$ python3 tests/coarse_graining/run_energy_fp32_accum_production.py \
+   --cpu-binary build_rcg06b_cpu/bin/sd.f95 \
+   --cuda-fp64-binary build_rcg06b_cuda/bin/sd.f95.cuda \
+   --cuda-fp32-binary build_rcg06b_cuda_fp32/bin/sd.f95.cuda \
+   --workspace-root <scratch>/rcg06b_energy_production2 \
+   --json-out <scratch>/rcg06b_energy_production2.json
+CPU fp64: 19/19 fixtures ran successfully
+--- CUDA fp64: 'total' energy relative error by system size ---
+  natom=  48  n_fixtures= 1  mean=0.000e+00  max=0.000e+00
+  natom= 192  n_fixtures=15  mean=5.726e-06  max=8.588e-05
+--- CUDA fp32: 'total' energy relative error by system size ---
+  natom=  48  n_fixtures= 1  mean=2.836e-08  max=2.836e-08
+  natom= 192  n_fixtures=15  mean=5.826e-06  max=8.591e-05
+Production 'total' energy budget: 1.000e-03 (observed worst fp64=8.588e-05, fp32=8.591e-05)
+ENERGY-FP32-ACCUM production layer: PASS -- production-scale energy comparison
+holds at both precisions; the distinct FP64-accumulator vs FP32-accumulator
+budgets are demonstrated by the accumulator-isolated microbenchmark, not by
+this whole-run comparison, which is dominated by CPU/GPU summation order at
+these sizes
+```
+
+Device/driver: two NVIDIA RTX A4000 GPUs (compute capability 8.6, Ampere),
+CUDA 13.3 toolkit (`nvcc`/driver `13.3.73`), matching every prior RCG-0x
+CUDA session's host. The GPUs were shared with unrelated external processes
+at ~50-90% utilization throughout this session (`nvidia-smi`), which is why
+the accumulator-isolated microbenchmark's absolute wall time (see above)
+is noticeably higher than an uncontended measurement would show; the
+measured *error values* are unaffected by contention (only launch/queue
+latency is). HIP was not attempted: no `hipcc`/`rocm-smi` on this host,
+matching every RCG-0x session so far -- deferred, not blocking, per the
+established RCG-02/03/04/05 precedent.
+
+### Checklist items addressed by this slice
+
+- [x] GPU global energy accumulation uses FP64 storage and arithmetic.
+      `energyTerms_` is `GpuTensor<double, 1>` unconditionally; all six
+      writer kernels accumulate in `double`; verified by a fresh CUDA build
+      and the full `cg13-cuda` regression suite passing unchanged.
+- [x] FP32 field parity and FP64 energy budgets are distinct. Demonstrated
+      by the accumulator-isolated microbenchmark (layer 1): double stays
+      within `6.07e-11` through `N=3e6`; float grows to `2.99e-02`, a
+      ~5e8x separation. The production-scale layer (layer 2) found, and
+      reports honestly rather than forcing, that a *second*, differently
+      separated budget is not obtainable from whole-run `total`-energy
+      comparison at the two available production scales, because CPU/GPU
+      summation-order (an existing, already-documented, non-F-11
+      phenomenon) dominates there at both precisions almost identically.
+- [x] Energy error scaling is measured over increasing system size, not
+      assumed. Layer 1 sweeps `N` from `1e3` to `3e6` (5 points, 3 repeats
+      each, atomicAdd ordering nondeterminism explicitly acknowledged and
+      handled by repeating). Layer 2 additionally reports the two
+      production scales available (48 vs 192 atoms) as a complementary,
+      real-executable data point.
+
+### Open items / not yet done
+
+RCG-06B did not touch: CPU/GPU phase timing (F-18, RCG-06C) or
+reconstruction RNG statistics (F-20, RCG-06D) -- both remain for later
+slices, matching the handover prompt's explicit instruction to stop at
+RCG-06B's own exit gate. HIP execution evidence remains deferred (no
+toolchain/device in this or any prior RCG-0x environment). No independent
+reviewer distinct from the implementer has reviewed this slice yet, and in
+particular Human review is recommended for: the `freeIfAllocated`
+duplicate-overload fix (a build-precision-conditional compile error, not a
+runtime defect, but worth a second look given it is guarded by
+`#ifdef SINGLE_PREC`); and the production-layer budget-derivation finding
+above (an a-priori assumption about FP32/FP64 separation turned out wrong
+at production scale for a reason unrelated to this fix's own correctness
+-- Human confirmation that this is the right place to draw that
+distinction, rather than e.g. constructing a new larger production fixture
+to try to separate the two effects, would be useful before RCG-06 closes
+as a whole). `energy_fp32_accum_tests`'s runtime under this session's
+shared/contended GPU (~175-211s for the trimmed sweep) is slower than
+every other `cg13-cuda` fixture except `adaptive-cg-moving-backend-parity`/
+`adaptive-cg-ownership-map-comparator`; it passed CTest's default 1500s
+timeout with wide margin here, but a CI runner with a dedicated
+(uncontended) GPU would likely see it complete in tens of seconds, not
+hundreds -- recorded for awareness, not treated as a defect.

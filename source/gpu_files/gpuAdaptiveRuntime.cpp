@@ -1,6 +1,7 @@
 #include "gpuAdaptiveRuntime.hpp"
 
 #include "base.hpp"
+#include "gpuAtomicDouble.hpp"
 #include "measurement/memoryMeasurement.h"
 
 #include <algorithm>
@@ -63,7 +64,9 @@ struct AdaptiveKernelDevice {
    real* projectionNorm;
    real* atomFieldScratch;
    real* coarseFieldScratch;
-   real* energyTerms;
+   // RCG-06B (F-11): FP64 regardless of `real`'s build precision; see the
+   // header comment on GpuAdaptiveRuntime::energyTerms_.
+   double* energyTerms;
    real* transitionBackup;
 };
 
@@ -220,6 +223,10 @@ __device__ inline void atomicMaxSelector(real* address, real value) {
    }
 #endif
 }
+
+// RCG-06B (F-11): FP64 energy-accumulator atomicAdd. See
+// gpuAtomicDouble.hpp (included above) for the CAS-loop implementation and
+// why it does not use the native intrinsic unconditionally.
 
 __global__ void clearSelectorAdaptiveScores(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime) {
@@ -685,8 +692,8 @@ __global__ void evaluateAdaptiveAtomistic(
       kernels.atomFieldScratch[i] = real(0);
       atomField[i] = real(0);
    }
-   kernels.energyTerms[0] = real(0);
-   kernels.energyTerms[1] = real(0);
+   kernels.energyTerms[0] = 0.0;
+   kernels.energyTerms[1] = 0.0;
    for(std::size_t ensemble = 0; ensemble < topology.ensembles; ++ensemble) {
       for(std::size_t bond = 0; bond < kernels.bonds; ++bond) {
          const std::size_t atomI = static_cast<std::size_t>(kernels.bondAtom[2 * bond] - 1);
@@ -702,7 +709,7 @@ __global__ void evaluateAdaptiveAtomistic(
                ktSi[column] += matrix * si[row];
             }
          }
-         kernels.energyTerms[0] -= dotDevice(si, ksiJ);
+         kernels.energyTerms[0] -= static_cast<double>(dotDevice(si, ksiJ));
          for(int xyz = 0; xyz < 3; ++xyz) {
             kernels.atomFieldScratch[atomVectorIndex(
                xyz, atomI, ensemble, topology.atoms)] +=
@@ -726,8 +733,8 @@ __global__ void evaluateAdaptiveAtomistic(
             const real c = dotDevice(direction, axis);
             const real k1 = kernels.atomAnisotropyK1[axisIndex + 2 * atom];
             const real k2 = kernels.atomAnisotropyK2[axisIndex + 2 * atom];
-            kernels.energyTerms[1] +=
-               k1 * c * c + k2 * (real(2) * c * c - c * c * c * c);
+            kernels.energyTerms[1] += static_cast<double>(
+               k1 * c * c + k2 * (real(2) * c * c - c * c * c * c));
             const real derivative = real(2) * c *
                (k1 + real(2) * k2 * (real(1) - c * c));
             for(int xyz = 0; xyz < 3; ++xyz)
@@ -856,7 +863,7 @@ __global__ void clearAdaptiveCoarse(
       runtime.coarseField[index] = real(0);
       coarseField[index] = real(0);
    }
-   if(index < 6) kernels.energyTerms[index + 2] = real(0);
+   if(index < 6) kernels.energyTerms[index + 2] = 0.0;
 }
 
 __global__ void evaluateAdaptiveCoarseTensor(
@@ -879,8 +886,8 @@ __global__ void evaluateAdaptiveCoarseTensor(
                           block, ensemble, q, gradientQ);
          const real volume = topology.blockVolume[block];
          const real stiffness = kernels.exchangeStiffness[p + 3 * q];
-         atomicAdd(&kernels.energyTerms[2],
-                   volume * stiffness * dotDevice(gradientP, gradientQ));
+         atomicAddEnergyTerm(&kernels.energyTerms[2], static_cast<double>(
+                   volume * stiffness * dotDevice(gradientP, gradientQ)));
          for(int xyz = 0; xyz < 3; ++xyz)
             derivative[xyz] = volume * stiffness * gradientQ[xyz];
          atomicAddDerivativeStencil(topology, kernels, runtime.coarseField,
@@ -905,8 +912,8 @@ __global__ void evaluateAdaptiveCoarseTensor(
          crossDevice(basis, direction, crossBasisDirection);
          const real volume = topology.blockVolume[block];
          const real spiral = kernels.spiralization[k + 3 * p];
-         atomicAdd(&kernels.energyTerms[3],
-                   volume * spiral * crossMG[k]);
+         atomicAddEnergyTerm(&kernels.energyTerms[3],
+                   static_cast<double>(volume * spiral * crossMG[k]));
          for(int xyz = 0; xyz < 3; ++xyz) {
             atomicAdd(&runtime.coarseField[coarseVectorIndex(
                          xyz, 0, block, ensemble, topology.dynamicChannels,
@@ -942,9 +949,9 @@ __global__ void finalizeAdaptiveCoarseLocal(
       const real k1 = kernels.anisotropyK1[axisIndex + 2 * block];
       const real k2 = kernels.anisotropyK2[axisIndex + 2 * block];
       const real volume = topology.blockVolume[block];
-      atomicAdd(&kernels.energyTerms[4], volume *
+      atomicAddEnergyTerm(&kernels.energyTerms[4], static_cast<double>(volume *
          (k1 * c * c + real(2) * k2 * c * c -
-          k2 * c * c * c * c));
+          k2 * c * c * c * c)));
       const real derivative = volume * real(2) * c *
          (k1 + real(2) * k2 * (real(1) - c * c));
       for(int xyz = 0; xyz < 3; ++xyz)
@@ -965,9 +972,9 @@ __global__ void finalizeAdaptiveCoarseLocal(
       real external[3];
       for(int xyz = 0; xyz < 3; ++xyz)
          external[xyz] = externalField[3 * scalar + xyz];
-      atomicAdd(&kernels.energyTerms[5],
-                -kernels.magneticMomentSi * moment *
-                 dotDevice(external, direction));
+      atomicAddEnergyTerm(&kernels.energyTerms[5],
+                -static_cast<double>(kernels.magneticMomentSi * moment *
+                 dotDevice(external, direction)));
    }
 }
 
@@ -1005,9 +1012,9 @@ __global__ void addAdaptiveDipole(
          }
       }
    }
-   atomicAdd(&kernels.energyTerms[6],
-             -real(0.5) * kernels.magneticMomentSi *
-              dotDevice(dipole, source));
+   atomicAddEnergyTerm(&kernels.energyTerms[6],
+             -static_cast<double>(real(0.5) * kernels.magneticMomentSi *
+              dotDevice(dipole, source)));
    if(runtime.coarseBlockMask[block]) {
       for(int xyz = 0; xyz < 3; ++xyz)
          runtime.coarseField[3 * scalar + xyz] += dipole[xyz];
@@ -1047,7 +1054,10 @@ __global__ void addAdaptiveBasisResolvedDipole(
       loadCoarseVector(runtime.coarseDirection, topology, 0, block,
                        ensemble, coarseDirection);
    real coarseWeightedField[3] = {};
-   real dipoleEnergy = real(0);
+   // RCG-06B (F-11): this per-thread partial sum feeds the FP64 global
+   // energy accumulator below; keep it double even though the field terms
+   // it is built from stay `real`.
+   double dipoleEnergy = 0.0;
    const int begin = topology.blockAtomOffset[block];
    const int end = topology.blockAtomOffset[block + 1];
    for(int position = begin; position < end; ++position) {
@@ -1071,12 +1081,12 @@ __global__ void addAdaptiveBasisResolvedDipole(
                xyz, atom, ensemble, topology.atoms)] += field[xyz];
       }
       const real moment = kernels.atomMoment[atom];
-      dipoleEnergy -= real(0.5) * kernels.magneticMomentSi * moment *
-                      dotDevice(field, sourceDirection);
+      dipoleEnergy -= static_cast<double>(real(0.5) * kernels.magneticMomentSi *
+                      moment * dotDevice(field, sourceDirection));
       for(int xyz = 0; xyz < 3; ++xyz)
          coarseWeightedField[xyz] += moment * field[xyz];
    }
-   atomicAdd(&kernels.energyTerms[6], dipoleEnergy);
+   atomicAddEnergyTerm(&kernels.energyTerms[6], dipoleEnergy);
    if(runtime.coarseBlockMask[block]) {
       const real inverseMoment = real(1) / runtime.channelMomentSum[scalar];
       for(int xyz = 0; xyz < 3; ++xyz)
@@ -1271,6 +1281,16 @@ void freeIfAllocated(GpuTensor<unsigned char, 1>& tensor) {
 void freeIfAllocated(GpuTensor<real, 1>& tensor) {
    if(!tensor.empty()) tensor.Free();
 }
+#ifdef SINGLE_PREC
+// RCG-06B (F-11): energyTerms_ is GpuTensor<double, 1> unconditionally
+// (independent of `real`'s build precision). In a DOUBLE_PREC build `real`
+// already is `double`, so the overload above already covers it; a second
+// overload would be a duplicate-signature redefinition, not a distinct
+// overload. Only SINGLE_PREC builds need this one.
+void freeIfAllocated(GpuTensor<double, 1>& tensor) {
+   if(!tensor.empty()) tensor.Free();
+}
+#endif
 
 __global__ void initializeAdaptiveWorkScan(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
@@ -1738,7 +1758,11 @@ std::size_t GpuAdaptiveRuntime::estimateBytes(const GpuAdaptiveTopologyInput& t,
                            2 * r.kernels.selectorEdges + t.blocks, sizeof(int)) &&
          checkedAdd(total, 11 * t.atoms + 8 * t.atoms + 9 * r.kernels.bonds + 27 +
                            10 * t.blocks + 13 * atomEnsembles +
-                           4 * vectorState + 8 + t.blocks, sizeof(real)) &&
+                           4 * vectorState + t.blocks, sizeof(real)) &&
+         // RCG-06B (F-11): energyTerms_'s 8 slots are FP64 unconditionally,
+         // independent of `real`'s build precision, so they are no longer
+         // part of the sizeof(real) bucket above.
+         checkedAdd(total, 8, sizeof(double)) &&
          checkedAdd(total, 2 * t.blocks, sizeof(unsigned char));
       if(!kernelOk)
          throw std::overflow_error("GPU adaptive kernel memory estimate overflow");
@@ -2424,19 +2448,22 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.coarseMilliseconds);
 
-   real terms[8] = {};
+   // RCG-06B (F-11): energyTerms_ is FP64 device storage now, so this
+   // readback is a plain double copy -- no per-term precision loss remains
+   // between the device reduction and this struct.
+   double terms[8] = {};
    TensorDataMovementTracker::add_d2h(sizeof(terms));
    ASSERT_GPU(GPU_MEMCPY(terms, energyTerms_.data(), sizeof(terms),
                          GPU_MEMCPY_DEVICE_TO_HOST));
    GpuAdaptiveEnergy result;
-   result.atomisticBilinearJ = static_cast<double>(terms[0]);
-   result.atomisticOnsiteJ = static_cast<double>(terms[1]);
-   result.coarseExchangeJ = static_cast<double>(terms[2]);
-   result.coarseSpiralizationJ = static_cast<double>(terms[3]);
-   result.coarseAnisotropyJ = static_cast<double>(terms[4]);
-   result.coarseExternalJ = static_cast<double>(terms[5]);
-   result.dipoleJ = static_cast<double>(terms[6]);
-   result.totalJ = static_cast<double>(terms[7]);
+   result.atomisticBilinearJ = terms[0];
+   result.atomisticOnsiteJ = terms[1];
+   result.coarseExchangeJ = terms[2];
+   result.coarseSpiralizationJ = terms[3];
+   result.coarseAnisotropyJ = terms[4];
+   result.coarseExternalJ = terms[5];
+   result.dipoleJ = terms[6];
+   result.totalJ = terms[7];
    lastEnergy_ = result;
    return result;
 }

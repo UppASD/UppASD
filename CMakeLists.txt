@@ -1395,6 +1395,36 @@ if(BUILD_TESTING)
             PROPERTIES LABELS "coarse-graining;cg13;cg13-hip;reference")
       endif()
 
+      # RCG-06B ENERGY-FP32-ACCUM (F-11): standalone microbenchmark isolating
+      # the atomicAdd accumulation-order defect class from the full adaptive
+      # CG physics pipeline. Deliberately NOT linked against asdlib, matching
+      # RCG-06A's stack_overflow_fault_injection precedent. Shares the exact
+      # atomicAddEnergyTerm CAS-loop helper (gpuAtomicDouble.hpp) that the
+      # production kernels in gpuAdaptiveRuntime.cpp use.
+      add_executable(energy_fp32_accum_tests
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_energy_fp32_accum.cpp)
+      target_include_directories(energy_fp32_accum_tests PRIVATE
+         ${CMAKE_SOURCE_DIR}/source/gpu_files)
+      if(USE_CUDA)
+         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_energy_fp32_accum.cpp
+            PROPERTIES LANGUAGE CUDA)
+         target_compile_definitions(energy_fp32_accum_tests PRIVATE CUDA_V)
+         target_link_libraries(energy_fp32_accum_tests PRIVATE CUDA::cudart)
+      else()
+         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_energy_fp32_accum.cpp
+            PROPERTIES LANGUAGE HIP)
+         target_compile_definitions(energy_fp32_accum_tests PRIVATE HIP_V)
+      endif()
+      add_test(NAME adaptive-cg-energy-fp32-accum COMMAND energy_fp32_accum_tests)
+      set_tests_properties(adaptive-cg-energy-fp32-accum PROPERTIES SKIP_RETURN_CODE 77)
+      if(USE_CUDA)
+         set_tests_properties(adaptive-cg-energy-fp32-accum
+            PROPERTIES LABELS "coarse-graining;cg13;cg13-cuda")
+      else()
+         set_tests_properties(adaptive-cg-energy-fp32-accum
+            PROPERTIES LABELS "coarse-graining;cg13;cg13-hip")
+      endif()
+
       # CG-09/CG-10 immutable topology transfer, mutable block/channel
       # storage, compact work scheduling, tensor/interface/adaptive parity,
       # measured phase boundaries, and cleanup accounting on the active
