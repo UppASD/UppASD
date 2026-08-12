@@ -120,6 +120,15 @@ MOVING_DMI_CHIRAL_CASES = (
 # `e2e/ownership_aniso_buffer/README.md`.
 OWNERSHIP_ANISO_BUFFER_CASE = "ownership_aniso_buffer"
 
+# RCG-05F OWNERSHIP-DIPOLE-UNEQUAL-WIDTH: a genuinely anisotropic-block-shape
+# (`buffer_width_blocks=(2,1,1)`, `block_size_x/y/z=1/2/4`), `cg_mask_mode
+# STATIC` fixture, used by `run_dipole_ownership_check.py` to cross-check
+# that GPU's `gpu_dipole_mode EWALD3D_FFT` (appended at run time, never
+# baked into this tracked file -- see the fixture's own README.md) does not
+# perturb fine/buffer/coarse ownership relative to this same file's
+# dipole-free CPU run.
+OWNERSHIP_DIPOLE_UNEQUAL_WIDTH_CASE = "ownership_dipole_unequal_width"
+
 
 def all_e2e_cases() -> tuple[str, ...]:
     """Return every e2e directory referenced by either executable harness."""
@@ -136,6 +145,6 @@ def all_e2e_cases() -> tuple[str, ...]:
         *MOVING_STATIC_MIXED_CASES,
         MOVING_WALL_FEATURE_OFF_CASE, MOVING_WALL_ADAPTIVE_CASE,
         *MOVING_DMI_CHIRAL_CASES,
-        OWNERSHIP_ANISO_BUFFER_CASE,
+        OWNERSHIP_ANISO_BUFFER_CASE, OWNERSHIP_DIPOLE_UNEQUAL_WIDTH_CASE,
     }
     return tuple(sorted(names))

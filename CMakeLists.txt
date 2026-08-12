@@ -1253,6 +1253,26 @@ if(BUILD_TESTING)
          PROPERTIES LABELS "coarse-graining;cg13;${RCG05C_BACKEND_LABEL};moving-parity;backend-parity;ownership"
                     ENVIRONMENT "OMP_NUM_THREADS=1")
    endif()
+   # RCG-05F: extends RCG-05C's ownership-map comparator (identical
+   # --cpu-binary/GPU-binary-args pattern, GPU-configured builds only, since
+   # this exercises gpu_dipole_mode EWALD3D_FFT which requires do_gpu=Y) to
+   # confirm the regular-grid FFT dipole does not perturb fine/buffer/coarse
+   # ownership: a genuinely anisotropic RCG-05B-generator fixture
+   # (ownership_dipole_unequal_width) plus the pre-existing RCG-04-era
+   # gpu_fft_static_mixed/parity_static_cpu dipole pair, both compared by
+   # RCG-05C's full per-block identity comparator rather than an aggregate
+   # count.
+   if(USE_CUDA OR USE_HIP)
+      add_test(NAME adaptive-cg-dipole-ownership-check
+         COMMAND python3
+            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_dipole_ownership_check.py
+            --cpu-binary $<TARGET_FILE:${UppASD_EXE}>
+            ${RCG05C_GPU_BINARY_ARGS}
+            --workspace-root ${CMAKE_CURRENT_BINARY_DIR}/rcg05f_dipole_ownership_workspace)
+      set_tests_properties(adaptive-cg-dipole-ownership-check
+         PROPERTIES LABELS "coarse-graining;cg13;${RCG05C_BACKEND_LABEL};backend-parity;ownership"
+                    ENVIRONMENT "OMP_NUM_THREADS=1")
+   endif()
    add_test(NAME adaptive-cg-fixture-dependencies
       COMMAND python3
          ${CMAKE_SOURCE_DIR}/tests/coarse_graining/audit_fixture_dependencies.py)
@@ -1272,6 +1292,23 @@ if(BUILD_TESTING)
       PROPERTIES LABELS "coarse-graining;cg13;${CG13_PRODUCTION_LABEL};rejection")
    set_tests_properties(adaptive-cg-production-e2e
       PROPERTIES LABELS "coarse-graining;cg13;${CG13_PRODUCTION_LABEL};production"
+                 ENVIRONMENT "OMP_NUM_THREADS=1")
+
+   # RCG-05F: reuses RCG-04G's transition-history infrastructure
+   # (trajectory_evidence.parse_transition_events/parse_resolution_state_history)
+   # to confirm ownership invariants (a complete, well-formed fine/buffer/
+   # coarse partition; no accepted transition silently dropped; no rejected
+   # transition silently applied) hold across every recorded mask-rebuild
+   # transition on ownership_aniso_buffer, not only at the final snapshot.
+   # CPU-only: trajectory_evidence.py's own module docstring already
+   # documents GPU stdout has no per-event transition log.
+   add_test(NAME adaptive-cg-transition-ownership-invariants
+      COMMAND python3
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/check_transition_ownership_invariants.py
+         --cpu-binary $<TARGET_FILE:${UppASD_EXE}>
+         --workspace-root ${CMAKE_CURRENT_BINARY_DIR}/rcg05f_transition_invariants_workspace)
+   set_tests_properties(adaptive-cg-transition-ownership-invariants
+      PROPERTIES LABELS "coarse-graining;cg13;${CG13_PRODUCTION_LABEL};ownership"
                  ENVIRONMENT "OMP_NUM_THREADS=1")
 
    # Luna's host-only OPEN_FFT oracle has no UppASD, FFT, CUDA, or HIP

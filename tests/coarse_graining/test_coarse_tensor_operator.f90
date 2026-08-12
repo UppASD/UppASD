@@ -16,6 +16,7 @@ program test_coarse_tensor_operator
    call test_small_q_chiral_minimum()
    call test_domain_wall_refinement()
    call test_llg_and_setup_rejections()
+   call test_dipole_unmasked_and_exactly_once()
 
    if (failures /= 0) then
       write(*,'(a,i0)') 'coarse tensor operator tests failed: ', failures
@@ -460,6 +461,151 @@ contains
       call check(status == COARSE_TENSOR_INVALID_ANISOTROPY .and. index(message,'uniaxial') > 0, &
          'unsupported anisotropy kind rejects cleanly during setup')
    end subroutine test_llg_and_setup_rejections
+
+   !> RCG-05F: the CPU-side counterpart to
+   !> tests/coarse_graining/test_gpu_adaptive_runtime.cpp's GPU-only "FFT
+   !> dipole included exactly once" assertions (lines 367,407,414,421 there).
+   !> Confirms, on a genuinely anisotropic-block-shape, non-orthogonal (skew)
+   !> cell fixture (not the cubic ones the module docstring at
+   !> coarsetensoroperator.f90:345-347 was presumably last checked against),
+   !> that the uniform coarse FFT dipole (coarsetensoroperator.f90:507-513)
+   !> is (1) never gated by interaction_owner/onsite_owner -- the "deliberately
+   !> not masked here" claim -- (2) included for every block, and (3) equals
+   !> the analytic all-grid sum exactly, i.e. neither doubled nor dropped
+   !> anywhere, and does not perturb the masked exchange/DMI/anisotropy/
+   !> external terms it is summed alongside.
+   subroutine test_dipole_unmasked_and_exactly_once()
+      type(block_topology_type) :: topology
+      type(coarse_material_type) :: material
+      type(coarse_tensor_operator_type) :: operator
+      type(coarse_operator_options_type) :: options
+      type(coarse_anisotropy_type) :: anisotropy
+      type(coarse_energy_terms_type) :: energy_all, energy_none, energy_mixed, energy_mixed_nodip
+      type(coarse_field_terms_type) :: terms_all, terms_none, terms_mixed
+      integer :: status, block, n
+      character(len=512) :: message
+      real(dblprec), parameter :: a = 2.0d-10
+      real(dblprec) :: skew(3,3), exchange(3,3), dmi(3,3), expected_dipole_j
+      real(dblprec), allocatable :: direction(:,:), field(:,:), external(:,:), dipole(:,:)
+      real(dblprec), allocatable :: zero_dipole(:,:), field_mixed(:,:)
+      logical, allocatable :: owner_all(:), owner_none(:), owner_mixed(:)
+
+      ! Genuinely non-orthogonal (skew) atom cell, stretched anisotropically
+      ! into blocks (block_shape=(1,2,3), like RCG-05B's unequal-width
+      ! fixtures): a1 is left unskewed, a2/a3 carry off-diagonal components,
+      ! matching the same isolate-one-variable-at-a-time convention
+      ! tests/coarse_graining/e2e/ownership_dipole_skew/README.md documents.
+      skew(:,1) = (/a,0.0_dblprec,0.0_dblprec/)
+      skew(:,2) = (/0.3_dblprec*a,0.85_dblprec*a,0.0_dblprec/)
+      skew(:,3) = (/0.1_dblprec*a,0.15_dblprec*a,1.2_dblprec*a/)
+      exchange = 0.0_dblprec
+      exchange(1,1) = 8.0d-12
+      exchange(2,2) = 6.0d-12
+      exchange(3,3) = 4.0d-12
+      dmi = 0.0_dblprec
+      dmi(3,1) = 0.5d-3
+
+      options%use_uniform_coarse_dipole = .true.
+      call make_topology_and_material((/6,4,6/),(/1,2,3/),skew,exchange,dmi,topology,material)
+      call make_anisotropy(topology%n_spatial_blocks,anisotropy,-2.0d5,0.5d5)
+      call setup_coarse_tensor_operator(operator,topology,material,options,status,message,anisotropy)
+      call check(status == COARSE_TENSOR_OK,'dipole exactly-once fixture sets up: '//trim(message))
+      if (status /= COARSE_TENSOR_OK) return
+
+      n = operator%nblocks
+      allocate(direction(3,n),field(3,n),external(3,n),dipole(3,n),zero_dipole(3,n),field_mixed(3,n))
+      zero_dipole = 0.0_dblprec
+      allocate(owner_all(n),owner_none(n),owner_mixed(n))
+      do block = 1, n
+         direction(:,block) = (/0.5_dblprec+0.02_dblprec*block,sin(0.29_dblprec*block), &
+            0.6_dblprec-0.01_dblprec*block/)
+         direction(:,block) = direction(:,block)/vector_norm(direction(:,block))
+         external(:,block) = (/0.05_dblprec,-0.02_dblprec,0.01_dblprec/)
+         dipole(:,block) = (/0.03_dblprec,0.07_dblprec,-0.04_dblprec/) * &
+            (1.0_dblprec+0.005_dblprec*block)
+      end do
+      owner_all = .true.
+      owner_none = .false.
+      owner_mixed = .true.
+      do block = 1, n, 3
+         owner_mixed(block) = .false.
+      end do
+
+      call evaluate_coarse_tensor_operator(operator,direction,field,energy_all,status,message, &
+         external_field_t=external,uniform_coarse_dipole_field_t=dipole,term_fields=terms_all, &
+         interaction_owner=owner_all,onsite_owner=owner_all)
+      call check(status == COARSE_TENSOR_OK,'all-owned + dipole evaluates: '//trim(message))
+      call evaluate_coarse_tensor_operator(operator,direction,field,energy_none,status,message, &
+         external_field_t=external,uniform_coarse_dipole_field_t=dipole,term_fields=terms_none, &
+         interaction_owner=owner_none,onsite_owner=owner_none)
+      call check(status == COARSE_TENSOR_OK,'none-owned + dipole evaluates: '//trim(message))
+      call evaluate_coarse_tensor_operator(operator,direction,field_mixed,energy_mixed,status,message, &
+         external_field_t=external,uniform_coarse_dipole_field_t=dipole,term_fields=terms_mixed, &
+         interaction_owner=owner_mixed,onsite_owner=owner_mixed)
+      call check(status == COARSE_TENSOR_OK,'mixed-owned + dipole evaluates: '//trim(message))
+
+      ! (1) Never gated by the mask: dipole energy/field identical whether
+      ! every block, no block, or a mixed subset is "owned".
+      call check_close(energy_none%dipole_j,energy_all%dipole_j,1.0d-13, &
+         'dipole energy is independent of interaction_owner/onsite_owner (none vs all)')
+      call check_close(energy_mixed%dipole_j,energy_all%dipole_j,1.0d-13, &
+         'dipole energy is independent of interaction_owner/onsite_owner (mixed vs all)')
+      call check(maxval(abs(terms_none%dipole_t-terms_all%dipole_t)) < &
+         1.0d-13*max(1.0_dblprec,maxval(abs(terms_all%dipole_t))), &
+         'dipole field is independent of interaction_owner/onsite_owner (none vs all)')
+      call check(maxval(abs(terms_mixed%dipole_t-terms_all%dipole_t)) < &
+         1.0d-13*max(1.0_dblprec,maxval(abs(terms_all%dipole_t))), &
+         'dipole field is independent of interaction_owner/onsite_owner (mixed vs all)')
+      call check(maxval(abs(terms_none%dipole_t-dipole)) < &
+         1.0d-13*max(1.0_dblprec,maxval(abs(dipole))), &
+         'dipole field term equals the supplied all-grid field exactly for every block')
+
+      ! (2)+(3) Exactly once, all-grid: equals the analytic sum over EVERY
+      ! block (not just owned ones), not zero, not doubled.
+      expected_dipole_j = 0.0_dblprec
+      do block = 1, n
+         expected_dipole_j = expected_dipole_j - 0.5_dblprec*COARSE_MUB_SI* &
+            operator%block_moment_mub*dot_product(dipole(:,block),direction(:,block))
+      end do
+      call check_close(energy_all%dipole_j,expected_dipole_j,1.0d-12, &
+         'dipole energy equals the analytic all-grid sum exactly once (all-owned)')
+      call check_close(energy_none%dipole_j,expected_dipole_j,1.0d-12, &
+         'dipole energy equals the analytic all-grid sum exactly once (none-owned)')
+
+      ! Does not perturb the masked terms it is summed alongside. Since this
+      ! operator was set up with use_uniform_coarse_dipole=.true., the
+      ! dipole argument cannot be omitted (coarsetensoroperator.f90:414
+      ! rejects a presence mismatch against setup capability) -- so "no
+      ! dipole" is exercised as a genuinely zero-valued dipole field through
+      ! the exact same code path, isolating the VALUE's effect rather than
+      ! a different code path.
+      call evaluate_coarse_tensor_operator(operator,direction,field,energy_mixed_nodip,status,message, &
+         external_field_t=external,uniform_coarse_dipole_field_t=zero_dipole, &
+         interaction_owner=owner_mixed,onsite_owner=owner_mixed)
+      call check(status == COARSE_TENSOR_OK,'mixed-owned with zero dipole evaluates: '//trim(message))
+      call check_close(energy_mixed%exchange_j,energy_mixed_nodip%exchange_j,1.0d-13, &
+         'adding a nonzero dipole does not perturb the masked exchange energy')
+      call check_close(energy_mixed%spiralization_j,energy_mixed_nodip%spiralization_j,1.0d-13, &
+         'adding a nonzero dipole does not perturb the masked DMI energy')
+      call check_close(energy_mixed%anisotropy_j,energy_mixed_nodip%anisotropy_j,1.0d-13, &
+         'adding a nonzero dipole does not perturb the masked anisotropy energy')
+      call check_close(energy_mixed%external_j,energy_mixed_nodip%external_j,1.0d-13, &
+         'adding a nonzero dipole does not perturb the masked external-field energy')
+      call check(energy_mixed_nodip%dipole_j == 0.0_dblprec, &
+         'a zero-valued dipole field contributes exactly zero dipole energy')
+
+      ! Per-term energies/fields (including dipole) still sum exactly to the
+      ! total -- the same additivity contract test_energy_derivatives_and_
+      ! reporting already checks without a mask, now confirmed under one.
+      call check_close(energy_mixed%total_j, &
+         energy_mixed%exchange_j+energy_mixed%spiralization_j+energy_mixed%anisotropy_j+ &
+         energy_mixed%external_j+energy_mixed%dipole_j,1.0d-13, &
+         'per-term energies (including dipole) sum exactly to the masked total')
+      call check(maxval(abs(field_mixed-(terms_mixed%exchange_t+terms_mixed%spiralization_t+ &
+         terms_mixed%anisotropy_t+terms_mixed%external_t+terms_mixed%dipole_t))) < &
+         1.0d-13*max(1.0_dblprec,maxval(abs(field_mixed))), &
+         'per-term fields (including dipole) sum exactly to the masked total field')
+   end subroutine test_dipole_unmasked_and_exactly_once
 
    subroutine make_fixture(repetitions,block_shape,cell,exchange,dmi,topology,material,operator,options)
       integer, intent(in) :: repetitions(3), block_shape(3)

@@ -15,6 +15,7 @@ program test_static_hybrid_operator
 
    failures = 0
    call test_limiting_masks_and_ownership()
+   call test_anisotropic_skew_ownership_non_overlap()
    call test_buffer_patch_and_derivatives()
    call test_texture_translation_and_refinement()
 
@@ -103,6 +104,140 @@ contains
             'each mixed exchange/DMI bond has exactly one energy owner')
       end do
    end subroutine test_limiting_masks_and_ownership
+
+   !> RCG-05F: re-runs test_limiting_masks_and_ownership's own three
+   !> ownership-non-overlap checks (all-fine/all-coarse/mixed) on a
+   !> genuinely anisotropic-block-width (width=3, so buffer_width_blocks
+   !> differs between the chain axis and the other two -- see
+   !> statichybridoperator.f90:180-187) AND non-orthogonal (skew) cell
+   !> fixture, rather than the width=1 cubic one
+   !> test_limiting_masks_and_ownership itself uses. Confirms short-range
+   !> (atomistic_bond_owner) and on-site (coarse_block/onsite_owner)
+   !> ownership -- coarsetensoroperator.f90:478-479,499-500 -- remain
+   !> non-overlapping (never both, never neither) under that geometry, not
+   !> only the cubic ones this invariant was presumably last checked
+   !> against.
+   subroutine test_anisotropic_skew_ownership_non_overlap()
+      type(block_topology_type) :: topology
+      type(coarse_tensor_operator_type) :: tensor
+      type(smooth_projected_operator_type) :: projection
+      type(static_hybrid_operator_type) :: hybrid
+      type(static_hybrid_energy_type) :: energy
+      type(coarse_energy_terms_type) :: coarse_energy
+      ! make_chain_fixture's first argument is an ATOM count (like
+      ! production's ncell), not a block count: nblocks = n/width, exactly
+      ! like ncell/block_size_x in production. test_limiting_masks_and_
+      ! ownership's own n=12,width=1 fixture never exposed this distinction
+      ! (atoms==blocks there); width=3 here makes it load-bearing.
+      integer, parameter :: n = 30, width = 3, nblocks = n/width
+      integer :: atom, block, bond, status
+      character(len=512) :: message
+      logical :: mask(nblocks)
+      integer :: bonds(2,n)
+      real(dblprec) :: displacement(3,n), matrix(3,3,n), coordinate(3,n)
+      real(dblprec) :: fine(3,n), coarse(3,1,nblocks), fine_field(3,n)
+      real(dblprec) :: coarse_field(3,1,nblocks), baseline_field(3,n)
+      real(dblprec) :: direct_field(3,nblocks)
+      real(dblprec) :: external_atom(3,n), external_block(3,nblocks)
+      real(dblprec) :: onsite_energy(n), onsite_field(3,n), baseline_energy
+      real(dblprec), parameter :: a = 2.0d-10
+      real(dblprec) :: skew(3,3)
+
+      ! Same isolate-one-variable-at-a-time skew as
+      ! tests/coarse_graining/e2e/ownership_dipole_skew/README.md and
+      ! test_coarse_tensor_operator.f90's test_dipole_unmasked_and_exactly_
+      ! once: row 1 stays (a,0,0) so this chain's own bond geometry is
+      ! unaffected; rows 2/3 carry the non-orthogonality.
+      skew(:,1) = (/a,0.0_dblprec,0.0_dblprec/)
+      skew(:,2) = (/0.35_dblprec*a,0.9_dblprec*a,0.0_dblprec/)
+      skew(:,3) = (/0.2_dblprec*a,0.1_dblprec*a,1.15_dblprec*a/)
+
+      call make_chain_fixture(n,width,topology,tensor,projection,bonds,displacement, &
+         matrix,coordinate,status,message,cell_override=skew)
+      call check(status == STATIC_HYBRID_OK, &
+         'anisotropic/skew ownership fixture builds: '//trim(message))
+      if (status /= STATIC_HYBRID_OK) return
+      call check(topology%n_spatial_blocks == nblocks, &
+         'anisotropic/skew fixture has the expected atom/block split (n/width)')
+      do atom = 1,n
+         fine(:,atom) = (/cos(0.23_dblprec*atom),sin(0.23_dblprec*atom), &
+            0.2_dblprec*cos(0.13_dblprec*atom)/)
+         fine(:,atom) = fine(:,atom)/norm3(fine(:,atom))
+         external_atom(:,atom) = (/0.02_dblprec,-0.01_dblprec,0.03_dblprec/) * &
+            (1.0_dblprec+0.01_dblprec*atom)
+         onsite_energy(atom) = -mub_si*1.7_dblprec* &
+            dot_product(external_atom(:,atom),fine(:,atom))
+         onsite_field(:,atom) = external_atom(:,atom)
+      end do
+      do block = 1,nblocks
+         coarse(:,1,block) = (/cos(0.19_dblprec*block),sin(0.19_dblprec*block), &
+            0.2_dblprec*cos(0.11_dblprec*block)/)
+         coarse(:,1,block) = coarse(:,1,block)/norm3(coarse(:,1,block))
+         external_block(:,block) = (/0.015_dblprec,-0.008_dblprec,0.02_dblprec/) * &
+            (1.0_dblprec+0.01_dblprec*block)
+      end do
+
+      mask = .true.
+      call setup_static_hybrid_operator(hybrid,topology,tensor,projection,mask,bonds, &
+         displacement,1,status,message)
+      call check(status == STATIC_HYBRID_OK, &
+         'anisotropic/skew all-fine setup: '//trim(message))
+      call check(hybrid%buffer_width_blocks(1) /= hybrid%buffer_width_blocks(2) .or. &
+         hybrid%buffer_width_blocks(1) /= hybrid%buffer_width_blocks(3), &
+         'fixture is genuinely anisotropic: buffer_width_blocks is not the same on every axis')
+      call evaluate_static_hybrid_operator(hybrid,fine,coarse,matrix,fine_field, &
+         coarse_field,energy,status,message,onsite_energy,onsite_field,external_block)
+      call atomistic_baseline(fine,bonds,matrix,external_atom,baseline_energy,baseline_field)
+      call check(status == STATIC_HYBRID_OK, &
+         'anisotropic/skew all-fine dispatch evaluates: '//trim(message))
+      call check_close(energy%total_j,baseline_energy,2.0d-14, &
+         'anisotropic/skew all-fine dispatch equals baseline atomistic energy')
+      call check(maxval(abs(fine_field-baseline_field)) < 2.0d-13* &
+         max(1.0_dblprec,maxval(abs(baseline_field))), &
+         'anisotropic/skew all-fine dispatch equals baseline atomistic field')
+      call check(maxval(abs(coarse_field)) == 0.0_dblprec .and. &
+         count(hybrid%atomistic_bond_owner) == n, &
+         'anisotropic/skew all-fine dispatch has no coarse owner and owns every atomistic bond once')
+
+      mask = .false.
+      call setup_static_hybrid_operator(hybrid,topology,tensor,projection,mask,bonds, &
+         displacement,1,status,message)
+      call evaluate_static_hybrid_operator(hybrid,fine,coarse,matrix,fine_field, &
+         coarse_field,energy,status,message,onsite_energy,onsite_field,external_block)
+      call evaluate_coarse_tensor_operator(tensor,coarse(:,1,:),direct_field, &
+         coarse_energy,status,message,external_field_t=external_block)
+      call check(status == COARSE_TENSOR_OK,'anisotropic/skew direct all-coarse reference evaluates')
+      call check_close(energy%total_j,coarse_energy%total_j,2.0d-14, &
+         'anisotropic/skew all-coarse hybrid dispatch equals accepted tensor energy')
+      call check(maxval(abs(coarse_field(:,1,:)-direct_field)) < 2.0d-13* &
+         max(1.0_dblprec,maxval(abs(direct_field))) .and. &
+         maxval(abs(fine_field)) == 0.0_dblprec, &
+         'anisotropic/skew all-coarse hybrid dispatch equals accepted tensor field')
+      call check(count(hybrid%atomistic_bond_owner) == 0, &
+         'anisotropic/skew all-coarse dispatch owns no atomistic bond')
+
+      mask = .false.
+      mask(3) = .true.
+      call setup_static_hybrid_operator(hybrid,topology,tensor,projection,mask,bonds, &
+         displacement,0,status,message)
+      call check(status == STATIC_HYBRID_OK, &
+         'anisotropic/skew single-seed fixture builds: '//trim(message))
+      do bond = 1,n
+         call check(hybrid%atomistic_bond_owner(bond) .neqv. &
+            ((.not. hybrid%atomistic_atom(bonds(1,bond))) .and. &
+             (.not. hybrid%atomistic_atom(bonds(2,bond)))), &
+            'anisotropic/skew: each mixed exchange/DMI bond has exactly one energy owner')
+      end do
+      do block = 1,nblocks
+         call check(hybrid%atomistic_block(block) .neqv. hybrid%coarse_block(block), &
+            'anisotropic/skew: every block is atomistic xor coarse, never both or neither')
+      end do
+      do atom = 1,n
+         call check(hybrid%atomistic_atom(atom) .eqv. &
+            hybrid%atomistic_block(topology%atom_to_block(atom)), &
+            'anisotropic/skew: per-atom ownership matches its owning block exactly')
+      end do
+   end subroutine test_anisotropic_skew_ownership_non_overlap
 
    subroutine test_buffer_patch_and_derivatives()
       type(block_topology_type) :: topology
@@ -365,7 +500,7 @@ contains
    end subroutine spiral_refinement_error
 
    subroutine make_chain_fixture(ncell,width,topology,tensor,projection,bonds, &
-         displacement,matrix,coordinate,status,message,dmi_bond)
+         displacement,matrix,coordinate,status,message,dmi_bond,cell_override)
       integer, intent(in) :: ncell, width
       type(block_topology_type), intent(out) :: topology
       type(coarse_tensor_operator_type), intent(out) :: tensor
@@ -376,6 +511,15 @@ contains
       integer, intent(out) :: status
       character(len=*), intent(out) :: message
       real(dblprec), intent(in), optional :: dmi_bond
+      ! RCG-05F: an optional non-cubic (and, if row 1 is left as (a,0,0),
+      ! genuinely skew) atom cell override, so callers can exercise
+      ! rebuild_static_hybrid_ownership's inverse_block_m1 metric
+      ! (statichybridoperator.f90:180-187) on a non-orthogonal cell without
+      ! a second fixture builder. Row 1 must stay (a,0,0) for the chain's
+      ! own bond `displacement`/`coordinate` construction below to remain
+      ! physically correct; only rows 2/3 (never used by this 1D chain's
+      ! own geometry) are meaningful to skew.
+      real(dblprec), intent(in), optional :: cell_override(3,3)
       type(coarse_material_type) :: material
       type(coarse_operator_options_type) :: options
       integer :: atom
@@ -388,6 +532,7 @@ contains
       cell(1,1) = a
       cell(2,2) = a
       cell(3,3) = a
+      if (present(cell_override)) cell = cell_override
       call build_block_topology(topology,REGULAR_REPLICATED_CELL,1,(/ncell,1,1/), &
          ncell,(/width,1,1/),cell,(/1/),status,message)
       if (status /= BLOCK_TOPOLOGY_OK) then

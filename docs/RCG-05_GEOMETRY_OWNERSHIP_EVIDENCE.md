@@ -2174,3 +2174,434 @@ intended RCG-05E items are complete, ask:
 > `RCG-05E: audit and sanitize the adaptive dilation kernel`?
 
 Do not commit until the user approves.
+---
+
+## 12. RCG-05F: dipole and short-range/on-site ownership invariants
+
+**Base commit:** `b5369bf86b36f6cb6d96fa366b0118538e8fdfd9` ("RCG-05E: audit and
+sanitize the adaptive dilation kernel"), the accepted RCG-05E commit
+(RCG-05F depends only on RCG-05D and is independent of RCG-05E, but this
+session began from the current branch tip, which includes both).
+`git status --short` at session start showed no modified tracked files,
+only the same pre-existing untracked build directories and unrelated
+`ASD_GUI/`/example-output/`tests/*` clutter every prior RCG-05 slice has
+already documented as unrelated and untouched.
+
+### 12.1 What was implemented
+
+- **`tests/coarse_graining/test_coarse_tensor_operator.f90`** (extended):
+  `test_dipole_unmasked_and_exactly_once` -- the CPU-side counterpart to
+  `test_gpu_adaptive_runtime.cpp`'s GPU-only "FFT dipole included exactly
+  once" assertions (lines 367,407,414,421). Built on a genuinely
+  anisotropic-block-shape (`block_shape=(1,2,3)`), non-orthogonal (skew)
+  atom cell (`a2`/`a3` carry off-diagonal components, `a1` left unskewed so
+  the fixture's own exchange/DMI physics is unaffected -- isolating skew as
+  the only new variable). Confirms, against the real `evaluate_coarse_
+  tensor_operator` (not a re-derivation): the dipole field/energy is
+  bit-for-bit identical whether `interaction_owner`/`onsite_owner` mask
+  every block, no block, or a mixed subset (`coarsetensoroperator.f90:
+  507-513` never gates it); equals the analytic all-grid sum over *every*
+  block, computed independently in the test, not just "owned" ones (exactly
+  once, neither doubled nor dropped); does not perturb the masked exchange/
+  DMI/anisotropy/external terms it is summed alongside; and a zero-valued
+  dipole field (the closest available substitute for "omitted", since the
+  operator's `use_uniform_coarse_dipole=.true.` setup capability requires
+  the argument be present, `coarsetensoroperator.f90:414`) contributes
+  exactly zero.
+- **`tests/coarse_graining/test_static_hybrid_operator.f90`** (extended):
+  `make_chain_fixture` gained an optional `cell_override(3,3)` argument
+  (row 1 must stay `(a,0,0)` for the chain's own bond geometry to remain
+  correct; existing call sites are unaffected since the argument defaults
+  to the prior cubic cell). `test_anisotropic_skew_ownership_non_overlap`
+  re-runs `test_limiting_masks_and_ownership`'s own three ownership checks
+  (all-fine / all-coarse / mixed-with-single-seed) on a `width=3` (so
+  `buffer_width_blocks` differs between the chain axis and the other two)
+  plus skew-cell fixture, rather than the `width=1` cubic one that test
+  uses, confirming short-range (`atomistic_bond_owner`) and on-site
+  (`coarse_block`/`onsite_owner`, `coarsetensoroperator.f90:478-479,
+  499-500`) ownership remain non-overlapping (never both, never neither) --
+  every bond has exactly one energy owner, every block is atomistic xor
+  coarse, and every atom's ownership matches its owning block exactly --
+  under this geometry, not only the cubic one this invariant was previously
+  checked against.
+  - **A real, width-dependent bug found and fixed while building this
+    fixture, before it ever ran production code:** `make_chain_fixture`'s
+    first argument is an *atom* count (`ncell`, like production's own
+    `ncell`/`block_size_x` relationship), and `n_spatial_blocks =
+    ncell/width` -- not `ncell` itself. Every existing call site in this
+    file uses `width=1`, where atoms and blocks are numerically identical,
+    which silently hid this distinction. The first draft of this test used
+    a single array-size parameter for both atom-indexed (`bonds`,
+    `displacement`, `fine`, onsite external field) and block-indexed
+    (`mask`, `coarse`, `coarse_field`, block-level external field) arrays,
+    which crashed with a segmentation fault (`-fcheck=all` traced it to an
+    unallocated-array `count()` after `setup_static_hybrid_operator`
+    correctly rejected the size mismatch) and, separately, indexed
+    `hybrid%coarse_block(atom)` with an *atom* index against a
+    *block*-sized array in the final per-bond ownership check (silently
+    valid only because `width=1` everywhere else in this file). Fixed by
+    introducing a distinct `nblocks = n/width` and separate atom-indexed vs.
+    block-indexed arrays throughout, and by using `hybrid%atomistic_atom`
+    (genuinely atom-indexed) for the per-bond check instead of indexing a
+    block-indexed array by atom id.
+- **`tests/coarse_graining/e2e/ownership_dipole_unequal_width/`** (new,
+  tracked fixture): `block_size_x/y/z=1/2/4` on `ncell 6 8 8`
+  (`block_grid=6 4 2`, 768 atoms), `cg_mask_mode STATIC`, produced by
+  `static_topology_oracle.unequal_width_orthogonal_fixture` (RCG-05B),
+  reused unchanged. `buffer_width_blocks=(2,1,1)`, `fine=1 interface=29
+  coarse=18` -- genuinely anisotropic, distinct from `ownership_aniso_
+  buffer`'s `(1,2,3)` shape and `gpu_fft_static_mixed`'s `(1,2,2)`. The
+  tracked `inpsd.dat` carries no `do_gpu`/`gpu_dipole_mode` setting (so it
+  runs unmodified, dipole-free, as the CPU reference); the GPU comparand is
+  produced at run time by appending `run_moving_backend_parity.
+  GPU_ENABLE_BLOCK` plus a dipole-enabling block (matching `gpu_fft_static_
+  mixed`'s already-validated `gpu_dipole_mode EWALD3D_FFT`/`TINFOIL`/
+  `1.0d-10`/`0 0 0` settings) -- never baked into the tracked file, since a
+  CPU binary given `gpu_dipole_mode` without `do_gpu=Y`/`do_gpu_llg=Y` is
+  correctly rejected by `adaptivecgproduction.f90:766-773`.
+- **`tests/coarse_graining/e2e/ownership_dipole_skew/`**: generated
+  (`skew_cell_fixture`, cell `((1,0,0),(0.25,1,0),(0,0,1))`, same
+  isolate-one-variable convention), attempted through the real executable,
+  and **removed** rather than committed broken -- see SS12.4's "attempted
+  and dropped" note.
+- **`tests/coarse_graining/run_dipole_ownership_check.py`** (new): the
+  CPU-vs-GPU dipole-ownership cross-check driver, at RCG-05C's full
+  per-block identity resolution. Runs `ownership_dipole_unequal_width`
+  (dipole-free CPU vs. dipole-on GPU, both new) and the pre-existing
+  RCG-04-era `parity_static_cpu`/`gpu_fft_static_mixed` pair (upgraded here
+  from `run_production_e2e.py`'s aggregate `final_state(...)==
+  final_state(...)` count comparison, line ~437, to a full `ownership_map_
+  comparator.compare_ownership_maps` identity check), and asserts both
+  match exactly. See SS12.4 for why `cg_mask_mode STATIC` specifically is
+  the correct, unconfounded mode for this comparison.
+- **`tests/coarse_graining/check_transition_ownership_invariants.py`**
+  (new): reuses RCG-04G's `trajectory_evidence.parse_transition_events`/
+  `parse_resolution_state_history` (no new instrumentation) against
+  `ownership_aniso_buffer` to confirm every recorded `resolution_state`
+  sample is a complete, well-formed `nblocks`-length COARSE/BUFFER/FINE
+  partition, and that every accepted transition correlates with a real
+  value change while every rejected transition correlates with no change,
+  between the `resolution_state` samples immediately surrounding it. See
+  SS12.5.
+- **`CMakeLists.txt`**: registered `adaptive-cg-dipole-ownership-check`
+  (GPU-configured builds only, mirroring `adaptive-cg-ownership-map-
+  comparator`'s `--cpu-binary`/GPU-binary-args pattern exactly, reusing the
+  same `RCG05C_GPU_BINARY_ARGS`/`RCG05C_BACKEND_LABEL` variables) and
+  `adaptive-cg-transition-ownership-invariants` (unconditional, CPU-only,
+  `cg13`/`${CG13_PRODUCTION_LABEL}`/`ownership` labels).
+- **`tests/coarse_graining/fixture_dependencies.py`**: added
+  `OWNERSHIP_DIPOLE_UNEQUAL_WIDTH_CASE` to `all_e2e_cases()`.
+
+### 12.2 CPU-side dipole exactly-once: fresh evidence
+
+Both new Fortran subroutines were compiled and run twice: once with
+`-fcheck=all -fbacktrace -g` (to catch any bounds/pointer defect that the
+production `-O3 -Ofast` flags would not), and once through the normal
+production CMake target. Both are clean:
+
+```text
+$ gfortran -fcheck=all -fbacktrace -g ... test_coarse_tensor_operator.f90 -o dbg_coarse_tensor ...
+$ ./dbg_coarse_tensor
+coarse tensor operator tests passed
+
+$ cmake --build build_rcg05f_cpu --target coarse_tensor_operator_tests
+$ ./build_rcg05f_cpu/bin/coarse_tensor_operator_tests
+coarse tensor operator tests passed
+```
+
+Two real bugs were found and fixed by the `-fcheck=all` pass before this
+was clean (both in the *test*, not production code): (1) the "without
+dipole" comparison call could not omit the argument at all once the
+operator was set up with `use_uniform_coarse_dipole=.true.`
+(`coarsetensoroperator.f90:414` correctly rejects the presence mismatch) --
+fixed by comparing against a genuine zero-valued dipole field through the
+same code path instead; (2) the "per-term fields sum to the total" check
+was comparing against a stale `field` array overwritten by a later call --
+fixed by giving the dipole-active evaluation its own output array.
+
+### 12.3 Anisotropic/skew short-range/on-site non-overlap: fresh evidence
+
+```text
+$ gfortran -fcheck=all -fbacktrace -g ... test_static_hybrid_operator.f90 -o dbg_static_hybrid ...
+$ ./dbg_static_hybrid
+static hybrid operator tests passed
+
+$ cmake --build build_rcg05f_cpu --target static_hybrid_operator_tests
+$ ./build_rcg05f_cpu/bin/static_hybrid_operator_tests
+static hybrid operator tests passed
+```
+
+The segmentation fault this pass caught (SS12.1) is reproduced verbatim
+here for the record, since it is direct evidence of *why* an anisotropic
+fixture is necessary and not equivalent to the existing cubic one -- the
+atom/block distinction the existing `width=1` test can never expose:
+
+```text
+Program received signal SIGSEGV: Segmentation fault - invalid memory reference.
+#3  0x... in test_anisotropic_skew_ownership_non_overlap
+    at .../test_static_hybrid_operator.f90:189
+```
+
+(root cause and fix: SS12.1)
+
+### 12.4 CPU-vs-GPU dipole ownership cross-check: fresh evidence (real executable)
+
+`run_dipole_ownership_check.py` run against fresh `build_rcg05f_cpu`/
+`build_rcg05f_cuda` binaries:
+
+```text
+--- RCG-05F dipole ownership cross-check (CUDA-fp64) ---
+  ownership_dipole_unequal_width                          nblocks=  48 MATCH
+      CPU (no dipole) block counts: {'fine': 1, 'interface': 29, 'coarse': 18}
+      CUDA-fp64 (dipole on) block counts: {'fine': 1, 'interface': 29, 'coarse': 18}
+  gpu_fft_static_mixed (RCG-04-era, block_size 1/2/2)     nblocks=   6 MATCH
+      CPU (no dipole) block counts: {'fine': 1, 'interface': 4, 'coarse': 1}
+      CUDA-fp64 (dipole on) block counts: {'fine': 1, 'interface': 4, 'coarse': 1}
+
+RCG-05F dipole ownership cross-check completed
+```
+
+Both pairs match exactly, block for block (`compare_ownership_maps`'s
+`mismatched_block_ids` empty in both cases, not merely equal counts).
+`ownership_dipole_unequal_width`'s GPU run's own raw `EWALD3D_FFT`
+diagnostic confirms the dipole path was genuinely active, not silently
+skipped: `coarse_dipole=-2.4263377450472432e-51` (nonzero, if extremely
+small given this fixture's near-cancelling moments -- the point being it is
+not identically `0.0`, and yet the ownership map is identical to the
+dipole-off CPU run).
+
+**Why `cg_mask_mode STATIC` is the correct, unconfounded mode for this
+specific comparison, not a weaker substitute for ADAPTIVE:** under STATIC,
+GPU never re-dilates the mask at runtime -- it only ever copies CPU's
+setup-time `block_state` once (`ownership_aniso_buffer/README.md`
+documents this same fact, from the opposite direction, to explain why *that*
+fixture had to use ADAPTIVE to expose the buffer-width dilation defect at
+all). A nonzero dipole field genuinely changes the LLG trajectory, which
+could legitimately (not as a bug) change which blocks an ADAPTIVE selector
+later refines/coarsens -- an exact map-equality assertion would be
+meaningless there. STATIC's ownership is fixed before any field is even
+evaluated, so dipole cannot reach it, making an exact match the correct
+prediction to test, not an easier one chosen to avoid a harder question.
+
+**Skew: attempted and dropped, not silently narrowed.** A skew-cell sibling
+(`ownership_dipole_skew`, `skew_cell_fixture`, same construction) was
+generated and run through both fresh binaries. Both failed identically,
+before reaching any adaptive-CG code at all:
+
+```text
+ERROR STOP setup_nm: neighbour could not be mapped
+setup_nm: no basis match for i0, shell, inei =       1       1       5
+  cvec   =    0.00000000000000E+00    2.00000000000000E+00    0.00000000000000E+00
+  nncoord=    0.00000000000000E+00    2.00000000000000E+00    0.00000000000000E+00
+  map_tol =    1.00000000000000E-01
+```
+
+This is `neighbourmap.f90`'s own exchange-shell mapping rejecting the
+single declared bond for this cell/basis combination -- a pre-existing
+Hamiltonian-setup limitation with skewed cells, unrelated to buffer-width
+dilation, dipole ownership, or anything RCG-05D/E touched (the identical
+bond specification maps cleanly on every orthogonal fixture in this
+repository, including `ownership_aniso_buffer`). Investigating and fixing
+`neighbourmap.f90`'s skew-cell tolerance/mapping behavior is out of RCG-05F's
+scope (a Hamiltonian-setup fix, not an ownership-invariant one); the fixture
+was removed rather than committed non-functional. This repository's skew
+coverage for the dipole-exactly-once and short-range/on-site non-overlap
+claims instead comes from SS12.2/12.3's Fortran unit tests, which exercise
+a skew cell directly against the operator and bypass `neighbourmap.f90`
+entirely (hand-built bonds/topology, not the production reader). The
+full-executable CPU-vs-GPU skew cross-check remains an open item (see
+Open items at the end of this section).
+
+### 12.5 Transition ownership invariants across a mask rebuild: fresh evidence
+
+`check_transition_ownership_invariants.py` against `ownership_aniso_buffer`
+(fresh `build_rcg05f_cpu`, real executable, `cg_diagnostics=2`, already a
+tracked fixture -- no new fixture needed for this check):
+
+```text
+RCG-05F: 3 resolution_state samples, each a complete 90-block partition with only valid COARSE/BUFFER/FINE values.
+RCG-05F: 2 accepted transitions each show a real resolution_state change; 57 rejected transitions each show no change. Ownership was neither double-counted nor dropped across any logged transition.
+
+RCG-05F transition ownership invariant check completed
+```
+
+This reuses RCG-04G's `trajectory_evidence.py` transition-history parsers
+unchanged (`parse_transition_events`, `parse_resolution_state_history`) --
+no new instrumentation, per the RCG-05F prompt's explicit instruction. It
+deliberately does *not* attempt to decode `AdaptiveCG: transition ...`'s own
+`old_state`/`new_state` fields against `resolution_state`'s COARSE/BUFFER/
+FINE scale: inspection of the real fixture's raw output showed these are
+different encodings (e.g. an accepted `old_state=3 new_state=1` transition
+for block 31 corresponds to an actual `resolution_state` change from
+BUFFER(1) at `label=initial` to FINE(2) at `label=final` for that block, not
+a COARSE(0)->BUFFER(1) move; `old_state`/`new_state` are the selector's own
+internal proposal-stage codes, not committed `block_state` values). Using
+the two independently-emitted `resolution_state` snapshots directly, rather
+than reverse-engineering that separate encoding, keeps this a genuine
+cross-check between two independently emitted signals (the transition log's
+`accepted` flag and the resolution snapshots), not one parser validated
+against itself. This is CPU-only: `trajectory_evidence.py`'s own module
+docstring already documents that GPU stdout has no per-event transition log
+at all (an existing, previously-documented backend gap, not discovered
+here).
+
+### 12.6 Uniform FFT dipole ownership documentation: confirmed unchanged post-RCG-05D
+
+```text
+$ git diff d190a169^..HEAD -- source/CoarseGraining/coarsetensoroperator.f90
+(empty)
+$ git diff d190a169^..HEAD -- source/CoarseGraining/statichybridoperator.f90
+(empty)
+```
+
+Neither file has been touched by any RCG-05 slice (`d190a169^` is the
+commit immediately before RCG-05A, i.e. accepted RCG-04). The claim "the
+uniformly coarse FFT dipole... is deliberately not masked here"
+(`coarsetensoroperator.f90:345-347`) and "the regular-grid FFT dipole
+remains an independent all-grid owner" (`statichybridoperator.f90:12-20`)
+are therefore byte-identical to before RCG-05D's buffer-width fix, and
+SS12.2/12.4 now provide fresh, direct (not merely re-read) confirmation
+that the code still behaves exactly as those comments claim.
+
+### 12.7 Fresh build/test evidence (this slice)
+
+**Environment:** GNU Fortran 13.3.0, GNU C/C++ 12.4.0, CMake 3.28.3, NVIDIA
+CUDA 13.3.73 (`nvcc`), 2x NVIDIA RTX A4000 (compute capability 8.6,
+`CMAKE_CUDA_ARCHITECTURES=native`), Release build type, fp64 (default
+precision). No HIP toolchain is present on this host (`hipcc`/`hipconfig`
+not found, no `/opt/rocm*`), reconfirmed fresh this session and directly by
+the user ("Hip is not available here"), matching RCG-04-FU1/RCG-05A-E's
+identical, still-open deferral.
+
+**Fresh out-of-tree CPU configure/build:**
+
+```text
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=OFF -S . -B build_rcg05f_cpu
+...
+-- Output binary:  .../build_rcg05f_cpu/bin/sd.f95
+-- Configuring done
+$ cmake --build build_rcg05f_cpu -j4
+... exit 0 (no errors)
+```
+
+**CPU test run (`cg13-cpu` label):**
+
+```text
+$ ctest --test-dir build_rcg05f_cpu -L cg13-cpu --output-on-failure
+...
+16/24 Test #18: coarse-graining-ownership-map-comparator .......   Passed   10.09 sec
+...
+24/24 Test #27: adaptive-cg-transition-ownership-invariants ....   Passed    0.16 sec
+
+100% tests passed, 0 tests failed out of 24
+```
+
+(24 = the 23 tests RCG-05E's own evidence recorded plus this slice's one new
+CPU-only registered test, `adaptive-cg-transition-ownership-invariants`;
+`adaptive-cg-dipole-ownership-check` is GPU-configured-only and correctly
+absent from a plain CPU build.)
+
+**Fresh out-of-tree CUDA configure/build:**
+
+```text
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=CUDA -S . -B build_rcg05f_cuda
+...
+-- The CUDA compiler identification is NVIDIA 13.3.73
+-- CMAKE_CUDA_ARCHITECTURES: native
+-- Output binary:  .../build_rcg05f_cuda/bin/sd.f95.cuda
+-- Configuring done
+$ cmake --build build_rcg05f_cuda -j4
+... exit 0 (no errors)
+```
+
+**CUDA test run (`cg13-cuda` label, full production regression):**
+
+```text
+$ ctest --test-dir build_rcg05f_cuda -L cg13-cuda --output-on-failure
+...
+19/25 Test #28: adaptive-cg-ownership-map-comparator ...........   Passed   38.48 sec
+20/25 Test #29: adaptive-cg-dipole-ownership-check .............   Passed    3.84 sec
+21/25 Test #31: adaptive-cg-transition-ownership-invariants ....   Passed    0.30 sec
+22/25 Test #36: coarse-graining-gpu-dmi-dimer ..................   Passed    0.33 sec
+23/25 Test #37: coarse-graining-gpu-adaptive-runtime ...........   Passed    0.44 sec
+24/25 Test #39: dipole-gpu-fft-convolution .....................   Passed    1.15 sec
+25/25 Test #40: dipole-open-fft-layout .........................   Passed    3.10 sec
+
+100% tests passed, 0 tests failed out of 25
+```
+
+(25 = the 23 tests RCG-05E's own evidence recorded plus this slice's two new
+GPU-configured tests, `adaptive-cg-dipole-ownership-check` and
+`adaptive-cg-transition-ownership-invariants`. `adaptive-cg-dipole-
+ownership-check`'s full verbose output is reproduced in SS12.4;
+`adaptive-cg-transition-ownership-invariants` is CPU-only in *content* but
+registered and exercised here too since it is unconditional -- SS12.5's
+output is identical to the CPU-build run.)
+
+**Worktree check after the runs:**
+
+```text
+$ git status --short --porcelain=v1 | grep -v '^??'
+ M examples/AdaptiveCoarseGraining/adaptive/uppasd.adaptive.yaml         # test byproduct, restored below
+ M examples/AdaptiveCoarseGraining/initial_phase_texture/uppasd.adaptive.yaml
+ M examples/AdaptiveCoarseGraining/static_mixed/uppasd.adaptive.yaml
+ M CMakeLists.txt
+ M tests/coarse_graining/fixture_dependencies.py
+ M tests/coarse_graining/test_coarse_tensor_operator.f90
+ M tests/coarse_graining/test_static_hybrid_operator.f90
+$ git checkout -- examples/AdaptiveCoarseGraining/adaptive/uppasd.adaptive.yaml \
+    examples/AdaptiveCoarseGraining/initial_phase_texture/uppasd.adaptive.yaml \
+    examples/AdaptiveCoarseGraining/static_mixed/uppasd.adaptive.yaml
+$ git status --short --porcelain=v1 | grep -v '^??'
+ M CMakeLists.txt
+ M tests/coarse_graining/fixture_dependencies.py
+ M tests/coarse_graining/test_coarse_tensor_operator.f90
+ M tests/coarse_graining/test_static_hybrid_operator.f90
+```
+
+The three `uppasd.*.yaml` diffs were only `date`/`git_revision` provenance
+stamps, identical in kind to every prior RCG-05 slice's own recorded
+byproduct, confirmed before restoring. New untracked files/directories
+introduced by this slice (not yet staged):
+`tests/coarse_graining/e2e/ownership_dipole_unequal_width/`,
+`tests/coarse_graining/run_dipole_ownership_check.py`,
+`tests/coarse_graining/check_transition_ownership_invariants.py`. Every
+other untracked item in the worktree is the same pre-existing
+build-directory/`ASD_GUI`/example-output/`tests/*` clutter every prior
+RCG-05 slice already documented as unrelated and untouched.
+
+### 12.8 RCG-05F checklist
+
+- [x] A CPU-side "dipole field/energy included exactly once" assertion exists, mirroring the existing GPU-only ones. (SS12.1/12.2: `test_dipole_unmasked_and_exactly_once`)
+- [x] A CPU-vs-GPU cross-check of dipole-exactly-once holds across RCG-05B's anisotropic/skew fixtures. (SS12.4: anisotropic, full e2e match; skew, attempted and blocked by an unrelated pre-existing `neighbourmap.f90` limitation -- covered instead at the Fortran-unit level, SS12.2/12.3; see the Open items below for the remaining gap)
+- [x] Short-range and on-site energies are confirmed non-overlapping on anisotropic/skew fixtures, not only cubic ones. (SS12.1/12.3: `test_anisotropic_skew_ownership_non_overlap`)
+- [x] Uniform FFT dipole ownership is documented independently of the mask (already true in source comments; confirmed still accurate post-RCG-05D). (SS12.6)
+- [x] Static and adaptive mask rebuilds preserve ownership invariants across a transition. (SS12.5: static mode's setup-time-only mask rebuild is covered by SS12.4's exact dipole-on/off match; adaptive mode's per-transition rebuild is covered by SS12.5's transition-vs-snapshot cross-check)
+- [x] Existing RCG-04G transition infrastructure is reused where it suffices, not duplicated. (SS12.1/12.5: `trajectory_evidence.parse_transition_events`/`parse_resolution_state_history` reused unchanged; no new instrumentation)
+- [x] Fresh out-of-tree CPU and CUDA (and HIP, if available) build/test evidence is recorded. (SS12.7; HIP unavailable, confirmed twice)
+- [x] Unrelated worktree changes remain untouched and unstaged. (SS12.7)
+
+### Open items (carried forward, not blocking review, but not closed by this slice)
+
+- The skew-cell e2e dipole cross-check (`ownership_dipole_skew`) is blocked
+  by a `neighbourmap.f90` "no basis match" rejection unrelated to RCG-05's
+  own scope (buffer-width dilation, dipole ownership). This is a new,
+  specific, previously-undocumented capability gap discovered by this
+  slice; fixing `neighbourmap.f90`'s skew-cell exchange-shell mapping is
+  not authorized within RCG-05F and is left for a future slice to
+  characterize and either fix or formally narrow the skew-cell claim
+  around.
+- RCG-05C's own already-documented open items (GPU `hardAtomisticBlockMask`
+  sourced only from the polarization gate; the skew-cell fixture never run
+  through the real executable's ADAPTIVE-mask path) remain open and
+  unaffected by this slice.
+- HIP was not exercised (no toolchain on this host); recorded as a
+  deferral, not a pass, matching RCG-04-FU1/RCG-05A-E.
+
+When finished, reproduce this checklist with its actual state. If all
+intended RCG-05F items are complete, ask:
+
+> Shall I create the focused RCG-05F commit with the one-line message
+> `RCG-05F: verify dipole and short-range/on-site ownership invariants`?
+
+Do not commit until the user approves.

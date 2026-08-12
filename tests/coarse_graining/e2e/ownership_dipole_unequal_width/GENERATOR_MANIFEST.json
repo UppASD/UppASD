@@ -1,0 +1,77 @@
+{
+  "content_sha256": "fa1ce12c23b991fef4c2b16ddc844f8cafc60455f0d50b7c6231611d06be19cb",
+  "extra": {
+    "block_counts": {
+      "coarse": 18,
+      "fine": 1,
+      "interface": 29
+    },
+    "buffer_width_blocks": [
+      2,
+      1,
+      1
+    ]
+  },
+  "generator_name": "unequal_width_orthogonal_fixture",
+  "generator_version": "rcg05b-block-geometry-generator-v1",
+  "geometry": {
+    "basis": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.5,
+        0.5,
+        0.5
+      ]
+    ],
+    "cell_vectors": [
+      [
+        1.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "n1": 6,
+    "n2": 8,
+    "n3": 8,
+    "na": 2,
+    "natom": 768
+  },
+  "parameters": {
+    "alat": 1.0,
+    "block_size": [
+      1,
+      2,
+      4
+    ],
+    "bond": [
+      2.0,
+      0.0,
+      0.0,
+      1.0
+    ],
+    "cg_buffer_blocks": 0,
+    "fine_block_ids": [
+      1
+    ],
+    "ncell": [
+      6,
+      8,
+      8
+    ],
+    "simid": "cg105fdipuw"
+  }
+}
