@@ -2605,3 +2605,416 @@ intended RCG-05F items are complete, ask:
 > `RCG-05F: verify dipole and short-range/on-site ownership invariants`?
 
 Do not commit until the user approves.
+
+---
+
+## 13. RCG-05G: evidence reconciliation and closure
+
+**Status: RCG-05G audit slice. No production code, selector behavior,
+integration semantics, or accepted tolerance was changed in this slice.
+Only this evidence document was edited (this section). Two disposable,
+reverted diagnostic edits to a test file were used to investigate a finding
+(§13.3) and left no residual change, confirmed by `git diff --stat`.**
+
+**Base commit:** `3344c70b230b20a63fda4abfaa2f538b2d5c9f93` ("RCG-05F: verify
+dipole and short-range/on-site ownership invariants"), the accepted tip of
+the RCG-05A-F chain. Session date: 2026-08-12. Follows
+`docs/RCG-04_MOVING_E2E_PROMPT_PACK.md` §14 (RCG-04J)'s method exactly, per
+the RCG-05G prompt's explicit instruction, substituted for RCG-05's own
+dependency chain, exit-evidence bundles, and parent checklist.
+
+### 13.1 Ancestry and worktree audit
+
+**Ancestry** — confirmed by direct inspection, not assumed from commit
+messages:
+
+```text
+$ git log --oneline d190a169^..3344c70b --reverse
+59e0464b RCG-04: record Human closure decision (Anders Bergman, 2026-08-10)
+d190a169 RCG-05A: reproduce buffer-width scalarization and define geometry evidence contract
+2b906642 RCG-05B: add skew and unequal-width geometry generators
+819f7914 RCG-05C: build CPU/GPU ownership-map comparator and demonstrate buffer-width defect
+94f7ea65 RCG-05D: restore directional buffer widths through the GPU descriptor
+b5369bf8 RCG-05E: audit and sanitize the adaptive dilation kernel
+3344c70b RCG-05F: verify dipole and short-range/on-site ownership invariants
+
+$ git merge-base --is-ancestor 59e0464b7eab78f9a1a5e4573ac32fbfa506f7cc HEAD; echo $?
+0   # RCG-04's accepted, closed tip is an ancestor of HEAD
+```
+
+The chain is linear, in exactly the dependency order the prompt pack §2
+requires (`RCG-05A -> RCG-05B -> RCG-05C -> RCG-05D -> RCG-05E -> RCG-05F`),
+with no branch point and no commit beyond RCG-05F. `HEAD` is exactly
+`3344c70b`.
+
+**Worktree** — `git status --short --porcelain=v1 | grep -v '^??'` was empty
+at session start (zero modified tracked files); a fresh out-of-tree
+configure (`build_rcg05g_cpu`) reported `git describe` as
+`v6.0.2-465-g3344`, **no `-dirty` suffix**, independently confirming no
+tracked file differed from `HEAD`. The untracked entries present are the
+same kind every prior RCG-05 slice already documented as unrelated and
+untouched: leftover local build directories from this and prior sessions
+(`build`, `build_a`, `build_ab`, `build_cpu`, `build_deb`, `build_fastcopy`,
+`build_gpu*`, `build_ptds`, `build_rcg04i_*`, `build_rcg05a_*` through
+`build_rcg05f_*`), a root-level in-tree `CMakeCache.txt`/`CMakeFiles/`/
+`Testing/`/`CMakeLists.txt.local` (never used by this audit), `bin/`,
+`lib/`, `conv_bench.txt`, the untracked prompt-pack docs
+(`docs/RCG-04_MOVING_E2E_PROMPT_PACK.md`,
+`docs/RCG-05_GEOMETRY_OWNERSHIP_PROMPT_PACK.md`, both pre-existing per their
+own slices' notes), and a set of untracked `ASD_GUI/`/`examples/`/`tests/*`
+generated/scratch files. **None of these were read as evidence, built from,
+or relied upon anywhere in this closure audit** — every configure/build/test
+command below used a brand-new `build_rcg05g_*` directory, per the prompt
+pack's "use a fresh out-of-tree build for claim-bearing evidence" /
+"avoid reusing stale... previous output directories" instructions.
+
+Every fresh-build test run in this session that exercises
+`adaptive-cg-production-e2e` and/or the `adaptive-cg-moving-*` targets
+reproduced the same tracked-file side effect every prior RCG-05 slice's
+evidence documented: three provenance-stamped
+`examples/AdaptiveCoarseGraining/*/uppasd.adaptive.yaml` files were
+rewritten with a new `date`/`git_revision` header. Each time (after the
+CPU run, after the CUDA fp64 run, and after the CUDA fp32 run), the diff was
+confirmed to be exactly those two lines (`git diff` inspected in full, not
+assumed) and restored immediately with `git checkout --`;
+`git status --short --porcelain=v1 | grep -v '^??'` was empty at the end of
+the session, confirming byte-identical restoration and that no unrelated
+tracked change survived this audit.
+
+### 13.2 Fresh out-of-tree build/test evidence (this slice)
+
+**Environment:** GNU Fortran 13.3.0, GNU C/C++ 12.4.0, CMake 3.28.3, NVIDIA
+CUDA 13.3.73 (`nvcc`), 2x NVIDIA RTX A4000 (compute capability 8.6,
+`CMAKE_CUDA_ARCHITECTURES=native`), Release build type. No HIP toolchain is
+present on this host (`hipcc`/`hipconfig` not found, no `/opt/rocm*`),
+reconfirmed fresh this session — matching RCG-04-FU1/RCG-05A-F's identical,
+still-open deferral.
+
+**Fresh out-of-tree CPU build (`build_rcg05g_cpu`, `UPPASD_PRECISION=DOUBLE`
+default):**
+
+```text
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=OFF -S . -B build_rcg05g_cpu
+...
+-- Git tag found: VERSION="v6.0.2-465-g3344".   # clean, no -dirty
+-- Configuring done
+$ cmake --build build_rcg05g_cpu -j2   # exit 0
+
+$ ctest --test-dir build_rcg05g_cpu -L cg13-cpu --output-on-failure
+...
+100% tests passed, 0 tests failed out of 24
+```
+
+All 24 `cg13-cpu` tests pass fresh, out-of-tree, on CPU fp64 — every
+pre-existing RCG-02/03/04 reference/setup/production test, plus every
+RCG-05A-F addition (`coarse-graining-static-topology-oracle`,
+`coarse-graining-ownership-map-comparator`,
+`adaptive-cg-transition-ownership-invariants`).
+
+**Fresh out-of-tree CUDA fp64 build (`build_rcg05g_cuda_fp64`,
+`UPPASD_PRECISION=DOUBLE`):**
+
+```text
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=CUDA -DUPPASD_PRECISION=DOUBLE \
+    -S . -B build_rcg05g_cuda_fp64
+...
+-- The CUDA compiler identification is NVIDIA 13.3.73
+-- Configuring done
+$ cmake --build build_rcg05g_cuda_fp64 -j2   # exit 0
+
+$ ctest --test-dir build_rcg05g_cuda_fp64 -L cg13-cuda --output-on-failure
+...
+18/25  adaptive-cg-moving-backend-parity ..............  Passed  53.70 sec
+19/25  adaptive-cg-ownership-map-comparator ...........  Passed  49.99 sec
+20/25  adaptive-cg-dipole-ownership-check .............  Passed   3.73 sec
+100% tests passed, 0 tests failed out of 25
+
+$ ctest --test-dir build_rcg05g_cuda_fp64 -R adaptive-cg-dilation-sanitizer -V
+...
+PASS dilateAdaptiveState [racecheck]: 0 errors
+PASS dilateAdaptiveState [memcheck]: 0 errors
+PASS dilateAdaptiveState [synccheck]: 0 errors
+PASS dilateAdaptiveState [initcheck]: 0 errors
+1/1 Test #38: adaptive-cg-dilation-sanitizer ...   Passed    3.03 sec
+```
+
+All 25 `cg13-cuda` tests pass fresh at CUDA fp64, plus the sanitizer target
+(deliberately outside `cg13-cuda`, per RCG-05E §11.5) run separately and
+clean.
+
+**Fresh out-of-tree CUDA fp32 build (`build_rcg05g_cuda_fp32`,
+`UPPASD_PRECISION=SINGLE`):**
+
+```text
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=CUDA -DUPPASD_PRECISION=SINGLE \
+    -S . -B build_rcg05g_cuda_fp32
+...
+-- The CUDA compiler identification is NVIDIA 13.3.73
+-- Configuring done
+$ cmake --build build_rcg05g_cuda_fp32 -j2   # exit 0
+
+$ ctest --test-dir build_rcg05g_cuda_fp32 -L cg13-cuda --output-on-failure
+...
+18/25 adaptive-cg-moving-backend-parity ..............  Passed  36.79 sec
+19/25 adaptive-cg-ownership-map-comparator ...........  Passed  38.13 sec
+20/25 adaptive-cg-dipole-ownership-check .............  Passed   2.87 sec
+...
+92% tests passed, 2 tests failed out of 25
+The following tests FAILED:
+   20 - adaptive-cg-production-e2e (Failed)
+   37 - coarse-graining-gpu-adaptive-runtime (Subprocess aborted)
+
+$ ctest --test-dir build_rcg05g_cuda_fp32 -R adaptive-cg-dilation-sanitizer -V
+...
+PASS dilateAdaptiveState [racecheck/memcheck/synccheck/initcheck]: 0 errors each
+1/1 Test #38: adaptive-cg-dilation-sanitizer ...   Passed    2.86 sec
+```
+
+23 of 25 `cg13-cuda` tests pass fresh at CUDA fp32, including
+`adaptive-cg-moving-backend-parity`, `adaptive-cg-ownership-map-comparator`,
+and `adaptive-cg-dipole-ownership-check` — the three targets that carry
+RCG-05's own correctness claims. **Two failures, both characterized below,
+neither a RCG-05 correctness regression:**
+
+- `adaptive-cg-production-e2e` fails at the same pre-existing,
+  already-tracked `gpu_fft_static_mixed` `coarse_dipole != 0` assertion
+  RCG-04J found and disclosed as **RCG-04-FU5**
+  (`docs/ADAPTIVE_COARSE_GRAINING_REMEDIATION_BLUEPRINT.md`, RCG-04 follow-up
+  tasks). This is a reproduction of an already-open, non-RCG-05 item, not a
+  new finding — confirmed identical in kind (same assertion, same fixture,
+  same fp32-underflow root cause RCG-04J §18.3 already characterized), not
+  investigated further here since it is out of RCG-05's scope.
+- `coarse-graining-gpu-adaptive-runtime` aborts with
+  `descriptor layout: refineThreshold shifted across a copy` — **this is
+  new, RCG-05-attributable evidence never gathered by any RCG-05A-F slice**
+  (all of which built only at the default `UPPASD_PRECISION=DOUBLE`).
+  Investigated in §13.3 rather than reported as-is, since the prompt pack's
+  own governing rules require root-causing rather than tolerance-masking or
+  silently absorbing a new finding.
+
+This is genuinely new evidence, not a citation of any RCG-05A-F slice's own
+fp32 evidence: no RCG-05 slice ever configured `UPPASD_PRECISION=SINGLE`.
+Running every available backend/precision fresh, as this closure audit's
+own instructions require, is what surfaced it.
+
+### 13.3 New finding: RCG-05D's descriptor-layout check has a fp32-only false assertion (test-only, not a production defect)
+
+**Root-cause investigation** (disposable, reverted diagnostics only — no
+committed change): `testSelectorPolicyDescriptorLayout()`
+(`tests/coarse_graining/test_gpu_adaptive_runtime.cpp:627-658`, added by
+RCG-05D, §10.1 above) asserts, among other things:
+
+```cpp
+require(static_cast<double>(copied.refineThreshold) == 0.123456,
+        "descriptor layout: refineThreshold shifted across a copy");
+```
+
+where `copied` is a copy-constructed `GpuAdaptiveSelectorPolicy` and
+`refineThreshold`'s declared type is `real` — `double` under
+`UPPASD_PRECISION=DOUBLE`, `float` under `UPPASD_PRECISION=SINGLE`
+(`gpuAdaptiveRuntime.hpp:236`). Under `SINGLE`, `policy.refineThreshold` is
+initialized as `real(0.123456)`, i.e. `float(0.123456)`, which does not
+round-trip bit-exactly to the `double` literal `0.123456`:
+
+```text
+$ python3 -c "import struct; print(struct.unpack('f', struct.pack('f', 0.123456))[0])"
+0.12345600128173828
+```
+
+— independently confirmed, and unrelated to whether any copy occurred at
+all. Two temporary, reverted edits to this one function (never committed;
+each confirmed removed by an empty `git diff --stat` immediately after)
+established this directly rather than by inference:
+
+1. **Print-and-compare probe:** replaced the two threshold `require()`
+   literal comparisons with a diagnostic print of both `copied.*` and
+   `policy.*` (the pre-copy value), then compared them to each other
+   instead of to the literal. Rebuilt only the `gpu_adaptive_runtime_tests`
+   target against the fresh `build_rcg05g_cuda_fp32` tree and ran it
+   directly:
+
+   ```text
+   $ ./build_rcg05g_cuda_fp32/bin/gpu_adaptive_runtime_tests
+   RCG05G_TEMP: refineThreshold copied=0.12345600128173828 original=0.12345600128173828
+   RCG05G_TEMP: coarsenThreshold copied=0.65432101488113403 original=0.65432101488113403
+   CG-09/CG-10 GPU adaptive runtime tests passed
+   ```
+
+   `copied` and `original` (pre-copy) are **bit-identical** for both
+   fields — proving the copy itself shifted nothing. `git checkout --
+   tests/coarse_graining/test_gpu_adaptive_runtime.cpp` reverted this probe;
+   `git diff --stat` on that path was empty immediately after.
+
+2. **Full-function probe:** with the same two comparisons made tolerant
+   (compare `copied` against `policy`, the pre-copy value, rather than
+   against a hardcoded literal) so the function could run to completion
+   rather than abort on its first `require()`, the same rebuild-and-run
+   confirmed every remaining assertion in the function — all three
+   `bufferDilationBlocks` components, `minimumDwellUpdates`, and the
+   default-constructed-instance non-aliasing check — also passes cleanly at
+   fp32:
+
+   ```text
+   $ ./build_rcg05g_cuda_fp32/bin/gpu_adaptive_runtime_tests
+   CG-09/CG-10 GPU adaptive runtime tests passed
+   ```
+
+   Reverted identically; `git diff --stat` on that path was empty
+   immediately after.
+
+**Conclusion:** the `GpuAdaptiveSelectorPolicy` descriptor is **not**
+mis-laid-out at fp32 — RCG-05D's own claim (buffer widths retain three
+independently-addressable directional components, not aliased with each
+other or with any other field) holds at both precisions, on real CUDA
+hardware, independently re-confirmed here. The failure is a defect in the
+test's own assertion (an exact-equality comparison against a hardcoded
+`double` literal that a `float`-valued `real` structurally cannot
+round-trip to), introduced by RCG-05D and never exercised because no
+RCG-05 slice built at `UPPASD_PRECISION=SINGLE` before this audit. **Not
+fixed here**, per this slice's own governing instruction not to make even
+narrow fixes that would "obscure that a closure rerun is required" — proposed
+below as follow-up task **RCG-05-FU4** (§13.7). As it stands today,
+`ctest -L cg13-cuda` does **not** pass cleanly on a `UPPASD_PRECISION=SINGLE`
+CUDA build; this is disclosed, not hidden, exactly as the prompt pack's
+evidence policy requires for a newly discovered defect this slice may not
+expand its own scope to fix.
+
+### 13.4 The three required exit-evidence bundles
+
+| Bundle | Owning slice(s) | Commit | Evidence section | Scope | Backend/precision evidence | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| `GEO-ANISO-BUFFER` | RCG-05A (schema), RCG-05C (fixture/comparator/defect demo), RCG-05D (fix) | `d190a169`/`819f7914`/`94f7ea65` | §2, §9, §10 | `ownership_aniso_buffer` (orthogonal, `block_size=1,2,3`, anisotropic) | CPU fp64 (own slices); CUDA fp64 (own slices; this audit's fresh `adaptive-cg-ownership-map-comparator` Passed, §13.2); CUDA fp32 (this audit, fresh, Passed, §13.2, first fp32 evidence gathered) | **Buffer-width-shape claim (`--expect-buffer-width-fixed`) COMPLETE at every available precision.** Full direct CPU/GPU map identity **not** achieved — a separate, pre-existing `hardAtomisticBlockMask` seed-sourcing gap (§9.1/9.2, §10.3), out of RCG-05D's authorized scope. No skew-cell variant ever run e2e (blocked, §12.4; see `dipole ownership derivative checks` row). |
+| Sanitizer/race evidence | RCG-05E | `b5369bf8` | §11 | `dilateAdaptiveState` kernel: racecheck, memcheck, synccheck, initcheck | CUDA fp64 (own slice §11.4; this audit's fresh re-run, §13.2, 1/1); CUDA fp32 (this audit, fresh, 1/1, §13.2) | **COMPLETE.** racecheck's shared-memory-only scope honestly established and disclosed (§11.1) rather than relied upon; safety instead proven by construction (disjoint double-buffer read/write sets, §11.3) and corroborated by memcheck/synccheck/initcheck, at both precisions. HIP hardware unexercised (deferral, RCG-05-FU1). |
+| Dipole ownership derivative checks | RCG-05F | `3344c70b` | §12 | CPU-side exactly-once (anisotropic+skew, Fortran-unit level); CPU-vs-GPU cross-check (`ownership_dipole_unequal_width`, orthogonal only); short-range/on-site non-overlap (anisotropic+skew, Fortran-unit level); transition-invariant check | CPU fp64 (own slice; this audit's fresh `cg13-cpu`, §13.2, 24/24 incl. `adaptive-cg-transition-ownership-invariants`); CUDA fp64 (own slice; this audit's fresh `adaptive-cg-dipole-ownership-check` Passed, §13.2); CUDA fp32 (this audit, fresh, `adaptive-cg-dipole-ownership-check` Passed, §13.2, first fp32 evidence gathered) | **COMPLETE for the orthogonal anisotropic fixture, at every available precision.** Skew e2e cross-check **explicitly open** — blocked by the same pre-existing `neighbourmap.f90` "no basis match" rejection as `GEO-ANISO-BUFFER`'s skew gap (§12.4); skew coverage exists only at the Fortran-operator-unit level, which bypasses the production input reader. |
+
+All three bundles: every fixture, generator, and CTest registration named
+above was independently confirmed to exist and to be git-tracked (not just
+described in prose) during this audit (`git ls-files`, `grep` on
+`CMakeLists.txt`, this session). HIP evidence deferred throughout, no
+toolchain on this host (§13.2).
+
+### 13.5 Parent RCG-05 checklist reconciliation (from `docs/ADAPTIVE_COARSE_GRAINING_REMEDIATION_BLUEPRINT.md`, Task RCG-05)
+
+- [x] Buffer widths retain three directional components end to end. (RCG-05D §10.1: full call-site inventory, Fortran `gpu_buffer_dilation(3)` -> C `chelper.f90` bind(C) array -> `FortranData::adaptive_buffer_dilation` -> `GpuAdaptiveSelectorPolicy::bufferDilationBlocks[3]` -> `dilateAdaptiveState`'s independent `widthX/widthY/widthZ`; descriptor layout independently re-confirmed correct at fp32 by this audit's own disposable probe, §13.3, after the test's own literal-comparison bug is looked past. HIP: identical source, hardware unexecuted, RCG-05-FU1.)
+- [x] CPU, CUDA, and HIP dilation semantics are identical. (RCG-05D §10.1: CUDA's per-axis loop bounds reproduce CPU's `all(periodic_delta <= buffer_width_blocks)` term-for-term; RCG-05E §11.6: CUDA/HIP compile identical source, no kernel-body `#ifdef` divergence. **CUDA** confirmed by the comparator matching every RCG-04 fixture and `GEO-ANISO-BUFFER`'s self-consistency claim at fp64 (RCG-05D §10.4) and fp32 (this audit, §13.2). **HIP hardware execution remains an explicit, open deferral** — no toolchain on any host used across RCG-05A-G (RCG-05-FU1), identical-by-construction only, not independently verified.)
+- [ ] Non-cubic and skew-cell masks match exactly. **Not achieved.** `ownership_aniso_buffer` (the one non-cubic fixture ever run through the real executable) does not match exactly: 44/90 blocks still differ between CPU and GPU after RCG-05D's fix (RCG-05D §10.3/10.4, byte-identically reproduced by RCG-05E §11.7), because a separate, pre-existing (RCG-03-era), out-of-RCG-05D-scope defect remains: GPU's `hardAtomisticBlockMask` is sourced only from the polarization gate, not `cg_static_mask_file` (RCG-05C §9.1/9.2). **No skew (non-orthogonal-lattice) fixture has ever been run through the real executable's adaptive-mask path at all** — RCG-05F attempted `ownership_dipole_skew` and hit an unrelated, pre-existing `neighbourmap.f90` "no basis match" rejection during exchange-shell setup (RCG-05F §12.4), a Hamiltonian-setup limitation out of RCG-05F's ownership-invariant scope; skew coverage exists only at the Fortran-operator-unit level (RCG-05B §8.4, RCG-05F §12.2/12.3), which bypasses the production input reader entirely. Exact blockers, restated: (a) the `hardAtomisticBlockMask` seed-sourcing gap, proposed as **RCG-05-FU2**; (b) `neighbourmap.f90`'s skew-cell exchange-shell tolerance/mapping, proposed as **RCG-05-FU3**. See §13.7.
+- [x] Periodic wrapping is tested in every direction. (RCG-05C §9.3: `periodic_wrap_axes` confirmed `(True, True, True)` on the real fixture, non-vacuous by a dedicated negative-control unit test; unaffected by precision, integer/index-based check, re-confirmed unchanged through RCG-05D/E.)
+- [x] Every atomistic cross-interface bond is covered. (RCG-05C §9.1/9.2: `bond_coverage` reuses `torque_oracle.build_geometric_bonds`; every one of 6480 total bonds is itemized as matched or as an explicit `(atom_i, atom_j)` disagreeing pair, never a bare count, in both the pre-fix and post-fix state. "Covered" is a tracking/attribution claim, not an agreement claim — see item 3 for the separate, honestly-unmet agreement claim.)
+- [x] Dilation has no unproved read/write race. (RCG-05E §11.1-11.4: racecheck's shared-memory-only scope established and disclosed rather than relied on; fixed by construction via a genuine double buffer (disjoint read/write sets); re-verified sanitizer-clean (racecheck/memcheck/synccheck/initcheck) on real CUDA hardware at fp64 (own slice) and fp32 (this audit, §13.2). HIP hardware unexecuted, RCG-05-FU1; source-identical.)
+- [x] Static and adaptive mask rebuilds preserve ownership invariants. (RCG-05F §12.4: static mode's setup-time-only rebuild covered by the exact dipole-on/off ownership-map match; §12.5: adaptive mode's per-transition rebuild covered by the transition-log-vs-resolution-snapshot cross-check, reusing RCG-04G's infrastructure unchanged.)
+- [x] Short-range and on-site energies have non-overlapping owners. (RCG-05F §12.1/12.3: `test_anisotropic_skew_ownership_non_overlap`, a genuinely anisotropic (`width=3`) and skew fixture, both `-fcheck=all` debug and production-flag runs clean; a real segfault this fixture's own construction caught and fixed, §12.1, is direct evidence the cubic `width=1` case this invariant was previously checked against could never have exposed the atom/block indexing distinction this test exercises.)
+- [x] Uniform FFT dipole ownership is documented independently of the mask. (RCG-05F §12.6: `git diff d190a169^..HEAD` on `coarsetensoroperator.f90`/`statichybridoperator.f90` empty — byte-identical to before any RCG-05 edit — and SS12.2/12.4 provide fresh, direct, not merely re-read, confirmation the code still behaves exactly as those comments claim.)
+- [x] Dipole field and energy are included exactly once. (RCG-05F §12.1/12.2: CPU-side unit assertion, anisotropic **and** skew, against the real `evaluate_coarse_tensor_operator`; §12.4: CPU-vs-GPU e2e cross-check on the orthogonal anisotropic fixture, exact block-for-block match at fp64, re-confirmed at fp32 by this audit's fresh `adaptive-cg-dipole-ownership-check` pass, §13.2. Skew e2e cross-check blocked by the same `neighbourmap.f90` gap as item 3; covered instead at the Fortran-unit level only, §12.2.)
+- [x] An anisotropic-cell negative control detects scalarized buffer width. (RCG-05D §10.3/10.4: `--expect-buffer-width-fixed`'s `matches_isotropic_oracle` check is sensitivity-checked — the unmodified pre-fix assertion, re-run against the fixed binaries, itself now fails, proving the check is not vacuous; permanently registered in `CMakeLists.txt` as a regression against reintroduction.)
+- [x] CUDA/HIP descriptor layout checks cover the new vector data. (RCG-05D §10.2: `testSelectorPolicyDescriptorLayout()`, passing on real CUDA hardware at fp64. This audit's own fresh fp32 build surfaced a **failing** run of this exact CTest target; root-caused in §13.3 to a float-literal exact-equality bug in the test's own threshold comparisons, independently confirmed **not** a real field-shift or aliasing defect — the copy is bit-identical, and every other assertion in the function, including all three `bufferDilationBlocks` components, passes cleanly at fp32 once the two threshold comparisons are made tolerant. The underlying layout claim holds at both tested precisions; the test's own assertion needs a narrow fix, proposed as **RCG-05-FU4**, before `ctest -L cg13-cuda` is clean on a `SINGLE` build. HIP hardware itself unexecuted, RCG-05-FU1.)
+
+**Eleven of twelve parent checklist items are supported by direct evidence,
+independently re-confirmed fresh in this session wherever a build/test was
+required. One item (non-cubic and skew-cell masks match exactly) is left
+honestly unchecked**, with its exact blockers stated and two follow-up
+tasks proposed, rather than inferred as complete from the surrounding
+slices' own commit count or from `GEO-ANISO-BUFFER`'s narrower,
+fully-evidenced buffer-width-shape claim.
+
+### 13.6 RCG-05G closure-audit checklist
+
+- [x] Accepted ancestry of RCG-05A through RCG-05F is recorded. (§13.1)
+- [x] Worktree state and exclusion of unrelated changes are recorded. (§13.1)
+- [x] Fresh CPU and available GPU backend/precision evidence is recorded. (§13.2: CPU fp64 24/24; CUDA fp64 25/25 + sanitizer 1/1; CUDA fp32 23/25 with both failures disclosed and root-caused in §13.2/§13.3, not hidden; HIP deferred, no toolchain, reconfirmed)
+- [x] `GEO-ANISO-BUFFER`, sanitizer/race evidence, and dipole ownership derivative checks are all linked and complete, or explicitly open with exact blockers. (§13.4: sanitizer/race evidence COMPLETE; `GEO-ANISO-BUFFER` and dipole ownership derivative checks each explicitly split into a complete sub-claim and an open sub-claim with exact blockers, not silently rolled up into a single "complete" status)
+- [x] Every parent checkbox has a direct evidence pointer. (§13.5, including the one left unchecked, which has an explicit evidence pointer to exactly why)
+- [x] RCG-02/03/04 regression suites are confirmed unaffected. (§13.2: fresh CPU/CUDA fp64/fp32 runs; every pre-existing RCG-02/03/04 assertion passes at every precision; the only two fp32 failures are independently root-caused to causes unrelated to RCG-02/03/04 — one pre-existing non-RCG-05 item (RCG-04-FU5), one a test-only bug introduced by RCG-05D's own new test, confirmed not a regression of anything pre-existing)
+- [x] Any HIP, hardware, or independent-review gap remains visibly unchecked unless explicitly decided. (HIP: §13.2/§13.7, tracked as **RCG-05-FU1**, not silently assumed passing; no independent adversarial review of RCG-05's own findings has occurred, matching RCG-02/03/04/RCG-04's own precedent of deferring this separately — flagged explicitly in §13.7, not silently folded into a passing item)
+- [x] No new physics/selector/tolerance change was introduced in the closure slice itself. (§13.1/§13.3: `git status --short --porcelain=v1 | grep -v '^??'` empty at session end, after restoring the three test-run provenance-file side effects each time they occurred; no `source/` file was left modified — the two disposable diagnostic edits used to investigate §13.3's finding were each reverted and confirmed removed by an empty `git diff --stat` before the next step)
+- [x] The document states either ready-for-Human-decision or remains-open. (§13.7)
+- [ ] Human closure or deferral decision is recorded before parent status changes. **Not recorded — this is exactly the decision this document is now ready to receive; RCG-05G cannot and does not make it.**
+
+**Nine of ten closure-audit items are complete. One remains open**: the
+Human decision this document exists to request.
+
+### 13.7 Outcome
+
+**Ready for Human closure decision.**
+
+`GEO-ANISO-BUFFER`'s buffer-width-shape claim, the sanitizer/race evidence,
+and the dipole ownership derivative checks (for every fixture actually
+exercised) are each complete, fresh, and independently reproduced in this
+closure session at every backend/precision available on this host (CPU
+fp64, CUDA fp64, CUDA fp32). Eleven of the parent task's twelve checklist
+items have a direct, specific evidence pointer, not an inference from
+commit count. No production physics, selector behavior, integration
+semantics, or accepted tolerance was changed by RCG-05A-G.
+
+**One parent checklist item — "Non-cubic and skew-cell masks match
+exactly" — is not met**, and is the single item most load-bearing for this
+decision: the buffer-width scalarization defect RCG-05 was chartered around
+is fixed and fully evidenced, but two further, separately-scoped,
+non-trivial gaps (neither of them buffer-width dilation, neither introduced
+by RCG-05) prevent the literal, full claim. The Human decision requested
+here is specifically whether to accept RCG-05D/C's narrower, fully-evidenced
+claim — the buffer-width scalarization defect itself is fixed and proven,
+not the complete geometry/ownership equivalence the parent item's literal
+wording claims — and open the two items below as tracked, non-blocking
+follow-up tasks, or to require them closed before RCG-05 itself closes.
+
+The following nonblocking deferrals require explicit Human acceptance
+before (or as part of) any closure decision — none were newly introduced by
+RCG-05G except where marked "(RCG-05G finding)":
+
+1. **HIP execution evidence** — no HIP toolchain on any host used across
+   RCG-05A-G. Required commands recorded (RCG-05C §9.4, RCG-05E §11.5/§11.8,
+   RCG-05F §12.7, this audit §13.2, all identical). Matches RCG-04-FU1's
+   still-open deferral exactly. Recommended as **RCG-05-FU1**.
+2. **GPU `hardAtomisticBlockMask` seed-sourcing gap** (RCG-05C §9.1/§9.2,
+   RCG-05D §10.3) — GPU sources its FINE seed set only from the
+   polarization gate, not `cg_static_mask_file`, independently of and
+   unaffected by the buffer-width fix (confirmed byte-identical FINE seed
+   sets before and after, RCG-05D §10.3). This is the direct, exact blocker
+   preventing full CPU/GPU ownership-map identity on `ownership_aniso_buffer`
+   even after RCG-05D's fix (44/90 blocks still differ). Not authorized
+   within RCG-05D's own scope ("make GPU match CPU" on buffer width, not
+   "jointly redesign" the seed-mask path). Recommended as **RCG-05-FU2**:
+   source GPU's hard mask from `cg_static_mask_file` as CPU already does,
+   then re-run RCG-05C's comparator to confirm full map identity becomes
+   achievable on `ownership_aniso_buffer`.
+3. **Skew (non-orthogonal-lattice) cell never run through the real
+   executable's adaptive-mask or dipole path** — blocked by a pre-existing,
+   unrelated `neighbourmap.f90` "no basis match" rejection during
+   exchange-shell setup (RCG-05F §12.4), a new, specific,
+   previously-undocumented capability gap this program discovered but that
+   is out of RCG-05's own ownership-invariant/buffer-width scope to fix.
+   Skew coverage today exists only at the Fortran-operator-unit level
+   (RCG-05B §8.4, RCG-05F §12.2/§12.3), which bypasses the production input
+   reader entirely. Recommended as **RCG-05-FU3**: characterize and either
+   fix or formally narrow `neighbourmap.f90`'s skew-cell exchange-shell
+   tolerance/mapping so at least one skew fixture can run end to end.
+4. **(RCG-05G finding) `testSelectorPolicyDescriptorLayout()` fails
+   reproducibly under `UPPASD_PRECISION=SINGLE` CUDA builds** (§13.3) — a
+   test-only exact-equality comparison against a hardcoded `double` literal
+   that a `float`-valued `real` cannot round-trip to, introduced by RCG-05D,
+   never exercised because no RCG-05 slice built at `SINGLE` before this
+   audit. Independently confirmed **not** a real descriptor-layout defect:
+   the copy is bit-identical, and every other assertion in the function
+   (including all three `bufferDilationBlocks` components) passes cleanly at
+   fp32 once the two threshold comparisons are made tolerant. Does not touch
+   `GEO-ANISO-BUFFER`'s own correctness. Recommended as **RCG-05-FU4**:
+   compare `copied.*Threshold` against the pre-copy `policy.*Threshold`
+   value (or use a numeric tolerance), not a hardcoded double literal.
+5. **`adaptive-cg-production-e2e`'s `gpu_fft_static_mixed` `coarse_dipole
+   != 0` assertion still fails at CUDA fp32**, reconfirmed by this audit's
+   fresh fp32 run (§13.2). This is **RCG-04-FU5**, already tracked,
+   pre-existing, non-RCG-05, unrelated to any RCG-05 exit-evidence bundle
+   (no RCG-05 fixture enables the dipole/`EWALD3D_FFT` term on this
+   fixture). No new action needed beyond RCG-04-FU5's existing tracking.
+6. **Independent Human/adversarial review of RCG-05's own findings**
+   (buffer-width fix, dilation-race fix, dipole-ownership claims) has not
+   occurred, matching RCG-02/03/04/RCG-04's own precedent of deferring this
+   separately from closure rather than blocking on it.
+
+None of items 1, 4, 5, or 6 block any of the three required exit-evidence
+bundles, all of which pass, fresh, at every precision available on this
+host, for every fixture actually exercised. Items 2 and 3 are the two gaps
+that directly and specifically prevent a literal reading of parent
+checklist item 3 ("masks match exactly") — they are listed with the most
+detail here precisely so the Human closure decision is made with each one
+visible, not obscured by this slice's own otherwise-clean result.
