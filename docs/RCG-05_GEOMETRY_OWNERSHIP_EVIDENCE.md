@@ -2927,14 +2927,18 @@ fully-evidenced buffer-width-shape claim.
 - [x] Any HIP, hardware, or independent-review gap remains visibly unchecked unless explicitly decided. (HIP: §13.2/§13.7, tracked as **RCG-05-FU1**, not silently assumed passing; no independent adversarial review of RCG-05's own findings has occurred, matching RCG-02/03/04/RCG-04's own precedent of deferring this separately — flagged explicitly in §13.7, not silently folded into a passing item)
 - [x] No new physics/selector/tolerance change was introduced in the closure slice itself. (§13.1/§13.3: `git status --short --porcelain=v1 | grep -v '^??'` empty at session end, after restoring the three test-run provenance-file side effects each time they occurred; no `source/` file was left modified — the two disposable diagnostic edits used to investigate §13.3's finding were each reverted and confirmed removed by an empty `git diff --stat` before the next step)
 - [x] The document states either ready-for-Human-decision or remains-open. (§13.7)
-- [ ] Human closure or deferral decision is recorded before parent status changes. **Not recorded — this is exactly the decision this document is now ready to receive; RCG-05G cannot and does not make it.**
+- [x] Human closure or deferral decision is recorded before parent status changes. **Recorded — see §13.8.** RCG-05 is closed, 2026-08-12, Human decision: Anders Bergman.
 
-**Nine of ten closure-audit items are complete. One remains open**: the
-Human decision this document exists to request.
+**All ten closure-audit items are complete** as of the 2026-08-12 Human
+decision recorded in §13.8. At the time this audit was originally
+performed, nine of ten were complete and one remained open (the Human
+decision itself); it is now resolved, by definition, in §13.8.
 
 ### 13.7 Outcome
 
-**Ready for Human closure decision.**
+**RCG-05 is closed.** (Originally recorded here as "Ready for Human closure
+decision"; the decision itself — and its exact content — is now recorded in
+§13.8, added the same day, 2026-08-12.)
 
 `GEO-ANISO-BUFFER`'s buffer-width-shape claim, the sanitizer/race evidence,
 and the dipole ownership derivative checks (for every fixture actually
@@ -2957,9 +2961,12 @@ not the complete geometry/ownership equivalence the parent item's literal
 wording claims — and open the two items below as tracked, non-blocking
 follow-up tasks, or to require them closed before RCG-05 itself closes.
 
-The following nonblocking deferrals require explicit Human acceptance
-before (or as part of) any closure decision — none were newly introduced by
-RCG-05G except where marked "(RCG-05G finding)":
+The following items were presented to the Human reviewer as nonblocking
+deferrals requiring explicit disposition before closure — none were newly
+introduced by RCG-05G except where marked "(RCG-05G finding)". §13.8
+records what was actually decided for each; the list below is preserved as
+originally written, as the request this document made before that
+decision:
 
 1. **HIP execution evidence** — no HIP toolchain on any host used across
    RCG-05A-G. Required commands recorded (RCG-05C §9.4, RCG-05E §11.5/§11.8,
@@ -3018,3 +3025,74 @@ that directly and specifically prevent a literal reading of parent
 checklist item 3 ("masks match exactly") — they are listed with the most
 detail here precisely so the Human closure decision is made with each one
 visible, not obscured by this slice's own otherwise-clean result.
+
+### 13.8 Human closure decision (2026-08-12, Anders Bergman)
+
+Each of the six items in §13.7 was reviewed directly against its underlying
+evidence (not against this document's summary of it) and given one of two
+dispositions: **accepted as non-blocking**, or **promoted to an active,
+independently tracked follow-up task** (in place of leaving it as passive
+deferral prose, matching how RCG-04J's own closure decision handled its
+analogous items). Both dispositions are recorded in
+`docs/ADAPTIVE_COARSE_GRAINING_REMEDIATION_BLUEPRINT.md`'s Task RCG-05
+entry, the authoritative parent-blueprint location for this closure per
+that document's own "only the Human decision may change the parent
+blueprint status to closed" rule.
+
+**The central decision — item 2 (parent checklist item 3, "Non-cubic and
+skew-cell masks match exactly"):** reviewed directly against §13.4/§13.5's
+evidence. **Not accepted as met** — ticking it would misstate the evidence,
+since the literal claim is demonstrably false on the one fixture it was
+tested against (44/90 blocks still differ). **Accepted instead is the
+narrower claim `GEO-ANISO-BUFFER` actually proves**: the buffer-width
+scalarization defect this task was chartered around (per the Task RCG-05
+prompt's own emphasis — "Preserve the three directional
+interaction-derived buffer widths... Do not replace them with a scalar
+maximum") is fixed and fully evidenced, at every available precision, and
+is independently distinguishable in the evidence from the two residual gaps
+that block the fuller claim. Both residual gaps are real, already fully
+characterized, and neither is buffer-width dilation:
+
+- the GPU seed-mask-sourcing gap (§13.7 item 2) is promoted to
+  **RCG-05-FU2**;
+- the `neighbourmap.f90` skew-cell gap (§13.7 item 3) is promoted to
+  **RCG-05-FU3**.
+
+Parent checklist item 3 remains recorded as `[ ]` in
+`docs/ADAPTIVE_COARSE_GRAINING_REMEDIATION_BLUEPRINT.md`'s Task RCG-05
+entry — an honest record that this specific requirement was not met at
+closure — with this decision and the two follow-up tasks recorded
+immediately alongside it, rather than the box being silently ticked or the
+gap being silently dropped.
+
+**Other items, accepted as non-blocking, promoted to active follow-up
+tasks rather than passively deferred:**
+
+- **HIP execution evidence** (§13.7 item 1) — promoted to **RCG-05-FU1**,
+  matching RCG-04-FU1's identical, still-open deferral.
+- **(RCG-05G finding) `testSelectorPolicyDescriptorLayout()`'s fp32 test
+  bug** (§13.7 item 4) — reviewed directly against §13.3's root-cause
+  investigation: accepted as independently confirmed *not* a production or
+  descriptor-layout defect, only a test-assertion bug. Promoted to
+  **RCG-05-FU4**.
+- **`gpu_fft_static_mixed`'s reproduced fp32 failure** (§13.7 item 5) —
+  already tracked as RCG-04-FU5; no new task opened, no new action
+  required of RCG-05's own closure.
+- **Independent Human/adversarial review of RCG-05's findings** (§13.7
+  item 6) — accepted as an open, non-blocking deferral, matching
+  RCG-02/RCG-03/RCG-04's own precedent of closing with this same review
+  step outstanding. Not promoted to a numbered follow-up task, since it is
+  a review step rather than a scoped code/evidence gap.
+
+**RCG-05 is closed (2026-08-12, Human decision: Anders Bergman).** Eleven
+of twelve parent checklist items (§13.5) and all ten closure-audit items
+(§13.6) are evidenced; the one item that specifically required Human
+judgement (whether to accept `GEO-ANISO-BUFFER`'s narrower claim in place
+of the parent checklist's literal, unmet "masks match exactly" claim) is
+resolved above, honestly, without flipping an unmet claim to met. The four
+remaining items are active, tracked, non-blocking follow-up work — two of
+which (RCG-05-FU2, RCG-05-FU3) are exactly the work needed to eventually
+satisfy the one unmet parent checklist item in full, should a future
+session pick them up. RCG-06 ("Remove memory, allocation, timing, and
+precision hazards," dependencies: RCG-05) may now begin on this accepted
+base.

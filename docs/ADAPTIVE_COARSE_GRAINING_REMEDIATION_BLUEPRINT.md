@@ -963,21 +963,105 @@ and anisotropic-cell fixtures
 
 #### Checklist
 
-- [ ] Buffer widths retain three directional components end to end.
-- [ ] CPU, CUDA, and HIP dilation semantics are identical.
-- [ ] Non-cubic and skew-cell masks match exactly.
-- [ ] Periodic wrapping is tested in every direction.
-- [ ] Every atomistic cross-interface bond is covered.
-- [ ] Dilation has no unproved read/write race.
-- [ ] Static and adaptive mask rebuilds preserve ownership invariants.
-- [ ] Short-range and on-site energies have non-overlapping owners.
-- [ ] Uniform FFT dipole ownership is documented independently of the mask.
-- [ ] Dipole field and energy are included exactly once.
-- [ ] An anisotropic-cell negative control detects scalarized buffer width.
-- [ ] CUDA/HIP descriptor layout checks cover the new vector data.
+- [x] Buffer widths retain three directional components end to end.
+- [x] CPU, CUDA, and HIP dilation semantics are identical.
+- [ ] Non-cubic and skew-cell masks match exactly. **Not met as literally
+      stated — see the RCG-05 closure decision below.** The buffer-width
+      scalarization defect this task was chartered around is fixed and
+      proven; full CPU/GPU map identity is still blocked by a separate,
+      pre-existing GPU seed-mask-sourcing gap, and no skew fixture has run
+      end to end (blocked by an unrelated `neighbourmap.f90` limitation).
+      Left honestly unchecked rather than misstating the evidence.
+- [x] Periodic wrapping is tested in every direction.
+- [x] Every atomistic cross-interface bond is covered.
+- [x] Dilation has no unproved read/write race.
+- [x] Static and adaptive mask rebuilds preserve ownership invariants.
+- [x] Short-range and on-site energies have non-overlapping owners.
+- [x] Uniform FFT dipole ownership is documented independently of the mask.
+- [x] Dipole field and energy are included exactly once.
+- [x] An anisotropic-cell negative control detects scalarized buffer width.
+- [x] CUDA/HIP descriptor layout checks cover the new vector data.
 
 **Exit evidence:** `GEO-ANISO-BUFFER`, sanitizer/race evidence, and dipole
 ownership derivative checks.
+
+**RCG-05 evidence (2026-08-12, CLOSED):**
+`docs/RCG-05_GEOMETRY_OWNERSHIP_EVIDENCE.md` records six sliced sessions
+(RCG-05A-F: evidence contract and defect reproduction, skew/unequal-width
+geometry generators, a CPU/GPU ownership-map comparator demonstrating the
+buffer-width scalarization defect, the fix itself, a dilation-race
+sanitizer audit and by-construction double-buffer fix, and dipole/
+short-range/on-site ownership invariants) followed by an independent
+RCG-05G closure audit. The closure audit confirmed the linear RCG-05A-F
+ancestry, ran fresh out-of-tree configure/build/test on every
+backend/precision available (CPU fp64, CUDA fp64, CUDA fp32 — HIP
+deferred, no toolchain on any host used), and reconciled all twelve
+checklist items above against direct evidence rather than commit count.
+`GEO-ANISO-BUFFER`'s buffer-width-shape claim and the sanitizer/race
+evidence are complete at every tested precision; the dipole ownership
+derivative checks are complete for the tested (orthogonal, anisotropic)
+fixture at every tested precision. The closure audit's own fresh fp32 run
+additionally found, root-caused, and disclosed rather than fixed (out of
+RCG-05's own scope): `testSelectorPolicyDescriptorLayout()` (RCG-05D) fails
+under `UPPASD_PRECISION=SINGLE` CUDA builds — independently confirmed to be
+a test-only float-literal-comparison bug, not a real descriptor-layout
+defect — and reconfirmed the pre-existing, non-RCG-05 RCG-04-FU5
+`gpu_fft_static_mixed` failure still reproduces at CUDA fp32.
+
+**RCG-05 is closed (2026-08-12, Human decision: Anders Bergman).** One item
+required Human judgement beyond what direct re-evidencing could resolve:
+whether to accept `GEO-ANISO-BUFFER`'s narrower, fully-evidenced claim (the
+buffer-width scalarization defect is fixed and proven, at every available
+precision) as sufficient for this task's closure, given that the parent
+checklist's literal "masks match exactly" claim is not met. Reviewed
+directly against the underlying evidence
+(`docs/RCG-05_GEOMETRY_OWNERSHIP_EVIDENCE.md` §13.4/§13.5/§13.7): accepted.
+The two specific, independently-scoped gaps that block the literal claim —
+a GPU seed-mask-sourcing defect unrelated to buffer-width dilation, and an
+unrelated pre-existing `neighbourmap.f90` skew-cell limitation — are each
+promoted to an active, independently tracked follow-up task rather than
+left as passive deferral prose. Rather than leaving the remaining gaps as
+passive prose deferrals, four were promoted to actively tracked,
+independently pickupable follow-up tasks (RCG-05-FU1 through RCG-05-FU4,
+defined immediately below); none blocks this closure or RCG-06's start. No
+physics disagreement or unresolved correctness question blocks this
+closure beyond the one item explicitly accepted above.
+
+#### RCG-05 follow-up tasks (opened 2026-08-12, Human decision: Anders Bergman)
+
+Non-blocking, independently pickupable in any order. Each may become its
+own session; none is a dependency of RCG-06.
+
+- **RCG-05-FU1 — HIP execution evidence.** Re-run `GEO-ANISO-BUFFER`, the
+  sanitizer/race evidence, and the dipole ownership derivative checks on
+  real HIP hardware once a toolchain/device is available. Dependencies:
+  HIP toolchain/hardware only.
+- **RCG-05-FU2 — GPU seed-mask-sourcing gap.** GPU's `hardAtomisticBlockMask`
+  is sourced only from the polarization gate, not `cg_static_mask_file`,
+  independently of and unaffected by the buffer-width fix. This is the
+  direct blocker preventing full CPU/GPU ownership-map identity on
+  `ownership_aniso_buffer` even after RCG-05D's fix (44/90 blocks still
+  differ). Source GPU's hard mask from `cg_static_mask_file` as CPU already
+  does, then re-run RCG-05C's comparator to confirm full map identity
+  becomes achievable. Dependencies: accepted RCG-05C/D.
+- **RCG-05-FU3 — skew-cell `neighbourmap.f90` gap.** No skew
+  (non-orthogonal-lattice) fixture has ever run through the real
+  executable's adaptive-mask or dipole path: `neighbourmap.f90` rejects the
+  declared exchange bond with a "no basis match" error during setup, a
+  pre-existing, unrelated Hamiltonian-setup limitation. Characterize and
+  either fix or formally narrow `neighbourmap.f90`'s skew-cell
+  exchange-shell tolerance/mapping so at least one skew fixture can run end
+  to end. Dependencies: none — pre-existing, non-RCG-05 limitation.
+- **RCG-05-FU4 — `testSelectorPolicyDescriptorLayout()` fp32 test bug.**
+  This host-only CTest target fails reproducibly under
+  `UPPASD_PRECISION=SINGLE` CUDA builds due to an exact-equality comparison
+  against a hardcoded `double` literal that a `float`-valued `real` cannot
+  round-trip to (`tests/coarse_graining/test_gpu_adaptive_runtime.cpp:637-640`).
+  Independently confirmed not a real descriptor-layout defect. Compare
+  `copied.*Threshold` against the pre-copy `policy.*Threshold` value (or use
+  a numeric tolerance), not a hardcoded double literal. Dependencies: none
+  — pre-existing test-only defect, introduced by RCG-05D, first exercised
+  by RCG-05G.
 
 ---
 
