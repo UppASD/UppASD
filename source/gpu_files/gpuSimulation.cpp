@@ -910,14 +910,28 @@ void GpuSimulation::release() {
     if(gpuAdaptiveRuntime.ready()) {
       const auto work = gpuAdaptiveRuntime.downloadWorkSnapshot();
       const auto& phase = gpuAdaptiveRuntime.phaseMetrics();
+      // RCG-06C (F-18): every named phase must be included in this sum for
+      // "unaccounted" to mean what it says -- polarizationMilliseconds was
+      // tracked but never printed or included in any total before this
+      // slice; omitting it here would silently misattribute real
+      // polarization-gate time to "unaccounted".
+      const double phaseSumMs = phase.atomisticMilliseconds +
+         phase.coarseMilliseconds + phase.interfaceMilliseconds +
+         phase.selectorMilliseconds + phase.polarizationMilliseconds +
+         phase.compactionMilliseconds + phase.fftMilliseconds +
+         phase.integrationMilliseconds;
+      const double unaccountedMs = phase.stepWallMilliseconds - phaseSumMs;
       std::printf("Gpu: AdaptiveCG final active_atoms=%zu active_blocks=%zu "
                   "interface_atoms=%zu phases_ms(atom=%.3f coarse=%.3f "
-                  "interface=%.3f selector=%.3f compaction=%.3f integration=%.3f)\n",
+                  "interface=%.3f selector=%.3f polarization=%.3f "
+                  "compaction=%.3f integration=%.3f) "
+                  "wall_ms=%.3f phase_sum_ms=%.3f unaccounted_ms=%.3f\n",
                   work.activeAtoms.size(), work.activeBlocks.size(),
                   work.interfaceAtoms.size(), phase.atomisticMilliseconds,
                   phase.coarseMilliseconds, phase.interfaceMilliseconds,
-                  phase.selectorMilliseconds, phase.compactionMilliseconds,
-                  phase.integrationMilliseconds);
+                  phase.selectorMilliseconds, phase.polarizationMilliseconds,
+                  phase.compactionMilliseconds, phase.integrationMilliseconds,
+                  phase.stepWallMilliseconds, phaseSumMs, unaccountedMs);
       if(adaptiveDiagnostics > 0) {
          const auto diagnostic =
             gpuAdaptiveRuntime.diagnosticSnapshot(gpuLattice.emom.data());
@@ -970,12 +984,15 @@ void GpuSimulation::release() {
                      "direction_norm2=%.16e\n",
                      diagnostic.directionSum, diagnostic.directionNorm2);
          std::printf("Gpu: AdaptiveCG phase_ms field_atom=%.6f field_coarse=%.6f "
-                     "interface=%.6f selector=%.6f compaction=%.6f fft=%.6f "
-                     "integration=%.6f device_bytes=%zu\n",
+                     "interface=%.6f selector=%.6f polarization=%.6f "
+                     "compaction=%.6f fft=%.6f integration=%.6f "
+                     "wall=%.6f phase_sum=%.6f unaccounted=%.6f "
+                     "device_bytes=%zu\n",
                      phase.atomisticMilliseconds, phase.coarseMilliseconds,
                      phase.interfaceMilliseconds, phase.selectorMilliseconds,
-                     phase.compactionMilliseconds, phase.fftMilliseconds,
-                     phase.integrationMilliseconds,
+                     phase.polarizationMilliseconds, phase.compactionMilliseconds,
+                     phase.fftMilliseconds, phase.integrationMilliseconds,
+                     phase.stepWallMilliseconds, phaseSumMs, unaccountedMs,
                      gpuAdaptiveRuntime.allocatedBytes());
       }
       gpuAdaptiveRuntime.release();
@@ -1077,6 +1094,11 @@ void GpuSimulation::advanceAdaptiveStep(
    std::size_t step, GpuHamiltonianCalculations* hamiltonian) {
    if(!gpuAdaptiveRuntime.ready() || !gpuAdaptiveRuntime.kernelsReady())
       throw std::logic_error("GPU adaptive production step requires a ready CG-10 runtime");
+   // RCG-06C (F-18): independent host wall-clock measurement of the entire
+   // step, so the sum of the device-event phase timers below can be
+   // reconciled against it and any unaccounted time reported rather than
+   // assumed to be ~0.
+   const auto adaptiveStepWallStarted = std::chrono::steady_clock::now();
    GpuAdaptiveFftEvaluator fftEvaluator{};
    if(hamiltonian && hamiltonian->hasAdaptiveFftDipole()) {
       fftEvaluator = [this, hamiltonian](const real* direction) {
@@ -1112,6 +1134,10 @@ void GpuSimulation::advanceAdaptiveStep(
          gpuLattice.emom.data(), adaptiveReconstructionPolicy);
    }
    ASSERT_GPU(GPU_STREAM_SYNC(gpuAdaptiveRuntime.stream()));
+   const auto adaptiveStepWallStopped = std::chrono::steady_clock::now();
+   gpuAdaptiveRuntime.recordStepWallMilliseconds(
+      std::chrono::duration<double, std::milli>(
+         adaptiveStepWallStopped - adaptiveStepWallStarted).count());
 }
 
 void GpuSimulation::copyFromFortran() {

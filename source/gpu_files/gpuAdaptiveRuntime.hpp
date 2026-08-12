@@ -192,6 +192,12 @@ struct GpuAdaptivePhaseMetrics {
    double compactionMilliseconds = 0.0;
    double fftMilliseconds = 0.0;
    double integrationMilliseconds = 0.0;
+   // RCG-06C (F-18): host wall-clock duration of the complete adaptive step
+   // (GpuSimulation::advanceAdaptiveStep, entry to exit), accumulated
+   // independently of the device-event phase timers above. The difference
+   // between this and the sum of the other fields is genuinely unaccounted
+   // time, not assumed to be ~0; see recordStepWallMilliseconds().
+   double stepWallMilliseconds = 0.0;
 };
 
 struct GpuAdaptiveDiagnosticSnapshot {
@@ -328,6 +334,11 @@ public:
       real* atomDirection,
       const GpuAdaptiveReconstructionPolicy& policy);
    void recordFftMilliseconds(double elapsed);
+   // RCG-06C (F-18): called once per complete adaptive step with an
+   // independent host wall-clock measurement of the whole step (not derived
+   // from the device-event phase timers), so unaccounted time can be
+   // reported rather than assumed zero.
+   void recordStepWallMilliseconds(double elapsed);
    const GpuAdaptivePhaseMetrics& phaseMetrics() const { return phaseMetrics_; }
    void resetPhaseMetrics() { phaseMetrics_ = {}; }
 

@@ -67,6 +67,12 @@ module AdaptiveCGProduction
       real(dblprec) :: integration_seconds = 0.0_dblprec
       real(dblprec) :: reconstruction_seconds = 0.0_dblprec
       real(dblprec) :: selector_seconds = 0.0_dblprec
+      !> RCG-06C (F-18): independent wall-clock duration of the complete
+      !> adaptive_cg_cpu_step call (start to the single success exit point),
+      !> accumulated separately from the named phase timers above so the sum
+      !> of those phases can be reconciled against it and any unaccounted
+      !> time reported rather than assumed to be ~0.
+      real(dblprec) :: step_wall_seconds = 0.0_dblprec
       real(dblprec) :: last_atom_field_sum_t = 0.0_dblprec
       real(dblprec) :: last_atom_field_norm2_t2 = 0.0_dblprec
       real(dblprec) :: last_coarse_field_sum_t = 0.0_dblprec
@@ -970,6 +976,24 @@ contains
          candidate == 'Y' .or. candidate == 'Z' .or. candidate == 'G'
    end function supported_initial_phase
 
+   !> RCG-06C (F-18): true wall-clock elapsed time. `cpu_time` measures
+   !> process CPU time, not wall time -- the two coincide only in the
+   !> absence of threading, I/O, or scheduling waits, and RCG-07 is expected
+   !> to add OpenMP parallelism to this CPU path, so getting the clock
+   !> semantics right now (rather than silently acquiring a
+   !> threading-dependent bug later) is the point of this helper. Every
+   !> phase timer in this module, plus the new full-step reconciliation
+   !> timer below, uses this instead of `cpu_time`.
+   real(dblprec) function wall_clock_seconds() result(seconds)
+      integer(int64) :: tick_count, tick_rate
+      call system_clock(count=tick_count,count_rate=tick_rate)
+      if (tick_rate > 0_int64) then
+         seconds = real(tick_count,dblprec)/real(tick_rate,dblprec)
+      else
+         seconds = 0.0_dblprec
+      end if
+   end function wall_clock_seconds
+
    subroutine adaptive_cg_cpu_step(step,atom_direction,atom_magnitude,atom_moment,status,diagnostic)
       integer, intent(in) :: step
       real(dblprec), intent(inout) :: atom_direction(:,:,:)
@@ -979,6 +1003,7 @@ contains
       character(len=*), intent(out) :: diagnostic
 
       real(dblprec) :: rhs0(3), rhs1(3), candidate(3), norm, time0, time1
+      real(dblprec) :: step_time0, step_time1
       integer :: ensemble, atom, block, local_status
 
       status = ADAPTIVE_CG_PRODUCTION_SETUP_FAILED
@@ -989,6 +1014,13 @@ contains
       if (.not. adaptive_cg_state%step_workspace_ready) then
          diagnostic = 'adaptive CPU step called without allocated step workspace'; return
       end if
+
+      ! RCG-06C (F-18): starts the full-step external wall-clock
+      ! measurement. Every early-return path below leaves status /=
+      ! ADAPTIVE_CG_PRODUCTION_OK, which the caller (sd_driver.f90) treats
+      ! as fatal (error stop), so the only exit point that matters for
+      ! reconciliation is the single success path at the bottom.
+      step_time0 = wall_clock_seconds()
 
       associate (atom0 => adaptive_cg_state%atom0, coarse0 => adaptive_cg_state%coarse0, &
             atom_predictor => adaptive_cg_state%atom_predictor, &
@@ -1006,7 +1038,7 @@ contains
 
       call evaluate_all_ensembles(atom0,coarse0,atom_field0,coarse_field0,local_status,diagnostic)
       if (local_status /= STATIC_HYBRID_OK) return
-      call cpu_time(time0)
+      time0 = wall_clock_seconds()
       do ensemble = 1, Mensemble
          call coarse_llg_rhs(adaptive_cg_state%tensor,coarse0(:,1,:,ensemble), &
             coarse_field0(:,1,:,ensemble),coarse_rhs0,local_status,diagnostic)
@@ -1024,13 +1056,13 @@ contains
             coarse_predictor(:,1,block,ensemble) = candidate/sqrt(sum(candidate*candidate))
          end do
       end do
-      call cpu_time(time1)
+      time1 = wall_clock_seconds()
       adaptive_cg_state%integration_seconds = adaptive_cg_state%integration_seconds + &
          max(0.0_dblprec,time1-time0)
       call evaluate_all_ensembles(atom_predictor,coarse_predictor,atom_field1,coarse_field1, &
          local_status,diagnostic)
       if (local_status /= STATIC_HYBRID_OK) return
-      call cpu_time(time0)
+      time0 = wall_clock_seconds()
       do ensemble = 1, Mensemble
          call coarse_llg_rhs(adaptive_cg_state%tensor,coarse0(:,1,:,ensemble), &
             coarse_field0(:,1,:,ensemble),coarse_rhs0,local_status,diagnostic)
@@ -1055,20 +1087,20 @@ contains
                candidate/sqrt(sum(candidate*candidate))
          end do
       end do
-      call cpu_time(time1)
+      time1 = wall_clock_seconds()
       adaptive_cg_state%integration_seconds = adaptive_cg_state%integration_seconds + &
          max(0.0_dblprec,time1-time0)
-      call cpu_time(time0)
+      time0 = wall_clock_seconds()
       call reconstruct_coarse_atoms(atom_direction,status,diagnostic)
       if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
-      call cpu_time(time1)
+      time1 = wall_clock_seconds()
       adaptive_cg_state%reconstruction_seconds = adaptive_cg_state%reconstruction_seconds + &
          max(0.0_dblprec,time1-time0)
       if (adaptive_cg_state%adaptive_mask) then
-         call cpu_time(time0)
+         time0 = wall_clock_seconds()
          call update_adaptive_mask(step,atom_direction,status,diagnostic)
          if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
-         call cpu_time(time1)
+         time1 = wall_clock_seconds()
          adaptive_cg_state%selector_seconds = adaptive_cg_state%selector_seconds + &
             max(0.0_dblprec,time1-time0)
       end if
@@ -1082,6 +1114,9 @@ contains
          int(size(adaptive_cg_state%runtime%active_atom_list),int64)
       adaptive_cg_state%active_block_updates = adaptive_cg_state%active_block_updates + &
          int(size(adaptive_cg_state%runtime%active_coarse_list),int64)
+      step_time1 = wall_clock_seconds()
+      adaptive_cg_state%step_wall_seconds = adaptive_cg_state%step_wall_seconds + &
+         max(0.0_dblprec,step_time1-step_time0)
       status = ADAPTIVE_CG_PRODUCTION_OK
       end associate
    end subroutine adaptive_cg_cpu_step
@@ -1095,7 +1130,7 @@ contains
       integer :: ensemble
       real(dblprec) :: time0, time1
 
-      call cpu_time(time0)
+      time0 = wall_clock_seconds()
       adaptive_cg_state%last_energy = static_hybrid_energy_type()
       do ensemble = 1, Mensemble
          call evaluate_atomistic_anisotropy(atom_direction(:,:,ensemble), &
@@ -1131,7 +1166,7 @@ contains
       adaptive_cg_state%last_atom_field_norm2_t2 = sum(atom_field*atom_field)
       adaptive_cg_state%last_coarse_field_sum_t = sum(coarse_field)
       adaptive_cg_state%last_coarse_field_norm2_t2 = sum(coarse_field*coarse_field)
-      call cpu_time(time1)
+      time1 = wall_clock_seconds()
       adaptive_cg_state%field_seconds = adaptive_cg_state%field_seconds + &
          max(0.0_dblprec,time1-time0)
    end subroutine evaluate_all_ensembles
@@ -1569,6 +1604,19 @@ contains
          ' integration=',adaptive_cg_state%integration_seconds, &
          ' reconstruction=',adaptive_cg_state%reconstruction_seconds, &
          ' selector=',adaptive_cg_state%selector_seconds
+      ! RCG-06C (F-18): phase_sum is every named phase timer above, summed;
+      ! wall is the independent full-step wall-clock measurement;
+      ! unaccounted is their signed difference, reported raw (not clamped to
+      ! zero) so a negative value -- which would indicate double-counted or
+      ! overlapping phase timing, not merely clock-resolution noise -- stays
+      ! visible rather than being hidden.
+      write(*,'(a,es24.16,a,es24.16,a,es24.16)') &
+         'AdaptiveCG: phase_wall_seconds wall=',adaptive_cg_state%step_wall_seconds, &
+         ' phase_sum=',(adaptive_cg_state%field_seconds+adaptive_cg_state%integration_seconds+ &
+            adaptive_cg_state%reconstruction_seconds+adaptive_cg_state%selector_seconds), &
+         ' unaccounted=',(adaptive_cg_state%step_wall_seconds- &
+            (adaptive_cg_state%field_seconds+adaptive_cg_state%integration_seconds+ &
+            adaptive_cg_state%reconstruction_seconds+adaptive_cg_state%selector_seconds))
       write(*,'(a,i0)') 'AdaptiveCG: owned_cpu_bytes=',adaptive_owned_cpu_bytes()
       call print_resolution_state('final',adaptive_cg_state%completed_steps)
       write(*,'(a,es24.16,a,es24.16)') 'AdaptiveCG: trajectory_checksums direction_sum=', &

@@ -704,3 +704,298 @@ every other `cg13-cuda` fixture except `adaptive-cg-moving-backend-parity`/
 timeout with wide margin here, but a CI runner with a dedicated
 (uncontended) GPU would likely see it complete in tens of seconds, not
 hundreds -- recorded for awareness, not treated as a defect.
+
+---
+
+## RCG-06C: CPU/GPU phase-timing reconciliation (F-18)
+
+**Date:** 2026-08-12
+**Base commit:** `6da4c5632629deb5beb99fec7d6ab00471bcb0fc` (RCG-06B, committed).
+**Scope:** F-18 ("CPU timers exclude dominant work and use unsuitable clock
+semantics"). Parent RCG-06 task prompt: "Correct phase timing so
+wall-clock measurements include both field evaluations, integration
+stages, restriction/reconstruction, selector, compaction, and waits.
+Report unaccounted wall time."
+
+### Finding reproduction
+
+A read-only investigation (Explore agent, cross-checked by direct reading
+of the cited lines afterward) confirmed, with file:line citations, before
+any edit:
+
+- **Clock semantics.** `source/CoarseGraining/adaptivecgproduction.f90`
+  used only `cpu_time` (process CPU time) for every phase timer
+  (`field_seconds`, `integration_seconds`, `reconstruction_seconds`,
+  `selector_seconds`) -- zero occurrences of `system_clock`,
+  `date_and_time`, or `omp_get_wtime` anywhere in the file. `cpu_time`
+  tracks wall time only in the absence of threading/blocking waits; there
+  is currently no OpenMP in this CPU path (confirmed: no `!$omp` in
+  `adaptivecgproduction.f90`/`statichybridoperator.f90`), so today's
+  numbers happen to be wall-accurate, but RCG-07 (CPU algorithmic
+  scaling/OpenMP) is the very next task in this program, so this was a
+  live, not hypothetical, correctness gap for the immediate future.
+- **Both Heun field evaluations already included.** `adaptive_cg_cpu_step`
+  calls `evaluate_all_ensembles` once for the predictor stage and once for
+  the corrector stage; both calls execute the same subroutine, whose body
+  is internally timed by its own `cpu_time` pair and both accumulate into
+  the same `field_seconds` counter. This matches RCG-06A's note that this
+  particular F-18 sub-claim was "already true today" -- reconfirmed, not
+  assumed, by tracing every call site.
+- **No full-step reconciliation existed anywhere.** Zero occurrences of
+  "unaccounted" in `source/` (Fortran or GPU C++). The only prior
+  wall-vs-phase-sum comparison in the whole repository was in
+  `tests/coarse_graining/benchmark_gpu_adaptive_runtime.cpp`, and only for
+  a single `evaluateHybrid` call in isolation -- not the CPU path, not the
+  full per-step GPU sequence (predictor+corrector Heun, selector,
+  compaction), and not part of `ctest`.
+- **GPU phase timers already used a suitable clock** (CUDA/HIP device
+  events via `GPU_EVENT_RECORD`/`GPU_EVENT_ELAPSED_TIME`, confirmed at
+  every `finishPhase()` call site in `gpuAdaptiveRuntime.cpp`), so no
+  clock-semantics fix was needed there -- only the missing full-step
+  reconciliation. One existing gap found in passing: `polarizationMilliseconds`
+  was tracked but never printed anywhere (`gpuSimulation.cpp:913-920`,
+  `972-978`), which would have silently misattributed genuine
+  polarization-gate time to "unaccounted" once reconciliation was added --
+  fixed as part of this slice (see below), not left as a latent bug in the
+  new feature.
+
+### Fix
+
+**CPU (`adaptivecgproduction.f90`):**
+- Added a private `wall_clock_seconds()` function using `system_clock`
+  with `integer(int64)` tick counts and rate (falls back to `0.0_dblprec`
+  if `count_rate <= 0`, which the Fortran standard permits in principle
+  though no practical platform returns it). Every one of the ten existing
+  `call cpu_time(timeN)` call sites in `adaptive_cg_cpu_step` and
+  `evaluate_all_ensembles` was mechanically replaced with
+  `timeN = wall_clock_seconds()` (verified: exactly these two local
+  variable names, `time0`/`time1`, are used at every site in the file, so
+  the substitution is unambiguous and complete -- confirmed by grep before
+  and after).
+- Added `step_wall_seconds` to `adaptive_cg_production_state_type`: an
+  independent wall-clock bracket around the *entire* `adaptive_cg_cpu_step`
+  body (from immediately after the ready/workspace guard checks to the
+  single success exit point at the bottom -- every early-return failure
+  path causes `error stop` in the caller, `sd_driver.f90:513-516`, so no
+  other exit point needs its own accounting). This is a second, coarser
+  wall-clock measurement independent of the fine-grained phase timers,
+  making genuine reconciliation possible rather than assumed.
+- Extended `print_adaptive_cg_summary` with a new
+  `AdaptiveCG: phase_wall_seconds wall=... phase_sum=... unaccounted=...`
+  line. `unaccounted` is reported as the raw signed difference, not
+  clamped to zero: a materially negative value would indicate double-counted
+  or overlapping phase timing (a real bug), which clamping would hide.
+
+**GPU (`gpuAdaptiveRuntime.hpp`/`.cpp`, `gpuSimulation.cpp`):**
+- Added `stepWallMilliseconds` to `GpuAdaptivePhaseMetrics` and a new
+  `recordStepWallMilliseconds(double)` method (mirroring the existing
+  `recordFftMilliseconds` pattern exactly, including its
+  finite/nonnegative validation).
+- `GpuSimulation::advanceAdaptiveStep` -- the per-step orchestration
+  function that calls `integrateHeun`, `synchronizeAtomicState`, and
+  (conditionally, every `adaptiveUpdateInterval` steps) the full
+  selector/compaction sequence -- now wraps its entire body in
+  `std::chrono::steady_clock` (matching the FFT-evaluator lambda's
+  existing pattern in the same function) and records the elapsed
+  milliseconds via `recordStepWallMilliseconds` right before returning.
+- Both GPU diagnostic print sites in `GpuSimulation::release`
+  (`gpuSimulation.cpp:913-920`, `972-978`) were extended to: (a) include
+  `polarizationMilliseconds` in both the printed phase list and the
+  reconciliation sum, closing the gap noted above; (b) print
+  `wall_ms=.../phase_sum_ms=.../unaccounted_ms=` (always-on line) and
+  `wall=.../phase_sum=.../unaccounted=` (verbose `adaptiveDiagnostics>0`
+  line), computed from the *same* `phaseSumMs`/`unaccountedMs` locals so
+  the two lines cannot disagree.
+
+### A real finding, not eliminated in this slice: GPU unaccounted time is large
+
+The reconciliation mechanism itself works correctly and is not the
+finding -- what it *revealed*, on the one tracked fixture that exercises
+every phase (`moving_wall_adaptive`, 900 steps, ADAPTIVE mask mode, real
+selector/transition activity), is that a substantial fraction of GPU wall
+time is genuinely unaccounted for by the existing per-kernel-group CUDA
+event brackets:
+
+```
+GPU reconciliation: wall=27497.793ms phase_sum=16496.025ms unaccounted=11001.768ms (40.01% of wall time)
+```
+
+Investigated, not assumed away, within this slice's own time budget:
+traced every kernel-launch call site inside `integrateHeun`,
+`synchronizeAtomicState`, and the selector/compaction sequence, and
+confirmed every one is already bracketed by `GPU_EVENT_RECORD`/
+`finishPhase()` (including the two nested `evaluateHybrid` calls inside
+`integrateHeun`, which are self-instrumenting). No call site was found
+issuing GPU work outside any phase bracket. The most plausible explanation,
+**not fully proven within this slice's scope**: this fixture issues on the
+order of several dozen separate kernel launches per adaptive step (roughly
+10 kernels per `evaluateHybrid` call, called twice per `integrateHeun`,
+plus 2 Heun kernels, plus ~6-7 more for the selector/compaction sequence
+every `adaptiveUpdateInterval` steps), and each `GPU_EVENT_RECORD`/
+`GPU_EVENT_SYNCHRONIZE` pair has real host-side CUDA-driver round-trip
+latency that is *not* included in the device-event elapsed-time each
+phase measures (that only measures time *between* two device-timeline
+events, not host-side dispatch/wait latency around issuing them). This
+session's two GPUs were shared with unrelated external processes at
+~50-90% utilization throughout (`nvidia-smi`, consistent across every
+build/test command run in this and the prior RCG-06B session), which
+plausibly amplifies exactly this kind of per-launch host-driver contention.
+The arithmetic is consistent: ~11002ms / 900 steps ~= 12.2ms/step of
+unaccounted time, plausible for dozens of contended driver round-trips per
+step, though this was not independently confirmed with a dedicated
+profiling pass (e.g. `nsys`/`nvprof`) in this slice.
+
+This is disclosed, not fixed, and is explicitly out of RCG-06C's own
+scope: RCG-06C's job is correct, honest timing *reconciliation*, which now
+exists and works (the CPU side's single wall-clock bracket has no such
+blind spot: its own unaccounted fraction is 0.6%, see below); reducing
+per-step kernel-launch count or host-driver round-trip overhead is GPU
+*performance* work, squarely RCG-08's ("Parallelize the adaptive GPU
+production path") territory, not a timing-correctness question. Recorded
+here as an open, actively tracked item rather than passive prose (see
+Open items below) so RCG-08 has this diagnosis as a documented starting
+point rather than needing to rediscover it.
+
+### Tests
+
+- **`tests/coarse_graining/run_timing_reconciliation.py`** (new), reusing
+  `run_moving_backend_parity.py`'s `FIXTURES`, `prepare_workspace`, and
+  `run_fixture` rather than a new mechanism. Runs `moving_wall_adaptive`
+  (the only tracked fixture exercising every phase, including selector;
+  every other tracked fixture is feature-off or STATIC-mask, so its
+  selector phase is legitimately always zero) on CPU always, and on GPU
+  when a GPU binary is supplied. Parses the new
+  `phase_wall_seconds`/`phase_ms ... wall=...` diagnostic lines and
+  asserts: wall time is positive; `phase_sum` is positive (proves phases
+  are genuinely being measured, not silently zero); the printed
+  `unaccounted` value equals `wall - phase_sum` exactly, as printed (an
+  arithmetic-consistency check on the diagnostic output itself); `phase_sum`
+  never exceeds `wall` by more than a small clock-domain-noise margin
+  (0.1% for CPU's single-clock reconciliation, 5% for GPU's cross-clock-domain
+  one) -- a genuine correctness invariant, since named phases cannot
+  legitimately take longer than the wall-clock interval containing them;
+  and `unaccounted` is not materially negative (which would indicate
+  double-counted/overlapping phase timing). It deliberately does **not**
+  assert an upper bound on `unaccounted`'s magnitude -- the 40% GPU finding
+  above is disclosed evidence, not a defect this fixture is designed to
+  catch or hide.
+- **What this fixture does not, and could not yet, prove:** a negative
+  control distinguishing `system_clock` from `cpu_time` at the source
+  level would require a code path where the two diverge (threading or
+  blocking I/O inside the timed region), and none exists yet in this
+  codebase (RCG-07 is where CPU parallelism is planned). The
+  clock-semantics checklist item is therefore evidenced by source
+  inspection/diff (above), not by a runtime fault-injection test --
+  recorded explicitly rather than silently claiming a negative control
+  that does not exist.
+- Registered as CTest `adaptive-cg-timing-reconciliation`, labeled
+  `coarse-graining;cg13;cg13-cpu` always, `cg13-cuda`/`cg13-hip` appended
+  when the build is GPU-enabled (the CPU leg always runs; the GPU leg only
+  runs, and is only registered, in a GPU-enabled configuration, matching
+  RCG-04I's established `UppASD_EXE`-runs-both-legs mechanism).
+- Every pre-existing `cg13-cpu`/`cg13-cuda` fixture and `asd-tests` pass
+  unchanged on fresh out-of-tree builds (see raw evidence below), with no
+  edits to their own source.
+
+### Raw evidence
+
+```
+$ git rev-parse HEAD
+6da4c5632629deb5beb99fec7d6ab00471bcb0fc   # RCG-06B; RCG-06C is uncommitted on top
+
+$ git status --short   # RCG-06C-relevant files only
+ M CMakeLists.txt
+ M source/CoarseGraining/adaptivecgproduction.f90
+ M source/gpu_files/gpuAdaptiveRuntime.cpp
+ M source/gpu_files/gpuAdaptiveRuntime.hpp
+ M source/gpu_files/gpuSimulation.cpp
+?? tests/coarse_graining/run_timing_reconciliation.py
+
+# --- Fresh out-of-tree CPU build ---
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=OFF -DBUILD_TESTING=ON \
+   -S . -B build_rcg06c_cpu
+-- ... Configuring done, Generating done ...
+$ cmake --build build_rcg06c_cpu -j2
+# (built clean, no errors)
+
+$ ctest --test-dir build_rcg06c_cpu -L cg13-cpu --output-on-failure
+... 26/26 tests passed (was 25/25 before this slice; +1 = adaptive-cg-timing-reconciliation) ...
+100% tests passed, 0 tests failed out of 26
+Total Test time (real) =  67.31 sec
+  ...
+27: CPU reconciliation: wall=0.538595s phase_sum=0.535262s unaccounted=0.003333s (0.62% of wall time)
+27: GPU binary not supplied; GPU reconciliation not run (deferred, not blocking)
+27: RCG-06C timing reconciliation: PASS
+
+$ ctest --test-dir build_rcg06c_cpu -R '^asd-tests$' --output-on-failure
+1/1 Test #2: asd-tests ........................   Passed   10.07 sec
+100% tests passed, 0 tests failed out of 1
+
+# --- Fresh out-of-tree CUDA build ---
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=CUDA -DBUILD_TESTING=ON \
+   -DCMAKE_CUDA_COMPILER=/usr/local/cuda-13.3/bin/nvcc -S . -B build_rcg06c_cuda
+$ cmake --build build_rcg06c_cuda -j2
+# (built clean, no errors)
+
+$ ctest --test-dir build_rcg06c_cuda -L cg13-cuda --output-on-failure
+... 27/27 tests passed (was 26/26 before this slice; +1 = adaptive-cg-timing-reconciliation) ...
+100% tests passed, 0 tests failed out of 27
+Total Test time (real) = 441.48 sec
+  ...
+29: CPU reconciliation: wall=0.495949s phase_sum=0.492775s unaccounted=0.003173s (0.64% of wall time)
+29: GPU reconciliation: wall=27497.793ms phase_sum=16496.025ms unaccounted=11001.768ms (40.01% of wall time)
+29: RCG-06C timing reconciliation: PASS
+
+$ ctest --test-dir build_rcg06c_cuda -R '^asd-tests$' --output-on-failure
+1/1 Test #2: asd-tests ........................   Passed    9.75 sec
+100% tests passed, 0 tests failed out of 1
+```
+
+Device/driver: two NVIDIA RTX A4000 GPUs (compute capability 8.6, Ampere),
+CUDA 13.3 toolkit, shared with unrelated external processes at ~50-90%
+utilization throughout this session, matching RCG-06B's session exactly.
+HIP was not attempted: no `hipcc`/`rocm-smi` on this host, matching every
+RCG-0x session so far.
+
+### Checklist items addressed by this slice
+
+- [x] Timers use a suitable wall/device clock. CPU: `cpu_time` ->
+      `system_clock` at every one of the ten prior call sites (verified
+      complete by grep). GPU: already used CUDA/HIP device events; no
+      change needed.
+- [x] Both Heun field evaluations are included. Reconfirmed true (matches
+      RCG-06A's note): both predictor- and corrector-stage
+      `evaluate_all_ensembles` calls accumulate into `field_seconds`.
+- [x] Phase totals plus unaccounted time reconcile with external wall
+      time. The reconciliation mechanism is implemented on both CPU and
+      GPU and produces internally consistent numbers (verified
+      arithmetically by the new fixture). CPU's own unaccounted fraction
+      is small (0.6-0.64%). GPU's is large (40.01%) and is disclosed as a
+      genuine, investigated-but-not-fully-root-caused finding, not
+      eliminated in this slice -- see the dedicated section above and the
+      open item below.
+- [x] Multiple ensembles retain correct indexing. No indexing changed by
+      this slice; every timer addition wraps existing per-ensemble loops
+      without altering their structure, and the full `cg13-cpu`/`cg13-cuda`
+      regression suites (which include `Mensemble`-sensitive fixtures)
+      pass unchanged.
+- [x] Existing derivative and moving-state fixtures remain unchanged.
+
+### Open items / not yet done
+
+RCG-06C did not touch: reconstruction RNG statistics (F-20, RCG-06D) --
+the last remaining RCG-06 slice. **New, actively tracked follow-up for
+RCG-08** (GPU parallelization): root-cause and reduce the ~40% GPU
+unaccounted wall time found above, most likely by reducing per-step
+kernel-launch count (batching, CUDA graphs, or fusing the many small
+kernels `evaluateHybrid`/selector/compaction currently issue) rather than
+by further instrumentation -- more phase brackets around the same many
+small launches would not reduce host-driver round-trip overhead, only
+relabel it. HIP execution evidence remains deferred (no toolchain/device
+in this or any prior RCG-0x environment). No independent reviewer distinct
+from the implementer has reviewed this slice yet; Human review is
+recommended in particular for the 40% GPU finding's disposition (agree
+this is a performance question for RCG-08 rather than a timing-correctness
+defect blocking RCG-06C itself) and for the decision not to construct a
+`cpu_time`-vs-`system_clock` divergence negative control (no code path
+exists yet where they would actually differ).

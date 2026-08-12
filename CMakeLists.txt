@@ -1231,6 +1231,34 @@ if(BUILD_TESTING)
          PROPERTIES LABELS "coarse-graining;cg13;${RCG04I_BACKEND_LABEL};moving-parity;backend-parity"
                     ENVIRONMENT "OMP_NUM_THREADS=1")
    endif()
+   # RCG-06C (F-18): CPU/GPU adaptive-CG phase-timing reconciliation.  Reuses
+   # RCG-04I's fixture list, workspace preparation, and single-fixture
+   # runner (run_moving_backend_parity.py) rather than a new mechanism.  Runs
+   # moving_wall_adaptive (the only tracked fixture exercising every phase,
+   # including the selector/transition path) and asserts the printed
+   # wall/phase_sum/unaccounted reconciliation lines are internally
+   # consistent and phase_sum never materially exceeds wall time.  The GPU
+   # leg only runs, and is only registered, in a GPU-enabled configuration
+   # (the same UppASD_EXE binary runs both legs, matching RCG-04I's
+   # mechanism); a plain CPU build still runs and asserts the CPU leg.
+   set(RCG06C_GPU_BINARY_ARGS)
+   if(USE_CUDA OR USE_HIP)
+      list(APPEND RCG06C_GPU_BINARY_ARGS --gpu-binary $<TARGET_FILE:${UppASD_EXE}>)
+   endif()
+   add_test(NAME adaptive-cg-timing-reconciliation
+      COMMAND python3
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_timing_reconciliation.py
+         --cpu-binary $<TARGET_FILE:${UppASD_EXE}>
+         ${RCG06C_GPU_BINARY_ARGS}
+         --workspace-root ${CMAKE_CURRENT_BINARY_DIR}/rcg06c_timing_reconciliation_workspace)
+   set_tests_properties(adaptive-cg-timing-reconciliation
+      PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;moving-parity"
+                 ENVIRONMENT "OMP_NUM_THREADS=1")
+   if(USE_CUDA)
+      set_property(TEST adaptive-cg-timing-reconciliation APPEND PROPERTY LABELS cg13-cuda)
+   elseif(USE_HIP)
+      set_property(TEST adaptive-cg-timing-reconciliation APPEND PROPERTY LABELS cg13-hip)
+   endif()
    # RCG-05C: CPU/GPU ownership-map comparator run against the real
    # executable -- every RCG-04I adaptive_cg=True moving fixture (regression,
    # must match exactly) plus the new e2e/ownership_aniso_buffer fixture

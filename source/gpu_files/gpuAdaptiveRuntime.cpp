@@ -2586,6 +2586,12 @@ void GpuAdaptiveRuntime::recordFftMilliseconds(double elapsed) {
    phaseMetrics_.fftMilliseconds += elapsed;
 }
 
+void GpuAdaptiveRuntime::recordStepWallMilliseconds(double elapsed) {
+   if(!std::isfinite(elapsed) || elapsed < 0.0)
+      throw std::invalid_argument("GPU adaptive step wall time must be finite and nonnegative");
+   phaseMetrics_.stepWallMilliseconds += elapsed;
+}
+
 GpuAdaptiveWorkSnapshot GpuAdaptiveRuntime::downloadWorkSnapshot() {
    if(!ready_) throw std::logic_error("GPU adaptive runtime is not initialized");
    ASSERT_GPU(GPU_STREAM_SYNC(stream_));
