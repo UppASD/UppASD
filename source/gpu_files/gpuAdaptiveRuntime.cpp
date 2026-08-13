@@ -12,6 +12,7 @@
 #include <limits>
 #include <numeric>
 #include <stdexcept>
+#include <vector>
 
 namespace {
 
@@ -34,6 +35,43 @@ inline unsigned int adaptiveGrid(std::size_t workItems) {
 
 __device__ inline std::size_t adaptiveThreadIndex() {
    return static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+}
+
+// RCG-08: every launch site this task introduced or rewrote goes through this
+// macro.  No HIP toolchain or device exists in any environment used across
+// RCG-02..RCG-08, so the HIP spelling of a new launch cannot be compiled, let
+// alone executed, here; writing each new launch twice by hand would make a
+// silent CUDA/HIP divergence (different grid, different argument order) both
+// easy to introduce and impossible to detect locally.  Routing them through
+// one macro makes the two backends structurally identical by construction,
+// which is the property section 5.5 of the remediation blueprint requires and
+// the only one that can honestly be claimed without HIP hardware.
+//
+// Pre-existing launch sites are deliberately left in their explicit
+// #if/#elif form: converting them would enlarge this patch's diff without
+// changing behaviour, and section 5.2 asks for one defect class per patch.
+#if defined(CUDA_V)
+#define ADAPTIVE_LAUNCH(kernel, grid, stream, ...) \
+   kernel<<<(grid), adaptiveThreads, 0, (stream)>>>(__VA_ARGS__)
+#elif defined(HIP_V)
+#define ADAPTIVE_LAUNCH(kernel, grid, stream, ...) \
+   hipLaunchKernelGGL(kernel, dim3(grid), dim3(adaptiveThreads), 0, (stream), \
+                      __VA_ARGS__)
+#endif
+
+// Level sizes for the hierarchical compaction scan: n_0 = scanItems and
+// n_{k+1} = ceil(n_k / adaptiveThreads), stopping at the first level that fits
+// in a single tile.  Returns n_1..n_L (empty when level 0 already fits).
+// Shared by allocate() and estimateBytes() so the preflight cannot disagree
+// with the actual allocation.
+inline std::vector<std::size_t> compactionScanLevelItems(std::size_t scanItems) {
+   std::vector<std::size_t> levels;
+   std::size_t items = scanItems;
+   while(items > adaptiveThreads) {
+      items = (items + adaptiveThreads - 1) / adaptiveThreads;
+      levels.push_back(items);
+   }
+   return levels;
 }
 
 struct AdaptiveKernelDevice {
@@ -145,60 +183,81 @@ __device__ inline void loadCoarseVector(const real* data,
                                          topology.dynamicChannels, topology.blocks)];
 }
 
+// RCG-08 (F-09): restriction used to be a single-lane kernel that zeroed the
+// whole coarse state, scattered every atom of every ensemble into it, and then
+// finalized every channel/block/ensemble scalar -- O(atoms * ensembles)
+// serialized onto thread (0,0).
+//
+// It is now one thread per (channel, block, ensemble) scalar.  Each thread
+// owns its output scalar exclusively and gathers over that block's own CSR
+// atom range, so the kernel needs no atomic and no separate clear pass: the
+// accumulate and finalize halves both act on the single scalar the thread
+// owns, and are therefore fused into one launch.
+//
+// The gather order is not merely race-free, it is bitwise faithful to the
+// serial reference it replaces.  BlockTopology fills block_atoms by scanning
+// atoms 1..Natom with a per-block cursor
+// (source/CoarseGraining/blocktopology.f90 build loop), so each block's CSR
+// slice is strictly ascending in atom index.  The old global atom loop
+// contributed to a given (channel, block, ensemble) exactly the atoms of that
+// block carrying that channel, in ascending atom order; summing the CSR slice
+// visits the identical summands in the identical order.  Floating-point
+// addition is order-sensitive but not set-sensitive, so the result is
+// bit-identical rather than merely within tolerance -- which is what keeps the
+// polarization gate's decisions (and hence adaptive transitions) deterministic
+// after parallelization.
 __global__ void restrictAdaptiveMoments(GpuAdaptiveDeviceTopology topology,
                                         GpuAdaptiveDeviceRuntime runtime,
                                         AdaptiveKernelDevice kernels,
                                         const real* atomDirection) {
-   if(blockIdx.x != 0 || threadIdx.x != 0) return;
-   const std::size_t vectorCount =
-      3 * topology.dynamicChannels * topology.blocks * topology.ensembles;
    const std::size_t scalarCount =
       topology.dynamicChannels * topology.blocks * topology.ensembles;
-   for(std::size_t i = 0; i < vectorCount; ++i) runtime.coarseMoment[i] = real(0);
-   for(std::size_t i = 0; i < scalarCount; ++i) runtime.channelMomentSum[i] = real(0);
-   for(std::size_t atom = 0; atom < topology.atoms; ++atom) {
+   const std::size_t scalar = adaptiveThreadIndex();
+   if(scalar >= scalarCount) return;
+   const std::size_t channel = scalar % topology.dynamicChannels;
+   const std::size_t block =
+      (scalar / topology.dynamicChannels) % topology.blocks;
+   const std::size_t ensemble =
+      scalar / (topology.dynamicChannels * topology.blocks);
+
+   const std::size_t begin =
+      static_cast<std::size_t>(topology.blockAtomOffset[block]);
+   const std::size_t end =
+      static_cast<std::size_t>(topology.blockAtomOffset[block + 1]);
+   real momentSum = real(0);
+   real resultant[3] = {real(0), real(0), real(0)};
+   for(std::size_t position = begin; position < end; ++position) {
+      const std::size_t atom =
+         static_cast<std::size_t>(topology.blockAtoms[position] - 1);
       const int rawChannel = topology.atomToDynamicChannel[atom];
-      if(rawChannel <= 0) continue;
-      const std::size_t channel = static_cast<std::size_t>(rawChannel - 1);
-      const std::size_t block = static_cast<std::size_t>(topology.atomToBlock[atom] - 1);
+      if(rawChannel <= 0 ||
+         static_cast<std::size_t>(rawChannel - 1) != channel) continue;
       const real moment = kernels.atomMoment[atom];
-      for(std::size_t ensemble = 0; ensemble < topology.ensembles; ++ensemble) {
-         const std::size_t scalar = coarseScalarIndex(channel, block, ensemble,
-                                                      topology.dynamicChannels,
-                                                      topology.blocks);
-         runtime.channelMomentSum[scalar] += moment;
-         for(int xyz = 0; xyz < 3; ++xyz)
-            runtime.coarseMoment[3 * scalar + xyz] +=
-               moment * atomDirection[atomVectorIndex(xyz, atom, ensemble, topology.atoms)];
-      }
+      momentSum += moment;
+      for(int xyz = 0; xyz < 3; ++xyz)
+         resultant[xyz] += moment * atomDirection[
+            atomVectorIndex(xyz, atom, ensemble, topology.atoms)];
    }
-   for(std::size_t scalar = 0; scalar < scalarCount; ++scalar) {
-      const std::size_t block =
-         (scalar / topology.dynamicChannels) % topology.blocks;
-      if(runtime.blockState[block] == coarseState) {
-         for(int xyz = 0; xyz < 3; ++xyz)
-            runtime.coarseMoment[3 * scalar + xyz] =
-               runtime.channelMomentSum[scalar] *
-               runtime.coarseDirection[3 * scalar + xyz];
-         continue;
-      }
-      const real vector[3] = {
-         runtime.coarseMoment[3 * scalar],
-         runtime.coarseMoment[3 * scalar + 1],
-         runtime.coarseMoment[3 * scalar + 2]
-      };
-      const real length = normDevice(vector);
-      const real scale = runtime.channelMomentSum[scalar] > real(1) ?
-                         runtime.channelMomentSum[scalar] : real(1);
-      if(length > real(64) * epsilonDevice() * scale) {
-         runtime.coarseDirection[3 * scalar] = vector[0] / length;
-         runtime.coarseDirection[3 * scalar + 1] = vector[1] / length;
-         runtime.coarseDirection[3 * scalar + 2] = vector[2] / length;
-      } else {
-         runtime.coarseDirection[3 * scalar] = real(0);
-         runtime.coarseDirection[3 * scalar + 1] = real(0);
-         runtime.coarseDirection[3 * scalar + 2] = real(0);
-      }
+   runtime.channelMomentSum[scalar] = momentSum;
+
+   if(runtime.blockState[block] == coarseState) {
+      for(int xyz = 0; xyz < 3; ++xyz)
+         runtime.coarseMoment[3 * scalar + xyz] =
+            momentSum * runtime.coarseDirection[3 * scalar + xyz];
+      return;
+   }
+   for(int xyz = 0; xyz < 3; ++xyz)
+      runtime.coarseMoment[3 * scalar + xyz] = resultant[xyz];
+   const real length = normDevice(resultant);
+   const real scale = momentSum > real(1) ? momentSum : real(1);
+   if(length > real(64) * epsilonDevice() * scale) {
+      runtime.coarseDirection[3 * scalar] = resultant[0] / length;
+      runtime.coarseDirection[3 * scalar + 1] = resultant[1] / length;
+      runtime.coarseDirection[3 * scalar + 2] = resultant[2] / length;
+   } else {
+      runtime.coarseDirection[3 * scalar] = real(0);
+      runtime.coarseDirection[3 * scalar + 1] = real(0);
+      runtime.coarseDirection[3 * scalar + 2] = real(0);
    }
 }
 
@@ -424,19 +483,40 @@ __device__ real coneLongitudinal(const GpuAdaptiveDeviceTopology& topology,
    return sum;
 }
 
+// RCG-08 (F-09): publication used to walk every block on thread (0,0),
+// serializing backup, reconstruction, rollback and the state/age/epoch update.
+// It is now one thread per spatial block.
+//
+// Every block's work is independent by construction, so this needs no atomic
+// and no inter-thread ordering:
+//   * reads are own-block only -- coarseMoment/channelMomentSum/coarseDirection
+//     at this block's scalars, blockState/pendingState/stateAge/transitionEpoch
+//     at this block, and acceptedMask[block];
+//   * writes to atomDirection, kernels.transitionBackup and
+//     kernels.ghostDirection touch only atoms in this block's CSR range, and
+//     validate() has already proved the CSR membership is a bijection (each
+//     atom belongs to exactly one block), so no two threads can address the
+//     same atom;
+//   * writes to pendingState/blockState/stateAge/transitionEpoch are at this
+//     thread's own block index.
+// Determinism is unchanged: the reconstruction RNG is still seeded from the
+// (globalSeed, block, channel, ensemble, epoch) tuple, so each block draws the
+// identical stream it drew when the loop was serial, independently of the
+// order the blocks now execute in.
 __global__ void publishAdaptiveState(GpuAdaptiveDeviceTopology topology,
                                      GpuAdaptiveDeviceRuntime runtime,
                                      AdaptiveKernelDevice kernels,
                                      real* atomDirection,
                                      GpuAdaptiveReconstructionPolicy policy,
                                      const unsigned char* acceptedMask) {
-   if(blockIdx.x != 0 || threadIdx.x != 0) return;
-   for(std::size_t block = 0; block < topology.blocks; ++block) {
+   const std::size_t block = adaptiveThreadIndex();
+   if(block >= topology.blocks) return;
+   {
       if(acceptedMask && !acceptedMask[block]) {
          runtime.pendingState[block] = runtime.blockState[block];
          if(runtime.stateAge[block] != UINT_MAX)
             ++runtime.stateAge[block];
-         continue;
+         return;
       }
       const int oldState = runtime.blockState[block];
       const int newState = runtime.pendingState[block];
@@ -584,7 +664,7 @@ __global__ void publishAdaptiveState(GpuAdaptiveDeviceTopology topology,
                }
             runtime.pendingState[block] = oldState;
             if(runtime.stateAge[block] != UINT_MAX) ++runtime.stateAge[block];
-            continue;
+            return;
          }
       }
       if(oldState != newState) {
@@ -665,78 +745,123 @@ __device__ inline void effectiveAtomDirection(
    loadAtomVector(source, topology, atom, ensemble, value);
 }
 
-__global__ void evaluateAdaptiveAtomistic(
-   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
-   AdaptiveKernelDevice kernels, const real* atomDirection, real* atomField) {
-   if(blockIdx.x != 0 || threadIdx.x != 0) return;
+// RCG-08 (F-09): the atomistic Hamiltonian used to run entirely on thread
+// (0,0) -- the clear pass, the unique-pair bond loop, the on-site anisotropy
+// loop and the compact-list writeback, for every ensemble.  On the 8192-atom
+// /24576-bond benchmark fixture that single lane accounted for 94.6% of the
+// all-fine field-evaluation wall time.  It is now four parallel launches,
+// ordered on the runtime stream so each sees the previous one complete.
+
+__global__ void clearAdaptiveAtomistic(
+   GpuAdaptiveDeviceTopology topology, AdaptiveKernelDevice kernels,
+   real* atomField) {
    const std::size_t atomVectors = 3 * topology.atoms * topology.ensembles;
-   for(std::size_t i = 0; i < atomVectors; ++i) {
-      kernels.atomFieldScratch[i] = real(0);
-      atomField[i] = real(0);
+   const std::size_t index = adaptiveThreadIndex();
+   if(index < atomVectors) {
+      kernels.atomFieldScratch[index] = real(0);
+      atomField[index] = real(0);
    }
-   kernels.energyTerms[0] = 0.0;
-   kernels.energyTerms[1] = 0.0;
-   for(std::size_t ensemble = 0; ensemble < topology.ensembles; ++ensemble) {
-      for(std::size_t bond = 0; bond < kernels.bonds; ++bond) {
-         const std::size_t atomI = static_cast<std::size_t>(kernels.bondAtom[2 * bond] - 1);
-         const std::size_t atomJ = static_cast<std::size_t>(kernels.bondAtom[2 * bond + 1] - 1);
-         if(!runtime.atomisticAtomMask[atomI] && !runtime.atomisticAtomMask[atomJ]) continue;
-         real si[3], sj[3], ksiJ[3] = {}, ktSi[3] = {};
-         effectiveAtomDirection(topology, runtime, kernels, atomDirection, atomI, ensemble, si);
-         effectiveAtomDirection(topology, runtime, kernels, atomDirection, atomJ, ensemble, sj);
-         for(int row = 0; row < 3; ++row) {
-            for(int column = 0; column < 3; ++column) {
-               const real matrix = kernels.bondMatrix[row + 3 * (column + 3 * bond)];
-               ksiJ[row] += matrix * sj[column];
-               ktSi[column] += matrix * si[row];
-            }
-         }
-         kernels.energyTerms[0] -= static_cast<double>(dotDevice(si, ksiJ));
-         for(int xyz = 0; xyz < 3; ++xyz) {
-            kernels.atomFieldScratch[atomVectorIndex(
-               xyz, atomI, ensemble, topology.atoms)] +=
-               ksiJ[xyz] / (kernels.magneticMomentSi * kernels.atomMoment[atomI]);
-            kernels.atomFieldScratch[atomVectorIndex(
-               xyz, atomJ, ensemble, topology.atoms)] +=
-               ktSi[xyz] / (kernels.magneticMomentSi * kernels.atomMoment[atomJ]);
-         }
-      }
-      for(unsigned int work = 0; work < runtime.workCounts[0]; ++work) {
-         const std::size_t atom =
-            static_cast<std::size_t>(runtime.activeAtomList[work] - 1);
-         real direction[3];
-         loadAtomVector(atomDirection, topology, atom, ensemble, direction);
-         for(int axisIndex = 0;
-             axisIndex < kernels.atomAnisotropyAxisCount[atom]; ++axisIndex) {
-            real axis[3];
-            for(int xyz = 0; xyz < 3; ++xyz)
-               axis[xyz] = kernels.atomAnisotropyAxis[
-                  xyz + 3 * (axisIndex + 2 * atom)];
-            const real c = dotDevice(direction, axis);
-            const real k1 = kernels.atomAnisotropyK1[axisIndex + 2 * atom];
-            const real k2 = kernels.atomAnisotropyK2[axisIndex + 2 * atom];
-            kernels.energyTerms[1] += static_cast<double>(
-               k1 * c * c + k2 * (real(2) * c * c - c * c * c * c));
-            const real derivative = real(2) * c *
-               (k1 + real(2) * k2 * (real(1) - c * c));
-            for(int xyz = 0; xyz < 3; ++xyz)
-               kernels.atomFieldScratch[atomVectorIndex(
-                  xyz, atom, ensemble, topology.atoms)] -=
-                  derivative * axis[xyz] /
-                  (kernels.magneticMomentSi * kernels.atomMoment[atom]);
-         }
-      }
-      // The writeback traverses the compact active-atom list.  Coarse ghosts
-      // keep their reaction field private for the exact projection adjoint.
-      for(unsigned int work = 0; work < runtime.workCounts[0]; ++work) {
-         const std::size_t atom =
-            static_cast<std::size_t>(runtime.activeAtomList[work] - 1);
-         for(int xyz = 0; xyz < 3; ++xyz)
-            atomField[atomVectorIndex(xyz, atom, ensemble, topology.atoms)] =
-               kernels.atomFieldScratch[atomVectorIndex(
-                  xyz, atom, ensemble, topology.atoms)];
+   if(index < 2) kernels.energyTerms[index] = 0.0;
+}
+
+// One thread per (bond, ensemble).  The unique-pair ownership contract is
+// unchanged -- every bond is still visited exactly once and still scatters
+// the reaction field onto both of its endpoints -- but two bonds can now share
+// an endpoint atom concurrently, so the endpoint accumulation must be atomic.
+// This mirrors the choice RCG-07 accepted for the CPU analogue of the same
+// loop (per-component atomic updates rather than an atom-sized per-thread
+// reduction array, which would multiply an O(natoms) array by the thread
+// count and undo RCG-06A).  The energy accumulates through the RCG-06B FP64
+// accumulator, so the term stays FP64 regardless of build precision; its
+// summation order becomes atomic-arrival order, exactly as the already
+// accepted coarse energy terms (energyTerms[2..6]) have been since CG-10.
+__global__ void evaluateAdaptiveAtomisticBonds(
+   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
+   AdaptiveKernelDevice kernels, const real* atomDirection) {
+   const std::size_t work = adaptiveThreadIndex();
+   const std::size_t count = kernels.bonds * topology.ensembles;
+   if(work >= count) return;
+   const std::size_t bond = work % kernels.bonds;
+   const std::size_t ensemble = work / kernels.bonds;
+   const std::size_t atomI =
+      static_cast<std::size_t>(kernels.bondAtom[2 * bond] - 1);
+   const std::size_t atomJ =
+      static_cast<std::size_t>(kernels.bondAtom[2 * bond + 1] - 1);
+   if(!runtime.atomisticAtomMask[atomI] && !runtime.atomisticAtomMask[atomJ]) return;
+   real si[3], sj[3], ksiJ[3] = {}, ktSi[3] = {};
+   effectiveAtomDirection(topology, runtime, kernels, atomDirection, atomI, ensemble, si);
+   effectiveAtomDirection(topology, runtime, kernels, atomDirection, atomJ, ensemble, sj);
+   for(int row = 0; row < 3; ++row) {
+      for(int column = 0; column < 3; ++column) {
+         const real matrix = kernels.bondMatrix[row + 3 * (column + 3 * bond)];
+         ksiJ[row] += matrix * sj[column];
+         ktSi[column] += matrix * si[row];
       }
    }
+   atomicAddEnergyTerm(&kernels.energyTerms[0],
+                       -static_cast<double>(dotDevice(si, ksiJ)));
+   for(int xyz = 0; xyz < 3; ++xyz) {
+      atomicAdd(&kernels.atomFieldScratch[atomVectorIndex(
+                   xyz, atomI, ensemble, topology.atoms)],
+                ksiJ[xyz] / (kernels.magneticMomentSi * kernels.atomMoment[atomI]));
+      atomicAdd(&kernels.atomFieldScratch[atomVectorIndex(
+                   xyz, atomJ, ensemble, topology.atoms)],
+                ktSi[xyz] / (kernels.magneticMomentSi * kernels.atomMoment[atomJ]));
+   }
+}
+
+// One thread per (compact active-atom slot, ensemble).  activeAtomList holds
+// each atom at most once, so (atom, ensemble) is unique per thread and the
+// field update needs no atomic; only the shared energy term does.
+__global__ void evaluateAdaptiveAtomisticOnsite(
+   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
+   AdaptiveKernelDevice kernels, const real* atomDirection) {
+   const std::size_t index = adaptiveThreadIndex();
+   const std::size_t work = index % topology.atoms;
+   const std::size_t ensemble = index / topology.atoms;
+   if(ensemble >= topology.ensembles || work >= runtime.workCounts[0]) return;
+   const std::size_t atom =
+      static_cast<std::size_t>(runtime.activeAtomList[work] - 1);
+   real direction[3];
+   loadAtomVector(atomDirection, topology, atom, ensemble, direction);
+   double onsite = 0.0;
+   for(int axisIndex = 0;
+       axisIndex < kernels.atomAnisotropyAxisCount[atom]; ++axisIndex) {
+      real axis[3];
+      for(int xyz = 0; xyz < 3; ++xyz)
+         axis[xyz] = kernels.atomAnisotropyAxis[
+            xyz + 3 * (axisIndex + 2 * atom)];
+      const real c = dotDevice(direction, axis);
+      const real k1 = kernels.atomAnisotropyK1[axisIndex + 2 * atom];
+      const real k2 = kernels.atomAnisotropyK2[axisIndex + 2 * atom];
+      onsite += static_cast<double>(
+         k1 * c * c + k2 * (real(2) * c * c - c * c * c * c));
+      const real derivative = real(2) * c *
+         (k1 + real(2) * k2 * (real(1) - c * c));
+      for(int xyz = 0; xyz < 3; ++xyz)
+         kernels.atomFieldScratch[atomVectorIndex(
+            xyz, atom, ensemble, topology.atoms)] -=
+            derivative * axis[xyz] /
+            (kernels.magneticMomentSi * kernels.atomMoment[atom]);
+   }
+   if(onsite != 0.0) atomicAddEnergyTerm(&kernels.energyTerms[1], onsite);
+}
+
+// The writeback traverses the compact active-atom list.  Coarse ghosts keep
+// their reaction field private for the exact projection adjoint.
+__global__ void writebackAdaptiveAtomistic(
+   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
+   AdaptiveKernelDevice kernels, real* atomField) {
+   const std::size_t index = adaptiveThreadIndex();
+   const std::size_t work = index % topology.atoms;
+   const std::size_t ensemble = index / topology.atoms;
+   if(ensemble >= topology.ensembles || work >= runtime.workCounts[0]) return;
+   const std::size_t atom =
+      static_cast<std::size_t>(runtime.activeAtomList[work] - 1);
+   for(int xyz = 0; xyz < 3; ++xyz)
+      atomField[atomVectorIndex(xyz, atom, ensemble, topology.atoms)] =
+         kernels.atomFieldScratch[atomVectorIndex(
+            xyz, atom, ensemble, topology.atoms)];
 }
 
 __global__ void clearAdaptiveInterface(
@@ -1095,8 +1220,18 @@ __global__ void writeAdaptiveCoarse(
    }
 }
 
+// RCG-08 (F-09) documented exception: this kernel is a genuine O(1) reduction
+// -- seven FP64 loads, six adds, one store -- of accumulators that every other
+// energy-producing kernel has already reduced in parallel.  It is launched
+// <<<1,1>>> because there is exactly one element of work, not because O(N)
+// work has been serialized onto one lane, which is what F-09 objected to and
+// what the other five kernels in that finding actually did.  It is left
+// single-threaded deliberately; parallelizing a seven-term sum would add a
+// launch and a reduction buffer to save nanoseconds.  The guard is written
+// against the shared thread-index helper so it stays correct if the launch
+// geometry is ever widened.
 __global__ void finalizeAdaptiveEnergy(AdaptiveKernelDevice kernels) {
-   if(blockIdx.x != 0 || threadIdx.x != 0) return;
+   if(adaptiveThreadIndex() != 0) return;
    kernels.energyTerms[7] = kernels.energyTerms[0] + kernels.energyTerms[1] +
       kernels.energyTerms[2] + kernels.energyTerms[3] +
       kernels.energyTerms[4] + kernels.energyTerms[5] +
@@ -1113,93 +1248,113 @@ __device__ inline void llgRhs(const real direction[3], const real field[3],
       rhs[xyz] = prefactor * (first[xyz] + damping * second[xyz]);
 }
 
-__global__ void predictorAdaptiveHeun(
+// RCG-08 (F-09): both Heun stages ran on thread (0,0), including the two
+// full-state save copies at the top of the predictor.  They are now one thread
+// per compact-list slot per ensemble, split into an atom kernel and a block
+// kernel so each launch has a single uniform work definition.  The saves moved
+// out of the kernel entirely and are issued as stream-ordered device-to-device
+// copies by integrateHeun().
+//
+// Each thread owns one (atom, ensemble) or (block, ensemble) entirely: the
+// compact lists contain each atom/block at most once, so there is no atomic,
+// no reduction, and no cross-thread read of anything this launch writes.  The
+// accepted Heun update, its normalization, and the compact-list work
+// definition are unchanged, so results are bitwise identical to the serial
+// reference.
+
+__global__ void predictorAdaptiveHeunAtoms(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
    AdaptiveKernelDevice kernels, real dt, real* atomDirection,
-   real* savedAtom, real* savedCoarse, const real* atomField,
-   const real* coarseField) {
-   if(blockIdx.x != 0 || threadIdx.x != 0) return;
-   const std::size_t atomVectors = 3 * topology.atoms * topology.ensembles;
-   const std::size_t coarseVectors =
-      3 * topology.dynamicChannels * topology.blocks * topology.ensembles;
-   for(std::size_t i = 0; i < atomVectors; ++i) savedAtom[i] = atomDirection[i];
-   for(std::size_t i = 0; i < coarseVectors; ++i)
-      savedCoarse[i] = runtime.coarseDirection[i];
-   for(std::size_t ensemble = 0; ensemble < topology.ensembles; ++ensemble) {
-      for(unsigned int work = 0; work < runtime.workCounts[0]; ++work) {
-         const std::size_t atom =
-            static_cast<std::size_t>(runtime.activeAtomList[work] - 1);
-         real direction[3], field[3], rhs[3], candidate[3];
-         loadAtomVector(savedAtom, topology, atom, ensemble, direction);
-         loadAtomVector(atomField, topology, atom, ensemble, field);
-         llgRhs(direction, field, kernels.gammaPerTs, kernels.damping, rhs);
-         for(int xyz = 0; xyz < 3; ++xyz) candidate[xyz] = direction[xyz] + dt * rhs[xyz];
-         const real n = normDevice(candidate);
-         for(int xyz = 0; xyz < 3; ++xyz)
-            atomDirection[atomVectorIndex(xyz, atom, ensemble, topology.atoms)] =
-               candidate[xyz] / n;
-      }
-      for(unsigned int work = 0; work < runtime.workCounts[1]; ++work) {
-         const std::size_t block =
-            static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
-         real direction[3], field[3], rhs[3], candidate[3];
-         loadCoarseVector(savedCoarse, topology, 0, block, ensemble, direction);
-         loadCoarseVector(coarseField, topology, 0, block, ensemble, field);
-         llgRhs(direction, field, kernels.gammaPerTs, kernels.damping, rhs);
-         for(int xyz = 0; xyz < 3; ++xyz) candidate[xyz] = direction[xyz] + dt * rhs[xyz];
-         const real n = normDevice(candidate);
-         for(int xyz = 0; xyz < 3; ++xyz)
-            runtime.coarseDirection[coarseVectorIndex(
-               xyz, 0, block, ensemble, topology.dynamicChannels,
-               topology.blocks)] = candidate[xyz] / n;
-      }
-   }
+   const real* savedAtom, const real* atomField) {
+   const std::size_t index = adaptiveThreadIndex();
+   const std::size_t work = index % topology.atoms;
+   const std::size_t ensemble = index / topology.atoms;
+   if(ensemble >= topology.ensembles || work >= runtime.workCounts[0]) return;
+   const std::size_t atom =
+      static_cast<std::size_t>(runtime.activeAtomList[work] - 1);
+   real direction[3], field[3], rhs[3], candidate[3];
+   loadAtomVector(savedAtom, topology, atom, ensemble, direction);
+   loadAtomVector(atomField, topology, atom, ensemble, field);
+   llgRhs(direction, field, kernels.gammaPerTs, kernels.damping, rhs);
+   for(int xyz = 0; xyz < 3; ++xyz) candidate[xyz] = direction[xyz] + dt * rhs[xyz];
+   const real n = normDevice(candidate);
+   for(int xyz = 0; xyz < 3; ++xyz)
+      atomDirection[atomVectorIndex(xyz, atom, ensemble, topology.atoms)] =
+         candidate[xyz] / n;
 }
 
-__global__ void correctorAdaptiveHeun(
+__global__ void predictorAdaptiveHeunBlocks(
+   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
+   AdaptiveKernelDevice kernels, real dt, const real* savedCoarse,
+   const real* coarseField) {
+   const std::size_t index = adaptiveThreadIndex();
+   const std::size_t work = index % topology.blocks;
+   const std::size_t ensemble = index / topology.blocks;
+   if(ensemble >= topology.ensembles || work >= runtime.workCounts[1]) return;
+   const std::size_t block =
+      static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
+   real direction[3], field[3], rhs[3], candidate[3];
+   loadCoarseVector(savedCoarse, topology, 0, block, ensemble, direction);
+   loadCoarseVector(coarseField, topology, 0, block, ensemble, field);
+   llgRhs(direction, field, kernels.gammaPerTs, kernels.damping, rhs);
+   for(int xyz = 0; xyz < 3; ++xyz) candidate[xyz] = direction[xyz] + dt * rhs[xyz];
+   const real n = normDevice(candidate);
+   for(int xyz = 0; xyz < 3; ++xyz)
+      runtime.coarseDirection[coarseVectorIndex(
+         xyz, 0, block, ensemble, topology.dynamicChannels,
+         topology.blocks)] = candidate[xyz] / n;
+}
+
+__global__ void correctorAdaptiveHeunAtoms(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
    AdaptiveKernelDevice kernels, real dt, real* atomDirection,
-   const real* savedAtom, const real* savedCoarse,
-   const real* initialAtomField, const real* initialCoarseField,
-   const real* predictorAtomField, const real* predictorCoarseField) {
-   if(blockIdx.x != 0 || threadIdx.x != 0) return;
-   for(std::size_t ensemble = 0; ensemble < topology.ensembles; ++ensemble) {
-      for(unsigned int work = 0; work < runtime.workCounts[0]; ++work) {
-         const std::size_t atom =
-            static_cast<std::size_t>(runtime.activeAtomList[work] - 1);
-         real initial[3], predictor[3], field0[3], field1[3], rhs0[3], rhs1[3], value[3];
-         loadAtomVector(savedAtom, topology, atom, ensemble, initial);
-         loadAtomVector(atomDirection, topology, atom, ensemble, predictor);
-         loadAtomVector(initialAtomField, topology, atom, ensemble, field0);
-         loadAtomVector(predictorAtomField, topology, atom, ensemble, field1);
-         llgRhs(initial, field0, kernels.gammaPerTs, kernels.damping, rhs0);
-         llgRhs(predictor, field1, kernels.gammaPerTs, kernels.damping, rhs1);
-         for(int xyz = 0; xyz < 3; ++xyz)
-            value[xyz] = initial[xyz] + real(0.5) * dt * (rhs0[xyz] + rhs1[xyz]);
-         const real n = normDevice(value);
-         for(int xyz = 0; xyz < 3; ++xyz)
-            atomDirection[atomVectorIndex(xyz, atom, ensemble, topology.atoms)] =
-               value[xyz] / n;
-      }
-      for(unsigned int work = 0; work < runtime.workCounts[1]; ++work) {
-         const std::size_t block =
-            static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
-         real initial[3], predictor[3], field0[3], field1[3], rhs0[3], rhs1[3], value[3];
-         loadCoarseVector(savedCoarse, topology, 0, block, ensemble, initial);
-         loadCoarseVector(runtime.coarseDirection, topology, 0, block, ensemble, predictor);
-         loadCoarseVector(initialCoarseField, topology, 0, block, ensemble, field0);
-         loadCoarseVector(predictorCoarseField, topology, 0, block, ensemble, field1);
-         llgRhs(initial, field0, kernels.gammaPerTs, kernels.damping, rhs0);
-         llgRhs(predictor, field1, kernels.gammaPerTs, kernels.damping, rhs1);
-         for(int xyz = 0; xyz < 3; ++xyz)
-            value[xyz] = initial[xyz] + real(0.5) * dt * (rhs0[xyz] + rhs1[xyz]);
-         const real n = normDevice(value);
-         for(int xyz = 0; xyz < 3; ++xyz)
-            runtime.coarseDirection[coarseVectorIndex(
-               xyz, 0, block, ensemble, topology.dynamicChannels,
-               topology.blocks)] = value[xyz] / n;
-      }
-   }
+   const real* savedAtom, const real* initialAtomField,
+   const real* predictorAtomField) {
+   const std::size_t index = adaptiveThreadIndex();
+   const std::size_t work = index % topology.atoms;
+   const std::size_t ensemble = index / topology.atoms;
+   if(ensemble >= topology.ensembles || work >= runtime.workCounts[0]) return;
+   const std::size_t atom =
+      static_cast<std::size_t>(runtime.activeAtomList[work] - 1);
+   real initial[3], predictor[3], field0[3], field1[3], rhs0[3], rhs1[3], value[3];
+   loadAtomVector(savedAtom, topology, atom, ensemble, initial);
+   loadAtomVector(atomDirection, topology, atom, ensemble, predictor);
+   loadAtomVector(initialAtomField, topology, atom, ensemble, field0);
+   loadAtomVector(predictorAtomField, topology, atom, ensemble, field1);
+   llgRhs(initial, field0, kernels.gammaPerTs, kernels.damping, rhs0);
+   llgRhs(predictor, field1, kernels.gammaPerTs, kernels.damping, rhs1);
+   for(int xyz = 0; xyz < 3; ++xyz)
+      value[xyz] = initial[xyz] + real(0.5) * dt * (rhs0[xyz] + rhs1[xyz]);
+   const real n = normDevice(value);
+   for(int xyz = 0; xyz < 3; ++xyz)
+      atomDirection[atomVectorIndex(xyz, atom, ensemble, topology.atoms)] =
+         value[xyz] / n;
+}
+
+__global__ void correctorAdaptiveHeunBlocks(
+   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
+   AdaptiveKernelDevice kernels, real dt, const real* savedCoarse,
+   const real* initialCoarseField, const real* predictorCoarseField) {
+   const std::size_t index = adaptiveThreadIndex();
+   const std::size_t work = index % topology.blocks;
+   const std::size_t ensemble = index / topology.blocks;
+   if(ensemble >= topology.ensembles || work >= runtime.workCounts[1]) return;
+   const std::size_t block =
+      static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
+   real initial[3], predictor[3], field0[3], field1[3], rhs0[3], rhs1[3], value[3];
+   loadCoarseVector(savedCoarse, topology, 0, block, ensemble, initial);
+   loadCoarseVector(runtime.coarseDirection, topology, 0, block, ensemble, predictor);
+   loadCoarseVector(initialCoarseField, topology, 0, block, ensemble, field0);
+   loadCoarseVector(predictorCoarseField, topology, 0, block, ensemble, field1);
+   llgRhs(initial, field0, kernels.gammaPerTs, kernels.damping, rhs0);
+   llgRhs(predictor, field1, kernels.gammaPerTs, kernels.damping, rhs1);
+   for(int xyz = 0; xyz < 3; ++xyz)
+      value[xyz] = initial[xyz] + real(0.5) * dt * (rhs0[xyz] + rhs1[xyz]);
+   const real n = normDevice(value);
+   for(int xyz = 0; xyz < 3; ++xyz)
+      runtime.coarseDirection[coarseVectorIndex(
+         xyz, 0, block, ensemble, topology.dynamicChannels,
+         topology.blocks)] = value[xyz] / n;
 }
 
 bool checkedAdd(std::size_t& total, std::size_t count, std::size_t elementBytes) {
@@ -1307,18 +1462,75 @@ __global__ void initializeAdaptiveWorkScan(
    scan[2 * scanItems + index] = interfaceAtom;
 }
 
-__global__ void scanAdaptiveWorkStep(
-   const unsigned int* input, unsigned int* output,
-   std::size_t scanItems, std::size_t offset) {
+// RCG-08 (F-12): the compaction scan used to be a global Hillis--Steele
+// sweep -- ceil(log2(N)) kernel launches, each reading and writing all 3N
+// flags, for O(N log N) element work with an N-dependent launch count.
+//
+// It is replaced by the standard three-phase hierarchical scan below, which
+// is linear-work and portable (plain shared memory, no CUB/rocPRIM, so CUDA
+// and HIP compile the identical algorithm rather than two different vendor
+// primitives that would have to be validated separately -- and HIP has no
+// device here to validate on).
+//
+//   1. scanAdaptiveTiles     -- each thread block inclusively scans one
+//                               adaptiveThreads-sized tile of one component in
+//                               shared memory and publishes that tile's total.
+//   2. scanAdaptiveTiles     -- applied again to the (much shorter) array of
+//                               tile totals, recursively, until one tile
+//                               covers a level.
+//   3. addAdaptiveTileOffsets - adds each level's scanned tile totals back
+//                               down into the level below.
+//
+// Work accounting: the tile-local scan is Kogge--Stone, so it costs
+// T*log2(T) operations per T=adaptiveThreads elements.  T is a compile-time
+// constant, so that is a fixed factor (log2(256)=8) per element, not a growing
+// one: total element work is O(N), and the launch count is O(log_T N) -- three
+// launches for the 2048-block benchmark fixture and five up to ~16M items,
+// against the eleven the old sweep needed at 2048 alone.  The tile-local
+// factor of 8 is stated rather than hidden: a work-efficient Blelloch tile
+// scan would reduce it to ~2, but the scan is already far from the hot path
+// and the simpler formulation is easier to keep identical across backends.
+//
+// `values` is scanned in place when it is a tile-sum level, and out-of-place
+// for level 0; both are safe because every thread block reads and writes only
+// its own tile.
+__global__ void scanAdaptiveTiles(
+   const unsigned int* input, unsigned int* output, unsigned int* tileTotals,
+   std::size_t itemsPerComponent, std::size_t tilesPerComponent) {
+   __shared__ unsigned int shared[adaptiveThreads];
+   const std::size_t component =
+      static_cast<std::size_t>(blockIdx.x) / tilesPerComponent;
+   const std::size_t tile =
+      static_cast<std::size_t>(blockIdx.x) % tilesPerComponent;
+   const std::size_t base = component * itemsPerComponent + tile * adaptiveThreads;
+   const std::size_t local = threadIdx.x;
+   const std::size_t index = tile * adaptiveThreads + local;
+   shared[local] = index < itemsPerComponent ? input[base + local] : 0u;
+   __syncthreads();
+   for(unsigned int offset = 1; offset < adaptiveThreads; offset <<= 1) {
+      unsigned int addend = 0u;
+      if(local >= offset) addend = shared[local - offset];
+      __syncthreads();
+      if(local >= offset) shared[local] += addend;
+      __syncthreads();
+   }
+   if(index < itemsPerComponent) output[base + local] = shared[local];
+   if(local == adaptiveThreads - 1 && tileTotals)
+      tileTotals[component * tilesPerComponent + tile] = shared[local];
+}
+
+__global__ void addAdaptiveTileOffsets(
+   unsigned int* values, const unsigned int* scannedTileTotals,
+   std::size_t itemsPerComponent, std::size_t tilesPerComponent) {
    const std::size_t flat = adaptiveThreadIndex();
-   const std::size_t count = 3 * scanItems;
+   const std::size_t count = 3 * itemsPerComponent;
    if(flat >= count) return;
-   const std::size_t component = flat / scanItems;
-   const std::size_t index = flat - component * scanItems;
-   unsigned int value = input[flat];
-   if(index >= offset)
-      value += input[component * scanItems + index - offset];
-   output[flat] = value;
+   const std::size_t component = flat / itemsPerComponent;
+   const std::size_t index = flat - component * itemsPerComponent;
+   const std::size_t tile = index / adaptiveThreads;
+   if(tile == 0) return;
+   values[flat] +=
+      scannedTileTotals[component * tilesPerComponent + tile - 1];
 }
 
 __global__ void scatterAdaptiveWork(
@@ -1731,6 +1943,15 @@ std::size_t GpuAdaptiveRuntime::estimateBytes(const GpuAdaptiveTopologyInput& t,
       checkedAdd(total, 6 * std::max(t.atoms, t.blocks),
                  sizeof(unsigned int));
    if(!ok) throw std::overflow_error("GPU adaptive runtime memory estimate overflow");
+   // RCG-08 (F-12): tile-total levels for the hierarchical compaction scan.
+   // Derived from the same helper allocate() uses, so preflight and
+   // allocation cannot drift.  The series is geometric in adaptiveThreads, so
+   // this adds well under 1% of the level-0 scan buffers.
+   for(const std::size_t levelItems :
+       compactionScanLevelItems(std::max(t.atoms, t.blocks))) {
+      if(!checkedAdd(total, 3 * levelItems, sizeof(unsigned int)))
+         throw std::overflow_error("GPU adaptive runtime memory estimate overflow");
+   }
    if(r.kernels.atomMoment) {
       std::size_t atomEnsembles = 0;
       if(!checkedProduct({t.atoms, t.ensembles}, atomEnsembles))
@@ -1851,6 +2072,16 @@ void GpuAdaptiveRuntime::allocate(const GpuAdaptiveTopologyInput& t,
    const auto scanItems = std::max(n, b);
    compactionScanA_.Allocate(3 * scanItems);
    compactionScanB_.Allocate(3 * scanItems);
+   scanLevelItems_ =
+      compactionScanLevelItems(static_cast<std::size_t>(scanItems));
+   scanLevelOffset_.assign(scanLevelItems_.size(), 0);
+   std::size_t scanLevelTotal = 0;
+   for(std::size_t level = 0; level < scanLevelItems_.size(); ++level) {
+      scanLevelOffset_[level] = scanLevelTotal;
+      scanLevelTotal += 3 * scanLevelItems_[level];
+   }
+   if(scanLevelTotal > 0)
+      compactionScanLevels_.Allocate(static_cast<index_t>(scanLevelTotal));
    if(r.kernels.atomMoment) {
       const auto atomEnsembles = n * ensembles;
       const auto vectorState = 3 * channels * b * ensembles;
@@ -2030,44 +2261,65 @@ void GpuAdaptiveRuntime::refreshDeviceDescriptors() {
    deviceRuntime_.channelMomentSum = channelMomentSum_.data();
 }
 
+// RCG-08 (F-12): linear-work hierarchical compaction.  See the comment above
+// scanAdaptiveTiles for the algorithm and its work/launch accounting.  The
+// level structure is fixed at allocate() time (scanLevelItems_/scanLevelOffset_)
+// so this hot path performs no allocation and no host synchronization.
 void GpuAdaptiveRuntime::launchCompaction() {
-   const std::size_t scanItems = std::max(atoms_, blocks_);
-   unsigned int* input = compactionScanA_.data();
-   unsigned int* output = compactionScanB_.data();
-#if defined(CUDA_V)
-   initializeAdaptiveWorkScan<<<
-      adaptiveGrid(scanItems), adaptiveThreads, 0, stream_>>>(
-      deviceTopology_, deviceRuntime_, input, scanItems);
-#elif defined(HIP_V)
-   hipLaunchKernelGGL(
-      initializeAdaptiveWorkScan, dim3(adaptiveGrid(scanItems)),
-      dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
-      input, scanItems);
-#endif
-   for(std::size_t offset = 1; offset < scanItems;) {
-#if defined(CUDA_V)
-      scanAdaptiveWorkStep<<<
-         adaptiveGrid(3 * scanItems), adaptiveThreads, 0, stream_>>>(
-         input, output, scanItems, offset);
-#elif defined(HIP_V)
-      hipLaunchKernelGGL(
-         scanAdaptiveWorkStep, dim3(adaptiveGrid(3 * scanItems)),
-         dim3(adaptiveThreads), 0, stream_, input, output, scanItems, offset);
-#endif
-      std::swap(input, output);
-      if(offset > scanItems / 2) break;
-      offset *= 2;
+   const std::size_t n0 = std::max(atoms_, blocks_);
+   unsigned int* flags = compactionScanA_.data();
+   unsigned int* scanned = compactionScanB_.data();
+   unsigned int* levels =
+      scanLevelItems_.empty() ? nullptr : compactionScanLevels_.data();
+   const std::size_t levelCount = scanLevelItems_.size();
+   const auto tilesOf = [](std::size_t items) {
+      return (items + adaptiveThreads - 1) / adaptiveThreads;
+   };
+
+   ADAPTIVE_LAUNCH(initializeAdaptiveWorkScan, adaptiveGrid(n0), stream_,
+                   deviceTopology_, deviceRuntime_, flags, n0);
+   ++phaseMetrics_.compactionLaunches;
+
+   // Level 0: scan every tile of all three components, publishing tile totals
+   // into level 1 when there is more than one tile.
+   const std::size_t tiles0 = tilesOf(n0);
+   ADAPTIVE_LAUNCH(scanAdaptiveTiles, 3 * tiles0, stream_,
+                   flags, scanned,
+                   levelCount ? levels + scanLevelOffset_[0] : nullptr,
+                   n0, tiles0);
+   ++phaseMetrics_.compactionLaunches;
+
+   // Levels 1..L: scan the tile totals in place, each publishing the level
+   // above it.  The last level fits in one tile and publishes nothing.
+   for(std::size_t level = 0; level < levelCount; ++level) {
+      const std::size_t items = scanLevelItems_[level];
+      unsigned int* values = levels + scanLevelOffset_[level];
+      unsigned int* totals = level + 1 < levelCount ?
+         levels + scanLevelOffset_[level + 1] : nullptr;
+      ADAPTIVE_LAUNCH(scanAdaptiveTiles, 3 * tilesOf(items), stream_,
+                      values, values, totals, items, tilesOf(items));
+      ++phaseMetrics_.compactionLaunches;
    }
-#if defined(CUDA_V)
-   scatterAdaptiveWork<<<
-      adaptiveGrid(scanItems), adaptiveThreads, 0, stream_>>>(
-      deviceTopology_, deviceRuntime_, input, scanItems);
-#elif defined(HIP_V)
-   hipLaunchKernelGGL(
-      scatterAdaptiveWork, dim3(adaptiveGrid(scanItems)),
-      dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
-      input, scanItems);
-#endif
+
+   // Propagate each level's scanned tile totals back down, finishing with
+   // level 0's own output.
+   for(std::size_t level = levelCount; level-- > 1;) {
+      const std::size_t items = scanLevelItems_[level - 1];
+      ADAPTIVE_LAUNCH(addAdaptiveTileOffsets, adaptiveGrid(3 * items), stream_,
+                      levels + scanLevelOffset_[level - 1],
+                      levels + scanLevelOffset_[level],
+                      items, tilesOf(items));
+      ++phaseMetrics_.compactionLaunches;
+   }
+   if(levelCount) {
+      ADAPTIVE_LAUNCH(addAdaptiveTileOffsets, adaptiveGrid(3 * n0), stream_,
+                      scanned, levels + scanLevelOffset_[0], n0, tiles0);
+      ++phaseMetrics_.compactionLaunches;
+   }
+
+   ADAPTIVE_LAUNCH(scatterAdaptiveWork, adaptiveGrid(n0), stream_,
+                   deviceTopology_, deviceRuntime_, scanned, n0);
+   ++phaseMetrics_.compactionLaunches;
    ASSERT_GPU(GPU_GET_LAST_ERROR());
 }
 
@@ -2103,6 +2355,13 @@ void GpuAdaptiveRuntime::updateBlockState(const int* blockState, std::size_t cou
 
 double GpuAdaptiveRuntime::finishPhase(double& accumulator) {
    ASSERT_GPU(GPU_EVENT_RECORD(phaseEnd_, stream_));
+   // RCG-08: this event synchronization blocks the host until the phase's
+   // kernels retire.  It is how RCG-06C obtains per-phase device times, but it
+   // also means each phase boundary is a real host wait that prevents adjacent
+   // phases from overlapping -- the largest remaining serial section in the
+   // adaptive step.  Counted here so the benchmark can report it rather than
+   // leaving it to be inferred from unaccounted time.
+   ++phaseMetrics_.phaseSynchronizations;
    ASSERT_GPU(GPU_EVENT_SYNCHRONIZE(phaseEnd_));
    float elapsed = 0.0f;
    ASSERT_GPU(GPU_EVENT_ELAPSED_TIME(&elapsed, phaseStart_, phaseEnd_));
@@ -2128,13 +2387,11 @@ void GpuAdaptiveRuntime::restrictMoments(const real* atomDirection) {
       coarseFieldScratch_.data(), energyTerms_.data(), predictorAtom_.data()
    };
    ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
-#if defined(CUDA_V)
-   restrictAdaptiveMoments<<<1, 1, 0, stream_>>>(
-      deviceTopology_, deviceRuntime_, kernels, atomDirection);
-#else
-   hipLaunchKernelGGL(restrictAdaptiveMoments, dim3(1), dim3(1), 0, stream_,
-                      deviceTopology_, deviceRuntime_, kernels, atomDirection);
-#endif
+   ADAPTIVE_LAUNCH(restrictAdaptiveMoments,
+                   adaptiveGrid(dynamicChannels_ * blocks_ * ensembles_),
+                   stream_, deviceTopology_, deviceRuntime_, kernels,
+                   atomDirection);
+   ++phaseMetrics_.integrationLaunches;
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.integrationMilliseconds);
 }
@@ -2174,6 +2431,7 @@ void GpuAdaptiveRuntime::evaluateSelectorScores(const real* atomDirection) {
       dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
       kernels, atomDirection);
 #endif
+   phaseMetrics_.selectorLaunches += 2;
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.selectorMilliseconds);
 }
@@ -2192,6 +2450,7 @@ void GpuAdaptiveRuntime::evaluatePolarizationGate(real polarizationThreshold) {
       dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
       polarizationThreshold);
 #endif
+   ++phaseMetrics_.polarizationLaunches;
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.polarizationMilliseconds);
 }
@@ -2235,6 +2494,7 @@ void GpuAdaptiveRuntime::proposeSelectorState(
       pendingState_.copy_async(dilatedState_, stream_);
    }
 #endif
+   phaseMetrics_.selectorLaunches += dilate ? 2 : 1;
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.selectorMilliseconds);
 }
@@ -2269,15 +2529,10 @@ void GpuAdaptiveRuntime::publishProposedState(
       coarseFieldScratch_.data(), energyTerms_.data(), predictorAtom_.data()
    };
    ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
-#if defined(CUDA_V)
-   publishAdaptiveState<<<1, 1, 0, stream_>>>(
-      deviceTopology_, deviceRuntime_, kernels, atomDirection, policy,
-      acceptedBlockMask);
-#else
-   hipLaunchKernelGGL(publishAdaptiveState, dim3(1), dim3(1), 0, stream_,
-                      deviceTopology_, deviceRuntime_, kernels, atomDirection,
-                      policy, acceptedBlockMask);
-#endif
+   ADAPTIVE_LAUNCH(publishAdaptiveState, adaptiveGrid(blocks_), stream_,
+                   deviceTopology_, deviceRuntime_, kernels, atomDirection,
+                   policy, acceptedBlockMask);
+   ++phaseMetrics_.integrationLaunches;
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.integrationMilliseconds);
    ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
@@ -2330,18 +2585,31 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
       dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
       kernels);
 #endif
+   ++phaseMetrics_.interfaceLaunches;
+   phaseMetrics_.interfaceLaunches += 2;
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.interfaceMilliseconds);
 
    ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
-#if defined(CUDA_V)
-   evaluateAdaptiveAtomistic<<<1, 1, 0, stream_>>>(
-      deviceTopology_, deviceRuntime_, kernels, atomDirection, atomField);
-#else
-   hipLaunchKernelGGL(evaluateAdaptiveAtomistic, dim3(1), dim3(1), 0, stream_,
-                      deviceTopology_, deviceRuntime_, kernels, atomDirection,
-                      atomField);
-#endif
+   // RCG-08 (F-09): four ordered launches replacing one serial kernel.  The
+   // clear must precede the bond scatter (which accumulates atomically into
+   // the scratch it zeroes), the bond scatter must precede the on-site pass
+   // (which subtracts into the same scratch non-atomically at atoms it owns
+   // exclusively), and the writeback must be last.  Stream order supplies
+   // exactly that: consecutive launches on one stream do not overlap.
+   ADAPTIVE_LAUNCH(clearAdaptiveAtomistic,
+                   adaptiveGrid(3 * atoms_ * ensembles_), stream_,
+                   deviceTopology_, kernels, atomField);
+   ADAPTIVE_LAUNCH(evaluateAdaptiveAtomisticBonds,
+                   adaptiveGrid(bonds_ * ensembles_), stream_,
+                   deviceTopology_, deviceRuntime_, kernels, atomDirection);
+   ADAPTIVE_LAUNCH(evaluateAdaptiveAtomisticOnsite,
+                   adaptiveGrid(atoms_ * ensembles_), stream_,
+                   deviceTopology_, deviceRuntime_, kernels, atomDirection);
+   ADAPTIVE_LAUNCH(writebackAdaptiveAtomistic,
+                   adaptiveGrid(atoms_ * ensembles_), stream_,
+                   deviceTopology_, deviceRuntime_, kernels, atomField);
+   phaseMetrics_.atomisticLaunches += 4;
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.atomisticMilliseconds);
 
@@ -2427,6 +2695,8 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
    hipLaunchKernelGGL(finalizeAdaptiveEnergy, dim3(1), dim3(1), 0, stream_,
                       kernels);
 #endif
+   phaseMetrics_.coarseLaunches += 5 +
+      (uniformFftDipoleField ? 1 : 0) + (basisResolvedFftField ? 1 : 0);
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.coarseMilliseconds);
 
@@ -2482,17 +2752,28 @@ void GpuAdaptiveRuntime::integrateHeun(
                         initialAtomField_.data(), initialCoarseField_.data(),
                         initialFftFieldPtr);
    ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
-#if defined(CUDA_V)
-   predictorAdaptiveHeun<<<1, 1, 0, stream_>>>(
-      deviceTopology_, deviceRuntime_, kernels, timeStepSeconds, atomDirection,
-      predictorAtom_.data(), predictorCoarse_.data(), initialAtomField_.data(),
-      initialCoarseField_.data());
-#else
-   hipLaunchKernelGGL(predictorAdaptiveHeun, dim3(1), dim3(1), 0, stream_,
-                      deviceTopology_, deviceRuntime_, kernels, timeStepSeconds,
-                      atomDirection, predictorAtom_.data(), predictorCoarse_.data(),
-                      initialAtomField_.data(), initialCoarseField_.data());
-#endif
+   // RCG-08 (F-09): the two full-state saves were the serial kernel's first
+   // two loops.  They are pure copies, so they are issued as stream-ordered
+   // device-to-device transfers rather than as kernel work -- the copy engine
+   // does them at memory bandwidth and the following kernels still see them
+   // complete, because everything here is ordered on stream_.  They remain an
+   // O(atoms + blocks) pass per step regardless of the active fraction; that
+   // is recorded as a known remaining full-system cost rather than hidden.
+   ASSERT_GPU(GPU_MEMCPY_ASYNC(
+      predictorAtom_.data(), atomDirection,
+      3 * atoms_ * ensembles_ * sizeof(real),
+      GPU_MEMCPY_DEVICE_TO_DEVICE, stream_));
+   predictorCoarse_.copy_async(coarseDirection_, stream_);
+   ADAPTIVE_LAUNCH(predictorAdaptiveHeunAtoms,
+                   adaptiveGrid(atoms_ * ensembles_), stream_,
+                   deviceTopology_, deviceRuntime_, kernels, timeStepSeconds,
+                   atomDirection, predictorAtom_.data(),
+                   initialAtomField_.data());
+   ADAPTIVE_LAUNCH(predictorAdaptiveHeunBlocks,
+                   adaptiveGrid(blocks_ * ensembles_), stream_,
+                   deviceTopology_, deviceRuntime_, kernels, timeStepSeconds,
+                   predictorCoarse_.data(), initialCoarseField_.data());
+   phaseMetrics_.integrationLaunches += 2;
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.integrationMilliseconds);
    GpuAdaptiveUniformFftField predictorFftField{};
@@ -2505,19 +2786,17 @@ void GpuAdaptiveRuntime::integrateHeun(
                         atomFieldScratch_.data(), predictorCoarseField_.data(),
                         predictorFftFieldPtr);
    ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
-#if defined(CUDA_V)
-   correctorAdaptiveHeun<<<1, 1, 0, stream_>>>(
-      deviceTopology_, deviceRuntime_, kernels, timeStepSeconds, atomDirection,
-      predictorAtom_.data(), predictorCoarse_.data(), initialAtomField_.data(),
-      initialCoarseField_.data(), atomFieldScratch_.data(),
-      predictorCoarseField_.data());
-#else
-   hipLaunchKernelGGL(correctorAdaptiveHeun, dim3(1), dim3(1), 0, stream_,
-                      deviceTopology_, deviceRuntime_, kernels, timeStepSeconds,
-                      atomDirection, predictorAtom_.data(), predictorCoarse_.data(),
-                      initialAtomField_.data(), initialCoarseField_.data(),
-                      atomFieldScratch_.data(), predictorCoarseField_.data());
-#endif
+   ADAPTIVE_LAUNCH(correctorAdaptiveHeunAtoms,
+                   adaptiveGrid(atoms_ * ensembles_), stream_,
+                   deviceTopology_, deviceRuntime_, kernels, timeStepSeconds,
+                   atomDirection, predictorAtom_.data(),
+                   initialAtomField_.data(), atomFieldScratch_.data());
+   ADAPTIVE_LAUNCH(correctorAdaptiveHeunBlocks,
+                   adaptiveGrid(blocks_ * ensembles_), stream_,
+                   deviceTopology_, deviceRuntime_, kernels, timeStepSeconds,
+                   predictorCoarse_.data(), initialCoarseField_.data(),
+                   predictorCoarseField_.data());
+   phaseMetrics_.integrationLaunches += 2;
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.integrationMilliseconds);
 }
@@ -2558,6 +2837,7 @@ void GpuAdaptiveRuntime::synchronizeAtomicState(
       dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
       kernels, atomDirection, policy);
 #endif
+   phaseMetrics_.integrationLaunches += 2;
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.integrationMilliseconds);
 }
@@ -2701,6 +2981,9 @@ void GpuAdaptiveRuntime::release() {
    freeIfAllocated(atomAnisotropyAxis_);
    freeIfAllocated(atomAnisotropyAxisCount_);
    freeIfAllocated(atomMoment_);
+   freeIfAllocated(compactionScanLevels_);
+   scanLevelItems_.clear();
+   scanLevelOffset_.clear();
    freeIfAllocated(compactionScanB_);
    freeIfAllocated(compactionScanA_);
    freeIfAllocated(workCounts_);

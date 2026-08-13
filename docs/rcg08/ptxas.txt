@@ -1,0 +1,158 @@
+ptxas info    : 318 bytes gmem, 384 bytes cmem[4]
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9319scatterAdaptiveWorkE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimePKjm' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9319scatterAdaptiveWorkE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimePKjm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 12 registers, used 0 barriers, 904 bytes cmem[0]
+ptxas info    : Compile time = 3.823 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9322addAdaptiveTileOffsetsEPjPKjmm' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9322addAdaptiveTileOffsetsEPjPKjmm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 16 registers, used 0 barriers, 384 bytes cmem[0]
+ptxas info    : Compile time = 5.892 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9317scanAdaptiveTilesEPKjPjS2_mm' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9317scanAdaptiveTilesEPKjPjS2_mm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 16 registers, used 1 barriers, 1024 bytes smem, 392 bytes cmem[0]
+ptxas info    : Compile time = 8.631 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9326initializeAdaptiveWorkScanE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimePjm' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9326initializeAdaptiveWorkScanE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimePjm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 22 registers, used 0 barriers, 904 bytes cmem[0]
+ptxas info    : Compile time = 2.509 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9327correctorAdaptiveHeunBlocksE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEdPKdS4_S4_' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9327correctorAdaptiveHeunBlocksE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEdPKdS4_S4_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 45 registers, used 0 barriers, 1152 bytes cmem[0]
+ptxas info    : Compile time = 17.838 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9326correctorAdaptiveHeunAtomsE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEdPdPKdS5_S5_' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9326correctorAdaptiveHeunAtomsE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEdPdPKdS5_S5_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 45 registers, used 0 barriers, 1160 bytes cmem[0]
+ptxas info    : Compile time = 22.496 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9327predictorAdaptiveHeunBlocksE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEdPKdS4_' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9327predictorAdaptiveHeunBlocksE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEdPKdS4_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 0 barriers, 1144 bytes cmem[0]
+ptxas info    : Compile time = 16.516 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9326predictorAdaptiveHeunAtomsE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEdPdPKdS5_' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9326predictorAdaptiveHeunAtomsE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEdPdPKdS5_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 0 barriers, 1152 bytes cmem[0]
+ptxas info    : Compile time = 16.341 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9322finalizeAdaptiveEnergyENS_20AdaptiveKernelDeviceE' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9322finalizeAdaptiveEnergyENS_20AdaptiveKernelDeviceE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 20 registers, used 0 barriers, 584 bytes cmem[0]
+ptxas info    : Compile time = 1.447 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9319writeAdaptiveCoarseE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPd' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9319writeAdaptiveCoarseE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 18 registers, used 0 barriers, 1128 bytes cmem[0]
+ptxas info    : Compile time = 5.442 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9330addAdaptiveBasisResolvedDipoleE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPKd26GpuAdaptiveUniformFftFieldPd' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9330addAdaptiveBasisResolvedDipoleE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPKd26GpuAdaptiveUniformFftFieldPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 56 registers, used 0 barriers, 1208 bytes cmem[0]
+ptxas info    : Compile time = 24.854 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9317addAdaptiveDipoleE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPKdS4_Pd' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9317addAdaptiveDipoleE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPKdS4_Pd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 48 registers, used 0 barriers, 1144 bytes cmem[0]
+ptxas info    : Compile time = 21.005 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9327finalizeAdaptiveCoarseLocalE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPKd' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9327finalizeAdaptiveCoarseLocalE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPKd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 44 registers, used 0 barriers, 1128 bytes cmem[0]
+ptxas info    : Compile time = 14.918 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9328evaluateAdaptiveCoarseTensorE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceE' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9328evaluateAdaptiveCoarseTensorE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceE
+    48 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 72 registers, used 0 barriers, 48 bytes cumulative stack size, 1120 bytes cmem[0]
+ptxas info    : Compile time = 91.060 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9319clearAdaptiveCoarseE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPd' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9319clearAdaptiveCoarseE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 10 registers, used 0 barriers, 1128 bytes cmem[0]
+ptxas info    : Compile time = 1.781 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9325restrictAdaptiveInterfaceE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceE' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9325restrictAdaptiveInterfaceE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 46 registers, used 0 barriers, 1120 bytes cmem[0]
+ptxas info    : Compile time = 31.823 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9322clearAdaptiveInterfaceE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceE' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9322clearAdaptiveInterfaceE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 8 registers, used 0 barriers, 1120 bytes cmem[0]
+ptxas info    : Compile time = 1.467 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9326writebackAdaptiveAtomisticE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPd' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9326writebackAdaptiveAtomisticE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 16 registers, used 0 barriers, 1128 bytes cmem[0]
+ptxas info    : Compile time = 6.568 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9331evaluateAdaptiveAtomisticOnsiteE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPKd' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9331evaluateAdaptiveAtomisticOnsiteE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPKd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 56 registers, used 0 barriers, 1128 bytes cmem[0]
+ptxas info    : Compile time = 18.410 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9330evaluateAdaptiveAtomisticBondsE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPKd' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9330evaluateAdaptiveAtomisticBondsE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPKd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 0 barriers, 1128 bytes cmem[0]
+ptxas info    : Compile time = 21.768 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9322clearAdaptiveAtomisticE25GpuAdaptiveDeviceTopologyNS_20AdaptiveKernelDeviceEPd' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9322clearAdaptiveAtomisticE25GpuAdaptiveDeviceTopologyNS_20AdaptiveKernelDeviceEPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 10 registers, used 0 barriers, 968 bytes cmem[0]
+ptxas info    : Compile time = 2.032 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9320commitAdaptiveGhostsE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPd31GpuAdaptiveReconstructionPolicy' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9320commitAdaptiveGhostsE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPd31GpuAdaptiveReconstructionPolicy
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 22 registers, used 0 barriers, 1160 bytes cmem[0]
+ptxas info    : Compile time = 10.923 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9324prolongateAdaptiveGhostsE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceE' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9324prolongateAdaptiveGhostsE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceE
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 0 barriers, 1120 bytes cmem[0]
+ptxas info    : Compile time = 23.991 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9320publishAdaptiveStateE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPd31GpuAdaptiveReconstructionPolicyPKh' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9320publishAdaptiveStateE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPd31GpuAdaptiveReconstructionPolicyPKh
+    40 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 110 registers, used 0 barriers, 40 bytes cumulative stack size, 1168 bytes cmem[0], 64 bytes cmem[2]
+ptxas info    : Compile time = 195.140 ms
+ptxas info    : Function properties for __internal_trig_reduction_slowpathd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9319dilateAdaptiveStateE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntime25GpuAdaptiveSelectorPolicyPi' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9319dilateAdaptiveStateE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntime25GpuAdaptiveSelectorPolicyPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 22 registers, used 0 barriers, 928 bytes cmem[0]
+ptxas info    : Compile time = 7.206 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9320proposeAdaptiveStateE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntime25GpuAdaptiveSelectorPolicyPKh' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9320proposeAdaptiveStateE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntime25GpuAdaptiveSelectorPolicyPKh
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 15 registers, used 0 barriers, 928 bytes cmem[0]
+ptxas info    : Compile time = 3.273 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9332evaluateAdaptivePolarizationGateE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimed' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9332evaluateAdaptivePolarizationGateE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimed
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 42 registers, used 0 barriers, 896 bytes cmem[0]
+ptxas info    : Compile time = 40.432 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9322selectorAdaptiveScoresE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPKd' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9322selectorAdaptiveScoresE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPKd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 26 registers, used 0 barriers, 1128 bytes cmem[0]
+ptxas info    : Compile time = 11.140 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9327clearSelectorAdaptiveScoresE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntime' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9327clearSelectorAdaptiveScoresE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntime
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 8 registers, used 0 barriers, 888 bytes cmem[0]
+ptxas info    : Compile time = 1.712 ms
+ptxas info    : Compiling entry function '_ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9323restrictAdaptiveMomentsE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPKd' for 'sm_86'
+ptxas info    : Function properties for _ZN55_GLOBAL__N__cdbd8d88_22_gpuAdaptiveRuntime_cpp_6f873b9323restrictAdaptiveMomentsE25GpuAdaptiveDeviceTopology24GpuAdaptiveDeviceRuntimeNS_20AdaptiveKernelDeviceEPKd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 40 registers, used 0 barriers, 1128 bytes cmem[0]
+ptxas info    : Compile time = 32.608 ms
+ptxas info    : Compiling entry function '_ZN3cub16_V_300304_SM_8606detail11EmptyKernelIvEEvv' for 'sm_86'
+ptxas info    : Function properties for _ZN3cub16_V_300304_SM_8606detail11EmptyKernelIvEEvv
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 4 registers, used 0 barriers, 352 bytes cmem[0]
+ptxas info    : Compile time = 0.505 ms

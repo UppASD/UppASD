@@ -198,6 +198,22 @@ struct GpuAdaptivePhaseMetrics {
    // between this and the sum of the other fields is genuinely unaccounted
    // time, not assumed to be ~0; see recordStepWallMilliseconds().
    double stepWallMilliseconds = 0.0;
+
+   // RCG-08: kernel launches issued per phase, so a reader can distinguish
+   // "this phase is slow" from "this phase is launch-bound", and can see the
+   // compaction launch count stop growing with system size once the
+   // Hillis--Steele sweep (F-12) was replaced by the hierarchical scan.
+   unsigned long long atomisticLaunches = 0;
+   unsigned long long coarseLaunches = 0;
+   unsigned long long interfaceLaunches = 0;
+   unsigned long long selectorLaunches = 0;
+   unsigned long long polarizationLaunches = 0;
+   unsigned long long compactionLaunches = 0;
+   unsigned long long integrationLaunches = 0;
+   // Device synchronizations performed by the phase timers themselves. Each
+   // finishPhase() blocks the host on an event, so this counts real host
+   // waits inside the adaptive step, not just instrumentation bookkeeping.
+   unsigned long long phaseSynchronizations = 0;
 };
 
 struct GpuAdaptiveDiagnosticSnapshot {
@@ -409,6 +425,15 @@ private:
    GpuTensor<real, 1> channelMomentSum_;
    GpuTensor<int, 1> activeAtomList_, activeBlockList_, interfaceAtomList_;
    GpuTensor<unsigned int, 1> workCounts_, compactionScanA_, compactionScanB_;
+   // RCG-08 (F-12): tile-total storage for the hierarchical compaction scan.
+   // One flat buffer holding levels 1..L back to back; scanLevelItems_[i] is
+   // level i+1's per-component item count and scanLevelOffset_[i] its element
+   // offset into compactionScanLevels_. Both are fixed at allocate() time and
+   // are included in estimateBytes(), so the scan's temporary storage is
+   // visible to the ordinary GPU memory preflight rather than allocated on
+   // the hot path.
+   GpuTensor<unsigned int, 1> compactionScanLevels_;
+   std::vector<std::size_t> scanLevelItems_, scanLevelOffset_;
 
    // CG-10 immutable operator data and preflight-visible scratch.
    std::size_t bonds_ = 0;

@@ -270,9 +270,18 @@ void require(bool condition, const char* message) {
    if(!condition) throw std::runtime_error(message);
 }
 
+void require(bool condition, const std::string& message) {
+   if(!condition) throw std::runtime_error(message);
+}
 void expectEqual(const std::vector<int>& actual, std::initializer_list<int> expected,
                  const char* message) {
    require(actual == std::vector<int>(expected), message);
+}
+// RCG-08: the compaction fixture's reference lists are computed, not literal,
+// so they arrive as a vector rather than an initializer list.
+void expectEqual(const std::vector<int>& actual, const std::vector<int>& expected,
+                 const char* message) {
+   require(actual == expected, message);
 }
 
 std::vector<real> deviceVector(const std::vector<double>& source) {
@@ -634,10 +643,23 @@ void testSelectorPolicyDescriptorLayout() {
    policy.bufferDilationBlocks[2] = 33u;
 
    const auto copied = policy;
-   require(static_cast<double>(copied.refineThreshold) == 0.123456,
+   // RCG-05-FU4: compare against the pre-copy `policy` value, not against the
+   // hardcoded double literal.  `real` is `float` in a SINGLE-precision build,
+   // and float(0.123456) does not round-trip to the double 0.123456, so the
+   // old exact-equality-against-a-literal form failed every fp32 build and
+   // aborted this binary before any later test ran -- masking, among other
+   // things, RCG-08's fp32 evidence.  Comparing the two `real` values is the
+   // check this test actually wants (did the field survive a copy unshifted)
+   // and is precision-independent.  Confirmed by RCG-05G not to be a real
+   // descriptor-layout defect.
+   require(copied.refineThreshold == policy.refineThreshold,
            "descriptor layout: refineThreshold shifted across a copy");
-   require(static_cast<double>(copied.coarsenThreshold) == 0.654321,
+   require(copied.coarsenThreshold == policy.coarsenThreshold,
            "descriptor layout: coarsenThreshold shifted across a copy");
+   // The sentinels must still be distinguishable from each other after the
+   // round trip, or the comparison above would pass on an aliased field.
+   require(copied.refineThreshold != copied.coarsenThreshold,
+           "descriptor layout: refineThreshold and coarsenThreshold alias");
    require(copied.minimumDwellUpdates == 777u,
            "descriptor layout: minimumDwellUpdates shifted across a copy");
    require(copied.bufferDilationBlocks[0] == 11u &&
@@ -653,8 +675,153 @@ void testSelectorPolicyDescriptorLayout() {
            fresh.bufferDilationBlocks[1] == 0 &&
            fresh.bufferDilationBlocks[2] == 0,
            "descriptor layout: default bufferDilationBlocks is not zero-initialized");
-   require(static_cast<double>(fresh.refineThreshold) != 0.123456,
+   // RCG-05-FU4: same reason as above -- compare `real` against `real`.  This
+   // direction happened to pass at fp32 (float(0.123456) != double 0.123456 is
+   // true), but for the wrong reason, so it is corrected too rather than left
+   // as a check that only works by accident.
+   require(fresh.refineThreshold != policy.refineThreshold,
            "descriptor layout: default-constructed policy observed a sentinel from another instance");
+}
+
+// RCG-08 (F-12): the compaction scan was a global Hillis--Steele sweep --
+// ceil(log2(N)) launches over all 3N flags -- and is now a hierarchical
+// tile scan.  Nothing in the suite above reaches past a single 256-element
+// tile: the fixtures have 8 atoms and 4 blocks, so they exercise neither the
+// tile-total level nor the offset propagation between levels, and would keep
+// passing if either were wrong.
+//
+// This fixture is sized so scanItems = 76800 forces two tile-total levels
+// (76800 -> 300 -> 2), exercising the complete down-propagation chain, and
+// asserts two independent things:
+//
+//   1. Correctness -- the three compact work lists match a host reference
+//      computed directly from the block states.  A wrong tile offset would
+//      scatter entries to wrong positions and change the lists.
+//   2. Complexity (the actual finding) -- the compaction launch count stays
+//      near log_256(N) rather than log2(N).  This is the negative control for
+//      F-12: the pre-fix sweep needed 19 launches at this size (17 doubling
+//      steps plus initialize and scatter) and fails the bound asserted here,
+//      while the hierarchical scan needs 7.  The old scan was correct but
+//      slow, so a correctness-only test could not have distinguished them.
+void testHierarchicalCompaction() {
+   constexpr std::size_t blocks = 300;
+   constexpr std::size_t basis = 256;
+   constexpr std::size_t atoms = basis * blocks;
+
+   int repetitionShape[3] = {static_cast<int>(blocks), 1, 1};
+   int blockShape[3] = {1, 1, 1};
+   int blockGrid[3] = {static_cast<int>(blocks), 1, 1};
+   double cellVectors[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+   double blockVectors[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+
+   std::vector<int> atomToBlock(atoms), atomToBasis(atoms),
+      atomToDynamic(atoms, 1), atomToFft(atoms), atomToFftGrid(atoms),
+      blockAtoms(atoms), blockCount(blocks, static_cast<int>(basis)),
+      blockOffset(blocks + 1), blockCoordinate(3 * blocks),
+      basisPopulation(basis * blocks, 1), fftPopulation(basis * blocks, 1),
+      dynamicPopulation(blocks, static_cast<int>(basis)),
+      basisToDynamic(basis, 1), basisToFft(basis), state(blocks);
+   std::vector<double> center(3 * blocks), volume(blocks, 1.0);
+   for(std::size_t member = 0; member < basis; ++member)
+      basisToFft[member] = static_cast<int>(member + 1);
+   for(std::size_t block = 0; block < blocks; ++block) {
+      blockOffset[block] = static_cast<int>(block * basis);
+      blockCoordinate[3 * block] = static_cast<int>(block);
+      center[3 * block] = static_cast<double>(block) + 0.5;
+      for(std::size_t member = 0; member < basis; ++member) {
+         const std::size_t atom = member + basis * block;
+         atomToBlock[atom] = static_cast<int>(block + 1);
+         atomToBasis[atom] = static_cast<int>(member + 1);
+         atomToFft[atom] = static_cast<int>(member + 1);
+         atomToFftGrid[atom] = static_cast<int>(atom + 1);
+         blockAtoms[atom] = static_cast<int>(atom + 1);
+      }
+      // Deliberately irregular, and coprime-strided so runs of fine/coarse
+      // blocks straddle tile boundaries instead of aligning with them.
+      state[block] = (block * 7) % 11 < 4 ? 2 : ((block % 13) == 0 ? 1 : 0);
+   }
+   blockOffset[blocks] = static_cast<int>(atoms);
+
+   GpuAdaptiveTopologyInput t;
+   t.geometryMode = 1;
+   t.atoms = atoms;
+   t.blocks = blocks;
+   t.basis = basis;
+   t.fftChannelsPerBlock = basis;
+   t.fftGridChannels = basis * blocks;
+   t.dynamicChannels = 1;
+   t.ensembles = 1;
+   t.repetitionShape = repetitionShape;
+   t.blockShape = blockShape;
+   t.blockGrid = blockGrid;
+   t.cellVectors = cellVectors;
+   t.blockVectors = blockVectors;
+   t.atomToBlock = atomToBlock.data();
+   t.atomToBasis = atomToBasis.data();
+   t.atomToDynamicChannel = atomToDynamic.data();
+   t.atomToFftChannel = atomToFft.data();
+   t.atomToFftGridIndex = atomToFftGrid.data();
+   t.basisToDynamicChannel = basisToDynamic.data();
+   t.basisToFftChannel = basisToFft.data();
+   t.blockAtomCount = blockCount.data();
+   t.blockAtomOffset = blockOffset.data();
+   t.blockAtoms = blockAtoms.data();
+   t.blockGridCoordinate = blockCoordinate.data();
+   t.blockBasisPopulation = basisPopulation.data();
+   t.blockFftChannelPopulation = fftPopulation.data();
+   t.blockDynamicChannelPopulation = dynamicPopulation.data();
+   t.blockCenter = center.data();
+   t.blockVolume = volume.data();
+
+   std::vector<double> moment(3 * blocks, 0.0), direction(3 * blocks, 0.0),
+      field(3 * blocks, 0.0), momentSum(blocks, 1.0), scores(blocks, 0.0);
+   GpuAdaptiveRuntimeInput r;
+   r.blockState = state.data();
+   r.selectorCriteria = 1;
+   r.selectorScores = scores.data();
+   r.coarseMoment = moment.data();
+   r.coarseDirection = direction.data();
+   r.coarseField = field.data();
+   r.channelMomentSum = momentSum.data();
+
+   std::string diagnostic;
+   require(GpuAdaptiveRuntime::validate(t, r, atoms, 1, diagnostic),
+           "hierarchical-compaction fixture was rejected: " + diagnostic);
+
+   GpuAdaptiveRuntime runtime;
+   runtime.initialize(t, r, atoms, 1);
+   runtime.resetPhaseMetrics();
+   runtime.updateBlockState(state.data(), blocks);
+
+   std::vector<int> expectedAtoms, expectedBlocks, expectedInterface;
+   for(std::size_t atom = 0; atom < atoms; ++atom) {
+      const int blockState = state[atomToBlock[atom] - 1];
+      if(blockState != 0) expectedAtoms.push_back(static_cast<int>(atom + 1));
+      if(blockState == 1) expectedInterface.push_back(static_cast<int>(atom + 1));
+   }
+   for(std::size_t block = 0; block < blocks; ++block)
+      if(state[block] == 0) expectedBlocks.push_back(static_cast<int>(block + 1));
+
+   const auto snapshot = runtime.downloadWorkSnapshot();
+   expectEqual(snapshot.activeAtoms, expectedAtoms,
+               "hierarchical scan produced the wrong active atom list");
+   expectEqual(snapshot.activeBlocks, expectedBlocks,
+               "hierarchical scan produced the wrong coarse block list");
+   expectEqual(snapshot.interfaceAtoms, expectedInterface,
+               "hierarchical scan produced the wrong interface atom list");
+
+   // 76800 items -> tile levels {300, 2}: initialize, three tile scans, two
+   // offset additions, scatter = 7.  Bound at 8 to tolerate one extra level
+   // if adaptiveThreads is ever retuned, while still failing hard on the
+   // pre-fix sweep's 19.
+   const auto metrics = runtime.phaseMetrics();
+   require(metrics.compactionLaunches > 0,
+           "compaction launch counter did not record the rebuild");
+   require(metrics.compactionLaunches <= 8,
+           "compaction still scales its launch count like log2(N) (F-12): got " +
+              std::to_string(metrics.compactionLaunches) + " launches for " +
+              std::to_string(atoms) + " scan items");
+   runtime.release();
 }
 
 } // namespace
@@ -755,6 +922,7 @@ int main() {
            "release did not restore device memory accounting");
    testKernelParityAndWorkflow();
    testPolarizationGate();
+   testHierarchicalCompaction();
    std::cout << "CG-09/CG-10 GPU adaptive runtime tests passed\n";
    return 0;
 }

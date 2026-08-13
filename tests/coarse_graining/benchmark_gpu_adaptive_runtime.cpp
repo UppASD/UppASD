@@ -652,6 +652,32 @@ int main(int argc, char** argv) {
          1000.0 * stepPhase.integrationMilliseconds / options.iterations,
          stepDeviceUs, stepWallUs - stepDeviceUs);
 
+      // RCG-08: per-phase launch counts and the phase-boundary host waits,
+      // per complete Heun step.  This separates "this phase does a lot of
+      // work" from "this phase is launch- or synchronization-bound", and lets
+      // a reader confirm the compaction launch count no longer grows with
+      // system size (F-12).  phase_syncs counts blocking event waits inside
+      // the step: they are what the per-phase device timers cost, and the
+      // largest remaining serial section in the adaptive path.
+      std::printf(
+         "adaptive-launches per_step(atomistic=%.2f coarse=%.2f "
+         "interface=%.2f selector=%.2f polarization=%.2f compaction=%.2f "
+         "integration=%.2f) total=%.2f phase_syncs=%.2f\n",
+         static_cast<double>(stepPhase.atomisticLaunches) / options.iterations,
+         static_cast<double>(stepPhase.coarseLaunches) / options.iterations,
+         static_cast<double>(stepPhase.interfaceLaunches) / options.iterations,
+         static_cast<double>(stepPhase.selectorLaunches) / options.iterations,
+         static_cast<double>(stepPhase.polarizationLaunches) / options.iterations,
+         static_cast<double>(stepPhase.compactionLaunches) / options.iterations,
+         static_cast<double>(stepPhase.integrationLaunches) / options.iterations,
+         static_cast<double>(
+            stepPhase.atomisticLaunches + stepPhase.coarseLaunches +
+            stepPhase.interfaceLaunches + stepPhase.selectorLaunches +
+            stepPhase.polarizationLaunches + stepPhase.compactionLaunches +
+            stepPhase.integrationLaunches) / options.iterations,
+         static_cast<double>(stepPhase.phaseSynchronizations) /
+            options.iterations);
+
       const SweepSample& atomistic = sweep.front();
       const SweepSample* crossover = nullptr;
       for(std::size_t index = 1; index < sweep.size(); ++index) {

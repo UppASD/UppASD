@@ -1,0 +1,3 @@
+========= COMPUTE-SANITIZER
+CG-09/CG-10 GPU adaptive runtime tests passed
+========= ERROR SUMMARY: 0 errors

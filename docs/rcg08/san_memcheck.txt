@@ -1,0 +1,4 @@
+========= COMPUTE-SANITIZER
+CG-09/CG-10 GPU adaptive runtime tests passed
+========= LEAK SUMMARY: 0 bytes leaked in 0 allocations
+========= ERROR SUMMARY: 0 errors

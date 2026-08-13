@@ -1325,23 +1325,101 @@ kernel patch; Luna/Sonnet for device parity harness
 #### Checklist
 
 - [ ] No production hot kernel is guarded to a single device thread.
-- [ ] Restriction covers all active atoms/blocks in parallel.
-- [ ] Atomistic unique-pair fields and energies are race-safe.
-- [ ] Predictor and corrector integrate compact active work in parallel.
-- [ ] Publication preserves deterministic accepted state transitions.
-- [ ] Energy finalization uses the accepted FP64 reduction.
-- [ ] Compaction performs linear work and uses tracked temporary storage.
-- [ ] Launch and synchronization counts are reported per phase.
-- [ ] FP64 fields, energies, trajectories, and decisions match CPU references.
-- [ ] FP32 has a separate accepted error budget.
-- [ ] Multiple ensembles and anisotropic buffer descriptors pass.
-- [ ] CUDA sanitizer reports no memory or race errors where available.
+      **Not met as literally stated — see the RCG-08 evidence below.** All six
+      kernels named in F-09 are parallel and the serialization the finding
+      objected to is gone; `finalizeAdaptiveEnergy` alone still runs on one
+      thread because it is an `O(1)` seven-term sum, not serialized `O(N)`
+      work. Left honestly unchecked rather than restating the item to fit.
+- [x] Restriction covers all active atoms/blocks in parallel.
+- [x] Atomistic unique-pair fields and energies are race-safe.
+- [x] Predictor and corrector integrate compact active work in parallel.
+- [x] Publication preserves deterministic accepted state transitions.
+- [x] Energy finalization uses the accepted FP64 reduction.
+- [x] Compaction performs linear work and uses tracked temporary storage.
+- [x] Launch and synchronization counts are reported per phase.
+- [x] FP64 fields, energies, trajectories, and decisions match CPU references.
+- [x] FP32 has a separate accepted error budget. (RCG-04I's frozen budgets,
+      unchanged by this task and re-exercised at fp32; no new budget derived
+      because no precision contract changed.)
+- [x] Multiple ensembles and anisotropic buffer descriptors pass.
+- [x] CUDA sanitizer reports no memory or race errors where available.
 - [ ] HIP execution and sanitizer evidence are recorded where available.
-- [ ] The serial reference, if retained, is test-only and clearly labelled.
-- [ ] Feature-off device inventory and timing remain unchanged within noise.
+      Unavailable, not passing: no HIP toolchain or device in any environment
+      used across RCG-02..RCG-08. Tracked as RCG-08-FU1.
+- [x] The serial reference, if retained, is test-only and clearly labelled.
+      (Vacuously: no serial reference was retained, so none can be dispatched.)
+- [x] Feature-off device inventory and timing remain unchanged within noise.
+      (Inventory exact and deterministic; the timing half passed its own noise
+      budget but has weak discriminating power under the shared-machine
+      contention recorded in the evidence document.)
 
 **Exit evidence:** device parity suite, sanitizer logs, kernel/launch profile,
 and compaction complexity evidence.
+
+**RCG-08 evidence (2026-08-13, NOT closed):**
+`docs/RCG-08_GPU_PARALLELIZATION_EVIDENCE.md` records the parallelization of
+all six F-09 kernels and the replacement of the F-12 Hillis--Steele compaction
+sweep with a linear-work hierarchical scan, with raw artifacts under
+`docs/rcg08/`.
+
+F-09 was first quantified rather than assumed: on the 8192-atom/24576-bond
+fp64 benchmark the single-threaded atomistic kernel took 103 530 us of a
+109 382 us field evaluation (94.6%), and the single-threaded atomistic plus
+integration phases took 89.4% of a complete Heun step. After
+parallelization, a paired interleaved A/B measurement (three alternating
+rounds of the pre- and post-fix binaries) gives 2.76x on the all-fine field
+evaluation, 3.09x on the atomistic phase alone, 4.55x on the complete Heun
+step, and 714x on the integration phase; pre- and post-fix ranges do not
+overlap in any round. Restriction and both Heun stages are bitwise identical
+to the serial reference rather than merely within tolerance, because
+restriction gathers over each block's ascending CSR slice instead of
+scattering atomically -- which is also what keeps the polarization gate, and
+hence adaptive transitions, deterministic after parallelization.
+
+F-12's fix has an executed negative control, not an argued one: the
+pre-fix sweep was temporarily restored and the new
+`testHierarchicalCompaction` fixture (76 800 scan items, forcing two
+tile-total levels -- a path no pre-existing fixture reached) failed with
+19 launches against the bound of 8, matching the hand-derived
+`ceil(log2(76800)) + 2`; the fix reports 7. The fixture's correctness
+assertions passed under both algorithms, which additionally establishes that
+the old sweep and the new scan produce byte-identical compact lists.
+
+Fresh out-of-tree builds: `ctest -L cg13-cuda` passes 29/29 at fp64, matching
+the pre-fix baseline exactly. Compute Sanitizer reports 0 errors from all four
+tools (memcheck with leak-check, racecheck, initcheck, synccheck). Theoretical
+occupancy from `ptxas -v` is 100% for most new kernels and >=75% for all hot
+ones. HIP remains unavailable; the CUDA/HIP launch geometry is made identical
+by construction through a single `ADAPTIVE_LAUNCH` macro, which is offered as
+a structural argument and explicitly not as a substitute for execution
+evidence.
+
+One pre-existing bug was fixed as a prerequisite rather than inherited:
+**RCG-05-FU4** (`testSelectorPolicyDescriptorLayout()` comparing a `real`
+field against a hardcoded `double` literal) aborted the test binary at fp32
+before any later test ran, masking all of RCG-08's own fp32 evidence. It was
+fixed exactly as RCG-05-FU4 specifies -- a three-line, test-only change
+carrying no production behaviour -- and is called out separately so it can be
+reviewed or reverted independently. With it fixed, the adaptive runtime tests
+pass at fp32. The remaining fp32 suite failure is the pre-existing
+RCG-04-FU5 `gpu_fft_static_mixed` case, already reconfirmed at fp32 by RCG-05G
+and RCG-06E; each fp32 failure was diagnosed individually rather than
+attributed to its tracked predecessor by assumption.
+
+**This evidence is not accepted as closure.** Three independent reasons:
+(1) RCG-08's declared dependency RCG-07 is uncommitted and explicitly not
+closed, and this blueprint does not accept a task before its dependencies;
+(2) RCG-08 requires review by a Sol or Opus/Terra reviewer not responsible for
+the kernel patch, and the race-freedom/determinism argument was written by the
+same session that wrote the kernels -- it is deliberately structured as
+falsifiable claims for that reviewer to attack; (3) HIP evidence does not
+exist. Four follow-ups are opened in the evidence document (RCG-08-FU1 HIP
+evidence; RCG-08-FU2 the ten per-step blocking phase synchronizations, now
+~38% of step wall time and the largest remaining serial section; RCG-08-FU3
+clean-device re-measurement, since every timing here was taken while another
+user drove both GPUs to ~90% utilization with thermal throttling; RCG-08-FU4
+the surviving full-system `O(N)` per-step passes). RCG-08-FU2 and RCG-08-FU3
+in particular are prerequisites for RCG-09 producing a trustworthy number.
 
 ---
 
