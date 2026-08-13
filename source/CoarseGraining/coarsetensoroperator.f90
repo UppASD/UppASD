@@ -393,6 +393,13 @@ contains
       integer :: block, p, q, k, axis_index
       real(dblprec) :: c, density, conversion
       real(dblprec) :: basis(3), local_derivative(3)
+      ! RCG-07: OpenMP does not support a REDUCTION clause on a derived-type
+      ! variable/component (gfortran: "DECLARE REDUCTION + not found for
+      ! type"), so each block loop below reduces into one of these plain
+      ! real scalars and adds it into the corresponding energies% field
+      ! once, serially, after the parallel region ends.
+      real(dblprec) :: exchange_j_sum, spiralization_j_sum, anisotropy_j_sum
+      real(dblprec) :: external_j_sum, dipole_j_sum
       logical :: owned
 
       energies = coarse_energy_terms_type()
@@ -469,18 +476,33 @@ contains
       call physical_forward_gradient(operator%nblocks,operator%block_grid, &
          operator%block_coordinate,operator%inverse_block_transpose_m1,direction,gradient)
 
+      ! RCG-07 (Hamiltonian work): each block writes only its own work(:,
+      ! block)/anisotropy_derivative(:,block)/external_field(:,block) entry
+      ! (no cross-block write), so only the scalar per-term energy needs a
+      ! reduction. `add_physical_gradient_transpose` below is the
+      ! neighbour-coupled scatter half of the accepted discrete adjoint
+      ! pair (physical_forward_gradient/add_physical_gradient_transpose,
+      ! blueprint SS3.4) and is deliberately left serial and untouched in
+      ! this task -- it always runs after its `work` array is complete
+      ! (the parallel region's implicit end-barrier guarantees that), so
+      ! parallelizing only the block loops above it cannot affect its
+      ! result.
       do p = 1, 3
          do q = 1, 3
             work = 0.0_dblprec
+            exchange_j_sum = 0.0_dblprec
+            !$omp parallel do default(shared) private(block,owned) reduction(+:exchange_j_sum)
             do block = 1, operator%nblocks
                owned = gradient_term_owned(operator,interaction_owner,block,p,q)
                if (.not. owned) cycle
-               energies%exchange_j = energies%exchange_j + operator%block_volume_m3 * &
+               exchange_j_sum = exchange_j_sum + operator%block_volume_m3 * &
                   operator%exchange_stiffness_j_per_m(p,q) * &
                   dot_product(gradient(:,p,block),gradient(:,q,block))
                work(:,block) = operator%block_volume_m3 * &
                   operator%exchange_stiffness_j_per_m(p,q) * gradient(:,q,block)
             end do
+            !$omp end parallel do
+            energies%exchange_j = energies%exchange_j + exchange_j_sum
             call add_physical_gradient_transpose(operator%nblocks,operator%block_grid, &
                operator%block_coordinate,operator%inverse_block_transpose_m1,p,work, &
                exchange_derivative,2.0_dblprec)
@@ -492,10 +514,12 @@ contains
          basis(k) = 1.0_dblprec
          do p = 1, 3
             work = 0.0_dblprec
+            spiralization_j_sum = 0.0_dblprec
+            !$omp parallel do default(shared) private(block,owned) reduction(+:spiralization_j_sum)
             do block = 1, operator%nblocks
                owned = gradient_term_owned(operator,interaction_owner,block,p)
                if (.not. owned) cycle
-               energies%spiralization_j = energies%spiralization_j + &
+               spiralization_j_sum = spiralization_j_sum + &
                   operator%block_volume_m3 * operator%spiralization_j_per_m2(k,p) * &
                   dot_product(basis,cross3(direction(:,block),gradient(:,p,block)))
                dmi_derivative(:,block) = dmi_derivative(:,block) - &
@@ -504,12 +528,17 @@ contains
                work(:,block) = operator%block_volume_m3 * &
                   operator%spiralization_j_per_m2(k,p) * cross3(basis,direction(:,block))
             end do
+            !$omp end parallel do
+            energies%spiralization_j = energies%spiralization_j + spiralization_j_sum
             call add_physical_gradient_transpose(operator%nblocks,operator%block_grid, &
                operator%block_coordinate,operator%inverse_block_transpose_m1,p,work, &
                dmi_derivative,1.0_dblprec)
          end do
       end do
 
+      anisotropy_j_sum = 0.0_dblprec
+      !$omp parallel do default(shared) private(block,axis_index,c,density,local_derivative) &
+      !$omp    reduction(+:anisotropy_j_sum)
       do block = 1, operator%nblocks
          if (present(onsite_owner)) then
             if (.not. onsite_owner(block)) cycle
@@ -520,8 +549,7 @@ contains
             density = operator%anisotropy%k1(axis_index,block)*c*c + &
                2.0_dblprec*operator%anisotropy%k2(axis_index,block)*c*c - &
                operator%anisotropy%k2(axis_index,block)*c**4
-            energies%anisotropy_j = energies%anisotropy_j + &
-               operator%block_volume_m3*density
+            anisotropy_j_sum = anisotropy_j_sum + operator%block_volume_m3*density
             local_derivative = local_derivative + 2.0_dblprec*c * &
                (operator%anisotropy%k1(axis_index,block) + &
                 2.0_dblprec*operator%anisotropy%k2(axis_index,block)*(1.0_dblprec-c*c)) * &
@@ -529,23 +557,33 @@ contains
          end do
          anisotropy_derivative(:,block) = operator%block_volume_m3*local_derivative
       end do
+      !$omp end parallel do
+      energies%anisotropy_j = energies%anisotropy_j + anisotropy_j_sum
 
       if (present(external_field_t)) then
+         external_j_sum = 0.0_dblprec
+         !$omp parallel do default(shared) private(block) reduction(+:external_j_sum)
          do block = 1, operator%nblocks
             if (present(onsite_owner)) then
                if (.not. onsite_owner(block)) cycle
             end if
             external_field(:,block) = external_field_t(:,block)
-            energies%external_j = energies%external_j - COARSE_MUB_SI * &
+            external_j_sum = external_j_sum - COARSE_MUB_SI * &
                operator%block_moment_mub * dot_product(external_field(:,block),direction(:,block))
          end do
+         !$omp end parallel do
+         energies%external_j = energies%external_j + external_j_sum
       end if
       if (present(uniform_coarse_dipole_field_t)) then
          dipole_field = uniform_coarse_dipole_field_t
+         dipole_j_sum = 0.0_dblprec
+         !$omp parallel do default(shared) private(block) reduction(+:dipole_j_sum)
          do block = 1, operator%nblocks
-            energies%dipole_j = energies%dipole_j - 0.5_dblprec*COARSE_MUB_SI * &
+            dipole_j_sum = dipole_j_sum - 0.5_dblprec*COARSE_MUB_SI * &
                operator%block_moment_mub * dot_product(dipole_field(:,block),direction(:,block))
          end do
+         !$omp end parallel do
+         energies%dipole_j = energies%dipole_j + dipole_j_sum
       end if
 
       conversion = -1.0_dblprec/(COARSE_MUB_SI*operator%block_moment_mub)

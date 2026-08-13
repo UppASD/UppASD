@@ -188,13 +188,22 @@ contains
       moment_sum_mub = 0.0_dblprec
       direction = 0.0_dblprec
       direction_defined = .false.
+      ! RCG-07: hoisted out of the atom loop below (a `return` inside an
+      ! OpenMP parallel region is not permitted) -- exactly equivalent to
+      ! the original per-atom check, since it applies the same
+      ! moment<=0/channel>0 condition to every atom via a whole-array mask.
+      if (any(atom_moment_mub <= 0.0_dblprec .and. topology%atom_to_dynamic_channel > 0)) then
+         diagnostic = 'Every magnetic atom requires a positive moment for restriction'
+         return
+      end if
+      ! Atom -> (channel,block) is a scatter reduction: many atoms share a
+      ! block, so the reduction target is channel/block/ensemble-sized (not
+      ! atom-sized), making a full-array OpenMP reduction cheap per thread.
+      !$omp parallel do default(shared) private(atom,channel,block,ensemble) &
+      !$omp    reduction(+:resultant_mub,moment_sum_mub)
       do atom = 1, topology%n_atoms
          channel = topology%atom_to_dynamic_channel(atom)
          if (channel <= 0) cycle
-         if (atom_moment_mub(atom) <= 0.0_dblprec) then
-            diagnostic = 'Every magnetic atom requires a positive moment for restriction'
-            return
-         end if
          block = topology%atom_to_block(atom)
          do ensemble = 1, size(atom_direction,3)
             resultant_mub(:,channel,block,ensemble) = &
@@ -204,6 +213,7 @@ contains
                moment_sum_mub(channel,block,ensemble) + atom_moment_mub(atom)
          end do
       end do
+      !$omp end parallel do
       do ensemble = 1, size(atom_direction,3)
          do block = 1, topology%n_spatial_blocks
             do channel = 1, topology%n_dynamic_channels

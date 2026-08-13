@@ -1233,20 +1233,61 @@ own session; none is a dependency of RCG-07.
 
 #### Checklist
 
-- [ ] CPU dilation visits only the local stencil around relevant seeds.
-- [ ] Dilation work scales linearly in blocks for fixed physical width.
-- [ ] New dilation maps are bitwise identical to the accepted reference.
-- [ ] Parallel loops are race-free and deterministic within stated budgets.
-- [ ] Energy reductions use stable precision and ownership.
-- [ ] One-thread results match the accepted pre-optimization reference.
-- [ ] Multi-thread scaling is reported with thread affinity/configuration.
-- [ ] Coarse-fraction sweeps separate field, integration, and rebuild costs.
-- [ ] Remaining unavoidable `O(N)` passes are documented.
-- [ ] Feature-off CPU performance remains unchanged within noise.
-- [ ] Moving and derivative fixtures pass after optimization.
+- [x] CPU dilation visits only the local stencil around relevant seeds.
+- [x] Dilation work scales linearly in blocks for fixed physical width.
+- [x] New dilation maps are bitwise identical to the accepted reference.
+- [x] Parallel loops are race-free and deterministic within stated budgets.
+- [x] Energy reductions use stable precision and ownership.
+- [x] One-thread results match the accepted pre-optimization reference.
+- [x] Multi-thread scaling is reported with thread affinity/configuration.
+- [x] Coarse-fraction sweeps separate field, integration, and rebuild costs.
+- [x] Remaining unavoidable `O(N)` passes are documented.
+- [x] Feature-off CPU performance remains unchanged within noise.
+- [x] Moving and derivative fixtures pass after optimization.
 
 **Exit evidence:** CPU ownership equivalence, complexity sweep, thread-scaling
 report, and feature-off control.
+
+**RCG-07 evidence (2026-08-13, not yet closed):**
+`docs/RCG-07_CPU_ALGORITHMIC_SCALING_EVIDENCE.md` records the local
+directional-stencil dilation fix (replacing the all-block-by-all-seed scan
+with a stencil bounded by the existing per-axis `buffer_width_blocks`,
+clamped at `block_grid/2` for exactness), a brute-force independent
+ownership-map cross-check plus the pre-existing real-executable
+`static_topology_oracle`/`ownership_map_comparator` oracle (both pass
+unchanged), and a quadratic-vs-linear negative control that fails on the
+pre-fix code (~75x wall time for an 8x block-count increase) and passes on
+the fix (~8x). OpenMP was added to the predictor/corrector integration
+loops, atomistic onsite anisotropy, restriction, prolongation and its
+adjoint, and the coarse tensor operator's per-block Hamiltonian terms (all
+race-free by construction or by array/scalar reduction), plus the
+atomistic bilinear bond loop's unique-pair field scatter via per-component
+atomic updates (a full array reduction would multiply an atom-sized array
+by thread count, which RCG-06A specifically eliminated from this path).
+The accepted discrete-adjoint gradient/transpose-gradient pair and the
+per-block reconstruction phase were deliberately left serial, per their own
+protected-invariant/out-of-scope status. All 28 `cg13-cpu` fixtures
+(27 pre-existing plus the new dilation-scaling fixture) and the ordinary
+feature-off `asd-tests` suite pass on a fresh out-of-tree build at
+`OMP_NUM_THREADS` in `{1, 2, 8}`; at 1 thread every OpenMP construct added
+degenerates to the pre-parallelization sequential order, so results are
+bit-identical, not merely within tolerance. A production-level phase-timing
+sweep (block counts 48-768, coarse fractions 5%-100%, thread counts 1/2/4)
+confirms linear field-evaluation scaling with block count, real multi-core
+speedup (1.64x at 2 threads, consistent with this environment's 2 usable
+cores), and documents one remaining unavoidable `O(n_blocks)` pass
+(`evaluate_coarse_tensor_operator` visits every block regardless of
+ownership).
+
+This evidence is not accepted as closure: no independent reviewer distinct
+from the implementer has yet examined the race-freedom reasoning (SS6 of
+the evidence document, particularly the atomic-vs-reduction choice for the
+bond loop and the derived-type-reduction workaround), matching this
+blueprint's own requirement that "the author of GPU kernel parallelization
+must not be the sole parity or performance reviewer" applied to its CPU
+analogue. Compact-active-list restructuring of the remaining `O(N)` passes
+and a dedicated OpenMP race-sanitizer pass are recorded as open follow-ups,
+not prerequisites smuggled into this session's own scope.
 
 ---
 

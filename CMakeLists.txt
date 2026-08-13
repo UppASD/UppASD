@@ -936,6 +936,18 @@ if(BUILD_TESTING)
    add_test(NAME coarse-graining-static-hybrid-operator
       COMMAND static_hybrid_operator_tests)
 
+   # RCG-07 (F-08): local directional-stencil dilation correctness (brute-
+   # force reference cross-check) and a wall-clock scaling negative control
+   # discriminating the fixed local algorithm from the previous
+   # all-block-by-all-seed quadratic scan.
+   add_executable(static_hybrid_dilation_scaling_tests
+      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_static_hybrid_dilation_scaling.f90)
+   set_target_properties(static_hybrid_dilation_scaling_tests PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/static_hybrid_dilation_scaling_tests)
+   target_link_libraries(static_hybrid_dilation_scaling_tests PRIVATE ${UppASD_LIB})
+   add_test(NAME coarse-graining-static-hybrid-dilation-scaling
+      COMMAND static_hybrid_dilation_scaling_tests)
+
    # CG-07 is deliberately independent of field operators and reconstruction:
    # criteria only produce requests, while the explicit state-machine sync
    # point is solely responsible for changing block resolution.
@@ -1095,6 +1107,7 @@ if(BUILD_TESTING)
       coarse-graining-multichannel-tensor-operator
       coarse-graining-smooth-projected-operator
       coarse-graining-static-hybrid-operator
+      coarse-graining-static-hybrid-dilation-scaling
       coarse-graining-block-selector
       coarse-graining-adaptive-hybrid-solver
       coarse-graining-polarization-gate
@@ -1113,6 +1126,7 @@ if(BUILD_TESTING)
          coarse-graining-multichannel-tensor-operator
          coarse-graining-smooth-projected-operator
          coarse-graining-static-hybrid-operator
+         coarse-graining-static-hybrid-dilation-scaling
          coarse-graining-block-selector
          coarse-graining-adaptive-hybrid-solver
          coarse-graining-polarization-gate
@@ -1131,6 +1145,7 @@ if(BUILD_TESTING)
          coarse-graining-multichannel-tensor-operator
          coarse-graining-smooth-projected-operator
          coarse-graining-static-hybrid-operator
+         coarse-graining-static-hybrid-dilation-scaling
          coarse-graining-block-selector
          coarse-graining-adaptive-hybrid-solver
          coarse-graining-polarization-gate

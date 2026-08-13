@@ -392,6 +392,13 @@ contains
 
       atom_direction = 0.0_dblprec
       raw_norm = 0.0_dblprec
+      ! RCG-07: each atom only gathers its own 8 stencil corners and writes
+      ! its own atom_direction(:,atom)/raw_norm(atom) entries -- independent,
+      ! no reduction required. The zero/cancelling-interpolant check is
+      ! deferred to the second, serial, ascending-atom-order pass below
+      ! because `return` is not permitted inside a parallel region; that
+      ! pass reproduces the original first-failing-atom diagnostic exactly.
+      !$omp parallel do default(shared) private(atom,channel,corner,block,interpolated)
       do atom = 1, n_atoms
          channel = atom_channel(atom)
          if (channel <= 0) cycle
@@ -402,13 +409,20 @@ contains
                coarse_variable(:,channel,block)
          end do
          raw_norm(atom) = sqrt(sum(interpolated*interpolated))
+         if (ieee_is_finite(raw_norm(atom)) .and. raw_norm(atom) > normalization_floor) then
+            atom_direction(:,atom) = interpolated/raw_norm(atom)
+         end if
+      end do
+      !$omp end parallel do
+      do atom = 1, n_atoms
+         channel = atom_channel(atom)
+         if (channel <= 0) cycle
          if (.not. ieee_is_finite(raw_norm(atom)) .or. &
              raw_norm(atom) <= normalization_floor) then
             status = SMOOTH_PROJECTED_ZERO_INTERPOLANT
             diagnostic = 'Normalized prolongation encountered a zero or cancelling interpolant'
             return
          end if
-         atom_direction(:,atom) = interpolated/raw_norm(atom)
       end do
       status = SMOOTH_PROJECTED_OK
    end subroutine prolongate_with_norm
@@ -433,6 +447,12 @@ contains
          return
       end if
       coarse_field_t = 0.0_dblprec
+      ! RCG-07: atom -> (channel,block) is a scatter reduction (several
+      ! atoms' stencils can share a block), but the reduction target is
+      ! channel/block-sized, not atom-sized, so a full-array OpenMP
+      ! reduction is cheap per thread.
+      !$omp parallel do default(shared) private(atom,channel,corner,block,tangent_field,factor) &
+      !$omp    reduction(+:coarse_field_t)
       do atom = 1, operator%n_atoms
          channel = operator%atom_channel(atom)
          if (channel <= 0) cycle
@@ -447,6 +467,7 @@ contains
                coarse_field_t(:,channel,block) + factor*tangent_field
          end do
       end do
+      !$omp end parallel do
       status = SMOOTH_PROJECTED_OK
       diagnostic = ''
    end subroutine restrict_with_state

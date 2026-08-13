@@ -1043,6 +1043,10 @@ contains
          call coarse_llg_rhs(adaptive_cg_state%tensor,coarse0(:,1,:,ensemble), &
             coarse_field0(:,1,:,ensemble),coarse_rhs0,local_status,diagnostic)
          if (local_status /= COARSE_TENSOR_OK) return
+         ! RCG-07: each atom's predictor update depends only on its own
+         ! current state/field and writes only its own atom_predictor(:,
+         ! atom,ensemble) entry -- independent, no reduction required.
+         !$omp parallel do default(shared) private(atom,rhs0,candidate)
          do atom = 1, Natom
             if (.not. adaptive_cg_state%runtime%hybrid%atomistic_atom(atom)) cycle
             call llg_rhs(atom0(:,atom,ensemble),atom_field0(:,atom,ensemble), &
@@ -1050,11 +1054,14 @@ contains
             candidate = atom0(:,atom,ensemble)+delta_t*rhs0
             atom_predictor(:,atom,ensemble) = candidate/sqrt(sum(candidate*candidate))
          end do
+         !$omp end parallel do
+         !$omp parallel do default(shared) private(block,candidate)
          do block = 1, adaptive_cg_state%topology%n_spatial_blocks
             if (.not. adaptive_cg_state%runtime%hybrid%coarse_block(block)) cycle
             candidate = coarse0(:,1,block,ensemble)+delta_t*coarse_rhs0(:,block)
             coarse_predictor(:,1,block,ensemble) = candidate/sqrt(sum(candidate*candidate))
          end do
+         !$omp end parallel do
       end do
       time1 = wall_clock_seconds()
       adaptive_cg_state%integration_seconds = adaptive_cg_state%integration_seconds + &
@@ -1070,6 +1077,8 @@ contains
          call coarse_llg_rhs(adaptive_cg_state%tensor,coarse_predictor(:,1,:,ensemble), &
             coarse_field1(:,1,:,ensemble),coarse_rhs1,local_status,diagnostic)
          if (local_status /= COARSE_TENSOR_OK) return
+         ! RCG-07: same independence argument as the predictor stage above.
+         !$omp parallel do default(shared) private(atom,rhs0,rhs1,candidate)
          do atom = 1, Natom
             if (.not. adaptive_cg_state%runtime%hybrid%atomistic_atom(atom)) cycle
             call llg_rhs(atom0(:,atom,ensemble),atom_field0(:,atom,ensemble), &
@@ -1079,6 +1088,8 @@ contains
             candidate = atom0(:,atom,ensemble)+0.5_dblprec*delta_t*(rhs0+rhs1)
             atom_direction(:,atom,ensemble) = candidate/sqrt(sum(candidate*candidate))
          end do
+         !$omp end parallel do
+         !$omp parallel do default(shared) private(block,candidate)
          do block = 1, adaptive_cg_state%topology%n_spatial_blocks
             if (.not. adaptive_cg_state%runtime%hybrid%coarse_block(block)) cycle
             candidate = coarse0(:,1,block,ensemble)+0.5_dblprec*delta_t* &
@@ -1086,6 +1097,7 @@ contains
             adaptive_cg_state%coarse_direction(:,1,block,ensemble) = &
                candidate/sqrt(sum(candidate*candidate))
          end do
+         !$omp end parallel do
       end do
       time1 = wall_clock_seconds()
       adaptive_cg_state%integration_seconds = adaptive_cg_state%integration_seconds + &
@@ -1279,6 +1291,10 @@ contains
 
       energy_j = 0.0_dblprec
       field_t = 0.0_dblprec
+      ! RCG-07: every atom writes only its own energy_j(atom)/field_t(:,atom)
+      ! entry -- no cross-atom accumulation, so this is race-free without a
+      ! reduction clause.
+      !$omp parallel do default(shared) private(atom,axis,c,derivative)
       do atom = 1, Natom
          do axis = 1, adaptive_cg_state%atom_anisotropy_axis_count(atom)
             c = dot_product(direction(:,atom), &
@@ -1294,6 +1310,7 @@ contains
                (mub*adaptive_cg_state%atom_moment_mub(atom))
          end do
       end do
+      !$omp end parallel do
       if (.not. all(ieee_is_finite(energy_j)) .or. .not. all(ieee_is_finite(field_t))) then
          call setup_failed('anisotropy: atomistic onsite evaluation produced a non-finite value', &
             status,diagnostic)

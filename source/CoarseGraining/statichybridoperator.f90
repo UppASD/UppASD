@@ -23,7 +23,8 @@ module StaticHybridOperator
 
    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
    use Parameters, only : dblprec
-   use BlockTopology, only : block_topology_type, REGULAR_REPLICATED_CELL
+   use BlockTopology, only : block_topology_type, REGULAR_REPLICATED_CELL, &
+      regular_spatial_block_id
    use stiffness, only : COARSE_MUB_SI
    use CoarseTensorOperator, only : coarse_tensor_operator_type, &
       coarse_energy_terms_type, evaluate_coarse_tensor_operator, COARSE_TENSOR_OK
@@ -226,7 +227,8 @@ contains
       character(len=*), intent(out) :: diagnostic
 
       integer :: atom, block, bond, seed
-      integer :: delta(3), periodic_delta(3)
+      integer :: seed_coordinate(3), target_coordinate(3), stencil_half_width(3)
+      integer :: dx, dy, dz
 
       status = STATIC_HYBRID_INVALID_STATE
       diagnostic = ''
@@ -252,17 +254,32 @@ contains
          return
       end if
 
+      ! RCG-07 (F-08): local directional stencil replacing the previous
+      ! all-block-by-all-seed scan. `periodic_delta(axis)` (the previous
+      ! per-axis Chebyshev-style wrapped distance) can never exceed
+      ! floor(block_grid(axis)/2), so once stencil_half_width(axis) reaches
+      ! that ceiling every block on that axis already satisfies the original
+      ! `periodic_delta <= buffer_width_blocks` test; clamping the stencil
+      ! there reproduces the exact same atomistic_block set (a whole-axis
+      ! band, not merely a local box) without ever re-scanning every block
+      ! for every seed. Work per seed is now bounded by the fixed physical
+      ! buffer volume (or the block-grid size, whichever is smaller), so
+      ! total dilation work is linear in the number of fine seeds/blocks for
+      ! a fixed physical buffer width, instead of quadratic.
       operator%fine_seed = fine_mask
       operator%atomistic_block = fine_mask
+      stencil_half_width = min(operator%buffer_width_blocks,topology%block_grid/2)
       do seed = 1, operator%n_blocks
          if (.not. fine_mask(seed)) cycle
-         do block = 1, operator%n_blocks
-            delta = abs(topology%block_grid_coordinate(:,block) - &
-               topology%block_grid_coordinate(:,seed))
-            periodic_delta = min(delta,topology%block_grid-delta)
-            if (all(periodic_delta <= operator%buffer_width_blocks)) then
-               operator%atomistic_block(block) = .true.
-            end if
+         seed_coordinate = topology%block_grid_coordinate(:,seed)
+         do dz = -stencil_half_width(3), stencil_half_width(3)
+            do dy = -stencil_half_width(2), stencil_half_width(2)
+               do dx = -stencil_half_width(1), stencil_half_width(1)
+                  target_coordinate = modulo(seed_coordinate+(/dx,dy,dz/),topology%block_grid)
+                  block = regular_spatial_block_id(target_coordinate,topology%block_grid)
+                  operator%atomistic_block(block) = .true.
+               end do
+            end do
          end do
       end do
       operator%coarse_block = .not. operator%atomistic_block
@@ -300,6 +317,7 @@ contains
 
       integer :: atom, atom_i, atom_j, block, bond, dependency_status
       character(len=512) :: dependency_diagnostic
+      real(dblprec) :: contribution_i(3), contribution_j(3), bilinear_j_sum, onsite_j_sum
 
       energies = static_hybrid_energy_type()
       status = STATIC_HYBRID_INVALID_STATE
@@ -366,29 +384,60 @@ contains
       end do
 
       atomistic_field = 0.0_dblprec
+      bilinear_j_sum = 0.0_dblprec
+      ! RCG-07 (Hamiltonian work): unique-pair bond scatter -- distinct
+      ! bonds routinely share an endpoint atom, so atomistic_field(:,
+      ! atom_i)/(:,atom_j) is a genuine cross-iteration race target, unlike
+      ! the block-scale restriction/prolongation reductions above. Uses the
+      ! standard MD-style per-component atomic accumulation instead of a
+      ! full atom-sized array reduction: the reduction target here is
+      ! atom-scale, and RCG-06 (F-13/F-17) specifically eliminated O(n_atoms)
+      ! per-step duplication from this path, so multiplying the field array
+      ! by thread count would cut against that. The scalar energy term
+      ! still uses a plain reduction (cheap regardless of scale).
+      !$omp parallel do default(shared) private(bond,atom_i,atom_j,contribution_i,contribution_j) &
+      !$omp    reduction(+:bilinear_j_sum)
       do bond = 1, operator%n_bonds
          if (.not. operator%atomistic_bond_owner(bond)) cycle
          atom_i = operator%bond_atom(1,bond)
          atom_j = operator%bond_atom(2,bond)
-         energies%atomistic_bilinear_j = energies%atomistic_bilinear_j - &
+         bilinear_j_sum = bilinear_j_sum - &
             dot_product(effective_direction(:,atom_i), &
             matmul(bond_matrix_j(:,:,bond),effective_direction(:,atom_j)))
-         atomistic_field(:,atom_i) = atomistic_field(:,atom_i) + &
-            matmul(bond_matrix_j(:,:,bond),effective_direction(:,atom_j)) / &
+         contribution_i = matmul(bond_matrix_j(:,:,bond),effective_direction(:,atom_j)) / &
             (COARSE_MUB_SI*operator%projection%atom_moment_mub(atom_i))
-         atomistic_field(:,atom_j) = atomistic_field(:,atom_j) + &
-            matmul(transpose(bond_matrix_j(:,:,bond)),effective_direction(:,atom_i)) / &
+         contribution_j = matmul(transpose(bond_matrix_j(:,:,bond)),effective_direction(:,atom_i)) / &
             (COARSE_MUB_SI*operator%projection%atom_moment_mub(atom_j))
+         !$omp atomic update
+         atomistic_field(1,atom_i) = atomistic_field(1,atom_i) + contribution_i(1)
+         !$omp atomic update
+         atomistic_field(2,atom_i) = atomistic_field(2,atom_i) + contribution_i(2)
+         !$omp atomic update
+         atomistic_field(3,atom_i) = atomistic_field(3,atom_i) + contribution_i(3)
+         !$omp atomic update
+         atomistic_field(1,atom_j) = atomistic_field(1,atom_j) + contribution_j(1)
+         !$omp atomic update
+         atomistic_field(2,atom_j) = atomistic_field(2,atom_j) + contribution_j(2)
+         !$omp atomic update
+         atomistic_field(3,atom_j) = atomistic_field(3,atom_j) + contribution_j(3)
       end do
+      !$omp end parallel do
+      energies%atomistic_bilinear_j = energies%atomistic_bilinear_j + bilinear_j_sum
 
       if (present(atomistic_onsite_energy_j)) then
+         ! RCG-07: indexed by atom directly (not by bond), so each
+         ! iteration touches only its own atomistic_field(:,atom) entry --
+         ! no atomics needed here, unlike the bond loop above.
+         onsite_j_sum = 0.0_dblprec
+         !$omp parallel do default(shared) private(atom) reduction(+:onsite_j_sum)
          do atom = 1, operator%n_atoms
             if (.not. operator%atomistic_atom(atom)) cycle
-            energies%atomistic_onsite_j = energies%atomistic_onsite_j + &
-               atomistic_onsite_energy_j(atom)
+            onsite_j_sum = onsite_j_sum + atomistic_onsite_energy_j(atom)
             atomistic_field(:,atom) = atomistic_field(:,atom) + &
                atomistic_onsite_field_t(:,atom)
          end do
+         !$omp end parallel do
+         energies%atomistic_onsite_j = energies%atomistic_onsite_j + onsite_j_sum
       end if
 
       fine_field_t = 0.0_dblprec
