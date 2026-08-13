@@ -1,6 +1,7 @@
 #include "gpuAdaptiveRuntime.hpp"
 
 #include "base.hpp"
+#include "gpuAdaptiveReconstructionRng.hpp"
 #include "gpuAtomicDouble.hpp"
 #include "measurement/memoryMeasurement.h"
 
@@ -18,7 +19,6 @@ constexpr int regularReplicatedCell = 1;
 constexpr int coarseState = 0;
 constexpr int bufferState = 1;
 constexpr int fineState = 2;
-constexpr std::uint64_t reconstructionModulus = 2147483647ULL;
 constexpr real piValue = real(3.141592653589793238462643383279502884L);
 constexpr unsigned int adaptiveThreads = 256;
 
@@ -398,24 +398,6 @@ __global__ void dilateAdaptiveState(GpuAdaptiveDeviceTopology topology,
          }
 }
 
-__device__ inline std::uint64_t tupleSeed(std::uint64_t globalSeed, std::size_t block,
-                                         std::size_t channel, std::size_t ensemble,
-                                         unsigned int epoch) {
-   std::uint64_t seed = globalSeed % reconstructionModulus;
-   seed = (seed + 104729ULL * ((block + 1) % reconstructionModulus)) % reconstructionModulus;
-   seed = (seed + 130363ULL * ((channel + 1) % reconstructionModulus)) % reconstructionModulus;
-   seed = (seed + 155921ULL * ((ensemble + 1) % reconstructionModulus)) % reconstructionModulus;
-   seed = (seed + 196613ULL * ((static_cast<std::uint64_t>(epoch) + 1) %
-                              reconstructionModulus)) % reconstructionModulus;
-   if(seed == 0) seed = reconstructionModulus - 1;
-   return seed;
-}
-
-__device__ inline real nextUniform(std::uint64_t& state) {
-   state = (16807ULL * state) % reconstructionModulus;
-   return static_cast<real>(state) / static_cast<real>(reconstructionModulus);
-}
-
 __device__ inline void transverseBasis(const real mean[3], real e1[3], real e2[3]) {
    real reference[3] = {real(1), real(0), real(0)};
    if(fabs(mean[0]) > real(0.8)) {
@@ -512,15 +494,15 @@ __global__ void publishAdaptiveState(GpuAdaptiveDeviceTopology topology,
                } else {
                   real e1[3], e2[3];
                   transverseBasis(mean, e1, e2);
-                  std::uint64_t rng = tupleSeed(policy.globalSeed, block, channel, ensemble,
+                  std::uint64_t rng = adaptiveTupleSeed(policy.globalSeed, block, channel, ensemble,
                                                 runtime.transitionEpoch[block]);
                   real sampledTotal = real(0), meanX = real(0), meanY = real(0);
                   for(std::size_t position = begin; position < end; ++position) {
                      const std::size_t atom =
                         static_cast<std::size_t>(topology.blockAtoms[position] - 1);
                      if(topology.atomToDynamicChannel[atom] != static_cast<int>(channel + 1)) continue;
-                     const real angle = real(2) * piValue * nextUniform(rng);
-                     const real radius = real(0.5) + real(0.5) * nextUniform(rng);
+                     const real angle = real(2) * piValue * adaptiveNextUniform(rng);
+                     const real radius = real(0.5) + real(0.5) * adaptiveNextUniform(rng);
                      const real tx = radius * cos(angle);
                      const real ty = radius * sin(angle);
                      kernels.ghostDirection[3 * atom] = tx;

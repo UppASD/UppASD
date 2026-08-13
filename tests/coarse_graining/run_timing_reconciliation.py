@@ -90,7 +90,16 @@ def check_gpu(stdout: str) -> None:
         raise ReconciliationError(f"GPU wall time is not positive: {wall}")
     if phase_sum <= 0.0:
         raise ReconciliationError(f"GPU phase_sum is not positive: {phase_sum} -- phases are not being measured")
-    if abs(unaccounted - (wall - phase_sum)) > 1.0e-6:
+    # gpuSimulation.cpp prints this line with "%.3f" (3 decimals), and wall,
+    # phase_sum, and unaccounted are each rounded independently from the
+    # underlying doubles -- unlike the CPU line, which prints all three with
+    # es24.16 (full double precision, no rounding to worry about, hence its
+    # 1.0e-9 tolerance below). Three independent +/-0.0005ms roundings can
+    # combine to a worst case of 0.0015ms; found by this line failing
+    # intermittently (tolerance was 1.0e-6, tighter than the print format
+    # itself supports) while collecting RCG-06D's regression evidence --
+    # pre-existing since RCG-06C, unrelated to RCG-06D's RNG work.
+    if abs(unaccounted - (wall - phase_sum)) > 2.0e-3:
         raise ReconciliationError(
             f"GPU unaccounted={unaccounted} does not equal wall_ms-phase_sum_ms={wall - phase_sum} as printed"
         )

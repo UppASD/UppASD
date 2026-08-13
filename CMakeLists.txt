@@ -1053,6 +1053,37 @@ if(BUILD_TESTING)
       PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu"
                  ENVIRONMENT "OMP_NUM_THREADS=1")
 
+   # RCG-06D RECONSTRUCTION-RNG-SPATIAL-STATS (F-20): standalone driver that
+   # emits raw draws from the literal tuple-seeded MINSTD reconstruction RNG
+   # (deterministic_reconstruction_seed + next_uniform, AdaptiveHybridSolver)
+   # over a sweep of block indices, so run_reconstruction_rng_spatial_stats.py
+   # can measure the spatial-correlation statistics F-20 asks for. See
+   # docs/RCG-06_MEMORY_TIMING_PRECISION_EVIDENCE.md (RCG-06D section) for
+   # the measured numbers and the zero-cone-vs-nonzero-cone scope decision.
+   add_executable(reconstruction_rng_spatial_stats_tests
+      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_reconstruction_rng_spatial_stats.f90)
+   set_target_properties(reconstruction_rng_spatial_stats_tests PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/reconstruction_rng_spatial_stats_tests)
+   target_link_libraries(reconstruction_rng_spatial_stats_tests PRIVATE ${UppASD_LIB})
+
+   set(RCG06D_GPU_BINARY_ARGS)
+   if(USE_CUDA OR USE_HIP)
+      list(APPEND RCG06D_GPU_BINARY_ARGS
+         --gpu-binary $<TARGET_FILE:reconstruction_rng_gpu_parity_tests>)
+   endif()
+   add_test(NAME adaptive-cg-reconstruction-rng-spatial-stats
+      COMMAND python3
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_reconstruction_rng_spatial_stats.py
+         --cpu-binary $<TARGET_FILE:reconstruction_rng_spatial_stats_tests>
+         ${RCG06D_GPU_BINARY_ARGS})
+   set_tests_properties(adaptive-cg-reconstruction-rng-spatial-stats
+      PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu")
+   if(USE_CUDA)
+      set_property(TEST adaptive-cg-reconstruction-rng-spatial-stats APPEND PROPERTY LABELS cg13-cuda)
+   elseif(USE_HIP)
+      set_property(TEST adaptive-cg-reconstruction-rng-spatial-stats APPEND PROPERTY LABELS cg13-hip)
+   endif()
+
    # CG-13 labels are the repeatable suite interface.  Keep the focused
    # analytic/reference tests in the CPU suite even in a GPU build; the
    # production and backend tests below add the matching CUDA/HIP label.
@@ -1451,6 +1482,34 @@ if(BUILD_TESTING)
       else()
          set_tests_properties(adaptive-cg-energy-fp32-accum
             PROPERTIES LABELS "coarse-graining;cg13;cg13-hip")
+      endif()
+
+      # RCG-06D RECONSTRUCTION-RNG-SPATIAL-STATS GPU companion (F-20):
+      # standalone, deliberately NOT linked against asdlib, matching
+      # RCG-06B's energy_fp32_accum precedent. Shares the literal device
+      # generator (adaptiveTupleSeed/adaptiveNextUniform,
+      # gpuAdaptiveReconstructionRng.hpp) that gpuAdaptiveRuntime.cpp's
+      # production kernels use. Not registered as its own ctest target --
+      # only used as --gpu-binary by
+      # adaptive-cg-reconstruction-rng-spatial-stats (registered in the
+      # host-side block above), matching stack_overflow_fault_injection_tests'
+      # pairing pattern.
+      add_executable(reconstruction_rng_gpu_parity_tests
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_reconstruction_rng_gpu_parity.cpp)
+      target_include_directories(reconstruction_rng_gpu_parity_tests PRIVATE
+         ${CMAKE_SOURCE_DIR}/source/gpu_files)
+      if(USE_CUDA)
+         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_reconstruction_rng_gpu_parity.cpp
+            PROPERTIES LANGUAGE CUDA)
+         target_compile_definitions(reconstruction_rng_gpu_parity_tests PRIVATE CUDA_V)
+         target_link_libraries(reconstruction_rng_gpu_parity_tests PRIVATE CUDA::cudart)
+      else()
+         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_reconstruction_rng_gpu_parity.cpp
+            PROPERTIES LANGUAGE HIP)
+         target_compile_definitions(reconstruction_rng_gpu_parity_tests PRIVATE HIP_V)
+      endif()
+      if(UPPASD_PRECISION STREQUAL "SINGLE")
+         target_compile_definitions(reconstruction_rng_gpu_parity_tests PRIVATE SINGLE_PREC)
       endif()
 
       # CG-09/CG-10 immutable topology transfer, mutable block/channel

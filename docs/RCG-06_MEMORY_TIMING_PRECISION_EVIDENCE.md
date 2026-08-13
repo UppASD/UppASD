@@ -999,3 +999,374 @@ this is a performance question for RCG-08 rather than a timing-correctness
 defect blocking RCG-06C itself) and for the decision not to construct a
 `cpu_time`-vs-`system_clock` divergence negative control (no code path
 exists yet where they would actually differ).
+
+---
+
+## RCG-06D: reconstruction RNG spatial statistics (F-20)
+
+**Date:** 2026-08-12
+**Base commit:** `4ab406b829785e9e7489eaeb6930d8af9babc382` (RCG-06C, committed).
+**Scope:** F-20 ("the tuple-seeded MINSTD reconstruction can correlate
+nearby refinements"). Parent RCG-06 task prompt: "Measure reconstruction
+RNG spatial statistics. Replace the generator only if the accepted
+nonzero-cone model needs stronger independence; otherwise document why
+zero-cone production is unaffected and leave nonzero-cone acceptance open."
+This is the last of RCG-06's four lettered slices.
+
+### Finding reproduction
+
+`reconstruct_block_constrained_cone` (`adaptivehybridsolver.f90:344-470`)
+seeds a per-`(block,channel,ensemble,epoch)` stream from
+`deterministic_reconstruction_seed` (a tuple hashed by fixed multiplicative
+constants -- `104729`/`130363`/`155921`/`196613` -- modulo the Mersenne
+prime `2147483647`, `adaptivehybridsolver.f90:472-484`) and steps it with
+`next_uniform`, a Park-Miller "minimal standard" (MINSTD) Lehmer generator
+(multiplier `48271`, `adaptivehybridsolver.f90:957-963`) to draw each
+member atom's transverse cone position (`angle`, `radius`,
+`adaptivehybridsolver.f90:405-410`).
+
+**Zero-cone production is unaffected -- proven by direct construction, not
+argued.** At `cone_angle_rad=0`, the bisection bounds
+(`lower=0.0`, `upper=sin(cone_angle_rad)=0.0`, `adaptivehybridsolver.f90:429-430`)
+force `amplitude=0.5*(lower+upper)` to exactly `0.0` on every one of the
+100 bisection iterations regardless of the RNG-drawn `tx`/`ty`, and
+`radius=amplitude*sqrt(tx*tx+ty*ty)` (`adaptivehybridsolver.f90:450`) is
+therefore exactly `0.0` for every member atom -- the RNG output is
+multiplied by zero before it can reach `atom_direction`
+(`adaptivehybridsolver.f90:451-453`), independent of what values `tx`/`ty`
+take or how correlated they are. `reconstruct_block_aligned` -- the
+production default (`RECONSTRUCTION_ALIGNED`,
+`adaptivehybridsolver.f90:46,50`) -- calls no RNG function at all. No
+tracked fixture sets `cg_reconstruction CONSTRAINED_CONE` with a nonzero
+cone angle (every one uses `ALIGNED`; confirmed by grep across
+`tests/coarse_graining/e2e/*/inpsd.dat`), so there is no "accepted
+nonzero-cone model" today for the generator to need stronger independence
+for.
+
+**Nonzero-cone spatial correlation is real, large, and structural --
+measured, not assumed.** `deterministic_reconstruction_seed` is affine in
+`block` for fixed `(channel,ensemble,epoch)`: adjacent blocks' seeds differ
+by a fixed additive offset (`104729`) before one multiplicative LCG step.
+An affine map composed with an affine input is still affine (mod the
+prime), so the first draw as a function of block index is *itself* an
+exact affine (mod-prime) sequence -- adjacent blocks' first draws differ by
+a fixed offset (`48271*104729 mod 2147483647 = 760406265`, about 35% of the
+modulus), not independent noise. `RECONSTRUCTION-RNG-SPATIAL-STATS`
+(new, below) measures this directly: sequential lag-1 correlation between
+nearby blocks' first draws is `-0.3723`, stable to 4 decimal places across
+24 independent `(global_seed,channel,ensemble,epoch)` tuples and
+non-decaying from 16 to 20000 blocks (it is a structural property of the
+seed construction, not a finite-sample artifact) -- see Tests/Raw evidence
+below for the full lag-1..4 table and the block-shuffled negative control
+that confirms the estimator itself is not the source of the correlation.
+
+**Two independent CPU/GPU divergences in this generator, found while
+building the spatial-statistics fixture's GPU companion, fixed in this
+slice (neither is F-20 itself -- both are consistency hazards squarely in
+RCG-06's "hazards" scope, found and fixed rather than left as latent bugs,
+matching every prior RCG-06 sub-slice's disclosed-and-fixed pattern):**
+
+1. **Generator multiplier mismatch.** GPU's device generator
+   (`gpuAdaptiveRuntime.cpp`, pre-fix `nextUniform`) used multiplier
+   `16807` -- the original 1969 Lehmer/"MINSTD" constant -- while CPU's
+   `next_uniform` used `48271` -- the revised 1988 Park-Miller "minimal
+   standard" constant -- both against the same modulus. An identical tuple
+   seed therefore produced two completely unrelated draw sequences on CPU
+   vs GPU.
+2. **Seed-formula epoch off-by-one.** GPU's device seed formula (pre-fix
+   `tupleSeed`) added `+1` to all four of `block`, `channel`, `ensemble`,
+   *and* `epoch` before hashing. For `block`/`channel`/`ensemble` this is a
+   genuine, necessary conversion: GPU's call site
+   (`gpuAdaptiveRuntime.cpp:497-498`, at the time) passes its own 0-based
+   loop indices, while CPU's Fortran call site
+   (`adaptivehybridsolver.f90:402-403`) passes 1-based indices, so `+1`
+   correctly reconciles the two conventions -- confirmed correct, not
+   assumed, and left unchanged. `epoch` has no such convention difference:
+   both sides pass the same zero-based, monotonically-incrementing
+   transition-epoch counter (`blockselector.f90:300,400`:
+   `transition_epoch = 0`, `+1` per accepted transition;
+   `gpuAdaptiveRuntime.hpp:206`/`gpuAdaptiveRuntime.cpp:593`: same pattern
+   for `transitionEpoch`). GPU's blanket `+1` on `epoch` was therefore a
+   plain off-by-one, not a convention conversion: GPU's `epoch=0` silently
+   matched what CPU's formula calls `epoch=1`, permanently offsetting every
+   GPU reconstruction stream by one epoch relative to the CPU stream a
+   replay is meant to reproduce.
+
+Neither divergence is reachable by any tracked fixture today (same
+zero-cone-nullification argument as above applies regardless of which
+generator or seed formula computed the nullified `tx`/`ty`), so neither was
+a live production defect at this codebase's current acceptance state -- but
+both were live latent defects that would have silently broken any future
+nonzero-cone GPU acceptance or CPU/GPU replay-consistency claim, so both
+are fixed now rather than deferred, consistent with F-20's own instruction
+to leave the *independence* question open while not leaving a *known,
+already-diagnosed, unrelated-to-independence* bug in place.
+
+**A third, unrelated pre-existing bug found and fixed while collecting this
+slice's regression evidence:** `adaptive-cg-timing-reconciliation`
+(RCG-06C) failed intermittently on a fresh CUDA build, unrelated to any
+RCG-06D change --
+`run_timing_reconciliation.py`'s `check_gpu` compared the GPU line's
+printed `unaccounted_ms` against `wall_ms-phase_sum_ms` with a `1.0e-6`
+tolerance, but `gpuSimulation.cpp:928` prints that line with `%.3f` (3
+decimals), and `wall`, `phase_sum`, and `unaccounted` are each rounded
+independently from the underlying doubles -- unlike the CPU line, which
+prints all three with `es24.16` (full double precision, matching its own
+tight `1.0e-9` tolerance correctly). Three independent `+/-0.0005ms`
+roundings can combine to a worst case of `0.0015ms`, comfortably exceeding
+`1.0e-6`; reproduced twice in a row (`GPU unaccounted=13730.082 does not
+equal wall_ms-phase_sum_ms=13730.081000000002`, then
+`13036.748` vs `13036.749`) before being diagnosed as a print-precision
+mismatch rather than a reconciliation defect. Fixed by widening the GPU
+tolerance to `2.0e-3` (documented derivation in the diff); reran 3x clean
+afterward. This is exactly the kind of gap the second half of this
+session's request ("check if we have missed something in RCG-06") is for --
+recorded here rather than silently folded into "pre-existing, ignored."
+
+### Fix
+
+**`source/gpu_files/gpuAdaptiveReconstructionRng.hpp`** (new): extracts
+`tupleSeed`/`nextUniform` out of `gpuAdaptiveRuntime.cpp` into
+`adaptiveTupleSeed`/`adaptiveNextUniform`, fixing both divergences above
+(multiplier `48271` unconditionally; `epoch` used directly, no `+1`) and
+documenting the full before/after account for each. Shared between
+`gpuAdaptiveRuntime.cpp` (the production kernels, updated to call the
+renamed shared functions and no longer define their own copies) and
+`test_reconstruction_rng_gpu_parity.cpp` (this slice's new fixture), so the
+fixture measures the literal generator the production kernels use --
+matching the `gpuAtomicDouble.hpp`/`ENERGY-FP32-ACCUM` precedent from
+RCG-06B, not a reimplementation that could silently drift.
+
+**`source/CoarseGraining/adaptivehybridsolver.f90`:** `next_uniform` made
+`public` (was module-private) so the new CPU spatial-statistics fixture
+exercises the literal production generator rather than a reimplementation.
+No behavior change.
+
+**`tests/coarse_graining/test_adaptive_hybrid_solver.f90`:** a new
+regression check in `test_channel_restriction_and_reconstruction` calls
+`reconstruct_block_constrained_cone` twice at `cone_angle_rad=0.0` with two
+different `global_seed` values (`11`/`777777`) on the same full channel
+resultant, asserts the two calls' `deterministic_reconstruction_seed`
+outputs are genuinely different (`seeds_a/=seeds_b`), and asserts the
+resulting `atom_direction` output is byte-identical between the two calls
+and matches the aligned reconstruction -- direct proof that zero-cone
+output does not depend on which RNG stream was drawn, not merely an
+inference from reading the bisection code.
+
+**`run_timing_reconciliation.py`:** GPU reconciliation tolerance widened
+from `1.0e-6` to `2.0e-3` with the print-precision derivation documented
+inline (see "A third, unrelated pre-existing bug" above). Unrelated to
+F-20; grouped here because it was found while collecting this slice's
+regression evidence.
+
+**No change to the generator or seed formula's independence properties.**
+Per F-20's own instruction, the multiplicative-LCG-with-affine-tuple-seed
+construction itself is *not* replaced: nonzero-cone reconstruction is not
+accepted for production today (no tracked fixture uses it), so there is no
+accepted model whose independence needs strengthening. The measured
+correlation (below) is recorded as the acceptance-blocking evidence a
+future nonzero-cone proposal would need to address, not resolved
+pre-emptively.
+
+### Tests
+
+- **`tests/coarse_graining/test_reconstruction_rng_spatial_stats.f90`**
+  (new): standalone driver, linked against `asdlib` (needs
+  `AdaptiveHybridSolver`), emits raw `(global_seed,channel,ensemble,epoch,
+  block,u1,u2)` draws from the literal
+  `deterministic_reconstruction_seed`+`next_uniform` production functions
+  over a sweep of `block=1..4096` at 24 fixed
+  `(global_seed,channel,ensemble,epoch)` tuples (3 seeds x 2 channels x 2
+  ensembles x 2 epochs).
+- **`tests/coarse_graining/test_reconstruction_rng_gpu_parity.cpp`** (new):
+  standalone CUDA/HIP executable, deliberately **not** linked against
+  `asdlib` (matching RCG-06A/B's fault-injection/microbenchmark
+  precedent), computing the identical sweep on-device via the literal
+  shared `adaptiveTupleSeed`/`adaptiveNextUniform` functions and printing
+  the same CSV format, for CPU/GPU parity comparison.
+- **`tests/coarse_graining/run_reconstruction_rng_spatial_stats.py`**
+  (new), registered as CTest `adaptive-cg-reconstruction-rng-spatial-stats`
+  (`cg13;cg13-cpu`, `+cg13-cuda`/`cg13-hip` when GPU-enabled): runs the CPU
+  driver always and the GPU driver when built, and:
+  - computes lag-1..4 Pearson correlation of each group's block-indexed
+    `u1` sequence, plus a block-shuffled negative control per group
+    (same draws, block identity discarded);
+  - asserts the sequential lag-1 correlation's mean magnitude is clearly
+    nonzero (`>0.15` -- a discriminating-test check, proving the fixture
+    is actually measuring structure, not producing a flat/noise curve);
+  - asserts the shuffled negative control's mean stays within an
+    independence-consistent sampling-noise budget (`5/sqrt(4096)~=0.078`),
+    proving the sequential result is a property of block adjacency, not an
+    artifact of the Pearson estimator itself;
+  - when a GPU binary is supplied, flattens both CSVs keyed by
+    `(global_seed,channel,ensemble,epoch,block)` and asserts every pair
+    matches within `1.0e-5` (loose enough for `SINGLE_PREC` FP32 rounding,
+    tight enough that a genuine generator divergence -- unrelated draws,
+    O(1) differences -- cannot pass silently);
+  - deliberately does **not** assert an upper bound on the sequential
+    correlation's magnitude, and does not replace the generator: per F-20's
+    instruction, this fixture's job is to measure and record, not to
+    pre-emptively fix independence for a model that is not accepted for
+    production.
+- **Existing derivative and moving-state fixtures remain unchanged**:
+  every pre-existing `cg13-cpu`/`cg13-cuda` fixture and `asd-tests` pass on
+  fresh out-of-tree builds after this slice's fixes (see Raw evidence),
+  including `coarse-graining-adaptive-hybrid-solver`'s existing cone-replay
+  determinism/seed-uniqueness checks (unchanged) alongside this slice's new
+  zero-cone check.
+
+### Raw evidence
+
+```
+$ git rev-parse HEAD
+4ab406b829785e9e7489eaeb6930d8af9babc382   # RCG-06C; RCG-06D is uncommitted on top
+
+$ git status --short   # RCG-06D-relevant files only
+ M CMakeLists.txt
+ M source/CoarseGraining/adaptivehybridsolver.f90
+ M source/gpu_files/gpuAdaptiveRuntime.cpp
+ M tests/coarse_graining/run_timing_reconciliation.py
+ M tests/coarse_graining/test_adaptive_hybrid_solver.f90
+?? source/gpu_files/gpuAdaptiveReconstructionRng.hpp
+?? tests/coarse_graining/run_reconstruction_rng_spatial_stats.py
+?? tests/coarse_graining/test_reconstruction_rng_gpu_parity.cpp
+?? tests/coarse_graining/test_reconstruction_rng_spatial_stats.f90
+
+# --- Fresh out-of-tree CPU build ---
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=OFF -DBUILD_TESTING=ON \
+   -S . -B build_rcg06d_cpu
+-- ... Configuring done, Generating done ...
+$ cmake --build build_rcg06d_cpu -j"$(nproc)"
+-- ... built clean, no errors ...
+
+$ ctest --test-dir build_rcg06d_cpu -L cg13-cpu --output-on-failure
+... 27/27 tests passed (was 26/26 before this slice; +1 =
+adaptive-cg-reconstruction-rng-spatial-stats) ...
+100% tests passed, 0 tests failed out of 27
+Label Time Summary:
+cg13               =  74.26 sec*proc (27 tests)
+cg13-cpu           =  74.26 sec*proc (27 tests)
+Total Test time (real) =  74.27 sec
+
+$ ctest --test-dir build_rcg06d_cpu -R '^asd-tests$' --output-on-failure
+1/1 Test #2: asd-tests ........................   Passed   11.15 sec
+100% tests passed, 0 tests failed out of 1
+
+$ ./build_rcg06d_cpu/bin/adaptive_hybrid_solver_tests
+adaptive hybrid solver tests passed   # includes this slice's new zero-cone check
+
+# --- Fresh out-of-tree CUDA build (default precision, DOUBLE) ---
+$ cmake -DCMAKE_BUILD_TYPE=Release -DUPPASD_GPU_BACKEND=CUDA -DBUILD_TESTING=ON \
+   -DCMAKE_CUDA_COMPILER=/usr/local/cuda-13.3/bin/nvcc -S . -B build_rcg06d_cuda
+$ cmake --build build_rcg06d_cuda -j2
+-- ... built clean, no errors ...
+
+$ ctest --test-dir build_rcg06d_cuda -L cg13-cuda --output-on-failure
+... 28/28 tests passed (was 27/27 before this slice; +1 =
+adaptive-cg-reconstruction-rng-spatial-stats) ...
+100% tests passed, 0 tests failed out of 28
+Total Test time (real) = 423.66 sec
+
+$ ctest --test-dir build_rcg06d_cuda -R '^asd-tests$' --output-on-failure
+1/1 Test #2: asd-tests ........................   Passed   12.01 sec
+100% tests passed, 0 tests failed out of 1
+
+$ ctest --test-dir build_rcg06d_cuda -R adaptive-cg-reconstruction-rng-spatial-stats -V
+21: RECONSTRUCTION-RNG-SPATIAL-STATS: 24 (global_seed,channel,ensemble,epoch) groups, 4096 blocks each
+21:  lag     mean_r      min_r      max_r
+21:    1    -0.3723    -0.3723    -0.3722
+21:    2    -0.2400    -0.2403    -0.2397
+21:    3     0.6496     0.6494     0.6507
+21:    4    -0.4580    -0.4582    -0.4579
+21: block-shuffled negative control, lag-1: mean_r=-0.0019 (expected near zero
+if the fixture is discriminating structure, not manufacturing it)
+21: RECONSTRUCTION-RNG-SPATIAL-STATS: PASS -- sequential lag-1 correlation
+(mean=-0.3723) is real, stable across (global_seed,channel,ensemble,epoch)
+tuples, and clearly distinct from the block-shuffled negative control
+(mean=-0.0019)
+21: CPU/GPU reconstruction RNG parity: 98304 rows compared, worst
+|diff|=1.110e-16 (tolerance 1.0e-05) -- PASS
+1/1 Test #21: adaptive-cg-reconstruction-rng-spatial-stats ...   Passed    2.01 sec
+```
+
+**Negative controls for both GPU fixes** (temporarily reintroduced one
+defect at a time in `gpuAdaptiveReconstructionRng.hpp`, rebuilt only
+`reconstruction_rng_gpu_parity_tests`, reran the parity check, then
+restored the fix and confirmed a clean rebuild -- `diff` against a saved
+copy of the fixed header confirmed byte-identical restoration):
+
+```
+# Epoch "+1" bug reintroduced alone (multiplier still correct, 48271):
+CPU/GPU reconstruction RNG parity failed: worst |diff|=5.805456e-01 at
+(global_seed,channel,ensemble,epoch,block)=((1, 1, 1, 0), 9)
+
+# Multiplier bug reintroduced alone (16807; epoch formula still correct):
+CPU/GPU reconstruction RNG parity failed: worst |diff|=9.976380e-01 at
+(global_seed,channel,ensemble,epoch,block)=((1, 2, 1, 7), 660)
+
+# Both fixes restored:
+CPU/GPU reconstruction RNG parity: 98304 rows compared, worst
+|diff|=1.110e-16 (tolerance 1.0e-05) -- PASS
+```
+
+Each defect alone is independently detectable and produces an O(1)
+mismatch (not a rounding-scale one), confirming both fixes are individually
+necessary and, together, sufficient for exact CPU/GPU parity.
+
+Device/driver: two NVIDIA RTX A4000 GPUs (compute capability 8.6, Ampere),
+CUDA 13.3 toolkit, shared with unrelated external processes at ~90%
+utilization throughout this session, matching every prior RCG-06 CUDA
+session. HIP was not attempted: no `hipcc`/`rocm-smi` on this host,
+matching every RCG-0x session so far.
+
+### Checklist items addressed by this slice
+
+- [x] RNG correlation evidence is recorded and its scope decision is
+      explicit. Spatial correlation is measured (lag-1 mean `-0.3723`,
+      stable across 24 tuples, structural not finite-sample), the
+      zero-cone-unaffected claim is proven by direct construction (both a
+      code-level argument and a dedicated regression test with two
+      different seeds), and the scope decision is explicit: the generator
+      is not replaced because there is no accepted nonzero-cone production
+      model that needs it, and nonzero-cone acceptance remains open,
+      exactly as instructed.
+- [x] Existing derivative and moving-state fixtures remain unchanged. Every
+      pre-existing `cg13-cpu`/`cg13-cuda` fixture and `asd-tests` pass on
+      fresh builds after this slice's fixes -- including, after this
+      slice's incidental fix to its overly tight tolerance,
+      `adaptive-cg-timing-reconciliation` (RCG-06C), which is otherwise
+      unmodified in behavior (rerun 3x clean; see "A third, unrelated
+      pre-existing bug" above for why the tolerance itself needed
+      widening, not the reconciliation logic).
+
+### Open items / not yet done
+
+Nonzero-cone reconstruction acceptance remains explicitly open, per this
+slice's own instruction: no tracked fixture exercises
+`CONSTRAINED_CONE` with a nonzero cone angle, and this slice's measured
+spatial correlation (large, stable, structural) is recorded as the
+evidence a future acceptance proposal would need to weigh -- if/when
+`CONSTRAINED_CONE` with a nonzero cone angle is proposed for production
+acceptance, this correlation should be revisited before that acceptance,
+either by replacing the tuple-seeded MINSTD construction with one that
+decorrelates adjacent indices (e.g. hashing the tuple with a
+non-affine/cryptographic-strength mixer before seeding, or drawing a
+single shared stream per step and partitioning it across blocks instead of
+reseeding per block) or by demonstrating the correlation does not
+materially bias the accepted physics at production scale. HIP execution
+evidence remains deferred (no toolchain/device in this or any prior RCG-0x
+environment) -- both new fixtures are written to build under HIP
+(`gpuAdaptiveReconstructionRng.hpp`/`test_reconstruction_rng_gpu_parity.cpp`
+use the same `CUDA_V`/`HIP_V` macro-selection pattern as every other RCG-06
+GPU fixture) but this has not been exercised. No independent reviewer
+distinct from the implementer has reviewed this slice yet; Human review is
+recommended in particular for: the epoch-off-by-one fix (a genuine, if
+currently unreachable, correctness fix to the seed formula, not merely a
+style change); and the decision to leave the generator's spatial
+correlation unresolved rather than replacing it pre-emptively (this
+session's own reading of "replace ... only if the accepted nonzero-cone
+model needs stronger independence" is that an *unaccepted* model does not
+yet trigger replacement -- Human confirmation that this reading matches
+intent would be useful before RCG-06 closes as a whole).
+
+---

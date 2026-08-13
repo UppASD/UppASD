@@ -134,6 +134,7 @@ module AdaptiveHybridSolver
    public :: reconstruct_block_aligned
    public :: reconstruct_block_constrained_cone
    public :: deterministic_reconstruction_seed
+   public :: next_uniform
    public :: setup_adaptive_hybrid_runtime
    public :: apply_adaptive_transitions
    public :: clear_adaptive_transition_log
@@ -954,6 +955,10 @@ contains
       e2 = cross(direction,e1)
    end subroutine transverse_basis
 
+   !> RCG-06D (F-20): public so the reconstruction RNG spatial-statistics
+   !> fixture (test_reconstruction_rng_spatial_stats.f90) exercises this
+   !> literal generator rather than a reimplementation that could silently
+   !> drift, matching the gpuAtomicDouble.hpp/ENERGY-FP32-ACCUM precedent.
    real(dblprec) function next_uniform(state)
       integer(int64), intent(inout) :: state
       integer(int64), parameter :: modulus = 2147483647_int64

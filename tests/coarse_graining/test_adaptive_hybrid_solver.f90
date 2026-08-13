@@ -43,6 +43,7 @@ contains
       real(dblprec) :: resultant(3,2,1,2), moment_sum(2,1,2)
       real(dblprec) :: direction(3,2,1,2), requested(3,2,2)
       real(dblprec) :: aligned(3,8,2), cone_a(3,8,2), cone_b(3,8,2)
+      real(dblprec) :: cone_zero_a(3,8,2), cone_zero_b(3,8,2)
       logical :: defined(2,1,2)
       integer(int64) :: seeds_a(2,2), seeds_b(2,2)
 
@@ -99,6 +100,30 @@ contains
       call check(status == ADAPTIVE_HYBRID_OK .and. &
          maxval(abs(resultant(:,:,1,:)-requested)) < 2.0d-14, &
          'aligned reconstruction exactly restores the full channel resultants')
+
+      ! RCG-06D (F-20): at cone_angle_rad=0, the bisection lower/upper bounds
+      ! collapse to [0,0], so the fitted amplitude is exactly zero on every
+      ! iteration and multiplies away every RNG-drawn transverse sample
+      ! before it reaches atom_direction (see reconstruct_block_constrained_cone,
+      ! adaptivehybridsolver.f90). Two different global_seed values -- so the
+      ! two calls genuinely draw different, independently verified-distinct
+      ! RNG streams -- must therefore produce byte-identical output, matching
+      ! the aligned reconstruction of the same full resultant.
+      cone_zero_a = aligned
+      cone_zero_b = aligned
+      call reconstruct_block_constrained_cone(topology,1,moment,requested,cone_zero_a, &
+         0.0_dblprec,1.0d-12,11_int64,3_c_int,seeds_a,status,message)
+      call check(status == ADAPTIVE_HYBRID_OK,'zero-cone reconstruction succeeds: '//trim(message))
+      call reconstruct_block_constrained_cone(topology,1,moment,requested,cone_zero_b, &
+         0.0_dblprec,1.0d-12,777777_int64,3_c_int,seeds_b,status,message)
+      call check(status == ADAPTIVE_HYBRID_OK, &
+         'zero-cone reconstruction succeeds with a different global_seed: '//trim(message))
+      call check(all(seeds_a /= seeds_b) .and. &
+         maxval(abs(cone_zero_a-cone_zero_b)) <= tiny(1.0_dblprec) .and. &
+         maxval(abs(cone_zero_a-aligned)) <= tiny(1.0_dblprec), &
+         'RCG-06D (F-20): zero-cone (cone_angle_rad=0) output does not depend on the RNG stream -- '// &
+         'two genuinely different seeds (seeds_a/=seeds_b) still produce byte-identical, '// &
+         'aligned-matching output')
 
       requested = 0.96_dblprec*requested
       cone_a = aligned
