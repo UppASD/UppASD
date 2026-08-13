@@ -1100,23 +1100,107 @@ for precision budget
 
 #### Checklist
 
-- [ ] No routine places `O(n_atoms)` adaptive workspace on the stack.
-- [ ] Per-step full-system allocations are hoisted or proven negligible.
-- [ ] Workspace allocation, resize, reuse, and cleanup are tested.
-- [ ] Memory preflight includes all persistent CPU/GPU adaptive workspace.
-- [ ] A large-host fixture passes with the documented stack limit.
-- [ ] GPU global energy accumulation uses FP64 storage and arithmetic.
-- [ ] FP32 field parity and FP64 energy budgets are distinct.
-- [ ] Energy error scaling is measured over increasing system size.
-- [ ] Timers use a suitable wall/device clock.
-- [ ] Both Heun field evaluations are included.
-- [ ] Phase totals plus unaccounted time reconcile with external wall time.
-- [ ] Multiple ensembles retain correct indexing.
-- [ ] RNG correlation evidence is recorded and its scope decision is explicit.
-- [ ] Existing derivative and moving-state fixtures remain unchanged.
+- [x] No routine places `O(n_atoms)` adaptive workspace on the stack.
+- [x] Per-step full-system allocations are hoisted or proven negligible.
+- [x] Workspace allocation, resize, reuse, and cleanup are tested.
+- [x] Memory preflight includes all persistent CPU/GPU adaptive workspace.
+- [x] A large-host fixture passes with the documented stack limit.
+- [x] GPU global energy accumulation uses FP64 storage and arithmetic.
+- [x] FP32 field parity and FP64 energy budgets are distinct.
+- [x] Energy error scaling is measured over increasing system size.
+- [x] Timers use a suitable wall/device clock.
+- [x] Both Heun field evaluations are included.
+- [x] Phase totals plus unaccounted time reconcile with external wall time.
+- [x] Multiple ensembles retain correct indexing.
+- [x] RNG correlation evidence is recorded and its scope decision is explicit.
+- [x] Existing derivative and moving-state fixtures remain unchanged.
 
 **Exit evidence:** `MEM-LARGE-HOST`, `ENERGY-FP32-ACCUM`, allocation
-lifecycle tests, and reconciled timing output.
+lifecycle tests, reconciled timing output, and (added by RCG-06D)
+`RECONSTRUCTION-RNG-SPATIAL-STATS`.
+
+**RCG-06 evidence (2026-08-13, CLOSED):**
+`docs/RCG-06_MEMORY_TIMING_PRECISION_EVIDENCE.md` records four sliced
+sessions (RCG-06A: CPU workspace hoisting off the stack/heap, plus a
+Fortran actual-argument-aliasing hazard found and fixed along the way;
+RCG-06B: GPU energy accumulation in FP64 unconditionally, plus a
+build-precision-conditional duplicate-overload bug found and fixed;
+RCG-06C: CPU/GPU phase-timing reconciliation against external wall clock;
+RCG-06D: reconstruction RNG spatial statistics, plus two independent
+CPU/GPU generator divergences -- a multiplier mismatch and a seed-formula
+epoch off-by-one -- found and fixed along the way) followed by an
+independent RCG-06E closure audit. The closure audit confirmed the linear
+RCG-06A-C ancestry (RCG-06D was uncommitted at audit time; committed
+immediately afterward as `5b8d4200`), ran fresh out-of-tree
+configure/build/test on every backend/precision available (CPU fp64, CUDA
+fp64, CUDA fp32 -- HIP deferred, no toolchain on any host used across
+RCG-06A-E), and reconciled all fourteen checklist items above against
+direct evidence rather than commit count. `MEM-LARGE-HOST`,
+`ENERGY-FP32-ACCUM`, the allocation lifecycle tests, the reconciled timing
+output, and `RECONSTRUCTION-RNG-SPATIAL-STATS` are each complete at every
+tested precision, with one evidence-completeness caveat stated explicitly
+rather than smoothed over: the GPU-side memory-preflight re-confirmation
+(item 4) is fp64-only, masked at fp32 by an unrelated, already-tracked
+pre-existing bug (RCG-05-FU4) that aborts the same test binary before that
+assertion runs -- the underlying claim itself is not in doubt (proven at
+fp64 by both RCG-06B and this audit). The closure audit's own fresh fp32
+run reconfirmed two pre-existing, non-RCG-06 CUDA fp32 failures already
+tracked as RCG-04-FU5 and RCG-05-FU4, neither newly introduced nor newly
+investigated by RCG-06.
+
+**RCG-06 is closed (2026-08-13, Human decision: Anders Bergman).** Unlike
+RCG-05, no parent checklist item required accepting a narrower claim in
+place of an unmet one -- all fourteen items are met as literally stated.
+Two items required Human judgement beyond what direct re-evidencing could
+resolve:
+
+1. Whether this task's own prompt -- "replace the generator only if the
+   accepted nonzero-cone model needs stronger independence" -- permits
+   leaving the tuple-seeded MINSTD reconstruction generator unreplaced,
+   given that no fixture accepts a nonzero cone angle today. Reviewed
+   directly against RCG-06D's evidence (measured lag-1 spatial correlation
+   mean `-0.3723`, structural, stable across 24 tuples; zero-cone production
+   proven unaffected by direct construction). **Confirmed: yes** -- an
+   unaccepted model does not trigger replacement; the measurement is
+   recorded as evidence for whenever nonzero-cone acceptance is actually
+   proposed, not resolved pre-emptively.
+2. Disposition of RCG-06E's open items (§E.5 of the evidence document;
+   RCG-06D's commit status was already resolved same-session). **Accepted
+   as non-blocking**, matching RCG-05's disposition pattern: the two
+   pre-existing CUDA fp32 failures need no new action beyond their existing
+   tracking; the GPU phase-timing unaccounted-time finding stays routed to
+   RCG-08, per RCG-06C's own original disposition; independent
+   Human/adversarial review of RCG-06's own findings remains an
+   acknowledged, non-blocking gap, matching every prior RCG-0x closure.
+   Rather than leaving the remaining two items as passive deferral prose,
+   both are promoted to actively tracked, independently pickupable
+   follow-up tasks (RCG-06-FU1, RCG-06-FU2, defined immediately below);
+   neither blocks this closure or RCG-07's start.
+
+#### RCG-06 follow-up tasks (opened 2026-08-13, Human decision: Anders Bergman)
+
+Non-blocking, independently pickupable in any order. Each may become its
+own session; none is a dependency of RCG-07.
+
+- **RCG-06-FU1 -- HIP execution evidence.** Re-run every RCG-06A-D GPU
+  fixture (`ENERGY-FP32-ACCUM`, the CPU/GPU timing reconciliation,
+  `RECONSTRUCTION-RNG-SPATIAL-STATS`'s GPU parity check, and the full
+  `cg13-hip` label set) on real HIP hardware once a toolchain/device is
+  available. Mirrors RCG-04-FU1/RCG-05-FU1's identical, still-open
+  deferral -- may be picked up alongside either rather than duplicated.
+  Dependencies: HIP toolchain/hardware only.
+- **RCG-06-FU2 -- Nonzero-cone reconstruction acceptance.** If/when
+  `cg_reconstruction CONSTRAINED_CONE` with a nonzero cone angle is ever
+  proposed for production acceptance, revisit RCG-06D's measured spatial
+  correlation (`docs/RCG-06_MEMORY_TIMING_PRECISION_EVIDENCE.md`, RCG-06D
+  section: lag-1 mean `-0.3723`, stable across 24 tuples, structural, not
+  finite-sample) before accepting it: either replace the tuple-seeded
+  MINSTD construction with one that decorrelates adjacent indices (e.g. a
+  non-affine/cryptographic-strength seed mixer, or a single shared stream
+  partitioned across blocks instead of reseeding per block), or
+  demonstrate the correlation does not materially bias the accepted
+  physics at production scale. Dependencies: a concrete nonzero-cone
+  acceptance proposal; none exists today.
 
 ---
 

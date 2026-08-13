@@ -1763,15 +1763,20 @@ precision-dependent GPU magnitude) rather than smoothed over.**
       already-existing, unmodified-by-this-slice source)
 - [x] The document states either ready-for-Human-decision or remains-open.
       (§E.5)
-- [ ] Human closure or deferral decision is recorded before parent status
-      changes. **Not yet recorded** -- this is the one item this audit
-      cannot complete on its own behalf; see §E.5.
+- [x] Human closure or deferral decision is recorded before parent status
+      changes. **Recorded -- see §E.6.** RCG-06 is closed, 2026-08-13,
+      Human decision: Anders Bergman.
 
-**Eight of nine closure-audit items this slice can itself complete are
-complete.** The ninth -- the Human closure decision -- is, by design, not
-this slice's to make.
+**All nine closure-audit items are complete** as of the 2026-08-13 Human
+decision recorded in §E.6. At the time this audit was originally
+performed, eight of nine were complete and one remained open (the Human
+decision itself); it is now resolved, by definition, in §E.6.
 
 ### E.5 Outcome: Ready for Human closure decision
+
+**(Originally recorded here as "Ready for Human closure decision"; the
+decision itself -- and its exact content -- is now recorded in §E.6, added
+the same day, 2026-08-13.)**
 
 **RCG-06 is not yet closed.** All fourteen parent checklist items have
 direct, fresh, independently re-confirmed evidence (§E.3); RCG-06's four
@@ -1832,5 +1837,59 @@ available on this host. Item 1 was the one item that was not simply
 ancestry-audit gate (§E.1, mirroring every prior RCG-0x closure's
 identical gate) was built to check for; it did not pass at audit time and
 now does, having been fixed rather than merely noted.
+
+### E.6 Human closure decision (2026-08-13, Anders Bergman)
+
+Each of items 2, 3, 4, 5, and 6 in §E.5 (item 1 was already resolved
+same-session) was reviewed directly against its underlying evidence and
+given one of two dispositions: **accepted as non-blocking**, or **promoted
+to an active, independently tracked follow-up task** -- matching how
+RCG-05G's own closure decision (§13.8 of
+`docs/RCG-05_GEOMETRY_OWNERSHIP_EVIDENCE.md`) handled its analogous items.
+Both dispositions are recorded in
+`docs/ADAPTIVE_COARSE_GRAINING_REMEDIATION_BLUEPRINT.md`'s Task RCG-06
+entry, the authoritative parent-blueprint location for this closure.
+
+**Unlike RCG-05, no parent checklist item required accepting a narrower
+claim in place of an unmet one -- all fourteen items in §E.3 are met as
+literally stated.** The closure decision here is instead about the open
+items §E.5 raised beyond the checklist itself:
+
+**The one item requiring genuine interpretive judgement (§E.5 item 2):**
+this task's own prompt instructs "replace the generator only if the
+accepted nonzero-cone model needs stronger independence." RCG-06D's own
+reading, reviewed directly against its evidence (measured lag-1 spatial
+correlation mean `-0.3723`, structural and stable across 24
+`(global_seed,channel,ensemble,epoch)` tuples; zero-cone production proven
+unaffected by direct construction, both a code-level argument and a
+dedicated regression test with two different seeds) rather than against
+this document's summary of it: since no fixture accepts a nonzero cone
+angle today, there is no "accepted nonzero-cone model" for the generator
+to need stronger independence for. **Confirmed: this reading matches
+intent.** The generator is not replaced pre-emptively; the measurement
+stands as the evidence a future acceptance proposal would need to weigh.
+Promoted to **RCG-06-FU2** rather than left as passive prose, so it is not
+silently forgotten if and when nonzero-cone acceptance is ever proposed.
+
+**The remaining four items (§E.5 items 3, 4, 5, 6):** reviewed and
+**accepted as non-blocking**, matching RCG-05's disposition pattern:
+
+- Item 3 (GPU phase-timing unaccounted time, precision-dependent,
+  40-68%) stays routed to RCG-08, per RCG-06C's own original disposition
+  -- this audit's wider fp32/fp64 evidence base is handed to RCG-08, not
+  treated as a new RCG-06 blocker.
+- Item 4 (the two pre-existing CUDA fp32 failures) needs no new action --
+  already tracked as RCG-04-FU5/RCG-05-FU4, neither newly introduced nor
+  newly investigated by RCG-06.
+- Item 5 (HIP execution evidence) is promoted to **RCG-06-FU1** rather
+  than left as passive prose, mirroring RCG-04-FU1/RCG-05-FU1's identical,
+  still-open deferral pattern -- may be picked up alongside either rather
+  than duplicated.
+- Item 6 (no independent Human/adversarial review of RCG-06's own
+  findings) is accepted as an acknowledged, non-blocking gap, matching
+  RCG-02/03/04/05's own precedent of deferring this separately from
+  closure rather than blocking on it.
+
+**RCG-06 is closed.**
 
 ---
