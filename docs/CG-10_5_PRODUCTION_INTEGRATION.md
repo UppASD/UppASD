@@ -1,5 +1,7 @@
 # CG-10.5 production integration
 
+Fine atomistic adaptive dynamics is production UppASD Depondt ASD.
+
 ## Production entrypoint inventory
 
 The normal executable enters `setup_simulation` in `uppasd.f90`. Complete

@@ -388,8 +388,6 @@ void GpuDepondtIntegrator::evolveFirst(deviceLattice& gpuLattice) {
    thermfield.randomize(gpuLattice.mmom);
    stopwatch.add("thermfield");
 
-   // Fuse the predictor's independent per-atom passes on workStream.  The
-   // helper preserves the explicit-stream ordering with thermfield.randomize.
    parallel.gpuAtomCall(EvolveFirst(mrod, blocal, bdup, gpuLattice.emomM,
                                     gpuLattice.emom, gpuLattice.beff,
                                     thermfield.getField(), gpuLattice.btorque,
@@ -397,11 +395,19 @@ void GpuDepondtIntegrator::evolveFirst(deviceLattice& gpuLattice) {
                                     stt != 'N'));
    stopwatch.add("predictor");
 
-   // Preserve the original buffer ownership and predictor/corrector sequence.
-   gpuLattice.emom2.swap(gpuLattice.emom);  // Previous emom will not be needed
-   gpuLattice.emom.swap(mrod);   // Previous mrod will not be needed
-   gpuLattice.b2eff.swap(bdup);  // Previous bdup will not be needed
+   gpuLattice.emom2.swap(gpuLattice.emom);
+   gpuLattice.emom.swap(mrod);
+   gpuLattice.b2eff.swap(bdup);
    stopwatch.add("copy");
+}
+
+void GpuDepondtIntegrator::copyThermalFieldFrom(const GpuDepondtIntegrator& source) {
+   if(thermfield.getField().size() != source.thermfield.getField().size())
+      throw std::invalid_argument("Depondt thermal-field shapes do not match");
+   ASSERT_GPU(GPU_MEMCPY(const_cast<real*>(thermfield.getField().data()),
+                         source.thermfield.getField().data(),
+                         thermfield.getField().size() * sizeof(real),
+                         GPU_MEMCPY_DEVICE_TO_DEVICE));
 }
 
 namespace {
@@ -417,6 +423,22 @@ unsigned int checkedActiveAtomCount(const int* oneBasedAtoms, std::size_t active
 }
 
 } // namespace
+
+void GpuDepondtIntegrator::evolveFirstWithThermalField(
+   deviceLattice& gpuLattice, const int* oneBasedAtoms,
+   std::size_t activeAtomCount) {
+   const unsigned int count = checkedActiveAtomCount(oneBasedAtoms, activeAtomCount,
+                                                      gpuLattice.emom);
+   if(count == 0) return;
+   parallel.gpuActiveAtomCall(EvolveFirst(mrod, blocal, bdup, gpuLattice.emomM,
+                                          gpuLattice.emom, gpuLattice.beff,
+                                          thermfield.getField(), gpuLattice.btorque,
+                                          gpuLattice.mmom, timestep, gamma, damping,
+                                          stt != 'N'), oneBasedAtoms, count);
+   parallel.gpuActiveAtomCall(CommitActivePredictor(gpuLattice.emom, gpuLattice.emom2,
+                                                     gpuLattice.b2eff, mrod, bdup),
+                              oneBasedAtoms, count);
+}
 
 void GpuDepondtIntegrator::evolveFirst(deviceLattice& gpuLattice,
                                        const int* oneBasedAtoms,

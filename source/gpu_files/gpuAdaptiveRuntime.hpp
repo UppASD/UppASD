@@ -368,6 +368,7 @@ public:
    // reported rather than assumed zero.
    void recordStepWallMilliseconds(double elapsed);
    const GpuAdaptivePhaseMetrics& phaseMetrics() const { return phaseMetrics_; }
+   const GpuAdaptiveEnergy& lastEnergy() const { return lastEnergy_; }
    void resetPhaseMetrics() {
       const bool timing = phaseMetrics_.phaseTimingEnabled;
       phaseMetrics_ = {};

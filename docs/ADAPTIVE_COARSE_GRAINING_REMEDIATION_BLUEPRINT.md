@@ -1601,6 +1601,11 @@ correctness prototype.
 
 ### Task RCG-09A: Prove the adaptive atomistic kernel equivalent to `heisge`
 
+Fine atomistic adaptive dynamics is production UppASD Depondt ASD. The
+RCG-09A.4 staged parity harness is the acceptance evidence for this 1:1
+feature-off contract; its accelerator result is recorded in
+`docs/RCG-09A_ASD_PARITY_EVIDENCE.md`.
+
 **Dependencies:** RCG-02 (accepted DMI convention), RCG-09 (measurement and
 harness)
 **Suggested primary:** Sol for kernel work; Luna/Sonnet for fixtures
@@ -1628,12 +1633,11 @@ for both endpoint orderings, is not established by any current fixture.
 
 **Claim 2 — the adaptive atomistic region carries no stochastic field.** The
 atomistic region of an adaptive run is ordinary atomistic spin dynamics and at
-finite temperature should carry the same Langevin noise UppASD applies there.
-The adaptive Heun path generates none. Today this is a declared boundary rather
-than an omission — `adaptivecgproduction.f90` rejects `Temp /= 0` with
-"adaptive coarse graining requires deterministic T=0 dynamics" — but it means
-the adaptive atomistic path is not equivalent to `heisge` plus Depondt in
-general, only in the zero-temperature special case.
+finite temperature must carry the same Langevin noise UppASD applies there.
+RCG-09A.3 now dispatches fine atoms through the production Depondt path; the
+RCG-09A.4 harness checks exact thermal-field reuse and fixed-seed trajectory
+parity. Finite-temperature coarse stochastic models remain a separate
+capability boundary (`do_qhb`/`do_3tm`), not a reason to restrict fine ASD.
 
 **Claim 3 — equivalence is asserted term by term, nowhere demonstrated
 wholesale.** Every term `heisge` supports must either be shown equivalent in
@@ -1730,6 +1734,21 @@ deterministic-uniaxial field/energy parity at roundoff level; both requested
 DMI fault injections failed clearly. This closes the Hamiltonian contract only:
 the independently scoped trajectory, finite-temperature, and integrator
 replacement gates remain unchecked.
+
+**RCG-09A.4 implementation/evidence record (2026-08-14):**
+`benchmark_gpu_adaptive_runtime.cpp --parity-only` now runs the staged
+feature-off production oracle for exchange, DMI, uniaxial, combined, and
+single-ensemble finite-temperature fixtures. It compares initial and predicted
+Hamiltonian fields, term-resolved energies, exact thermal fields, predictor,
+corrector, and multi-step trajectories, and asserts nonzero torque and
+displacement. Five opt-in fault-injection build definitions cover DMI sign,
+transpose, thermal amplitude, damping, and RNG displacement. The acceptance
+target passed once with CUDA/fp64 visible, and the DMI-sign mutation failed at
+the initial Hamiltonian stage. The other mutation executions were skipped when
+the device became unavailable. The explicit two-ensemble fixture currently
+exposes non-reproducible independent cuRAND normal-field reuse and remains an
+open follow-up; RCG-09A therefore remains open pending complete multi-ensemble
+and negative-control execution.
 
 ---
 

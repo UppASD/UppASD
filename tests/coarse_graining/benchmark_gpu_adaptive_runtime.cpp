@@ -68,6 +68,7 @@ struct Options {
    Texture texture = Texture::Spiral;
    bool requireAcceptance = false;
    bool requireCrossover = false;
+   bool parityOnly = false;
 };
 
 std::size_t parseSize(const char* value, const char* option) {
@@ -133,18 +134,21 @@ Options parse(int argc, char** argv) {
          result.requireAcceptance = true;
       else if(option == "--require-crossover")
          result.requireCrossover = true;
+      else if(option == "--parity-only")
+         result.parityOnly = true;
       else if(option == "--help") {
          std::puts(
             "usage: gpu_adaptive_runtime_benchmark [--blocks N] "
             "[--atoms-per-block N] [--warmup N] [--iterations N] "
             "[--repetitions N] [--crossover-margin-percent P] "
             "[--parity-tolerance T] [--texture spiral|domain-wall|uniform] "
-            "[--require-acceptance] [--require-crossover]\n"
+            "[--require-acceptance] [--require-crossover] [--parity-only]\n"
             "\n"
             "Measures adaptive coarse graining against UppASD's production\n"
             "atomistic GPU Hamiltonian and integrator on one shared geometry.\n"
             "--require-acceptance fails on a parity violation; "
-            "--require-crossover additionally fails when no crossover exists.");
+            "--require-crossover additionally fails when no crossover exists; "
+            "--parity-only runs the staged RCG-09A.4 hierarchy.");
          std::exit(0);
       } else {
          throw std::runtime_error("unknown or incomplete benchmark option: " + option);
@@ -187,6 +191,7 @@ struct AdaptiveFixture {
    std::size_t atoms = 0;
    std::size_t blocks = 0;
    std::size_t basis = 0;
+   std::size_t ensembles = 1;
    std::size_t bonds = 0;
    int repetitionShape[3] = {};
    int blockShape[3] = {1, 1, 1};
@@ -213,10 +218,11 @@ struct AdaptiveFixture {
    std::vector<real> atomDirection;
 
    AdaptiveFixture(std::size_t blockCountValue, std::size_t atomsPerBlock,
-                   Texture texture)
+                   Texture texture, std::size_t ensembleCount = 1)
       : atoms(blockCountValue * atomsPerBlock),
         blocks(blockCountValue),
         basis(atomsPerBlock),
+        ensembles(ensembleCount),
         atomToBlock(atoms), atomToBasis(atoms), atomToDynamic(atoms, 1),
         atomToFft(atoms), atomToFftGrid(atoms),
         basisToDynamic(basis, 1), basisToFft(basis),
@@ -230,10 +236,10 @@ struct AdaptiveFixture {
         atomAxis(6 * atoms), atomK1(2 * atoms), atomK2(2 * atoms),
         projectionBlock(8 * atoms), projectionWeight(8 * atoms),
         axisCount(blocks), axis(6 * blocks), k1(2 * blocks),
-        k2(2 * blocks), coarseMoment(3 * blocks),
-        coarseDirection(3 * blocks), coarseField(3 * blocks),
-        momentSum(blocks, static_cast<double>(atomsPerBlock)),
-        atomDirection(3 * atoms) {
+        k2(2 * blocks), coarseMoment(3 * blocks * ensembles),
+        coarseDirection(3 * blocks * ensembles), coarseField(3 * blocks * ensembles),
+        momentSum(blocks * ensembles, static_cast<double>(atomsPerBlock)),
+        atomDirection(3 * atoms * ensembles) {
       repetitionShape[0] = static_cast<int>(blocks);
       repetitionShape[1] = repetitionShape[2] = 1;
       blockGrid[0] = static_cast<int>(blocks);
@@ -241,6 +247,7 @@ struct AdaptiveFixture {
       exchange[0] = 0.05;
       for(std::size_t member = 0; member < basis; ++member)
          basisToFft[member] = static_cast<int>(member + 1);
+      for(std::size_t ensemble = 0; ensemble < ensembles; ++ensemble)
       for(std::size_t block = 0; block < blocks; ++block) {
          blockOffset[block] = static_cast<int>(block * basis);
          blockCoordinate[3 * block] = static_cast<int>(block);
@@ -279,8 +286,8 @@ struct AdaptiveFixture {
             direction[2] * direction[2]);
          for(int xyz = 0; xyz < 3; ++xyz) {
             direction[xyz] /= norm;
-            coarseDirection[xyz + 3 * block] = direction[xyz];
-            coarseMoment[xyz + 3 * block] =
+            coarseDirection[xyz + 3 * (block + blocks * ensemble)] = direction[xyz];
+            coarseMoment[xyz + 3 * (block + blocks * ensemble)] =
                static_cast<double>(basis) * direction[xyz];
          }
          for(std::size_t member = 0; member < basis; ++member) {
@@ -296,7 +303,7 @@ struct AdaptiveFixture {
                projectionBlock[corner + 8 * atom] =
                   static_cast<int>(block + 1);
             for(int xyz = 0; xyz < 3; ++xyz)
-               atomDirection[xyz + 3 * atom] =
+               atomDirection[xyz + 3 * (atom + atoms * ensemble)] =
                   static_cast<real>(direction[xyz]);
          }
       }
@@ -361,7 +368,7 @@ struct AdaptiveFixture {
       result.fftChannelsPerBlock = basis;
       result.fftGridChannels = basis * blocks;
       result.dynamicChannels = 1;
-      result.ensembles = 1;
+      result.ensembles = ensembles;
       result.repetitionShape = repetitionShape;
       result.blockShape = blockShape;
       result.blockGrid = blockGrid;
@@ -475,10 +482,11 @@ struct ProductionAtomisticBaseline {
    double setupWallUs = 0.0;
 
    void build(const AdaptiveFixture& fixture, real timestep, bool includeDmi = false,
-              bool includeUniaxial = false) {
+              bool includeUniaxial = false, real temperatureValue = real(0),
+              unsigned long long randomSeed = 1234ull, real dampingValue = real(0.1)) {
       const auto setupBegin = std::chrono::steady_clock::now();
       const std::size_t atoms = fixture.atoms;
-      const std::size_t ensembles = 1;
+      const std::size_t ensembles = fixture.ensembles;
 
       // Bond list -> symmetric neighbour list.  The adaptive kernels store each
       // pair once and add the field to both endpoints; the production kernel
@@ -645,9 +653,12 @@ struct ProductionAtomisticBaseline {
       Tensor<real, 1> temperature;
       temperature.AllocateHost(N);
       for(long int atom = 0; atom < N; ++atom)
-         temperature(atom) = real(0);
+         temperature(atom) = temperatureValue;
       lattice.temperature.Allocate(N);
-      lattice.temperature.zeros();
+      std::vector<real> deviceTemperature(static_cast<std::size_t>(N), temperatureValue);
+      gpuCheck(GPU_MEMCPY(lattice.temperature.data(), deviceTemperature.data(),
+                          deviceTemperature.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE),
+               "temperature upload");
 
       flags.do_dm = includeDmi;
       flags.do_jtensor = false;
@@ -668,10 +679,10 @@ struct ProductionAtomisticBaseline {
       simParam.gamma = real(1);
       simParam.k_bolt = real(1);
       simParam.mub = real(1);
-      simParam.damping = real(0.1);
-      simParam.Temp = real(0);
+      simParam.damping = dampingValue;
+      simParam.Temp = temperatureValue;
       simParam.rngType = defaultRngType();
-      simParam.randomSeed = 1234ull;
+      simParam.randomSeed = randomSeed;
 
       ParallelizationHelperInstance.initiate(
          static_cast<unsigned int>(atoms), static_cast<unsigned int>(ensembles),
@@ -709,6 +720,12 @@ struct ProductionAtomisticBaseline {
                           GPU_MEMCPY_HOST_TO_DEVICE), "emomM upload");
    }
 
+   void uploadField(const std::vector<real>& field) {
+      gpuCheck(GPU_MEMCPY(lattice.beff.data(), field.data(),
+                          field.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE),
+               "adaptive effective-field upload");
+   }
+
    void evaluateField(bool measure = false) { hamCalc.heisge(lattice, energies, measure); }
 
    // The complete feature-off timestep of gpuSDSimulation.cpp: measure field,
@@ -727,6 +744,28 @@ struct ProductionAtomisticBaseline {
                           field.size() * sizeof(real),
                           GPU_MEMCPY_DEVICE_TO_HOST), "beff download");
       return field;
+   }
+
+   std::vector<real> downloadThermalField() const {
+      const auto& thermal = integrator.thermalField();
+      std::vector<real> result(static_cast<std::size_t>(thermal.size()));
+      gpuCheck(GPU_MEMCPY(result.data(), thermal.data(), result.size() * sizeof(real),
+                          GPU_MEMCPY_DEVICE_TO_HOST), "thermal field download");
+      return result;
+   }
+
+   std::vector<real> downloadPredictor() const {
+      std::vector<real> result(static_cast<std::size_t>(lattice.emom.size()));
+      gpuCheck(GPU_MEMCPY(result.data(), lattice.emom.data(), result.size() * sizeof(real),
+                          GPU_MEMCPY_DEVICE_TO_HOST), "predictor download");
+      return result;
+   }
+
+   std::vector<real> downloadFinal() const {
+      std::vector<real> result(static_cast<std::size_t>(lattice.emom2.size()));
+      gpuCheck(GPU_MEMCPY(result.data(), lattice.emom2.data(), result.size() * sizeof(real),
+                          GPU_MEMCPY_DEVICE_TO_HOST), "final spin download");
+      return result;
    }
 
    std::vector<real> downloadEnergyTerms() {
@@ -1007,16 +1046,340 @@ bool runHamiltonianOracle(double tolerance) {
    return mismatch == expectNegativeFailure;
 }
 
+struct StageComparison {
+   bool bitwise = false;
+   double maxAbsolute = 0.0;
+   double maxRelative = 0.0;
+};
+
+StageComparison compareStage(const std::vector<real>& adaptive,
+                             const std::vector<real>& production) {
+   if(adaptive.size() != production.size())
+      throw std::runtime_error("staged parity vectors have different sizes");
+   StageComparison result;
+   result.bitwise = std::memcmp(adaptive.data(), production.data(),
+                                adaptive.size() * sizeof(real)) == 0;
+   double scale = 0.0;
+   for(std::size_t index = 0; index < adaptive.size(); ++index) {
+      result.maxAbsolute = std::max(result.maxAbsolute,
+         std::abs(static_cast<double>(adaptive[index]) -
+                  static_cast<double>(production[index])));
+      scale = std::max(scale, std::abs(static_cast<double>(production[index])));
+   }
+   result.maxRelative = scale > 0.0 ? result.maxAbsolute / scale : result.maxAbsolute;
+   return result;
+}
+
+bool reportStage(const char* label, const StageComparison& comparison,
+                 double tolerance, bool exactRequired = false) {
+   // Signed zero is numerically identical thermal noise at T=0 even though
+   // it is not byte-identical.  Exact-stage acceptance therefore requires
+   // zero numerical error; the raw bitwise result is still reported.
+   const bool pass = exactRequired ? comparison.maxAbsolute == 0.0 :
+      comparison.maxRelative <= tolerance;
+   std::printf("adaptive-asd-parity stage=%s bitwise=%s max_abs=%.6e "
+               "max_rel=%.6e tolerance=%.3e result=%s\n",
+               label, comparison.bitwise ? "true" : "false",
+               comparison.maxAbsolute, comparison.maxRelative, tolerance,
+               pass ? "PASS" : "FAIL");
+   return pass;
+}
+
+double sumProductionTerm(const std::vector<real>& terms, std::size_t ensembles,
+                         std::size_t column) {
+   double result = 0.0;
+   for(std::size_t ensemble = 0; ensemble < ensembles; ++ensemble)
+      // energyM is an Armadillo-style (ensemble, term) tensor: the term is
+      // the major index in its contiguous device layout.
+      result += static_cast<double>(terms[ensemble + ensembles * column]);
+   return result;
+}
+
+bool reportEnergyStage(const GpuAdaptiveEnergy& adaptive,
+                       const std::vector<real>& production, std::size_t atomCount,
+                       std::size_t ensembles,
+                       double tolerance) {
+   // GpuHamiltonianCalculations::Heisge reduces energyM to per-ensemble,
+   // per-atom values, while the adaptive accumulator reports the full
+   // atomistic sum across ensembles.
+   const double atoms = static_cast<double>(atomCount);
+   const double productionBilinear = atoms * (sumProductionTerm(production, ensembles, 0) +
+      sumProductionTerm(production, ensembles, 2));
+   const double productionOnsite = atoms * sumProductionTerm(production, ensembles, 1);
+   const double productionTotal = atoms * sumProductionTerm(production, ensembles, 5);
+   const double values[][2] = {
+      {adaptive.atomisticBilinearJ, productionBilinear},
+      {adaptive.atomisticOnsiteJ, productionOnsite},
+      {adaptive.totalJ, productionTotal}
+   };
+   bool pass = true;
+   for(std::size_t index = 0; index < 3; ++index) {
+      const double scale = std::max(1.0, std::abs(values[index][1]));
+      const double error = std::abs(values[index][0] - values[index][1]) / scale;
+      std::printf("adaptive-asd-parity stage=term-energy-%zu adaptive=%.17e "
+                  "production=%.17e rel=%.6e tolerance=%.3e result=%s\n",
+                  index, values[index][0], values[index][1], error, tolerance,
+                  error <= tolerance ? "PASS" : "FAIL");
+      pass = pass && error <= tolerance;
+   }
+   return pass;
+}
+
+bool runProductionParityCase(const char* label, bool includeDmi, bool includeUniaxial,
+                             real temperatureValue, std::size_t ensembles,
+                             unsigned int steps, double tolerance) {
+   AdaptiveFixture fixture(8, 2, Texture::Spiral, ensembles);
+   for(std::size_t ensemble = 0; ensemble < ensembles; ++ensemble) {
+      for(std::size_t atom = 0; atom < fixture.atoms; ++atom) {
+         const double raw[3] = {
+            0.23 + 0.17 * static_cast<double>(atom),
+            -0.71 + 0.11 * static_cast<double>(atom) - 0.03 * static_cast<double>(ensemble),
+            0.49 - 0.07 * static_cast<double>(atom) + 0.02 * static_cast<double>(ensemble)
+         };
+         const double norm = std::sqrt(raw[0] * raw[0] + raw[1] * raw[1] + raw[2] * raw[2]);
+         for(int xyz = 0; xyz < 3; ++xyz)
+            fixture.atomDirection[xyz + 3 * (atom + fixture.atoms * ensemble)] =
+               static_cast<real>(raw[xyz] / norm);
+      }
+   }
+   if(includeDmi) {
+#if defined(RCG09A_NEGATIVE_DMI_SIGN)
+      fixture.addDmiToBondMatrix(true);
+#else
+      fixture.addDmiToBondMatrix(false);
+#endif
+   }
+   if(includeUniaxial) fixture.addUniaxialOnsite();
+
+   constexpr unsigned long long seed = 48271ull;
+   constexpr real damping = real(0.1);
+   const bool negativeThermal =
+#if defined(RCG09A_NEGATIVE_THERMAL_AMPLITUDE)
+      true;
+#else
+      false;
+#endif
+   const bool negativeDamping =
+#if defined(RCG09A_NEGATIVE_DAMPING)
+      true;
+#else
+      false;
+#endif
+   const bool negativeRng =
+#if defined(RCG09A_NEGATIVE_RNG_DISPLACEMENT)
+      true;
+#else
+      false;
+#endif
+   const real adaptiveTemperature = negativeThermal ? real(1.25) * temperatureValue : temperatureValue;
+   const real adaptiveDamping = negativeDamping ? real(0.23) : damping;
+   const unsigned long long adaptiveSeed = negativeRng ? seed + 1ull : seed;
+
+   ProductionAtomisticBaseline production;
+   ProductionAtomisticBaseline adaptiveState;
+   production.build(fixture, real(1.0e-6), includeDmi, includeUniaxial,
+                    temperatureValue, seed, damping);
+   adaptiveState.build(fixture, real(1.0e-6), includeDmi, includeUniaxial,
+                       adaptiveTemperature, adaptiveSeed, adaptiveDamping);
+
+   GpuAdaptiveRuntime runtime;
+   const auto topology = fixture.topology();
+   const auto input = fixture.runtime();
+   std::string diagnostic;
+   if(!GpuAdaptiveRuntime::validate(topology, input, fixture.atoms, fixture.ensembles, diagnostic))
+      throw std::runtime_error(std::string("staged parity fixture rejected: ") + diagnostic);
+   runtime.initialize(topology, input, fixture.atoms, fixture.ensembles);
+   fixture.setFraction(1.0);
+   runtime.updateBlockState(fixture.state.data(), fixture.blocks);
+
+   GpuTensor<real, 1> adaptiveDirection, adaptiveField, coarseField;
+   adaptiveDirection.Allocate(static_cast<index_t>(fixture.atomDirection.size()));
+   adaptiveField.Allocate(static_cast<index_t>(fixture.atomDirection.size()));
+   coarseField.Allocate(static_cast<index_t>(3 * fixture.blocks * fixture.ensembles));
+   gpuCheck(GPU_MEMCPY(adaptiveDirection.data(), fixture.atomDirection.data(),
+                       fixture.atomDirection.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE),
+            "staged parity direction upload");
+   const auto evaluateAdaptive = [&](const char* context) {
+      (void)runtime.evaluateHybrid(adaptiveDirection.data(), nullptr, nullptr,
+                                   adaptiveField.data(), coarseField.data());
+      runtime.synchronize();
+      gpuCheck(GPU_DEVICE_SYNCHRONIZE(), context);
+   };
+   const auto downloadAdaptiveField = [&]() {
+      std::vector<real> result(fixture.atomDirection.size());
+      gpuCheck(GPU_MEMCPY(result.data(), adaptiveField.data(), result.size() * sizeof(real),
+                          GPU_MEMCPY_DEVICE_TO_HOST), "staged adaptive field download");
+      return result;
+   };
+   const auto uploadAdaptiveDirection = [&](const std::vector<real>& direction) {
+      gpuCheck(GPU_MEMCPY(adaptiveDirection.data(), direction.data(),
+                          direction.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE),
+               "staged adaptive direction upload");
+   };
+
+   bool pass = true;
+   std::printf("adaptive-asd-parity case=%s temperature=%.6g ensembles=%zu steps=%u\n",
+               label, static_cast<double>(temperatureValue), ensembles, steps);
+   production.uploadState(fixture.atomDirection);
+   adaptiveState.uploadState(fixture.atomDirection);
+   production.evaluateField(true);
+   evaluateAdaptive("initial Hamiltonian synchronization");
+   pass = reportStage("initial-hamiltonian-field",
+                      compareStage(downloadAdaptiveField(), production.downloadField()),
+                      tolerance) && pass;
+   const auto initialTerms = production.downloadEnergyTerms();
+   const auto initialEnergy = runtime.lastEnergy();
+   pass = reportEnergyStage(initialEnergy, initialTerms, fixture.atoms, ensembles, tolerance) && pass;
+
+   // The fixture must carry an actual torque, otherwise a broken field can be
+   // hidden by a stationary texture.  Use the production field as the oracle.
+   const auto initialProductionField = production.downloadField();
+   double maxTorque = 0.0;
+   for(std::size_t index = 0; index < fixture.atomDirection.size(); index += 3) {
+      const double sx = fixture.atomDirection[index];
+      const double sy = fixture.atomDirection[index + 1];
+      const double sz = fixture.atomDirection[index + 2];
+      const double bx = initialProductionField[index];
+      const double by = initialProductionField[index + 1];
+      const double bz = initialProductionField[index + 2];
+      maxTorque = std::max(maxTorque, std::sqrt(
+         (sy * bz - sz * by) * (sy * bz - sz * by) +
+         (sz * bx - sx * bz) * (sz * bx - sx * bz) +
+         (sx * by - sy * bx) * (sx * by - sy * bx)));
+   }
+   std::printf("adaptive-asd-parity fixture=nonzero-torque max_torque=%.6e result=%s\n",
+               maxTorque, maxTorque > 1.0e-10 ? "PASS" : "FAIL");
+   pass = maxTorque > 1.0e-10 && pass;
+
+   for(unsigned int step = 0; step < steps; ++step) {
+      production.evaluateField(false);
+      evaluateAdaptive("pre-predictor Hamiltonian synchronization");
+      pass = reportStage("hamiltonian-before-predictor",
+                         compareStage(downloadAdaptiveField(), production.downloadField()),
+                         tolerance) && pass;
+      const auto oldDirection = production.downloadPredictor();
+
+      const std::size_t activeCount = runtime.activeAtomCount();
+      const auto initialAdaptiveField = downloadAdaptiveField();
+      adaptiveState.uploadField(initialAdaptiveField);
+      production.integrator.evolveFirst(production.lattice);
+      gpuCheck(GPU_STREAM_SYNC(ParallelizationHelperInstance.getWorkStream()),
+               "feature-off predictor synchronization");
+      if(negativeThermal || negativeRng) {
+         // Fault controls intentionally exercise the independent production
+         // draw so the changed temperature/seed is observed at the thermal
+         // stage.  The acceptance path below reuses the oracle field exactly.
+         adaptiveState.integrator.evolveFirst(adaptiveState.lattice,
+            runtime.activeAtomList(), activeCount);
+      } else {
+         adaptiveState.integrator.copyThermalFieldFrom(production.integrator);
+         adaptiveState.integrator.evolveFirstWithThermalField(adaptiveState.lattice,
+            runtime.activeAtomList(), activeCount);
+      }
+      gpuCheck(GPU_STREAM_SYNC(ParallelizationHelperInstance.getWorkStream()),
+               "predictor synchronization");
+      pass = reportStage("thermal-field",
+                         compareStage(adaptiveState.downloadThermalField(),
+                                      production.downloadThermalField()),
+                         0.0, true) && pass;
+      pass = reportStage("depondt-predictor",
+                         compareStage(adaptiveState.downloadPredictor(),
+                                      production.downloadPredictor()),
+                         tolerance) && pass;
+
+      const auto adaptivePredictor = adaptiveState.downloadPredictor();
+      uploadAdaptiveDirection(adaptivePredictor);
+      evaluateAdaptive("predicted Hamiltonian synchronization");
+      production.evaluateField(false);
+      const auto predictedAdaptiveField = downloadAdaptiveField();
+      adaptiveState.uploadField(predictedAdaptiveField);
+      pass = reportStage("hamiltonian-at-predicted-state",
+                         compareStage(predictedAdaptiveField, production.downloadField()),
+                         tolerance) && pass;
+      // Depondt reuses the predictor thermal field in the corrector.  This
+      // exact check catches an accidental second draw or a displaced field.
+      pass = reportStage("second-thermal-state",
+                         compareStage(adaptiveState.downloadThermalField(),
+                                      production.downloadThermalField()),
+                         0.0, true) && pass;
+
+      production.integrator.evolveSecond(production.lattice);
+      adaptiveState.integrator.evolveSecond(adaptiveState.lattice,
+         runtime.activeAtomList(), activeCount);
+      gpuCheck(GPU_STREAM_SYNC(ParallelizationHelperInstance.getWorkStream()),
+               "corrector synchronization");
+      pass = reportStage("depondt-corrector-final-spin",
+                         compareStage(adaptiveState.downloadFinal(), production.downloadFinal()),
+                         tolerance) && pass;
+
+      const auto finalDirection = production.downloadFinal();
+      double displacement = 0.0;
+      for(std::size_t index = 0; index < finalDirection.size(); index += 3)
+         displacement = std::max(displacement,
+            std::abs(static_cast<double>(finalDirection[index]) - oldDirection[index]) +
+            std::abs(static_cast<double>(finalDirection[index + 1]) - oldDirection[index + 1]) +
+            std::abs(static_cast<double>(finalDirection[index + 2]) - oldDirection[index + 2]));
+      std::printf("adaptive-asd-parity step=%u nonzero-displacement=%.6e result=%s\n",
+                  step, displacement, displacement > 1.0e-15 ? "PASS" : "FAIL");
+      pass = displacement > 1.0e-15 && pass;
+
+      production.uploadState(finalDirection);
+      adaptiveState.uploadState(finalDirection);
+      uploadAdaptiveDirection(finalDirection);
+   }
+   std::printf("adaptive-asd-parity case=%s result=%s\n", label, pass ? "PASS" : "FAIL");
+
+   adaptiveDirection.Free();
+   adaptiveField.Free();
+   coarseField.Free();
+   runtime.release();
+   adaptiveState.release();
+   production.release();
+   return pass;
+}
+
+bool runProductionParityHarness(double tolerance) {
+   bool pass = true;
+   // Separate fixtures keep each supported T=0 term independently visible:
+   // exchange, DMI, anisotropy, and the combined production scope.
+   pass = runProductionParityCase("T0-exchange", false, false, real(0), 1, 3, tolerance) && pass;
+   pass = runProductionParityCase("T0-DMI", true, false, real(0), 1, 3, tolerance) && pass;
+   pass = runProductionParityCase("T0-anisotropy", false, true, real(0), 1, 3, tolerance) && pass;
+   pass = runProductionParityCase("T0-combined", true, true, real(0), 1, 3, tolerance) && pass;
+   // The CUDA backend's cuRAND normal generator is validated with a fixed
+   // seed across six accepted steps in a nontrivial finite-temperature
+   // trajectory.  Keep this reference fixture single-ensemble: multi-
+   // ensemble generator sequencing is an independent backend concern and is
+   // not part of the all-fine ASD contract.
+   pass = runProductionParityCase("finite-T-combined", true, true, real(0.75), 1, 6, tolerance) && pass;
+   return pass;
+}
+
 } // namespace
+
+bool parityBackendAvailable() {
+   int count = 0;
+#if defined(CUDA_V)
+   return cudaGetDeviceCount(&count) == cudaSuccess && count > 0 && cudaFree(nullptr) == cudaSuccess;
+#else
+   return hipGetDeviceCount(&count) == hipSuccess && count > 0 && hipFree(nullptr) == hipSuccess;
+#endif
+}
 
 int main(int argc, char** argv) {
    try {
       const Options options = parse(argc, argv);
+      if(!parityBackendAvailable()) {
+         std::puts("ADAPTIVE-ASD-PARITY unavailable: no backend device");
+         return 77;
+      }
       const bool fp64 = sizeof(real) == sizeof(double);
       const double parityTolerance = options.parityTolerance > 0.0 ?
          options.parityTolerance : (fp64 ? 1.0e-12 : 5.0e-5);
       if(!runHamiltonianOracle(parityTolerance))
          return 2;
+      if(options.parityOnly)
+         return runProductionParityHarness(parityTolerance) ? 0 : 2;
       std::printf(
          "adaptive-benchmark precision=%s backend=%s blocks=%zu "
          "atoms_per_block=%zu atoms=%zu ensembles=1 texture=%s warmup=%u "

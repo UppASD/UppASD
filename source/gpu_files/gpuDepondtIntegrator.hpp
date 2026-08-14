@@ -82,10 +82,24 @@ public:
    void evolveFirst(deviceLattice& gpuLattice, const int* oneBasedAtoms,
                     std::size_t activeAtomCount);
 
+   // Deterministic parity path: reuse a thermal field already produced by
+   // this production integrator (or an identical feature-off oracle) without
+   // drawing a second random stream.  The normal evolveFirst overloads remain
+   // the production runtime path.
+   void copyThermalFieldFrom(const GpuDepondtIntegrator& source);
+   void evolveFirstWithThermalField(deviceLattice& gpuLattice,
+                                    const int* oneBasedAtoms,
+                                    std::size_t activeAtomCount);
+
    void evolveSecond(deviceLattice& gpuLattice);
 
    // Correct the matching active-subset predictor.  Call with precisely the
    // same list and count supplied to evolveFirst().
    void evolveSecond(deviceLattice& gpuLattice, const int* oneBasedAtoms,
-                     std::size_t activeAtomCount);
+                    std::size_t activeAtomCount);
+
+   // The production parity harness observes the exact stochastic field used
+   // by both the feature-off and adaptive calls.  This is a read-only view;
+   // ownership and generation remain inside the production integrator.
+   const GpuTensor<real, 3>& thermalField() const { return thermfield.getField(); }
 };

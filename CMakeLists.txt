@@ -1653,6 +1653,36 @@ if(BUILD_TESTING)
       if(UPPASD_PRECISION STREQUAL "SINGLE")
          target_compile_definitions(gpu_adaptive_runtime_benchmark PRIVATE SINGLE_PREC)
       endif()
+      # Fault-injection builds for the RCG-09A.4 harness.  These options are
+      # deliberately off for the production target; each enabled variant must
+      # fail at the stage named by the parity report.
+      option(RCG09A_NEGATIVE_DMI_SIGN "Inject reversed adaptive DMI sign" OFF)
+      option(RCG09A_NEGATIVE_THERMAL_AMPLITUDE "Inject adaptive thermal amplitude error" OFF)
+      option(RCG09A_NEGATIVE_DAMPING "Inject adaptive Depondt damping error" OFF)
+      option(RCG09A_NEGATIVE_RNG_DISPLACEMENT "Inject adaptive thermal RNG displacement" OFF)
+      option(RCG09A_NEGATIVE_NO_TRANSPOSE "Remove adaptive DMI transpose endpoint" OFF)
+      foreach(RCG09A_MUTATION
+         RCG09A_NEGATIVE_DMI_SIGN
+         RCG09A_NEGATIVE_THERMAL_AMPLITUDE
+         RCG09A_NEGATIVE_DAMPING
+         RCG09A_NEGATIVE_RNG_DISPLACEMENT)
+         if(${RCG09A_MUTATION})
+            target_compile_definitions(gpu_adaptive_runtime_benchmark PRIVATE ${RCG09A_MUTATION})
+         endif()
+      endforeach()
+      if(RCG09A_NEGATIVE_NO_TRANSPOSE)
+         target_compile_definitions(gpu_adaptive_runtime_benchmark PRIVATE RCG09A_NEGATIVE_NO_TRANSPOSE)
+         target_compile_definitions(${UppASD_LIB} PRIVATE RCG09A_NEGATIVE_NO_TRANSPOSE)
+      endif()
+      # RCG-09A.4: staged production feature-off versus adaptive all-fine ASD
+      # parity.  The benchmark executable owns the production oracle fixture;
+      # this CTest entry runs only its deterministic correctness hierarchy.
+      add_test(NAME coarse-graining-adaptive-asd-parity
+         COMMAND gpu_adaptive_runtime_benchmark --parity-only --require-acceptance
+         --blocks 8 --atoms-per-block 2 --warmup 1 --iterations 1 --repetitions 3)
+      set_tests_properties(coarse-graining-adaptive-asd-parity
+         PROPERTIES SKIP_RETURN_CODE 77
+         LABELS "coarse-graining;cg13;${CG13_GPU_LABEL};rcg09a4;reference")
 
       # RCG-09 (F-10): the synthetic fused-multiply-add control, separated out
       # of the benchmark above so it can never again be read as a production
