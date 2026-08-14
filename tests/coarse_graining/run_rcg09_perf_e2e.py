@@ -119,9 +119,19 @@ def check_device_clean(device: int, max_utilization: float, max_temperature: flo
             complaints.append(
                 f"temperature {temperature:.0f}C exceeds {max_temperature:.0f}C")
     throttle = state["throttle_reasons"]
-    # 0x0 means "not throttled".  Anything else is a real clock event, and on
-    # this host it has been thermal slowdown (0x20) caused by another tenant.
-    if throttle not in ("0x0000000000000000", "0x0", "Not Active"):
+    # NVIDIA reports GPU_IDLE (bit 0, 0x1) whenever the device is waiting for
+    # work and has dropped to its idle clock.  That is the expected state at
+    # the pre-run probe and is not thermal, power, application-clock, or other
+    # contention evidence.  Keep the raw bitmask in the artifact, but reject
+    # any actionable reason while ignoring an idle-only mask.
+    try:
+        throttle_bits = int(throttle, 16)
+    except ValueError:
+        throttle_bits = None
+    if throttle_bits is None:
+        if throttle not in ("Not Active", ""):
+            complaints.append(f"unrecognized clock event reasons {throttle}")
+    elif throttle_bits & ~0x1:
         complaints.append(f"active clock event reasons {throttle}")
     if processes:
         complaints.append(f"{len(processes)} foreign compute process(es): " +

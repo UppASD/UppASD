@@ -1825,17 +1825,17 @@ feature.
 
 #### Checklist
 
-- [ ] No energy accumulator is a compare-and-swap loop on a single address.
-- [ ] All eight call sites are converted, not only the bond kernel.
-- [ ] Accumulation remains unconditionally FP64.
+- [x] No energy accumulator is a compare-and-swap loop on a single address.
+- [x] All eight call sites are converted, not only the bond kernel.
+- [x] Accumulation remains unconditionally FP64.
 - [ ] Energies are deterministic and independent of launch geometry.
-- [ ] Any summation-order change is bounded against RCG-06B's budget.
+- [x] Any summation-order change is bounded against RCG-06B's budget.
 - [ ] Scaling exponent is re-measured at the same sizes, before and after.
 - [ ] The coarse phase no longer grows as blocks coarsen.
 - [ ] All `cg13-*` fixtures pass unchanged on a fresh out-of-tree build.
-- [ ] Measurement is taken on a device meeting RCG-08-FU3's condition.
-- [ ] The production comparison is re-run and its outcome stated plainly.
-- [ ] No projection exceeds the measured 6.0x atomistic-phase ceiling.
+- [x] Measurement is taken on a device meeting RCG-08-FU3's condition.
+- [x] The production comparison is re-run and its outcome stated plainly.
+- [x] No projection exceeds the measured 6.0x atomistic-phase ceiling.
 - [ ] CUDA and HIP are reported separately.
 - [ ] Human approves any restored performance wording.
 
@@ -1868,8 +1868,9 @@ The first corrected CUDA run then exposed a separate diagnostic-only bug: the
 GPU checksum path read the zeroed `predictorCoarseField_` scratch buffer
 instead of the assembled `coarseField_`, producing `coarse_sum=0.0` where the
 CPU reported `535.7009401755746`. The diagnostic now reads the assembled
-buffer; no field, integration, or energy calculation is changed. The corrected
-CUDA GPU production-e2e arm still requires a fresh device-side rerun.
+buffer; no field, integration, or energy calculation is changed.
+The subsequent CUDA device-side production-e2e arm passed, together with the
+GPU adaptive-runtime and adaptive-ASD parity targets (3/3).
 The next rerun passed the coarse checksum but failed the existing static
 CPU/GPU restart-state trajectory budget: maximum component difference
 `6.291162e-3` versus `8.0e-5`, localized to the coarse reconstructed block.
@@ -1878,15 +1879,27 @@ state-handoff defect: the active-subset Depondt corrector stores accepted
 fine-atom vectors in `emom2`, while the adaptive driver reconstructed/published
 `emom` and then used that stale pre-corrector buffer for the next step. The
 driver now reconstructs into `emom2` and swaps the accepted buffer into `emom`
-before selector work or the next field evaluation. CUDA trajectory parity
-remains pending the device-side rerun after this fix.
-Separately, the direct five-size scaling sweep was run, but
-the device gate reported 81% utilization and two foreign Python compute
-processes, so the production e2e harness refused the measurement. Its raw
-diagnostic data and metadata are recorded in
-`docs/rcg09/rcg09b_cuda_dirty_device_scaling.txt`; they do not close the
-clean-device performance, production-comparison, or scaling checklist items.
-HIP execution remains open. No performance claim is restored.
+before selector work or the next field evaluation. The subsequent CUDA
+production-e2e run passed the existing energy, field, restart-state, and
+all-fine parity checks; the `8.0e-5` restart budget was retained.
+The clean-gate direct five-size scaling sweep and active-fraction phase
+measurements are recorded in
+`docs/rcg09/rcg09b_cuda_clean_scaling.txt`. The device was an RTX A4000,
+driver 610.57.04, 0% utilization, 47 C, SM clock 210/2100 MHz, with raw
+clock-event mask `0x1`; the corrected gate treats that idle-only bit as
+non-actionable. The five-point log-log OLS exponents were 0.320712 for the
+production baseline, 0.185922 for all-fine adaptive, and 0.200597 for
+zero-fine adaptive; endpoint exponents were 0.333815, 0.202523, and 0.234338.
+No production crossover was observed at any size or requested active fraction.
+
+The production fixture still measured only all-fine execution
+(`active_atoms=16384`, `active_blocks=0`): spiral atomistic/adaptive medians
+were `142.733/1337.040` us with MAD `10.987/151.960` us, and uniform medians
+were `176.164/1273.256` us with MAD `4.758/220.171` us. The adaptive path was
+approximately 7.23--9.37x slower. Coarse and interface phases grew as the
+active fraction decreased, so the reduction removed the serialized energy
+atomic but did not establish production speedup. HIP execution remains open;
+no speedup claim is restored.
 
 ### Task RCG-10: Reconcile release evidence with the parent blueprint
 
