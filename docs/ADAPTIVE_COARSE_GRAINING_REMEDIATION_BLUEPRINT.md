@@ -1703,23 +1703,33 @@ is an extension of an existing mechanism, not a new one.
 
 #### Checklist
 
-- [ ] A feature-off versus adaptive-all-fine oracle exists with finite DMI.
+- [x] A feature-off versus adaptive-all-fine oracle exists with finite DMI.
 - [ ] The fixture asserts nonzero initial torque and nonzero displacement.
 - [ ] Per-atom fields, per-term energies, and trajectories are compared.
-- [ ] Reversing the DMI sign makes the fixture fail.
-- [ ] Disabling the kernel's transpose contribution makes the fixture fail.
-- [ ] The adaptive unit fixture exercises a non-diagonal, antisymmetric bond matrix.
+- [x] Reversing the DMI sign makes the fixture fail.
+- [x] Disabling the kernel's transpose contribution makes the fixture fail.
+- [x] The adaptive unit fixture exercises a non-diagonal, antisymmetric bond matrix.
 - [ ] RCG-09's in-process parity check is extended beyond isotropic exchange.
-- [ ] Every `heisge` term is recorded as equivalent or setup-rejected.
-- [ ] No supported term is left in an undetermined state.
+- [x] Every `heisge` term is recorded as equivalent or setup-rejected.
+- [x] No supported term is left in an undetermined state.
 - [ ] The `Temp /= 0` rejection is proven reachable from every entry point.
 - [ ] The atomistic-region thermal-field scope question is stated, not implemented.
-- [ ] CPU, CUDA, and HIP are reported separately; unavailable is not passing.
+- [x] CPU, CUDA, and HIP are reported separately; unavailable is not passing.
 - [ ] Any convention or capability change has independent physics review.
 - [ ] Human approves any capability-boundary or `heisge`-adoption decision.
 
 **Exit evidence:** the DMI equivalence fixture with both negative controls, the
 term-by-term equivalence/rejection table, and independent physics review.
+
+**RCG-09A.1 evidence record (2026-08-14, Hamiltonian scope closed):**
+`docs/RCG-09A_HAMILTONIAN_ORACLE_EVIDENCE.md` records the production-`heisge`
+oracle fixture, the reciprocal directed-list contract, the periodic-image
+alias rejection, the multi-ensemble moment invariant, and the complete
+classification table. CUDA/fp64 on `alcazar` passed exchange, DMI, and
+deterministic-uniaxial field/energy parity at roundoff level; both requested
+DMI fault injections failed clearly. This closes the Hamiltonian contract only:
+the independently scoped trajectory, finite-temperature, and integrator
+replacement gates remain unchecked.
 
 ---
 

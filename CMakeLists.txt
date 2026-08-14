@@ -896,6 +896,16 @@ if(BUILD_TESTING)
    target_link_libraries(dmi_dimer_energy_tests PRIVATE ${UppASD_LIB})
    add_test(NAME coarse-graining-dmi-dimer-energy COMMAND dmi_dimer_energy_tests)
 
+   # RCG-09A.1: exact adaptive-setup predicates for reciprocal directed
+   # exchange/DMI lists, periodic-image aliasing, and ensemble moments.
+   add_executable(adaptive_hamiltonian_contract_tests
+      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_adaptive_hamiltonian_contract.f90)
+   set_target_properties(adaptive_hamiltonian_contract_tests PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/adaptive_hamiltonian_contract_tests)
+   target_link_libraries(adaptive_hamiltonian_contract_tests PRIVATE ${UppASD_LIB})
+   add_test(NAME coarse-graining-adaptive-hamiltonian-contract
+      COMMAND adaptive_hamiltonian_contract_tests)
+
    # CG-04 CPU reference tensor operator: explicit energy/field fixtures on
    # cubic and skew canonical grids, independent of adaptive and GPU paths.
    add_executable(coarse_tensor_operator_tests

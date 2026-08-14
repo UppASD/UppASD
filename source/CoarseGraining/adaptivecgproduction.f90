@@ -179,6 +179,10 @@ module AdaptiveCGProduction
    public :: adaptive_cg_cpu_step
    public :: print_adaptive_cg_summary
    public :: adaptive_cg_step_workspace_allocation_count
+   ! RCG-09A.1 contract probes.  These are public so the regression test can
+   ! exercise the exact setup predicates without constructing global ASD state.
+   public :: validate_adaptive_ensemble_moments
+   public :: validate_adaptive_folded_pair_contract
 
 contains
 
@@ -274,6 +278,8 @@ contains
       call preflight_adaptive_cg_production(status,diagnostic)
       if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
       call validate_and_canonicalize_handoff(status,diagnostic)
+      if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
+      call validate_adaptive_ensemble_moments(mmom,status,diagnostic)
       if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
       adaptive_cg_state%gpu_requested = affirmative(do_gpu) .and. affirmative(do_gpu_llg)
       adaptive_cg_state%adaptive_mask = same_word(adaptive_cg%mask_mode,'ADAPTIVE')
@@ -969,6 +975,33 @@ contains
       end if
    end subroutine validate_and_canonicalize_handoff
 
+   !> The current adaptive state stores one atom-moment vector and one folded
+   !> bond matrix, whereas UppASD permits mmom(atom,ensemble).  Do not silently
+   !> apply ensemble one to every ensemble: until those adaptive quantities are
+   !> made ensemble-resolved, only identical magnitudes are a supported input.
+   subroutine validate_adaptive_ensemble_moments(moment,status,diagnostic)
+      real(dblprec), intent(in) :: moment(:,:)
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: diagnostic
+      integer :: atom, ensemble
+      real(dblprec) :: scale
+
+      status = ADAPTIVE_CG_PRODUCTION_OK
+      diagnostic = ''
+      do ensemble = 2, size(moment,2)
+         do atom = 1, size(moment,1)
+            scale = max(1.0_dblprec,abs(moment(atom,1)),abs(moment(atom,ensemble)))
+            if (abs(moment(atom,ensemble)-moment(atom,1)) > 64.0_dblprec*epsilon(1.0_dblprec)*scale) then
+               write(diagnostic,'(a,i0,a,i0,a,es16.8,a,es16.8)') &
+                  'ensemble moments: adaptive CG requires mmom(atom,ensemble) to equal ensemble 1; atom ', &
+                  atom,' ensemble ',ensemble,' has ',moment(atom,ensemble),' versus ',moment(atom,1)
+               status = ADAPTIVE_CG_PRODUCTION_REJECTED
+               return
+            end if
+         end do
+      end do
+   end subroutine validate_adaptive_ensemble_moments
+
    logical function supported_initial_phase(candidate)
       character(len=*), intent(in) :: candidate
       supported_initial_phase = candidate == 'N' .or. candidate == 'S' .or. &
@@ -1360,16 +1393,32 @@ contains
       character(len=*), intent(out) :: diagnostic
       integer :: directed, atom, neighbour, target, iham, bond, found
       integer, allocatable :: pair_i(:), pair_j(:)
+      integer, allocatable :: exchange_forward_count(:), exchange_reverse_count(:), &
+         dmi_forward_count(:), dmi_reverse_count(:)
       real(dblprec), allocatable :: pair_matrix(:,:,:), pair_disp(:,:)
+      real(dblprec), allocatable :: exchange_forward(:), exchange_reverse(:), &
+         dmi_forward(:,:), dmi_reverse(:,:)
       real(dblprec) :: displacement(3), coefficient, orientation
       real(dblprec) :: dmi_energy_j(3), dmi_matrix(3,3)
 
       directed = sum(ham%nlistsize(ham%aham))
       if (ham_inp%do_dm == 1) directed = directed+sum(ham%dmlistsize(ham%aham))
       allocate(pair_i(max(1,directed)),pair_j(max(1,directed)), &
-         pair_matrix(3,3,max(1,directed)),pair_disp(3,max(1,directed)))
+         pair_matrix(3,3,max(1,directed)),pair_disp(3,max(1,directed)), &
+         exchange_forward_count(max(1,directed)),exchange_reverse_count(max(1,directed)), &
+         dmi_forward_count(max(1,directed)),dmi_reverse_count(max(1,directed)), &
+         exchange_forward(max(1,directed)),exchange_reverse(max(1,directed)), &
+         dmi_forward(3,max(1,directed)),dmi_reverse(3,max(1,directed)))
       pair_matrix = 0.0_dblprec
       pair_disp = 0.0_dblprec
+      exchange_forward_count = 0
+      exchange_reverse_count = 0
+      dmi_forward_count = 0
+      dmi_reverse_count = 0
+      exchange_forward = 0.0_dblprec
+      exchange_reverse = 0.0_dblprec
+      dmi_forward = 0.0_dblprec
+      dmi_reverse = 0.0_dblprec
       bond = 0
       do atom = 1, Natom
          iham = ham%aham(atom)
@@ -1393,6 +1442,13 @@ contains
             end if
             coefficient = 0.5_dblprec*mub*mmom(atom,1)*mmom(target,1) * &
                ham%ncoup(neighbour,iham,1)
+            if (atom < target) then
+               exchange_forward_count(found) = exchange_forward_count(found)+1
+               exchange_forward(found) = exchange_forward(found)+ham%ncoup(neighbour,iham,1)
+            else
+               exchange_reverse_count(found) = exchange_reverse_count(found)+1
+               exchange_reverse(found) = exchange_reverse(found)+ham%ncoup(neighbour,iham,1)
+            end if
             pair_matrix(1,1,found) = pair_matrix(1,1,found)+coefficient
             pair_matrix(2,2,found) = pair_matrix(2,2,found)+coefficient
             pair_matrix(3,3,found) = pair_matrix(3,3,found)+coefficient
@@ -1423,15 +1479,26 @@ contains
                dmi_energy_j = mub*mmom(atom,1)*mmom(target,1)*ham%dm_vect(:,neighbour,iham)
                dmi_matrix = cross_product_matrix(dmi_energy_j)
                orientation = merge(1.0_dblprec,-1.0_dblprec,atom < target)
+               if (atom < target) then
+                  dmi_forward_count(found) = dmi_forward_count(found)+1
+                  dmi_forward(:,found) = dmi_forward(:,found)+ham%dm_vect(:,neighbour,iham)
+               else
+                  dmi_reverse_count(found) = dmi_reverse_count(found)+1
+                  dmi_reverse(:,found) = dmi_reverse(:,found)-ham%dm_vect(:,neighbour,iham)
+               end if
                pair_matrix(:,:,found) = pair_matrix(:,:,found) + &
                   0.5_dblprec*orientation*dmi_matrix
             end do
          end do
       end if
       if (bond == 0) then
-         call setup_failed('Hamiltonian contains no usable scalar exchange bonds',status,diagnostic)
+         call setup_failed('Hamiltonian contains no usable scalar exchange or DMI bonds',status,diagnostic)
          return
       end if
+      call validate_adaptive_folded_pair_contract(bond,pair_i,pair_j,exchange_forward_count, &
+         exchange_reverse_count,dmi_forward_count,dmi_reverse_count,exchange_forward, &
+         exchange_reverse,dmi_forward,dmi_reverse,status,diagnostic)
+      if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
       allocate(adaptive_cg_state%bond_atom(2,bond), &
          adaptive_cg_state%bond_matrix_j(3,3,bond), &
          adaptive_cg_state%bond_displacement_m(3,bond))
@@ -1442,6 +1509,62 @@ contains
       status = ADAPTIVE_CG_PRODUCTION_OK
       diagnostic = ''
    end subroutine build_unique_bonds
+
+   !> The production sparse Hamiltonian is directed.  The adaptive kernel is
+   !> allowed to fold it only when each canonical pair is represented once in
+   !> each direction, with J_ji=J_ij and D_ji=-D_ij.  There is no periodic-image
+   !> identity in ham%nlist/dmlist beyond the atom index; multiple entries for
+   !> a canonical pair would therefore make the displacement used for buffer
+   !> construction ambiguous.  Reject that representation rather than merge
+   !> distinct images under a minimum-image displacement.
+   subroutine validate_adaptive_folded_pair_contract(bond,pair_i,pair_j,exchange_forward_count, &
+      exchange_reverse_count,dmi_forward_count,dmi_reverse_count,exchange_forward, &
+      exchange_reverse,dmi_forward,dmi_reverse,status,diagnostic)
+      integer, intent(in) :: bond, pair_i(:), pair_j(:), exchange_forward_count(:), &
+         exchange_reverse_count(:), dmi_forward_count(:), dmi_reverse_count(:)
+      real(dblprec), intent(in) :: exchange_forward(:), exchange_reverse(:), &
+         dmi_forward(:,:), dmi_reverse(:,:)
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: diagnostic
+      integer :: pair
+      real(dblprec) :: scale
+
+      status = ADAPTIVE_CG_PRODUCTION_OK
+      diagnostic = ''
+      do pair = 1, bond
+         if (exchange_forward_count(pair)+exchange_reverse_count(pair) > 0) then
+            if (exchange_forward_count(pair) /= 1 .or. exchange_reverse_count(pair) /= 1) then
+               write(diagnostic,'(a,i0,a,i0,a)') 'periodic-image alias: canonical exchange pair ', &
+                  pair_i(pair),'/',pair_j(pair),' is not one reciprocal directed pair'
+               status = ADAPTIVE_CG_PRODUCTION_REJECTED
+               return
+            end if
+            scale = max(1.0_dblprec,abs(exchange_forward(pair)),abs(exchange_reverse(pair)))
+            if (abs(exchange_forward(pair)-exchange_reverse(pair)) > 128.0_dblprec*epsilon(1.0_dblprec)*scale) then
+               write(diagnostic,'(a,i0,a,i0)') 'reciprocal exchange contract J_ji=J_ij failed for atoms ', &
+                  pair_i(pair),' and ',pair_j(pair)
+               status = ADAPTIVE_CG_PRODUCTION_REJECTED
+               return
+            end if
+         end if
+         if (dmi_forward_count(pair)+dmi_reverse_count(pair) > 0) then
+            if (dmi_forward_count(pair) /= 1 .or. dmi_reverse_count(pair) /= 1) then
+               write(diagnostic,'(a,i0,a,i0,a)') 'periodic-image alias: canonical DMI pair ', &
+                  pair_i(pair),'/',pair_j(pair),' is not one reciprocal directed pair'
+               status = ADAPTIVE_CG_PRODUCTION_REJECTED
+               return
+            end if
+            scale = max(1.0_dblprec,maxval(abs(dmi_forward(:,pair))),maxval(abs(dmi_reverse(:,pair))))
+            if (maxval(abs(dmi_forward(:,pair)-dmi_reverse(:,pair))) > &
+                128.0_dblprec*epsilon(1.0_dblprec)*scale) then
+               write(diagnostic,'(a,i0,a,i0)') 'reciprocal DMI contract D_ji=-D_ij failed for atoms ', &
+                  pair_i(pair),' and ',pair_j(pair)
+               status = ADAPTIVE_CG_PRODUCTION_REJECTED
+               return
+            end if
+         end if
+      end do
+   end subroutine validate_adaptive_folded_pair_contract
 
    pure function cross_product_matrix(vector) result(matrix)
       real(dblprec), intent(in) :: vector(3)

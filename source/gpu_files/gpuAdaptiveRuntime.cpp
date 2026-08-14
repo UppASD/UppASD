@@ -804,9 +804,11 @@ __global__ void evaluateAdaptiveAtomisticBonds(
       atomicAdd(&kernels.atomFieldScratch[atomVectorIndex(
                    xyz, atomI, ensemble, topology.atoms)],
                 ksiJ[xyz] / (kernels.magneticMomentSi * kernels.atomMoment[atomI]));
+#if !defined(RCG09A_NEGATIVE_NO_TRANSPOSE)
       atomicAdd(&kernels.atomFieldScratch[atomVectorIndex(
                    xyz, atomJ, ensemble, topology.atoms)],
                 ktSi[xyz] / (kernels.magneticMomentSi * kernels.atomMoment[atomJ]));
+#endif
    }
 }
 

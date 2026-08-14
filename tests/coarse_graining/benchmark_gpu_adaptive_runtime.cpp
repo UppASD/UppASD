@@ -51,6 +51,9 @@ constexpr int fineState = 2;
 // One isotropic exchange constant shared by the production neighbour list and
 // the adaptive bond matrix.  Identical physics starts here.
 constexpr double exchangeJ = 0.1;
+// Deliberately fully populated: a diagonal-only matrix cannot expose the
+// antisymmetric transpose contribution at the second endpoint.
+constexpr double dmiVector[3] = {0.37, -0.29, 0.61};
 
 enum class Texture { Spiral, DomainWall, Uniform };
 
@@ -319,6 +322,36 @@ struct AdaptiveFixture {
             bondMatrix[xyz + 3 * xyz + 9 * bond] = exchangeJ;
    }
 
+   void addDmiToBondMatrix(bool reverseSign = false) {
+      const double sign = reverseSign ? -1.0 : 1.0;
+      for(std::size_t bond = 0; bond < bonds; ++bond) {
+         // Column-major 3x3 matrix for (sign*D) x s.  The adaptive kernel
+         // uses this matrix at i and its transpose at j.
+         bondMatrix[0 + 3 * 1 + 9 * bond] += -sign * dmiVector[2];
+         bondMatrix[0 + 3 * 2 + 9 * bond] +=  sign * dmiVector[1];
+         bondMatrix[1 + 3 * 0 + 9 * bond] +=  sign * dmiVector[2];
+         bondMatrix[1 + 3 * 2 + 9 * bond] += -sign * dmiVector[0];
+         bondMatrix[2 + 3 * 0 + 9 * bond] += -sign * dmiVector[1];
+         bondMatrix[2 + 3 * 1 + 9 * bond] +=  sign * dmiVector[0];
+      }
+   }
+
+   void addUniaxialOnsite() {
+      for(std::size_t atom = 0; atom < atoms; ++atom) {
+         // Vary both axis and coefficients so a uniform-spin or equivalent-
+         // endpoint implementation cannot accidentally satisfy the oracle.
+         const double raw[3] = {0.31 + 0.07 * static_cast<double>(atom),
+                                -0.42 + 0.05 * static_cast<double>(atom),
+                                0.83 - 0.03 * static_cast<double>(atom)};
+         const double norm = std::sqrt(raw[0] * raw[0] + raw[1] * raw[1] + raw[2] * raw[2]);
+         atomAxisCount[atom] = 1;
+         for(int xyz = 0; xyz < 3; ++xyz)
+            atomAxis[xyz + 6 * atom] = raw[xyz] / norm;
+         atomK1[2 * atom] = -0.13 - 0.01 * static_cast<double>(atom % 5);
+         atomK2[2 * atom] = 0.021 + 0.004 * static_cast<double>(atom % 3);
+      }
+   }
+
    GpuAdaptiveTopologyInput topology() const {
       GpuAdaptiveTopologyInput result;
       result.geometryMode = 1;
@@ -441,7 +474,8 @@ struct ProductionAtomisticBaseline {
    unsigned int maxNeighbours = 0;
    double setupWallUs = 0.0;
 
-   void build(const AdaptiveFixture& fixture, real timestep) {
+   void build(const AdaptiveFixture& fixture, real timestep, bool includeDmi = false,
+              bool includeUniaxial = false) {
       const auto setupBegin = std::chrono::steady_clock::now();
       const std::size_t atoms = fixture.atoms;
       const std::size_t ensembles = 1;
@@ -450,11 +484,23 @@ struct ProductionAtomisticBaseline {
       // pair once and add the field to both endpoints; the production kernel
       // walks a per-atom list, so the same pair appears in both atoms' lists.
       std::vector<std::vector<unsigned int>> neighbours(atoms);
+      std::vector<std::vector<unsigned int>> dmNeighbours(atoms);
+      std::vector<std::vector<real>> dmVectors(atoms);
       for(std::size_t bond = 0; bond < fixture.bonds; ++bond) {
          const auto atomI = static_cast<unsigned int>(fixture.bondAtom[2 * bond] - 1);
          const auto atomJ = static_cast<unsigned int>(fixture.bondAtom[2 * bond + 1] - 1);
          neighbours[atomI].push_back(atomJ);
          neighbours[atomJ].push_back(atomI);
+         if(includeDmi) {
+            dmNeighbours[atomI].push_back(atomJ);
+            dmVectors[atomI].insert(dmVectors[atomI].end(), {
+               static_cast<real>(dmiVector[0]), static_cast<real>(dmiVector[1]),
+               static_cast<real>(dmiVector[2])});
+            dmNeighbours[atomJ].push_back(atomI);
+            dmVectors[atomJ].insert(dmVectors[atomJ].end(), {
+               static_cast<real>(-dmiVector[0]), static_cast<real>(-dmiVector[1]),
+               static_cast<real>(-dmiVector[2])});
+         }
       }
       maxNeighbours = 0;
       for(const auto& list : neighbours)
@@ -501,6 +547,65 @@ struct ProductionAtomisticBaseline {
       gpuCheck(GPU_MEMCPY(hamiltonian.ncoup.data(), hostNcoup.data(),
                           hostNcoup.size() * sizeof(real),
                           GPU_MEMCPY_HOST_TO_DEVICE), "ncoup upload");
+      if(includeDmi) {
+         unsigned int maxDmNeighbours = 0;
+         for(const auto& list : dmNeighbours)
+            maxDmNeighbours = std::max(maxDmNeighbours, static_cast<unsigned int>(list.size()));
+         std::vector<unsigned int> hostDmList(atoms * maxDmNeighbours, 0u);
+         std::vector<unsigned int> hostDmListSize(atoms, 0u);
+         std::vector<real> hostDmVector(3 * atoms * maxDmNeighbours, real(0));
+         for(std::size_t atom = 0; atom < atoms; ++atom) {
+            hostDmListSize[atom] = static_cast<unsigned int>(dmNeighbours[atom].size());
+            for(std::size_t slot = 0; slot < dmNeighbours[atom].size(); ++slot) {
+               hostDmList[slot + atom * maxDmNeighbours] = dmNeighbours[atom][slot] + 1u;
+               for(std::size_t xyz = 0; xyz < 3; ++xyz)
+                  hostDmVector[xyz + 3 * (slot + atom * maxDmNeighbours)] =
+                     dmVectors[atom][xyz + 3 * slot];
+            }
+         }
+         hamiltonian.dmvect.Allocate(3, maxDmNeighbours, N);
+         hamiltonian.dmlist.Allocate(maxDmNeighbours, N);
+         hamiltonian.dmlistsize.Allocate(N);
+         gpuCheck(GPU_MEMCPY(hamiltonian.dmvect.data(), hostDmVector.data(),
+                             hostDmVector.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE),
+                  "dmvect upload");
+         gpuCheck(GPU_MEMCPY(hamiltonian.dmlist.data(), hostDmList.data(),
+                             hostDmList.size() * sizeof(unsigned int), GPU_MEMCPY_HOST_TO_DEVICE),
+                  "dmlist upload");
+         gpuCheck(GPU_MEMCPY(hamiltonian.dmlistsize.data(), hostDmListSize.data(),
+                             hostDmListSize.size() * sizeof(unsigned int), GPU_MEMCPY_HOST_TO_DEVICE),
+                  "dmlistsize upload");
+         simParam.mnndm = maxDmNeighbours;
+      }
+      if(includeUniaxial) {
+         std::vector<unsigned int> hostTaniso(atoms, 0u);
+         std::vector<real> hostEaniso(3 * atoms, real(0));
+         std::vector<real> hostKaniso(2 * atoms, real(0));
+         std::vector<real> hostSb(atoms, real(0));
+         for(std::size_t atom = 0; atom < atoms; ++atom) {
+            hostTaniso[atom] = fixture.atomAxisCount[atom] == 1 ? 1u : 0u;
+            for(std::size_t xyz = 0; xyz < 3; ++xyz)
+               hostEaniso[xyz + 3 * atom] = static_cast<real>(fixture.atomAxis[xyz + 6 * atom]);
+            hostKaniso[2 * atom] = static_cast<real>(fixture.atomK1[2 * atom]);
+            hostKaniso[1 + 2 * atom] = static_cast<real>(fixture.atomK2[2 * atom]);
+         }
+         hamiltonian.taniso.Allocate(N);
+         hamiltonian.eaniso.Allocate(3, N);
+         hamiltonian.kaniso.Allocate(2, N);
+         hamiltonian.sb.Allocate(N);
+         gpuCheck(GPU_MEMCPY(hamiltonian.taniso.data(), hostTaniso.data(),
+                             hostTaniso.size() * sizeof(unsigned int), GPU_MEMCPY_HOST_TO_DEVICE),
+                  "taniso upload");
+         gpuCheck(GPU_MEMCPY(hamiltonian.eaniso.data(), hostEaniso.data(),
+                             hostEaniso.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE),
+                  "eaniso upload");
+         gpuCheck(GPU_MEMCPY(hamiltonian.kaniso.data(), hostKaniso.data(),
+                             hostKaniso.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE),
+                  "kaniso upload");
+         gpuCheck(GPU_MEMCPY(hamiltonian.sb.data(), hostSb.data(),
+                             hostSb.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE),
+                  "anisotropy sb upload");
+      }
 
       lattice.beff.Allocate(3, N, M);
       lattice.b2eff.Allocate(3, N, M);
@@ -544,9 +649,9 @@ struct ProductionAtomisticBaseline {
       lattice.temperature.Allocate(N);
       lattice.temperature.zeros();
 
-      flags.do_dm = false;
+      flags.do_dm = includeDmi;
       flags.do_jtensor = false;
-      flags.do_aniso = 0;
+      flags.do_aniso = includeUniaxial ? 1 : 0;
       flags.do_ene = 0;
       flags.do_gpu_measurements = false;
       flags.do_gpu_correlations = false;
@@ -557,7 +662,7 @@ struct ProductionAtomisticBaseline {
       simParam.NH = atoms;
       simParam.M = ensembles;
       simParam.mnn = maxNeighbours;
-      simParam.mnndm = 0;
+      if(!includeDmi) simParam.mnndm = 0;
       simParam.do_gpu_convolution = false;
       simParam.delta_t = timestep;
       simParam.gamma = real(1);
@@ -604,7 +709,7 @@ struct ProductionAtomisticBaseline {
                           GPU_MEMCPY_HOST_TO_DEVICE), "emomM upload");
    }
 
-   void evaluateField() { hamCalc.heisge(lattice, energies, false); }
+   void evaluateField(bool measure = false) { hamCalc.heisge(lattice, energies, measure); }
 
    // The complete feature-off timestep of gpuSDSimulation.cpp: measure field,
    // predictor, predictor field, corrector.  This -- not the field alone -- is
@@ -624,6 +729,14 @@ struct ProductionAtomisticBaseline {
       return field;
    }
 
+   std::vector<real> downloadEnergyTerms() {
+      std::vector<real> result(static_cast<std::size_t>(energies.energyM.size()));
+      gpuCheck(GPU_MEMCPY(result.data(), energies.energyM.data(),
+                          result.size() * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST),
+               "energyM download");
+      return result;
+   }
+
    void release() {
       // GpuDepondtIntegrator::~GpuDepondtIntegrator already calls release(),
       // and GpuTensor::Free() leaves the pointer dangling, so releasing it here
@@ -633,6 +746,17 @@ struct ProductionAtomisticBaseline {
       hamiltonian.nlist.Free();
       hamiltonian.nlistsize.Free();
       hamiltonian.ncoup.Free();
+      if(flags.do_dm) {
+         hamiltonian.dmvect.Free();
+         hamiltonian.dmlist.Free();
+         hamiltonian.dmlistsize.Free();
+      }
+      if(flags.do_aniso) {
+         hamiltonian.taniso.Free();
+         hamiltonian.eaniso.Free();
+         hamiltonian.kaniso.Free();
+         hamiltonian.sb.Free();
+      }
       hamiltonian.extfield.Free();
       lattice.beff.Free();
       lattice.b2eff.Free();
@@ -700,6 +824,189 @@ struct SweepPoint {
    double phaseIterations = 0.0;
 };
 
+struct OracleComparison {
+   double maxAbsolute = 0.0;
+   double maxRelative = 0.0;
+   double adaptiveEnergy = 0.0;
+   double productionEnergy = 0.0;
+};
+
+OracleComparison compareOracle(const std::vector<real>& adaptive,
+                               const std::vector<real>& production,
+                               double adaptiveEnergy, double productionEnergy) {
+   OracleComparison result;
+   result.adaptiveEnergy = adaptiveEnergy;
+   result.productionEnergy = productionEnergy;
+   double scale = 0.0;
+   for(std::size_t component = 0; component < adaptive.size(); ++component) {
+      result.maxAbsolute = std::max(result.maxAbsolute,
+         std::abs(static_cast<double>(adaptive[component]) -
+                  static_cast<double>(production[component])));
+      scale = std::max(scale, std::abs(static_cast<double>(production[component])));
+   }
+   result.maxRelative = scale > 0.0 ? result.maxAbsolute / scale : result.maxAbsolute;
+   return result;
+}
+
+// This is a Hamiltonian oracle, not an analytic reimplementation.  Both arms
+// consume the same explicit reciprocal directed list: the reference calls
+// GpuHamiltonianCalculations::heisge exactly as feature-off ASD does, while
+// the other arm uploads its folded unique-pair matrix to GpuAdaptiveRuntime.
+// The exchange-only evaluation is retained solely to expose the DMI term and
+// its energy independently from the production energy columns.
+bool runHamiltonianOracle(double tolerance) {
+   AdaptiveFixture exchangeFixture(8, 2, Texture::Spiral);
+   for(std::size_t atom = 0; atom < exchangeFixture.atoms; ++atom) {
+      const double raw[3] = {0.23 + 0.17 * static_cast<double>(atom),
+                             -0.71 + 0.11 * static_cast<double>(atom),
+                             0.49 - 0.07 * static_cast<double>(atom)};
+      const double norm = std::sqrt(raw[0] * raw[0] + raw[1] * raw[1] + raw[2] * raw[2]);
+      for(int xyz = 0; xyz < 3; ++xyz)
+         exchangeFixture.atomDirection[xyz + 3 * atom] = static_cast<real>(raw[xyz] / norm);
+   }
+   AdaptiveFixture fullFixture = exchangeFixture;
+#if defined(RCG09A_NEGATIVE_DMI_SIGN)
+   fullFixture.addDmiToBondMatrix(true);
+   constexpr bool expectNegativeFailure = true;
+#else
+   fullFixture.addDmiToBondMatrix(false);
+#if defined(RCG09A_NEGATIVE_NO_TRANSPOSE)
+   constexpr bool expectNegativeFailure = true;
+#else
+   constexpr bool expectNegativeFailure = false;
+#endif
+#endif
+   AdaptiveFixture fullUniaxialFixture = fullFixture;
+   fullUniaxialFixture.addUniaxialOnsite();
+
+   const auto topology = exchangeFixture.topology();
+   std::string diagnostic;
+   if(!GpuAdaptiveRuntime::validate(topology, exchangeFixture.runtime(),
+                                    exchangeFixture.atoms, 1, diagnostic))
+      throw std::runtime_error("exchange oracle fixture rejected: " + diagnostic);
+   if(!GpuAdaptiveRuntime::validate(topology, fullFixture.runtime(),
+                                    fullFixture.atoms, 1, diagnostic))
+      throw std::runtime_error("DMI oracle fixture rejected: " + diagnostic);
+   if(!GpuAdaptiveRuntime::validate(topology, fullUniaxialFixture.runtime(),
+                                    fullUniaxialFixture.atoms, 1, diagnostic))
+      throw std::runtime_error("uniaxial oracle fixture rejected: " + diagnostic);
+
+   GpuAdaptiveRuntime adaptiveExchange, adaptiveFull, adaptiveFullUniaxial;
+   adaptiveExchange.initialize(topology, exchangeFixture.runtime(), exchangeFixture.atoms, 1);
+   adaptiveFull.initialize(topology, fullFixture.runtime(), fullFixture.atoms, 1);
+   adaptiveFullUniaxial.initialize(topology, fullUniaxialFixture.runtime(), fullUniaxialFixture.atoms, 1);
+   GpuTensor<real, 1> direction, exchangeField, fullField, fullUniaxialField, coarseField;
+   direction.Allocate(static_cast<index_t>(3 * fullFixture.atoms));
+   exchangeField.Allocate(static_cast<index_t>(3 * fullFixture.atoms));
+   fullField.Allocate(static_cast<index_t>(3 * fullFixture.atoms));
+   fullUniaxialField.Allocate(static_cast<index_t>(3 * fullFixture.atoms));
+   coarseField.Allocate(static_cast<index_t>(3 * fullFixture.blocks));
+   gpuCheck(GPU_MEMCPY(direction.data(), fullFixture.atomDirection.data(),
+                        fullFixture.atomDirection.size() * sizeof(real), GPU_MEMCPY_HOST_TO_DEVICE),
+            "Hamiltonian oracle direction upload");
+   const auto adaptiveExchangeEnergy = adaptiveExchange.evaluateHybrid(
+      direction.data(), nullptr, nullptr, exchangeField.data(), coarseField.data());
+   const auto adaptiveFullEnergy = adaptiveFull.evaluateHybrid(
+      direction.data(), nullptr, nullptr, fullField.data(), coarseField.data());
+   const auto adaptiveFullUniaxialEnergy = adaptiveFullUniaxial.evaluateHybrid(
+      direction.data(), nullptr, nullptr, fullUniaxialField.data(), coarseField.data());
+   gpuCheck(GPU_DEVICE_SYNCHRONIZE(), "adaptive Hamiltonian oracle synchronization");
+   std::vector<real> exchangeAdaptiveField(3 * fullFixture.atoms);
+   std::vector<real> fullAdaptiveField(3 * fullFixture.atoms);
+   std::vector<real> fullUniaxialAdaptiveField(3 * fullFixture.atoms);
+   gpuCheck(GPU_MEMCPY(exchangeAdaptiveField.data(), exchangeField.data(),
+                        exchangeAdaptiveField.size() * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST),
+            "adaptive exchange-field download");
+   gpuCheck(GPU_MEMCPY(fullAdaptiveField.data(), fullField.data(),
+                        fullAdaptiveField.size() * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST),
+            "adaptive full-field download");
+   gpuCheck(GPU_MEMCPY(fullUniaxialAdaptiveField.data(), fullUniaxialField.data(),
+                        fullUniaxialAdaptiveField.size() * sizeof(real), GPU_MEMCPY_DEVICE_TO_HOST),
+            "adaptive uniaxial-field download");
+
+   ProductionAtomisticBaseline production;
+   production.build(exchangeFixture, real(1.0e-15), true);
+   production.uploadState(fullFixture.atomDirection);
+   production.evaluateField(true);
+   gpuCheck(GPU_DEVICE_SYNCHRONIZE(), "production Hamiltonian oracle synchronization");
+   const auto fullProductionField = production.downloadField();
+   const auto productionTerms = production.downloadEnergyTerms();
+   ProductionAtomisticBaseline productionFullUniaxial;
+   productionFullUniaxial.build(fullUniaxialFixture, real(1.0e-15), true, true);
+   productionFullUniaxial.uploadState(fullFixture.atomDirection);
+   productionFullUniaxial.evaluateField(true);
+   gpuCheck(GPU_DEVICE_SYNCHRONIZE(), "production uniaxial Hamiltonian oracle synchronization");
+   const auto fullUniaxialProductionField = productionFullUniaxial.downloadField();
+   const auto productionFullUniaxialTerms = productionFullUniaxial.downloadEnergyTerms();
+   ProductionAtomisticBaseline productionExchange;
+   productionExchange.build(exchangeFixture, real(1.0e-15));
+   productionExchange.uploadState(fullFixture.atomDirection);
+   productionExchange.evaluateField(true);
+   gpuCheck(GPU_DEVICE_SYNCHRONIZE(), "production exchange oracle synchronization");
+   const auto exchangeProductionField = productionExchange.downloadField();
+   const auto productionExchangeTerms = productionExchange.downloadEnergyTerms();
+   std::vector<real> dmiAdaptiveField(fullAdaptiveField.size());
+   std::vector<real> dmiProductionField(fullProductionField.size());
+   std::vector<real> uniaxialAdaptiveField(fullAdaptiveField.size());
+   std::vector<real> uniaxialProductionField(fullProductionField.size());
+   for(std::size_t component = 0; component < dmiAdaptiveField.size(); ++component) {
+      dmiAdaptiveField[component] = fullAdaptiveField[component] - exchangeAdaptiveField[component];
+      dmiProductionField[component] = fullProductionField[component] - exchangeProductionField[component];
+      uniaxialAdaptiveField[component] = fullUniaxialAdaptiveField[component] - fullAdaptiveField[component];
+      uniaxialProductionField[component] = fullUniaxialProductionField[component] - fullProductionField[component];
+   }
+   const double atoms = static_cast<double>(fullFixture.atoms);
+   const auto exchange = compareOracle(exchangeAdaptiveField, exchangeProductionField,
+      adaptiveExchangeEnergy.atomisticBilinearJ, atoms * static_cast<double>(productionExchangeTerms[0]));
+   const auto total = compareOracle(fullAdaptiveField, fullProductionField,
+      adaptiveFullEnergy.atomisticBilinearJ, atoms * static_cast<double>(productionTerms[5]));
+   const auto dmi = compareOracle(dmiAdaptiveField, dmiProductionField,
+      adaptiveFullEnergy.atomisticBilinearJ - adaptiveExchangeEnergy.atomisticBilinearJ,
+      atoms * static_cast<double>(productionTerms[2]));
+   const auto uniaxial = compareOracle(uniaxialAdaptiveField, uniaxialProductionField,
+      adaptiveFullUniaxialEnergy.atomisticOnsiteJ,
+      atoms * static_cast<double>(productionFullUniaxialTerms[1]));
+   const auto totalWithUniaxial = compareOracle(fullUniaxialAdaptiveField, fullUniaxialProductionField,
+      adaptiveFullUniaxialEnergy.atomisticBilinearJ + adaptiveFullUniaxialEnergy.atomisticOnsiteJ,
+      atoms * static_cast<double>(productionFullUniaxialTerms[5]));
+   const bool nonzeroEndpoints =
+      std::abs(static_cast<double>(dmiProductionField[0])) > 1.0e-10 &&
+      std::abs(static_cast<double>(dmiProductionField[3])) > 1.0e-10;
+   const bool mismatch = exchange.maxRelative > tolerance || dmi.maxRelative > tolerance || total.maxRelative > tolerance ||
+      uniaxial.maxRelative > tolerance || totalWithUniaxial.maxRelative > tolerance ||
+      std::abs(exchange.adaptiveEnergy - exchange.productionEnergy) > tolerance ||
+      std::abs(dmi.adaptiveEnergy - dmi.productionEnergy) > tolerance ||
+      std::abs(total.adaptiveEnergy - total.productionEnergy) > tolerance ||
+      std::abs(uniaxial.adaptiveEnergy - uniaxial.productionEnergy) > tolerance ||
+      std::abs(totalWithUniaxial.adaptiveEnergy - totalWithUniaxial.productionEnergy) > tolerance ||
+      !nonzeroEndpoints;
+   std::printf(
+      "hamiltonian-oracle fixture=8x2 reciprocal-directed-DMI D=(%.3f,%.3f,%.3f) "
+      "exchange_energy_adaptive=%.17e production=%.17e "
+      "dmi_energy_adaptive=%.17e production=%.17e total_energy_adaptive=%.17e production=%.17e "
+      "uniaxial_energy_adaptive=%.17e production=%.17e total_with_uniaxial_adaptive=%.17e production=%.17e "
+      "exchange_field_max_abs=%.17e exchange_field_max_rel=%.17e dmi_field_max_abs=%.17e dmi_field_max_rel=%.17e uniaxial_field_max_abs=%.17e uniaxial_field_max_rel=%.17e total_field_max_abs=%.17e total_field_max_rel=%.17e total_with_uniaxial_field_max_abs=%.17e total_with_uniaxial_field_max_rel=%.17e nonzero_endpoint_DMI=%s "
+      "negative_control=%s result=%s\n",
+      dmiVector[0], dmiVector[1], dmiVector[2],
+      exchange.adaptiveEnergy, exchange.productionEnergy,
+      dmi.adaptiveEnergy, dmi.productionEnergy,
+      total.adaptiveEnergy, total.productionEnergy,
+      uniaxial.adaptiveEnergy, uniaxial.productionEnergy,
+      totalWithUniaxial.adaptiveEnergy, totalWithUniaxial.productionEnergy,
+      exchange.maxAbsolute, exchange.maxRelative, dmi.maxAbsolute, dmi.maxRelative,
+      uniaxial.maxAbsolute, uniaxial.maxRelative, total.maxAbsolute, total.maxRelative,
+      totalWithUniaxial.maxAbsolute, totalWithUniaxial.maxRelative, nonzeroEndpoints ? "true" : "false",
+      expectNegativeFailure ? "enabled" : "off",
+      mismatch == expectNegativeFailure ? "PASS" : "FAIL");
+
+   productionExchange.release();
+   productionFullUniaxial.release();
+   production.release();
+   coarseField.Free(); fullUniaxialField.Free(); fullField.Free(); exchangeField.Free(); direction.Free();
+   adaptiveFullUniaxial.release(); adaptiveFull.release(); adaptiveExchange.release();
+   return mismatch == expectNegativeFailure;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -708,6 +1015,8 @@ int main(int argc, char** argv) {
       const bool fp64 = sizeof(real) == sizeof(double);
       const double parityTolerance = options.parityTolerance > 0.0 ?
          options.parityTolerance : (fp64 ? 1.0e-12 : 5.0e-5);
+      if(!runHamiltonianOracle(parityTolerance))
+         return 2;
       std::printf(
          "adaptive-benchmark precision=%s backend=%s blocks=%zu "
          "atoms_per_block=%zu atoms=%zu ensembles=1 texture=%s warmup=%u "
