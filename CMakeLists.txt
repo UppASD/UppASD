@@ -1586,10 +1586,13 @@ if(BUILD_TESTING)
             PROPERTIES LABELS "coarse-graining;cg13;sanitizer")
       endif()
 
-      # Hardware-dependent CG-10 acceptance harness.  This is intentionally
-      # not a CTest: it reports paired feature-off noise, selector/compaction
-      # overhead, phase timings, and the first statistically separated active
-      # DOF crossover on the selected CUDA/HIP device.
+      # RCG-09 PERF-ATOMISTIC-PROD / PERF-CG-SWEEP.  Hardware-dependent
+      # acceptance harness, intentionally not a CTest: it checks that the
+      # adaptive and production atomistic paths evaluate the same field, then
+      # times UppASD's real GpuHamiltonianCalculations + GpuDepondtIntegrator
+      # step against the adaptive step over a fine-fraction sweep, reporting
+      # active atom/block/interface/bond fractions, per-phase device times,
+      # launch counts, selector/compaction overhead, memory, and raw samples.
       add_executable(gpu_adaptive_runtime_benchmark
          ${CMAKE_SOURCE_DIR}/tests/coarse_graining/benchmark_gpu_adaptive_runtime.cpp)
       target_include_directories(gpu_adaptive_runtime_benchmark PRIVATE
@@ -1610,6 +1613,32 @@ if(BUILD_TESTING)
       endif()
       if(UPPASD_PRECISION STREQUAL "SINGLE")
          target_compile_definitions(gpu_adaptive_runtime_benchmark PRIVATE SINGLE_PREC)
+      endif()
+
+      # RCG-09 (F-10): the synthetic fused-multiply-add control, separated out
+      # of the benchmark above so it can never again be read as a production
+      # baseline.  It measures only whether an inactive adaptive runtime costs
+      # anything; it contains no UppASD physics.
+      add_executable(gpu_adaptive_inactive_overhead_microbenchmark
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/benchmark_gpu_inactive_runtime_overhead.cpp)
+      target_include_directories(gpu_adaptive_inactive_overhead_microbenchmark PRIVATE
+         ${CMAKE_SOURCE_DIR}/source/gpu_files
+         ${CMAKE_SOURCE_DIR}/source/gpu_files/measurement)
+      target_link_libraries(gpu_adaptive_inactive_overhead_microbenchmark PRIVATE ${UppASD_LIB})
+      if(USE_CUDA)
+         set_source_files_properties(
+            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/benchmark_gpu_inactive_runtime_overhead.cpp
+            PROPERTIES LANGUAGE CUDA)
+         target_compile_definitions(gpu_adaptive_inactive_overhead_microbenchmark PRIVATE CUDA_V)
+         target_link_libraries(gpu_adaptive_inactive_overhead_microbenchmark PRIVATE CUDA::cudart)
+      else()
+         set_source_files_properties(
+            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/benchmark_gpu_inactive_runtime_overhead.cpp
+            PROPERTIES LANGUAGE HIP)
+         target_compile_definitions(gpu_adaptive_inactive_overhead_microbenchmark PRIVATE HIP_V)
+      endif()
+      if(UPPASD_PRECISION STREQUAL "SINGLE")
+         target_compile_definitions(gpu_adaptive_inactive_overhead_microbenchmark PRIVATE SINGLE_PREC)
       endif()
 
       add_executable(dipole_gpu_fft_tests
