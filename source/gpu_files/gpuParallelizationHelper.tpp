@@ -16,6 +16,23 @@ void GpuParallelizationHelper::gpuAtomCall(O op) {
 }
 
 template <typename O>
+void GpuParallelizationHelper::gpuActiveAtomCall(O op, const int* oneBasedAtoms,
+                                                 unsigned int activeCount) {
+   // Assert that O is derived from Atom.
+   (void)static_cast<Atom*>((O*)0);
+   if(activeCount == 0) return;
+
+   // M is supplied to the operation so active_atom_kernel can map a compact
+   // slot independently in each ensemble.  It deliberately passes the
+   // ordinary flattened atom index to O::each(), matching gpuAtomCall().
+   op.NM = N * M;
+   dim3 block, grid;
+   gridHelper.dim1d(&block, &grid, activeCount * M);
+   active_atom_kernel<THREAD_COUNT, USE_BIG_GRID><<<grid, block, 0, workStream>>>(
+      op, oneBasedAtoms, activeCount, N, M);
+}
+
+template <typename O>
 void GpuParallelizationHelper::gpuSiteCall(O op) {
    // Assert that O is derived from Site
    (void)static_cast<Site*>((O*)0);

@@ -24,6 +24,23 @@ __global__ void atom_kernel(O op) {
    }
 }
 
+// The list contains one-based physical site identifiers.  A compact-list slot
+// is deliberately not an atom identity: the same site is visited once for
+// every ensemble and then translated back to the ordinary flattened (site +
+// ensemble*N) storage index before the operation sees it.
+template <std::size_t threads, bool big, typename O>
+__global__ void active_atom_kernel(O op, const int* oneBasedAtoms,
+                                   unsigned int activeCount, unsigned int N,
+                                   unsigned int M) {
+   unsigned int work;
+   if(GridHelper<threads, big>::index1d(&work, activeCount * M)) {
+      const unsigned int slot = work % activeCount;
+      const unsigned int ensemble = work / activeCount;
+      const int oneBasedAtom = oneBasedAtoms[slot];
+      op.each(static_cast<unsigned int>(oneBasedAtom - 1) + ensemble * N);
+   }
+}
+
 template <std::size_t threads, bool big, typename O>
 __global__ void site_kernel(O op) {
    unsigned int site;
@@ -112,6 +129,12 @@ public:
 
    // Call helpers
    template <typename O> void gpuAtomCall(O op);
+   // Execute an Atom operation for a compact list of one-based physical sites
+   // in every ensemble.  The list must contain valid, unique site ids in
+   // [1,N]; callers retain ownership because adaptive compaction already owns
+   // its device-resident lists.
+   template <typename O> void gpuActiveAtomCall(O op, const int* oneBasedAtoms,
+                                                unsigned int activeCount);
    template <typename O> void gpuSiteCall(O op);
    template <typename O> void gpuAtomSiteCall(O op);
    template <typename O> void gpuAtomSiteEnsembleCall(O op);

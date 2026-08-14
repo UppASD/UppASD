@@ -47,6 +47,9 @@ public:
    class Rotate;
    class BuildEffectiveField;
    class EvolveFirst;
+   class CommitActivePredictor;
+   class RestoreActiveInitial;
+   class CommitActiveCorrector;
 
    // Constructor
    GpuDepondtIntegrator();
@@ -70,5 +73,19 @@ public:
    // Algorithm
    void evolveFirst(deviceLattice& gpuLattice);
 
+   // Execute the production Depondt predictor for a compact set of one-based
+   // physical atom ids in device memory. Each id is applied in every ensemble;
+   // its compact position never enters state or RNG indexing. The thermal generator
+   // deliberately remains the production full-state generator, so a site's
+   // draw is tied to its ordinary (site, ensemble) field location even when
+   // this list is reordered or compacted.
+   void evolveFirst(deviceLattice& gpuLattice, const int* oneBasedAtoms,
+                    std::size_t activeAtomCount);
+
    void evolveSecond(deviceLattice& gpuLattice);
+
+   // Correct the matching active-subset predictor.  Call with precisely the
+   // same list and count supplied to evolveFirst().
+   void evolveSecond(deviceLattice& gpuLattice, const int* oneBasedAtoms,
+                     std::size_t activeAtomCount);
 };

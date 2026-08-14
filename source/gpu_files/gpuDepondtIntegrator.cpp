@@ -11,6 +11,8 @@
 #include "gpuParallelizationHelper.hpp"
 
 #include "gpu_wrappers.h"
+#include <limits>
+#include <stdexcept>
 using ParallelizationHelper = GpuParallelizationHelper;
 
 // Versine, 1 - cos(angle), evaluated as 2*sin(angle/2)^2.  The direct form
@@ -226,6 +228,69 @@ public:
    }
 };
 
+// The full-range solver expresses the predictor-to-corrector transition with
+// tensor swaps.  Swapping a whole tensor is not valid for a subset because it
+// would exchange inactive atom state too.  These copy-only operations preserve
+// the public Depondt buffer contract for the selected physical atoms while the
+// actual predictor/corrector arithmetic stays in EvolveFirst,
+// BuildEffectiveField, Rotate, and GpuCommon.
+class GpuDepondtIntegrator::CommitActivePredictor : public ParallelizationHelper::Atom {
+private:
+   real* emom;
+   real* emom2;
+   real* b2eff;
+   const real* mrod;
+   const real* bdup;
+public:
+   CommitActivePredictor(GpuTensor<real, 3>& pEmom, GpuTensor<real, 3>& pEmom2,
+                         GpuTensor<real, 3>& pB2eff, const GpuTensor<real, 3>& pMrod,
+                         const GpuTensor<real, 3>& pBdup)
+      : emom(pEmom.data()), emom2(pEmom2.data()), b2eff(pB2eff.data()),
+        mrod(pMrod.data()), bdup(pBdup.data()) {}
+   __device__ void each(unsigned int atom) {
+      const unsigned int element = 3 * atom;
+      emom2[element] = emom[element];
+      emom2[element + 1] = emom[element + 1];
+      emom2[element + 2] = emom[element + 2];
+      emom[element] = mrod[element];
+      emom[element + 1] = mrod[element + 1];
+      emom[element + 2] = mrod[element + 2];
+      b2eff[element] = bdup[element];
+      b2eff[element + 1] = bdup[element + 1];
+      b2eff[element + 2] = bdup[element + 2];
+   }
+};
+
+class GpuDepondtIntegrator::RestoreActiveInitial : public ParallelizationHelper::Atom {
+private:
+   real* emom;
+   const real* emom2;
+public:
+   RestoreActiveInitial(GpuTensor<real, 3>& pEmom, const GpuTensor<real, 3>& pEmom2)
+      : emom(pEmom.data()), emom2(pEmom2.data()) {}
+   __device__ void each(unsigned int atom) {
+      const unsigned int element = 3 * atom;
+      emom[element] = emom2[element];
+      emom[element + 1] = emom2[element + 1];
+      emom[element + 2] = emom2[element + 2];
+   }
+};
+
+class GpuDepondtIntegrator::CommitActiveCorrector : public ParallelizationHelper::Atom {
+private:
+   real* emom2;
+   const real* mrod;
+public:
+   CommitActiveCorrector(GpuTensor<real, 3>& pEmom2, const GpuTensor<real, 3>& pMrod)
+      : emom2(pEmom2.data()), mrod(pMrod.data()) {}
+   __device__ void each(unsigned int atom) {
+      const unsigned int element = 3 * atom;
+      emom2[element] = mrod[element];
+      emom2[element + 1] = mrod[element + 1];
+      emom2[element + 2] = mrod[element + 2];
+   }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 // Class members
 ////////////////////////////////////////////////////////////////////////////////
@@ -339,6 +404,47 @@ void GpuDepondtIntegrator::evolveFirst(deviceLattice& gpuLattice) {
    stopwatch.add("copy");
 }
 
+namespace {
+
+unsigned int checkedActiveAtomCount(const int* oneBasedAtoms, std::size_t activeAtomCount,
+                                    const GpuTensor<real, 3>& emom) {
+   if(activeAtomCount != 0 && oneBasedAtoms == nullptr)
+      throw std::invalid_argument("Depondt active atom list is null");
+   const std::size_t sites = static_cast<std::size_t>(emom.extent(1));
+   if(activeAtomCount > sites || activeAtomCount > std::numeric_limits<unsigned int>::max())
+      throw std::invalid_argument("Depondt active atom count is outside the production lattice");
+   return static_cast<unsigned int>(activeAtomCount);
+}
+
+} // namespace
+
+void GpuDepondtIntegrator::evolveFirst(deviceLattice& gpuLattice,
+                                       const int* oneBasedAtoms,
+                                       std::size_t activeAtomCount) {
+   const unsigned int count = checkedActiveAtomCount(oneBasedAtoms, activeAtomCount,
+                                                      gpuLattice.emom);
+   stopwatch.skip();
+
+   // Keep the production generator and its full (site,ensemble) layout.  It
+   // consumes the same generator sequence per accepted SD step as the
+   // feature-off path; compact-list order therefore cannot change a site's
+   // random draw.
+   thermfield.randomize(gpuLattice.mmom);
+   stopwatch.add("thermfield");
+
+   parallel.gpuActiveAtomCall(EvolveFirst(mrod, blocal, bdup, gpuLattice.emomM,
+                                          gpuLattice.emom, gpuLattice.beff,
+                                          thermfield.getField(), gpuLattice.btorque,
+                                          gpuLattice.mmom, timestep, gamma, damping,
+                                          stt != 'N'), oneBasedAtoms, count);
+   stopwatch.add("predictor");
+
+   parallel.gpuActiveAtomCall(CommitActivePredictor(gpuLattice.emom, gpuLattice.emom2,
+                                                     gpuLattice.b2eff, mrod, bdup),
+                              oneBasedAtoms, count);
+   stopwatch.add("copy");
+}
+
 // Second step of Depond solver, calculates the corrected effective field from
 // the predicted effective fields. Rotates the moments in the corrected field
 void GpuDepondtIntegrator::evolveSecond(deviceLattice& gpuLattice) {
@@ -364,6 +470,40 @@ void GpuDepondtIntegrator::evolveSecond(deviceLattice& gpuLattice) {
 
    // Swap
    gpuLattice.emom2.swap(mrod);  // Vaild as mrod wont be needed after this
+   stopwatch.add("copy");
+}
+
+void GpuDepondtIntegrator::evolveSecond(deviceLattice& gpuLattice,
+                                        const int* oneBasedAtoms,
+                                        std::size_t activeAtomCount) {
+   const unsigned int count = checkedActiveAtomCount(oneBasedAtoms, activeAtomCount,
+                                                      gpuLattice.emom);
+   stopwatch.skip();
+
+   parallel.gpuActiveAtomCall(
+      GpuCommon::AddAtoms(blocal, gpuLattice.beff, thermfield.getField()),
+      oneBasedAtoms, count);
+   stopwatch.add("localfield");
+
+   parallel.gpuActiveAtomCall(BuildEffectiveField(bdup, blocal, gpuLattice.emom, damping),
+                              oneBasedAtoms, count);
+   if(stt != 'N')
+      parallel.gpuActiveAtomCall(GpuCommon::AddToAtoms(bdup, gpuLattice.btorque),
+                                 oneBasedAtoms, count);
+   stopwatch.add("buildbeff");
+
+   parallel.gpuActiveAtomCall(GpuCommon::AvgAtoms(bdup, gpuLattice.b2eff),
+                              oneBasedAtoms, count);
+   parallel.gpuActiveAtomCall(RestoreActiveInitial(gpuLattice.emom, gpuLattice.emom2),
+                              oneBasedAtoms, count);
+   stopwatch.add("corrfield");
+
+   parallel.gpuActiveAtomCall(Rotate(mrod, gpuLattice.emom, bdup, timestep, gamma, damping),
+                              oneBasedAtoms, count);
+   stopwatch.add("rotate");
+
+   parallel.gpuActiveAtomCall(CommitActiveCorrector(gpuLattice.emom2, mrod),
+                              oneBasedAtoms, count);
    stopwatch.add("copy");
 }
 

@@ -1569,6 +1569,35 @@ if(BUILD_TESTING)
       set_tests_properties(coarse-graining-gpu-adaptive-runtime
          PROPERTIES LABELS "coarse-graining;cg13;${CG13_GPU_LABEL};reference")
 
+      # RCG-09A.2: full natural active lists must be bitwise identical to the
+      # ordinary production Depondt predictor/corrector at T=0 and T>0.  The
+      # fixture also reverses a strict subset to prove compact-list position
+      # never becomes a physical atom or RNG identity.
+      add_executable(gpu_depondt_active_atoms_tests
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_depondt_active_atoms.cpp)
+      target_include_directories(gpu_depondt_active_atoms_tests PRIVATE
+         ${CMAKE_SOURCE_DIR}/source/gpu_files
+         ${CMAKE_SOURCE_DIR}/source/gpu_files/measurement)
+      target_link_libraries(gpu_depondt_active_atoms_tests PRIVATE ${UppASD_LIB})
+      if(USE_CUDA)
+         set_source_files_properties(
+            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_depondt_active_atoms.cpp
+            PROPERTIES LANGUAGE CUDA)
+         target_compile_definitions(gpu_depondt_active_atoms_tests PRIVATE CUDA_V)
+         target_link_libraries(gpu_depondt_active_atoms_tests PRIVATE CUDA::cudart)
+      else()
+         set_source_files_properties(
+            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_depondt_active_atoms.cpp
+            PROPERTIES LANGUAGE HIP)
+         target_compile_definitions(gpu_depondt_active_atoms_tests PRIVATE HIP_V)
+      endif()
+      if(UPPASD_PRECISION STREQUAL "SINGLE")
+         target_compile_definitions(gpu_depondt_active_atoms_tests PRIVATE SINGLE_PREC)
+      endif()
+      add_test(NAME gpu-depondt-active-atoms COMMAND gpu_depondt_active_atoms_tests)
+      set_tests_properties(gpu-depondt-active-atoms PROPERTIES SKIP_RETURN_CODE 77
+         LABELS "coarse-graining;cg13;${CG13_GPU_LABEL};reference")
+
       # RCG-05E: compute-sanitizer racecheck/memcheck/synccheck/initcheck
       # against dilateAdaptiveState specifically (--kernel-name), run through
       # gpu_adaptive_runtime_tests above, which already launches it with a
