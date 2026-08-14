@@ -21,6 +21,7 @@
 #include "correlations/gpuCorrelations.hpp"
 #include <algorithm>
 #include <cstdlib>
+#include <cstring>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -818,6 +819,24 @@ bool GpuSimulation::initiateMatrices(int is_mc) {
                static_cast<double>(*FortranData::adaptive_energy_jump_limit_j) : 0.0;
             gpuAdaptiveRuntime.initialize(adaptiveTopologyInput(), adaptiveRuntimeInput(),
                                           SimParam.N, SimParam.M);
+            // RCG-09 (RCG-08-FU2).  Per-phase device timing costs one blocking
+            // host synchronization at every phase boundary -- ten per step,
+            // ~38% of step wall time in RCG-08 SS6.5.  A production wall-time
+            // measurement that leaves it on is measuring the instrument, so
+            // RCG-09's benchmark disables it for headline timings and enables
+            // it (the default) for the phase breakdown.  This is a measurement
+            // control only: kernel order, launches, and results are identical
+            // either way, and the state is printed so any run is
+            // self-documenting.
+            if(const char* timingEnv = std::getenv("UPPASD_ADAPTIVE_PHASE_TIMING")) {
+               if(std::strcmp(timingEnv, "0") == 0)
+                  gpuAdaptiveRuntime.setPhaseTimingEnabled(false);
+            }
+            std::printf("Gpu: AdaptiveCG per-phase device timing %s\n",
+                        gpuAdaptiveRuntime.phaseTimingEnabled() ?
+                           "enabled (default; adds one host sync per phase boundary)" :
+                           "DISABLED via UPPASD_ADAPTIVE_PHASE_TIMING=0 "
+                           "(phase times unmeasured; step wall time still measured)");
             const auto work = gpuAdaptiveRuntime.downloadWorkSnapshot();
             std::printf("Gpu: AdaptiveCG initial active_atoms=%zu active_blocks=%zu "
                         "interface_atoms=%zu device_bytes=%zu\n",

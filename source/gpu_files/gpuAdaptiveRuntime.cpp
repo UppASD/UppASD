@@ -2332,11 +2332,19 @@ void GpuAdaptiveRuntime::updateBlockState(const int* blockState, std::size_t cou
          throw std::invalid_argument("GPU adaptive block state must be coarse(0), buffer(1), or fine(2)");
    }
    std::copy(blockState, blockState + blocks_, stagedBlockState_.data());
+   // RCG-09 (RCG-08-FU2): the state upload and compaction are stream-ordered,
+   // so every later kernel on stream_ already observes them.  The
+   // synchronization below exists only to read the event timer, which is why
+   // it is skipped with phase timing disabled.  Byte and launch accounting is
+   // exact either way; only the wall/device durations go unmeasured.
+   const bool timed = phaseMetrics_.phaseTimingEnabled;
    const auto wallStart = std::chrono::steady_clock::now();
-   ASSERT_GPU(GPU_EVENT_RECORD(updateStart_, stream_));
+   if(timed) ASSERT_GPU(GPU_EVENT_RECORD(updateStart_, stream_));
    blockState_.copy_async(stagedBlockState_, stream_);
    pendingState_.copy_async(blockState_, stream_);
    launchCompaction();
+   metrics_.blockBytesUploaded += blocks_ * sizeof(int);
+   if(!timed) return;
    ASSERT_GPU(GPU_EVENT_RECORD(updateEnd_, stream_));
    const auto waitStart = std::chrono::steady_clock::now();
    ASSERT_GPU(GPU_EVENT_SYNCHRONIZE(updateEnd_));
@@ -2344,7 +2352,6 @@ void GpuAdaptiveRuntime::updateBlockState(const int* blockState, std::size_t cou
    float elapsed = 0.0f;
    ASSERT_GPU(GPU_EVENT_ELAPSED_TIME(&elapsed, updateStart_, updateEnd_));
    ++metrics_.hostSynchronizations;
-   metrics_.blockBytesUploaded += blocks_ * sizeof(int);
    metrics_.elapsedMilliseconds +=
       std::chrono::duration<double, std::milli>(wallEnd - wallStart).count();
    metrics_.hostWaitMilliseconds +=
@@ -2353,7 +2360,21 @@ void GpuAdaptiveRuntime::updateBlockState(const int* blockState, std::size_t cou
    phaseMetrics_.compactionMilliseconds += static_cast<double>(elapsed);
 }
 
+void GpuAdaptiveRuntime::beginPhase() {
+   // RCG-09 (RCG-08-FU2): paired with finishPhase().  Recording the start event
+   // is asynchronous and cheap, but with timing disabled nothing consumes it,
+   // so it is skipped too and the phase boundary issues no stream work at all.
+   if(!phaseMetrics_.phaseTimingEnabled) return;
+   ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
+}
+
 double GpuAdaptiveRuntime::finishPhase(double& accumulator) {
+   // RCG-09 (RCG-08-FU2): with per-phase timing disabled the host does not
+   // wait here at all.  No event is recorded and none is synchronized, so the
+   // phase boundary costs nothing and adjacent phases are free to overlap.
+   // The accumulator is deliberately left untouched rather than set to any
+   // value; phaseTimingEnabled marks it as unmeasured.
+   if(!phaseMetrics_.phaseTimingEnabled) return 0.0;
    ASSERT_GPU(GPU_EVENT_RECORD(phaseEnd_, stream_));
    // RCG-08: this event synchronization blocks the host until the phase's
    // kernels retire.  It is how RCG-06C obtains per-phase device times, but it
@@ -2386,7 +2407,7 @@ void GpuAdaptiveRuntime::restrictMoments(const real* atomDirection) {
       projectionNorm_.data(), atomFieldScratch_.data(),
       coarseFieldScratch_.data(), energyTerms_.data(), predictorAtom_.data()
    };
-   ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
+   beginPhase();
    ADAPTIVE_LAUNCH(restrictAdaptiveMoments,
                    adaptiveGrid(dynamicChannels_ * blocks_ * ensembles_),
                    stream_, deviceTopology_, deviceRuntime_, kernels,
@@ -2413,7 +2434,7 @@ void GpuAdaptiveRuntime::evaluateSelectorScores(const real* atomDirection) {
       projectionNorm_.data(), atomFieldScratch_.data(),
       coarseFieldScratch_.data(), energyTerms_.data(), predictorAtom_.data()
    };
-   ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
+   beginPhase();
 #if defined(CUDA_V)
    clearSelectorAdaptiveScores<<<
       adaptiveGrid(blocks_), adaptiveThreads, 0, stream_>>>(
@@ -2439,7 +2460,7 @@ void GpuAdaptiveRuntime::evaluateSelectorScores(const real* atomDirection) {
 void GpuAdaptiveRuntime::evaluatePolarizationGate(real polarizationThreshold) {
    if(!ready_ || !kernelsReady_)
       throw std::logic_error("GPU adaptive polarization gate requires initialized CG-10 kernels");
-   ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
+   beginPhase();
 #if defined(CUDA_V)
    evaluateAdaptivePolarizationGate<<<
       adaptiveGrid(blocks_), adaptiveThreads, 0, stream_>>>(
@@ -2462,7 +2483,7 @@ void GpuAdaptiveRuntime::proposeSelectorState(
       throw std::logic_error("GPU adaptive state proposal requires initialized CG-10 kernels");
    if(policy.coarsenThreshold > policy.refineThreshold)
       throw std::invalid_argument("GPU adaptive selector coarsen threshold exceeds refine threshold");
-   ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
+   beginPhase();
    const bool dilate = anyBufferDilation(policy.bufferDilationBlocks);
 #if defined(CUDA_V)
    proposeAdaptiveState<<<
@@ -2528,14 +2549,14 @@ void GpuAdaptiveRuntime::publishProposedState(
       projectionNorm_.data(), atomFieldScratch_.data(),
       coarseFieldScratch_.data(), energyTerms_.data(), predictorAtom_.data()
    };
-   ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
+   beginPhase();
    ADAPTIVE_LAUNCH(publishAdaptiveState, adaptiveGrid(blocks_), stream_,
                    deviceTopology_, deviceRuntime_, kernels, atomDirection,
                    policy, acceptedBlockMask);
    ++phaseMetrics_.integrationLaunches;
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.integrationMilliseconds);
-   ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
+   beginPhase();
    launchCompaction();
    finishPhase(phaseMetrics_.compactionMilliseconds);
 }
@@ -2574,7 +2595,7 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
       projectionNorm_.data(), atomFieldScratch_.data(),
       coarseFieldScratch_.data(), energyTerms_.data(), predictorAtom_.data()
    };
-   ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
+   beginPhase();
 #if defined(CUDA_V)
    prolongateAdaptiveGhosts<<<
       adaptiveGrid(atoms_ * ensembles_), adaptiveThreads, 0, stream_>>>(
@@ -2590,7 +2611,7 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.interfaceMilliseconds);
 
-   ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
+   beginPhase();
    // RCG-08 (F-09): four ordered launches replacing one serial kernel.  The
    // clear must precede the bond scatter (which accumulates atomically into
    // the scratch it zeroes), the bond scatter must precede the on-site pass
@@ -2613,7 +2634,7 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.atomisticMilliseconds);
 
-   ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
+   beginPhase();
 #if defined(CUDA_V)
    clearAdaptiveInterface<<<
       adaptiveGrid(3 * dynamicChannels_ * blocks_ * ensembles_),
@@ -2636,7 +2657,7 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.interfaceMilliseconds);
 
-   ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
+   beginPhase();
 #if defined(CUDA_V)
    clearAdaptiveCoarse<<<
       adaptiveGrid(3 * dynamicChannels_ * blocks_ * ensembles_),
@@ -2751,7 +2772,7 @@ void GpuAdaptiveRuntime::integrateHeun(
    (void)evaluateHybrid(atomDirection, externalCoarseField, uniformFftDipoleField,
                         initialAtomField_.data(), initialCoarseField_.data(),
                         initialFftFieldPtr);
-   ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
+   beginPhase();
    // RCG-08 (F-09): the two full-state saves were the serial kernel's first
    // two loops.  They are pure copies, so they are issued as stream-ordered
    // device-to-device transfers rather than as kernel work -- the copy engine
@@ -2785,7 +2806,7 @@ void GpuAdaptiveRuntime::integrateHeun(
    (void)evaluateHybrid(atomDirection, externalCoarseField, uniformFftDipoleField,
                         atomFieldScratch_.data(), predictorCoarseField_.data(),
                         predictorFftFieldPtr);
-   ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
+   beginPhase();
    ADAPTIVE_LAUNCH(correctorAdaptiveHeunAtoms,
                    adaptiveGrid(atoms_ * ensembles_), stream_,
                    deviceTopology_, deviceRuntime_, kernels, timeStepSeconds,
@@ -2819,7 +2840,7 @@ void GpuAdaptiveRuntime::synchronizeAtomicState(
       projectionNorm_.data(), atomFieldScratch_.data(),
       coarseFieldScratch_.data(), energyTerms_.data(), predictorAtom_.data()
    };
-   ASSERT_GPU(GPU_EVENT_RECORD(phaseStart_, stream_));
+   beginPhase();
 #if defined(CUDA_V)
    prolongateAdaptiveGhosts<<<
       adaptiveGrid(atoms_ * ensembles_), adaptiveThreads, 0, stream_>>>(

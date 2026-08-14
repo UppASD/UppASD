@@ -214,6 +214,11 @@ struct GpuAdaptivePhaseMetrics {
    // finishPhase() blocks the host on an event, so this counts real host
    // waits inside the adaptive step, not just instrumentation bookkeeping.
    unsigned long long phaseSynchronizations = 0;
+   // RCG-09 (RCG-08-FU2): false when the per-phase device timers were disabled
+   // for this measurement, in which case every *Milliseconds field above except
+   // stepWallMilliseconds is zero because it was never measured -- not because
+   // the phase was free.  Consumers must report "not measured", never 0.0.
+   bool phaseTimingEnabled = true;
 };
 
 struct GpuAdaptiveDiagnosticSnapshot {
@@ -356,7 +361,24 @@ public:
    // reported rather than assumed zero.
    void recordStepWallMilliseconds(double elapsed);
    const GpuAdaptivePhaseMetrics& phaseMetrics() const { return phaseMetrics_; }
-   void resetPhaseMetrics() { phaseMetrics_ = {}; }
+   void resetPhaseMetrics() {
+      const bool timing = phaseMetrics_.phaseTimingEnabled;
+      phaseMetrics_ = {};
+      phaseMetrics_.phaseTimingEnabled = timing;
+   }
+
+   // RCG-09 (RCG-08-FU2).  Per-phase timing costs one blocking host
+   // synchronization per phase boundary -- ten per step, measured at ~38% of
+   // step wall time in RCG-08 SS6.5.  That cost is instrumentation, not
+   // physics, so a wall-time measurement that leaves it enabled measures the
+   // instrument.  Disabling it removes only the event synchronization; kernel
+   // order, stream, and every launch are unchanged, and launch counters keep
+   // working.  Default is enabled, so RCG-06C's accepted per-phase evidence
+   // and every existing caller are bit-for-bit unaffected.
+   void setPhaseTimingEnabled(bool enabled) {
+      phaseMetrics_.phaseTimingEnabled = enabled;
+   }
+   bool phaseTimingEnabled() const { return phaseMetrics_.phaseTimingEnabled; }
 
    bool ready() const { return ready_; }
    std::size_t allocatedBytes() const { return allocatedBytes_; }
@@ -375,6 +397,7 @@ private:
    void uploadRuntime(const GpuAdaptiveTopologyInput&, const GpuAdaptiveRuntimeInput&);
    void launchCompaction();
    void refreshDeviceDescriptors();
+   void beginPhase();
    double finishPhase(double& accumulator);
 
    bool ready_ = false;
