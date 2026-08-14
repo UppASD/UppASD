@@ -6,6 +6,12 @@
 **Status:** Measurement complete for CUDA/fp64 on this host. **No crossover
 exists and none is claimed.** HIP unavailable.
 
+**Superseded by RCG-09A.3:** the adaptive atomistic integration described in
+this historical performance report was the transitional normalized-Heun path.
+It has been deleted. Current adaptive fine spins use the shared production
+Depondt predictor/corrector and production thermal-field generation; the
+timings below are retained only as historical pre-migration evidence.
+
 ---
 
 ## 1. Summary

@@ -347,10 +347,17 @@ public:
                                     real* atomField,
                                     real* coarseField,
                                     const GpuAdaptiveUniformFftField* basisResolvedFftField = nullptr);
-   void integrateHeun(real timeStepSeconds, real* atomDirection,
-                      const real* externalCoarseField = nullptr,
-                      const real* uniformFftDipoleField = nullptr,
-                      const GpuAdaptiveFftEvaluator& basisResolvedFftEvaluator = {});
+   // Adaptive field assembly is separate from spin integration.  The caller
+   // evaluates the total field at the initial and predictor states, while the
+   // shared production Depondt integrator owns the fine-atom updates.
+   real* coarseFieldData() { return coarseField_.data(); }
+   const int* activeAtomList() const { return activeAtomList_.data(); }
+   std::size_t activeAtomCount();
+   void prepareCoarsePredictor(real timeStepSeconds,
+                               const real* initialCoarseField);
+   void correctCoarse(real timeStepSeconds,
+                      const real* predictorCoarseField);
+   void synchronize();
    void synchronizeAtomicState(
       real* atomDirection,
       const GpuAdaptiveReconstructionPolicy& policy);
@@ -474,8 +481,8 @@ private:
    GpuTensor<int, 1> anisotropyAxisCount_;
    GpuTensor<real, 1> anisotropyAxis_, anisotropyK1_, anisotropyK2_;
    GpuTensor<real, 1> ghostDirection_, projectionNorm_, atomFieldScratch_;
-   GpuTensor<real, 1> coarseFieldScratch_, predictorAtom_, predictorCoarse_;
-   GpuTensor<real, 1> initialAtomField_, initialCoarseField_, predictorCoarseField_;
+   GpuTensor<real, 1> coarseFieldScratch_, transitionBackup_, predictorCoarse_;
+   GpuTensor<real, 1> initialCoarseField_, predictorCoarseField_;
    // RCG-06B (F-11): global energy accumulation is FP64 unconditionally,
    // independent of `real`'s build precision (SINGLE_PREC/DOUBLE_PREC), per
    // the parent blueprint's precision contract (section 6.6). Field/output

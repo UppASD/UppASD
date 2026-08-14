@@ -7,11 +7,11 @@ STATIC_MIXED_CASE = "static_mixed"
 ADAPTIVE_MIXED_CASE = "adaptive_mixed"
 POLARIZATION_GATE_CASE = "polarization_gate_cpu"
 POLARIZATION_GATE_GPU_CASE = "polarization_gate_gpu"
+FINITE_TEMPERATURE_CASE = "finite_temperature"
 
 CPU_REJECTION_CASES = (
     "invalid_partial_block",
     "invalid_mask",
-    "unsupported_temperature",
     "unsupported_initial_phase_x",
     "missing_alat",
 )

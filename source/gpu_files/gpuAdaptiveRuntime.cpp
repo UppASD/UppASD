@@ -1240,7 +1240,7 @@ __global__ void finalizeAdaptiveEnergy(AdaptiveKernelDevice kernels) {
       kernels.energyTerms[6];
 }
 
-__device__ inline void llgRhs(const real direction[3], const real field[3],
+__device__ inline void coarseLlgRhs(const real direction[3], const real field[3],
                               real gamma, real damping, real rhs[3]) {
    real first[3], second[3];
    crossDevice(direction, field, first);
@@ -1250,42 +1250,9 @@ __device__ inline void llgRhs(const real direction[3], const real field[3],
       rhs[xyz] = prefactor * (first[xyz] + damping * second[xyz]);
 }
 
-// RCG-08 (F-09): both Heun stages ran on thread (0,0), including the two
-// full-state save copies at the top of the predictor.  They are now one thread
-// per compact-list slot per ensemble, split into an atom kernel and a block
-// kernel so each launch has a single uniform work definition.  The saves moved
-// out of the kernel entirely and are issued as stream-ordered device-to-device
-// copies by integrateHeun().
-//
-// Each thread owns one (atom, ensemble) or (block, ensemble) entirely: the
-// compact lists contain each atom/block at most once, so there is no atomic,
-// no reduction, and no cross-thread read of anything this launch writes.  The
-// accepted Heun update, its normalization, and the compact-list work
-// definition are unchanged, so results are bitwise identical to the serial
-// reference.
-
-__global__ void predictorAdaptiveHeunAtoms(
-   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
-   AdaptiveKernelDevice kernels, real dt, real* atomDirection,
-   const real* savedAtom, const real* atomField) {
-   const std::size_t index = adaptiveThreadIndex();
-   const std::size_t work = index % topology.atoms;
-   const std::size_t ensemble = index / topology.atoms;
-   if(ensemble >= topology.ensembles || work >= runtime.workCounts[0]) return;
-   const std::size_t atom =
-      static_cast<std::size_t>(runtime.activeAtomList[work] - 1);
-   real direction[3], field[3], rhs[3], candidate[3];
-   loadAtomVector(savedAtom, topology, atom, ensemble, direction);
-   loadAtomVector(atomField, topology, atom, ensemble, field);
-   llgRhs(direction, field, kernels.gammaPerTs, kernels.damping, rhs);
-   for(int xyz = 0; xyz < 3; ++xyz) candidate[xyz] = direction[xyz] + dt * rhs[xyz];
-   const real n = normDevice(candidate);
-   for(int xyz = 0; xyz < 3; ++xyz)
-      atomDirection[atomVectorIndex(xyz, atom, ensemble, topology.atoms)] =
-         candidate[xyz] / n;
-}
-
-__global__ void predictorAdaptiveHeunBlocks(
+// The coarse block dynamics remain adaptive-CG-owned.  Fine atoms do not use
+// these kernels: they are advanced by the shared production Depondt path.
+__global__ void predictorAdaptiveCoarse(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
    AdaptiveKernelDevice kernels, real dt, const real* savedCoarse,
    const real* coarseField) {
@@ -1298,7 +1265,7 @@ __global__ void predictorAdaptiveHeunBlocks(
    real direction[3], field[3], rhs[3], candidate[3];
    loadCoarseVector(savedCoarse, topology, 0, block, ensemble, direction);
    loadCoarseVector(coarseField, topology, 0, block, ensemble, field);
-   llgRhs(direction, field, kernels.gammaPerTs, kernels.damping, rhs);
+   coarseLlgRhs(direction, field, kernels.gammaPerTs, kernels.damping, rhs);
    for(int xyz = 0; xyz < 3; ++xyz) candidate[xyz] = direction[xyz] + dt * rhs[xyz];
    const real n = normDevice(candidate);
    for(int xyz = 0; xyz < 3; ++xyz)
@@ -1307,33 +1274,7 @@ __global__ void predictorAdaptiveHeunBlocks(
          topology.blocks)] = candidate[xyz] / n;
 }
 
-__global__ void correctorAdaptiveHeunAtoms(
-   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
-   AdaptiveKernelDevice kernels, real dt, real* atomDirection,
-   const real* savedAtom, const real* initialAtomField,
-   const real* predictorAtomField) {
-   const std::size_t index = adaptiveThreadIndex();
-   const std::size_t work = index % topology.atoms;
-   const std::size_t ensemble = index / topology.atoms;
-   if(ensemble >= topology.ensembles || work >= runtime.workCounts[0]) return;
-   const std::size_t atom =
-      static_cast<std::size_t>(runtime.activeAtomList[work] - 1);
-   real initial[3], predictor[3], field0[3], field1[3], rhs0[3], rhs1[3], value[3];
-   loadAtomVector(savedAtom, topology, atom, ensemble, initial);
-   loadAtomVector(atomDirection, topology, atom, ensemble, predictor);
-   loadAtomVector(initialAtomField, topology, atom, ensemble, field0);
-   loadAtomVector(predictorAtomField, topology, atom, ensemble, field1);
-   llgRhs(initial, field0, kernels.gammaPerTs, kernels.damping, rhs0);
-   llgRhs(predictor, field1, kernels.gammaPerTs, kernels.damping, rhs1);
-   for(int xyz = 0; xyz < 3; ++xyz)
-      value[xyz] = initial[xyz] + real(0.5) * dt * (rhs0[xyz] + rhs1[xyz]);
-   const real n = normDevice(value);
-   for(int xyz = 0; xyz < 3; ++xyz)
-      atomDirection[atomVectorIndex(xyz, atom, ensemble, topology.atoms)] =
-         value[xyz] / n;
-}
-
-__global__ void correctorAdaptiveHeunBlocks(
+__global__ void correctorAdaptiveCoarse(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
    AdaptiveKernelDevice kernels, real dt, const real* savedCoarse,
    const real* initialCoarseField, const real* predictorCoarseField) {
@@ -1348,8 +1289,8 @@ __global__ void correctorAdaptiveHeunBlocks(
    loadCoarseVector(runtime.coarseDirection, topology, 0, block, ensemble, predictor);
    loadCoarseVector(initialCoarseField, topology, 0, block, ensemble, field0);
    loadCoarseVector(predictorCoarseField, topology, 0, block, ensemble, field1);
-   llgRhs(initial, field0, kernels.gammaPerTs, kernels.damping, rhs0);
-   llgRhs(predictor, field1, kernels.gammaPerTs, kernels.damping, rhs1);
+   coarseLlgRhs(initial, field0, kernels.gammaPerTs, kernels.damping, rhs0);
+   coarseLlgRhs(predictor, field1, kernels.gammaPerTs, kernels.damping, rhs1);
    for(int xyz = 0; xyz < 3; ++xyz)
       value[xyz] = initial[xyz] + real(0.5) * dt * (rhs0[xyz] + rhs1[xyz]);
    const real n = normDevice(value);
@@ -1962,7 +1903,7 @@ std::size_t GpuAdaptiveRuntime::estimateBytes(const GpuAdaptiveTopologyInput& t,
          checkedAdd(total, 9 * t.atoms + 2 * r.kernels.bonds +
                            2 * r.kernels.selectorEdges + t.blocks, sizeof(int)) &&
          checkedAdd(total, 11 * t.atoms + 8 * t.atoms + 9 * r.kernels.bonds + 27 +
-                           10 * t.blocks + 13 * atomEnsembles +
+                           10 * t.blocks + 10 * atomEnsembles +
                            4 * vectorState + t.blocks, sizeof(real)) &&
          // RCG-06B (F-11): energyTerms_'s 8 slots are FP64 unconditionally,
          // independent of `real`'s build precision, so they are no longer
@@ -2113,9 +2054,8 @@ void GpuAdaptiveRuntime::allocate(const GpuAdaptiveTopologyInput& t,
       projectionNorm_.Allocate(atomEnsembles);
       atomFieldScratch_.Allocate(3 * atomEnsembles);
       coarseFieldScratch_.Allocate(vectorState);
-      predictorAtom_.Allocate(3 * atomEnsembles);
+      transitionBackup_.Allocate(3 * atomEnsembles);
       predictorCoarse_.Allocate(vectorState);
-      initialAtomField_.Allocate(3 * atomEnsembles);
       initialCoarseField_.Allocate(vectorState);
       predictorCoarseField_.Allocate(vectorState);
       energyTerms_.Allocate(8);
@@ -2407,7 +2347,7 @@ void GpuAdaptiveRuntime::restrictMoments(const real* atomDirection) {
       anisotropyAxisCount_.data(), anisotropyAxis_.data(),
       anisotropyK1_.data(), anisotropyK2_.data(), ghostDirection_.data(),
       projectionNorm_.data(), atomFieldScratch_.data(),
-      coarseFieldScratch_.data(), energyTerms_.data(), predictorAtom_.data()
+      coarseFieldScratch_.data(), energyTerms_.data(), transitionBackup_.data()
    };
    beginPhase();
    ADAPTIVE_LAUNCH(restrictAdaptiveMoments,
@@ -2434,7 +2374,7 @@ void GpuAdaptiveRuntime::evaluateSelectorScores(const real* atomDirection) {
       anisotropyAxisCount_.data(), anisotropyAxis_.data(),
       anisotropyK1_.data(), anisotropyK2_.data(), ghostDirection_.data(),
       projectionNorm_.data(), atomFieldScratch_.data(),
-      coarseFieldScratch_.data(), energyTerms_.data(), predictorAtom_.data()
+      coarseFieldScratch_.data(), energyTerms_.data(), transitionBackup_.data()
    };
    beginPhase();
 #if defined(CUDA_V)
@@ -2549,7 +2489,7 @@ void GpuAdaptiveRuntime::publishProposedState(
       anisotropyAxisCount_.data(), anisotropyAxis_.data(),
       anisotropyK1_.data(), anisotropyK2_.data(), ghostDirection_.data(),
       projectionNorm_.data(), atomFieldScratch_.data(),
-      coarseFieldScratch_.data(), energyTerms_.data(), predictorAtom_.data()
+      coarseFieldScratch_.data(), energyTerms_.data(), transitionBackup_.data()
    };
    beginPhase();
    ADAPTIVE_LAUNCH(publishAdaptiveState, adaptiveGrid(blocks_), stream_,
@@ -2595,7 +2535,7 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
       anisotropyAxisCount_.data(), anisotropyAxis_.data(),
       anisotropyK1_.data(), anisotropyK2_.data(), ghostDirection_.data(),
       projectionNorm_.data(), atomFieldScratch_.data(),
-      coarseFieldScratch_.data(), energyTerms_.data(), predictorAtom_.data()
+      coarseFieldScratch_.data(), energyTerms_.data(), transitionBackup_.data()
    };
    beginPhase();
 #if defined(CUDA_V)
@@ -2743,15 +2683,23 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
    return result;
 }
 
-void GpuAdaptiveRuntime::integrateHeun(
-   real timeStepSeconds, real* atomDirection, const real* externalCoarseField,
-   const real* uniformFftDipoleField,
-   const GpuAdaptiveFftEvaluator& basisResolvedFftEvaluator) {
+std::size_t GpuAdaptiveRuntime::activeAtomCount() {
+   if(!ready_) throw std::logic_error("GPU adaptive runtime is not initialized");
+   ASSERT_GPU(GPU_STREAM_SYNC(stream_));
+   unsigned int count = 0;
+   TensorDataMovementTracker::add_d2h(sizeof(count));
+   ASSERT_GPU(GPU_MEMCPY(&count, workCounts_.data(), sizeof(count),
+                         GPU_MEMCPY_DEVICE_TO_HOST));
+   return static_cast<std::size_t>(count);
+}
+
+void GpuAdaptiveRuntime::prepareCoarsePredictor(
+   real timeStepSeconds, const real* initialCoarseField) {
    if(!ready_ || !kernelsReady_)
       throw std::logic_error("GPU adaptive integration requires initialized CG-10 kernels");
-   if(!atomDirection || !std::isfinite(static_cast<double>(timeStepSeconds)) ||
+   if(!initialCoarseField || !std::isfinite(static_cast<double>(timeStepSeconds)) ||
       timeStepSeconds <= real(0))
-      throw std::invalid_argument("GPU adaptive Heun step requires positive dt and device directions");
+      throw std::invalid_argument("GPU adaptive coarse predictor requires positive dt and a field");
    AdaptiveKernelDevice kernels{
       bonds_, selectorEdges_, normalizationFloor_, magneticMomentSi_,
       gammaPerTs_, damping_, atomMoment_.data(), atomAnisotropyAxisCount_.data(),
@@ -2763,65 +2711,57 @@ void GpuAdaptiveRuntime::integrateHeun(
       anisotropyAxisCount_.data(), anisotropyAxis_.data(),
       anisotropyK1_.data(), anisotropyK2_.data(), ghostDirection_.data(),
       projectionNorm_.data(), atomFieldScratch_.data(),
-      coarseFieldScratch_.data(), energyTerms_.data(), predictorAtom_.data()
+      coarseFieldScratch_.data(), energyTerms_.data(), transitionBackup_.data()
    };
-   GpuAdaptiveUniformFftField initialFftField{};
-   const GpuAdaptiveUniformFftField* initialFftFieldPtr = nullptr;
-   if(basisResolvedFftEvaluator) {
-      initialFftField = basisResolvedFftEvaluator(atomDirection);
-      initialFftFieldPtr = &initialFftField;
-   }
-   (void)evaluateHybrid(atomDirection, externalCoarseField, uniformFftDipoleField,
-                        initialAtomField_.data(), initialCoarseField_.data(),
-                        initialFftFieldPtr);
    beginPhase();
-   // RCG-08 (F-09): the two full-state saves were the serial kernel's first
-   // two loops.  They are pure copies, so they are issued as stream-ordered
-   // device-to-device transfers rather than as kernel work -- the copy engine
-   // does them at memory bandwidth and the following kernels still see them
-   // complete, because everything here is ordered on stream_.  They remain an
-   // O(atoms + blocks) pass per step regardless of the active fraction; that
-   // is recorded as a known remaining full-system cost rather than hidden.
    ASSERT_GPU(GPU_MEMCPY_ASYNC(
-      predictorAtom_.data(), atomDirection,
-      3 * atoms_ * ensembles_ * sizeof(real),
+      initialCoarseField_.data(), initialCoarseField,
+      predictorCoarse_.size() * sizeof(real),
       GPU_MEMCPY_DEVICE_TO_DEVICE, stream_));
    predictorCoarse_.copy_async(coarseDirection_, stream_);
-   ADAPTIVE_LAUNCH(predictorAdaptiveHeunAtoms,
-                   adaptiveGrid(atoms_ * ensembles_), stream_,
-                   deviceTopology_, deviceRuntime_, kernels, timeStepSeconds,
-                   atomDirection, predictorAtom_.data(),
-                   initialAtomField_.data());
-   ADAPTIVE_LAUNCH(predictorAdaptiveHeunBlocks,
+   ADAPTIVE_LAUNCH(predictorAdaptiveCoarse,
                    adaptiveGrid(blocks_ * ensembles_), stream_,
                    deviceTopology_, deviceRuntime_, kernels, timeStepSeconds,
                    predictorCoarse_.data(), initialCoarseField_.data());
-   phaseMetrics_.integrationLaunches += 2;
+   phaseMetrics_.integrationLaunches += 1;
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.integrationMilliseconds);
-   GpuAdaptiveUniformFftField predictorFftField{};
-   const GpuAdaptiveUniformFftField* predictorFftFieldPtr = nullptr;
-   if(basisResolvedFftEvaluator) {
-      predictorFftField = basisResolvedFftEvaluator(atomDirection);
-      predictorFftFieldPtr = &predictorFftField;
-   }
-   (void)evaluateHybrid(atomDirection, externalCoarseField, uniformFftDipoleField,
-                        atomFieldScratch_.data(), predictorCoarseField_.data(),
-                        predictorFftFieldPtr);
+}
+
+void GpuAdaptiveRuntime::correctCoarse(
+   real timeStepSeconds, const real* predictorCoarseField) {
+   if(!ready_ || !kernelsReady_)
+      throw std::logic_error("GPU adaptive integration requires initialized CG-10 kernels");
+   if(!predictorCoarseField || !std::isfinite(static_cast<double>(timeStepSeconds)) ||
+      timeStepSeconds <= real(0))
+      throw std::invalid_argument("GPU adaptive coarse corrector requires positive dt and a field");
+   AdaptiveKernelDevice kernels{
+      bonds_, selectorEdges_, normalizationFloor_, magneticMomentSi_,
+      gammaPerTs_, damping_, atomMoment_.data(), atomAnisotropyAxisCount_.data(),
+      atomAnisotropyAxis_.data(), atomAnisotropyK1_.data(), atomAnisotropyK2_.data(),
+      projectionBlock_.data(),
+      projectionWeight_.data(), bondAtom_.data(), bondMatrix_.data(),
+      selectorEdge_.data(), inverseBlockTranspose_.data(),
+      exchangeStiffness_.data(), spiralization_.data(),
+      anisotropyAxisCount_.data(), anisotropyAxis_.data(),
+      anisotropyK1_.data(), anisotropyK2_.data(), ghostDirection_.data(),
+      projectionNorm_.data(), atomFieldScratch_.data(),
+      coarseFieldScratch_.data(), energyTerms_.data(), transitionBackup_.data()
+   };
    beginPhase();
-   ADAPTIVE_LAUNCH(correctorAdaptiveHeunAtoms,
-                   adaptiveGrid(atoms_ * ensembles_), stream_,
-                   deviceTopology_, deviceRuntime_, kernels, timeStepSeconds,
-                   atomDirection, predictorAtom_.data(),
-                   initialAtomField_.data(), atomFieldScratch_.data());
-   ADAPTIVE_LAUNCH(correctorAdaptiveHeunBlocks,
+   ADAPTIVE_LAUNCH(correctorAdaptiveCoarse,
                    adaptiveGrid(blocks_ * ensembles_), stream_,
                    deviceTopology_, deviceRuntime_, kernels, timeStepSeconds,
                    predictorCoarse_.data(), initialCoarseField_.data(),
-                   predictorCoarseField_.data());
-   phaseMetrics_.integrationLaunches += 2;
+                   predictorCoarseField);
+   phaseMetrics_.integrationLaunches += 1;
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.integrationMilliseconds);
+}
+
+void GpuAdaptiveRuntime::synchronize() {
+   if(!ready_) throw std::logic_error("GPU adaptive runtime is not initialized");
+   ASSERT_GPU(GPU_STREAM_SYNC(stream_));
 }
 
 void GpuAdaptiveRuntime::synchronizeAtomicState(
@@ -2840,7 +2780,7 @@ void GpuAdaptiveRuntime::synchronizeAtomicState(
       anisotropyAxisCount_.data(), anisotropyAxis_.data(),
       anisotropyK1_.data(), anisotropyK2_.data(), ghostDirection_.data(),
       projectionNorm_.data(), atomFieldScratch_.data(),
-      coarseFieldScratch_.data(), energyTerms_.data(), predictorAtom_.data()
+      coarseFieldScratch_.data(), energyTerms_.data(), transitionBackup_.data()
    };
    beginPhase();
 #if defined(CUDA_V)
@@ -2980,9 +2920,8 @@ void GpuAdaptiveRuntime::release() {
    freeIfAllocated(energyTerms_);
    freeIfAllocated(predictorCoarseField_);
    freeIfAllocated(initialCoarseField_);
-   freeIfAllocated(initialAtomField_);
    freeIfAllocated(predictorCoarse_);
-   freeIfAllocated(predictorAtom_);
+   freeIfAllocated(transitionBackup_);
    freeIfAllocated(coarseFieldScratch_);
    freeIfAllocated(atomFieldScratch_);
    freeIfAllocated(projectionNorm_);

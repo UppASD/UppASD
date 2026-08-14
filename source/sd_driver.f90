@@ -509,7 +509,7 @@ contains
          ! atomistic Hamiltonian/integrator step. Measurements above and output
          ! below consume the same reconstructed emom/emomM state.
          if (adaptive_cg_is_enabled()) then
-            call adaptive_cg_cpu_step(mstep,emom,mmom,emomM,adaptive_status,adaptive_diagnostic)
+            call adaptive_cg_cpu_step(mstep,emom,mmom,emomM,temprescale,adaptive_status,adaptive_diagnostic)
             if (adaptive_status /= ADAPTIVE_CG_PRODUCTION_OK) then
                write(*,'(a)') trim(adaptive_diagnostic)
                error stop 1

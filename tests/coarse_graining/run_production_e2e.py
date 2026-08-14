@@ -18,6 +18,7 @@ from fixture_dependencies import (
     CPU_REJECTION_CASES,
     EXAMPLE_CASES,
     FEATURE_OFF_CASE,
+    FINITE_TEMPERATURE_CASE,
     GPU_DMI_CASE,
     GPU_EXECUTABLE_CASES,
     GPU_FFT_CASE,
@@ -111,6 +112,11 @@ def main() -> None:
         assert "AdaptiveCG: capability accepted" in result.stdout
         outputs[name] = result.stdout
 
+    finite_temperature = run_case(binary, root / FINITE_TEMPERATURE_CASE)
+    assert finite_temperature.returncode == 0, finite_temperature.stdout
+    assert "AdaptiveCG: capability accepted" in finite_temperature.stdout
+    print("CG-10.5 finite-temperature adaptive fine-region execution passed")
+
     fine_updates = metric(outputs[STATIC_ALL_FINE_CASE], "active_atom_updates")
     coarse_updates = metric(outputs[STATIC_ALL_COARSE_CASE], "active_atom_updates")
     mixed_updates = metric(outputs[STATIC_MIXED_CASE], "active_atom_updates")
@@ -135,14 +141,11 @@ def main() -> None:
     bad_mask = run_case(binary, root / CPU_REJECTION_CASES[1])
     assert bad_mask.returncode != 0
     assert "duplicate block id" in bad_mask.stdout
-    bad_temp = run_case(binary, root / CPU_REJECTION_CASES[2])
-    assert bad_temp.returncode != 0
-    assert "Temp/do_qhb/do_3tm" in bad_temp.stdout
-    bad_initial_phase = run_case(binary, root / CPU_REJECTION_CASES[3])
+    bad_initial_phase = run_case(binary, root / CPU_REJECTION_CASES[2])
     assert bad_initial_phase.returncode != 0
     assert "ip_mode" in bad_initial_phase.stdout
     assert "Calls parallel tempering" not in bad_initial_phase.stdout
-    missing_alat = run_case(binary, root / CPU_REJECTION_CASES[4])
+    missing_alat = run_case(binary, root / CPU_REJECTION_CASES[3])
     assert missing_alat.returncode != 0
     assert "explicit positive SI lattice parameter in metres" in missing_alat.stdout
 

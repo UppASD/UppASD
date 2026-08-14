@@ -13,6 +13,9 @@ module AdaptiveCGProduction
    use InputData
    use SystemData, only : coord, anumb, Landeg
    use MomentData, only : emom, emom2, mmom, mmom2, mmomi, emomM
+   use FieldData, only : b2eff, thermal_field
+   use SpinTorques, only : stt, btorque, do_she, she_btorque, do_sot, sot_btorque
+   use Temperature, only : do_3tm, temp_array
    use HamiltonianData, only : ham
    use Damping, only : lambda1_array
    use macrocells, only : block_size_x, block_size_y, block_size_z
@@ -20,7 +23,6 @@ module AdaptiveCGProduction
       extract_coarse_material_from_uppasd, validate_coarse_material_small_q, &
       COARSE_MATERIAL_OK
    use QHB, only : do_qhb
-   use Temperature, only : do_3tm
    use AutoCorrelation, only : do_autocorr
    use KMCData, only : do_kmc
    use FixedMom, only : do_fixed_mom
@@ -32,6 +34,7 @@ module AdaptiveCGProduction
       COARSE_TENSOR_OK
    use SmoothProjectedOperator, only : smooth_projected_operator_type, &
       setup_smooth_projected_operator, SMOOTH_PROJECTED_OK
+   use Depondt, only : depondt_evolve_first, depondt_evolve_second
    use StaticHybridOperator, only : static_hybrid_operator_type, &
       static_hybrid_energy_type, setup_static_hybrid_operator, &
       evaluate_static_hybrid_operator, STATIC_HYBRID_OK
@@ -109,7 +112,8 @@ module AdaptiveCGProduction
       integer, allocatable :: bond_atom(:,:)
       real(dblprec), allocatable :: bond_matrix_j(:,:,:)
       real(dblprec), allocatable :: bond_displacement_m(:,:)
-      ! RCG-06A (F-13/F-17): persistent per-step Heun/reconstruction/onsite
+      ! RCG-06A (F-13/F-17): persistent per-step Depondt/coarse-Heun/
+      ! reconstruction/onsite
       ! workspace, allocated once by ensure_step_workspace at the end of
       ! setup_adaptive_cg_production and reused every step -- replacing the
       ! eight full-system arrays previously (re)allocated fresh inside
@@ -124,7 +128,6 @@ module AdaptiveCGProduction
       logical :: step_workspace_ready = .false.
       real(dblprec), allocatable :: atom0(:,:,:)
       real(dblprec), allocatable :: coarse0(:,:,:,:)
-      real(dblprec), allocatable :: atom_predictor(:,:,:)
       real(dblprec), allocatable :: coarse_predictor(:,:,:,:)
       real(dblprec), allocatable :: atom_field0(:,:,:)
       real(dblprec), allocatable :: atom_field1(:,:,:)
@@ -222,7 +225,6 @@ contains
       end if
       allocate(adaptive_cg_state%atom0(3,Natom,Mensemble))
       allocate(adaptive_cg_state%coarse0(3,1,n_blocks,Mensemble))
-      allocate(adaptive_cg_state%atom_predictor(3,Natom,Mensemble))
       allocate(adaptive_cg_state%coarse_predictor(3,1,n_blocks,Mensemble))
       allocate(adaptive_cg_state%atom_field0(3,Natom,Mensemble))
       allocate(adaptive_cg_state%atom_field1(3,Natom,Mensemble))
@@ -334,9 +336,7 @@ contains
 
       ! RCG-04E: channel_gamma must carry physical SI units (s^-1 T^-1, see
       ! stiffness.f90's channel_gamma_unit), not the bare dimensionless
-      ! Landeg g-factor -- the same defect class RCG-04D fixed in the
-      ! atomistic branch of adaptive_cg_cpu_step (llg_rhs calls below use
-      ! gama*Landeg(atom), not Landeg(atom) alone). Without this factor the
+      ! Landeg g-factor. Without this factor the
       ! coarse-block LLG precession rate is too slow by ~1/gama (~5.7e-12),
       ! confirmed by comparing moving_all_fine_wide's and
       ! moving_all_coarse_bs*'s fitted precession frequencies (see
@@ -828,13 +828,8 @@ contains
             'restart (4), random Ising seed (5), or spin spiral (8)', &
             status,diagnostic); return
       end if
-      if (SDEalgh /= 1 .or. llg /= 1) then
-         call reject('SDEalgh/llg: adaptive coarse graining supports deterministic fixed-length Heun LLG (1) only', &
-            status,diagnostic); return
-      end if
-      if (Temp /= 0.0_dblprec .or. index('QRPT', do_qhb) > 0 .or. &
-          index('YE', do_3tm) > 0) then
-         call reject('Temp/do_qhb/do_3tm: adaptive coarse graining requires deterministic T=0 dynamics', &
+      if (index('QRPT', do_qhb) > 0 .or. index('YE', do_3tm) > 0) then
+         call reject('do_qhb/do_3tm: adaptive coarse blocks have no accepted stochastic coarse model', &
             status,diagnostic); return
       end if
       if (any((/BC1,BC2,BC3/) /= 'P')) then
@@ -1027,15 +1022,16 @@ contains
       end if
    end function wall_clock_seconds
 
-   subroutine adaptive_cg_cpu_step(step,atom_direction,atom_magnitude,atom_moment,status,diagnostic)
+   subroutine adaptive_cg_cpu_step(step,atom_direction,atom_magnitude,atom_moment,temprescale,status,diagnostic)
       integer, intent(in) :: step
       real(dblprec), intent(inout) :: atom_direction(:,:,:)
       real(dblprec), intent(in) :: atom_magnitude(:,:)
       real(dblprec), intent(out) :: atom_moment(:,:,:)
+      real(dblprec), intent(inout) :: temprescale
       integer, intent(out) :: status
       character(len=*), intent(out) :: diagnostic
 
-      real(dblprec) :: rhs0(3), rhs1(3), candidate(3), norm, time0, time1
+      real(dblprec) :: candidate(3), time0, time1
       real(dblprec) :: step_time0, step_time1
       integer :: ensemble, atom, block, local_status
 
@@ -1056,7 +1052,6 @@ contains
       step_time0 = wall_clock_seconds()
 
       associate (atom0 => adaptive_cg_state%atom0, coarse0 => adaptive_cg_state%coarse0, &
-            atom_predictor => adaptive_cg_state%atom_predictor, &
             coarse_predictor => adaptive_cg_state%coarse_predictor, &
             atom_field0 => adaptive_cg_state%atom_field0, &
             atom_field1 => adaptive_cg_state%atom_field1, &
@@ -1066,7 +1061,6 @@ contains
             coarse_rhs1 => adaptive_cg_state%coarse_rhs1)
       atom0 = atom_direction
       coarse0 = adaptive_cg_state%coarse_direction
-      atom_predictor = atom_direction
       coarse_predictor = adaptive_cg_state%coarse_direction
 
       call evaluate_all_ensembles(atom0,coarse0,atom_field0,coarse_field0,local_status,diagnostic)
@@ -1076,18 +1070,6 @@ contains
          call coarse_llg_rhs(adaptive_cg_state%tensor,coarse0(:,1,:,ensemble), &
             coarse_field0(:,1,:,ensemble),coarse_rhs0,local_status,diagnostic)
          if (local_status /= COARSE_TENSOR_OK) return
-         ! RCG-07: each atom's predictor update depends only on its own
-         ! current state/field and writes only its own atom_predictor(:,
-         ! atom,ensemble) entry -- independent, no reduction required.
-         !$omp parallel do default(shared) private(atom,rhs0,candidate)
-         do atom = 1, Natom
-            if (.not. adaptive_cg_state%runtime%hybrid%atomistic_atom(atom)) cycle
-            call llg_rhs(atom0(:,atom,ensemble),atom_field0(:,atom,ensemble), &
-               gama*Landeg(atom),lambda1_array(atom),rhs0)
-            candidate = atom0(:,atom,ensemble)+delta_t*rhs0
-            atom_predictor(:,atom,ensemble) = candidate/sqrt(sum(candidate*candidate))
-         end do
-         !$omp end parallel do
          !$omp parallel do default(shared) private(block,candidate)
          do block = 1, adaptive_cg_state%topology%n_spatial_blocks
             if (.not. adaptive_cg_state%runtime%hybrid%coarse_block(block)) cycle
@@ -1096,10 +1078,14 @@ contains
          end do
          !$omp end parallel do
       end do
+      call depondt_evolve_first(Natom,size(adaptive_cg_state%runtime%active_atom_list),Mensemble, &
+         lambda1_array,atom_field0,b2eff,btorque,atom_direction,atom0,atom_moment,mmom,delta_t, &
+         temp_array,temprescale,stt,thermal_field,do_she,she_btorque,do_sot,sot_btorque, &
+         adaptive_cg_state%runtime%active_atom_list)
       time1 = wall_clock_seconds()
       adaptive_cg_state%integration_seconds = adaptive_cg_state%integration_seconds + &
          max(0.0_dblprec,time1-time0)
-      call evaluate_all_ensembles(atom_predictor,coarse_predictor,atom_field1,coarse_field1, &
+      call evaluate_all_ensembles(atom_direction,coarse_predictor,atom_field1,coarse_field1, &
          local_status,diagnostic)
       if (local_status /= STATIC_HYBRID_OK) return
       time0 = wall_clock_seconds()
@@ -1110,18 +1096,6 @@ contains
          call coarse_llg_rhs(adaptive_cg_state%tensor,coarse_predictor(:,1,:,ensemble), &
             coarse_field1(:,1,:,ensemble),coarse_rhs1,local_status,diagnostic)
          if (local_status /= COARSE_TENSOR_OK) return
-         ! RCG-07: same independence argument as the predictor stage above.
-         !$omp parallel do default(shared) private(atom,rhs0,rhs1,candidate)
-         do atom = 1, Natom
-            if (.not. adaptive_cg_state%runtime%hybrid%atomistic_atom(atom)) cycle
-            call llg_rhs(atom0(:,atom,ensemble),atom_field0(:,atom,ensemble), &
-               gama*Landeg(atom),lambda1_array(atom),rhs0)
-            call llg_rhs(atom_predictor(:,atom,ensemble),atom_field1(:,atom,ensemble), &
-               gama*Landeg(atom),lambda1_array(atom),rhs1)
-            candidate = atom0(:,atom,ensemble)+0.5_dblprec*delta_t*(rhs0+rhs1)
-            atom_direction(:,atom,ensemble) = candidate/sqrt(sum(candidate*candidate))
-         end do
-         !$omp end parallel do
          !$omp parallel do default(shared) private(block,candidate)
          do block = 1, adaptive_cg_state%topology%n_spatial_blocks
             if (.not. adaptive_cg_state%runtime%hybrid%coarse_block(block)) cycle
@@ -1132,6 +1106,10 @@ contains
          end do
          !$omp end parallel do
       end do
+      call depondt_evolve_second(Natom,size(adaptive_cg_state%runtime%active_atom_list),Mensemble, &
+         lambda1_array,atom_field1,b2eff,btorque,atom_direction,atom0,delta_t,stt,do_she, &
+         she_btorque,do_sot,sot_btorque,adaptive_cg_state%runtime%active_atom_list)
+      atom_direction = atom0
       time1 = wall_clock_seconds()
       adaptive_cg_state%integration_seconds = adaptive_cg_state%integration_seconds + &
          max(0.0_dblprec,time1-time0)
@@ -1666,7 +1644,7 @@ contains
       if (adaptive_cg%diagnostics == 0) return
       fine=count(adaptive_cg_state%runtime%hybrid%fine_seed)
       coarse=count(adaptive_cg_state%runtime%hybrid%coarse_block)
-      write(*,'(a)') 'AdaptiveCG: capability accepted: regular periodic single-FM deterministic Heun'
+      write(*,'(a)') 'AdaptiveCG: capability accepted: production Depondt fine spins; deterministic coarse blocks'
       write(*,'(a,a,a,a)') 'AdaptiveCG: operator=',trim(adaptive_cg%operator), &
          ' mask_mode=',trim(adaptive_cg%mask_mode)
       write(*,'(a,a,a,a,a,i0)') 'AdaptiveCG: selector=',trim(adaptive_cg%selector), &
@@ -1834,8 +1812,8 @@ contains
          adaptive_cg_state%runtime%active_coarse_list),int64)*storage_size(1)/8
       if (allocated(adaptive_cg_state%runtime%interface_atom_list)) bytes=bytes+int(size( &
          adaptive_cg_state%runtime%interface_atom_list),int64)*storage_size(1)/8
-      ! RCG-06A: persistent per-step Heun/reconstruction/onsite workspace
-      ! (adaptivecgproduction.f90) and per-candidate-transition workspace
+      ! RCG-06A: persistent per-step Depondt/coarse-Heun/reconstruction/onsite
+      ! workspace (adaptivecgproduction.f90) and per-candidate-transition workspace
       ! (AdaptiveHybridSolver's adaptive_hybrid_runtime_type) -- see their
       ! declaration comments. Every field allocated by ensure_step_workspace
       ! or AdaptiveHybridSolver's ensure_transition_workspace is accounted
@@ -1845,8 +1823,6 @@ contains
          adaptive_cg_state%atom0),int64)*storage_size(1.0_dblprec)/8
       if (allocated(adaptive_cg_state%coarse0)) bytes=bytes+int(size( &
          adaptive_cg_state%coarse0),int64)*storage_size(1.0_dblprec)/8
-      if (allocated(adaptive_cg_state%atom_predictor)) bytes=bytes+int(size( &
-         adaptive_cg_state%atom_predictor),int64)*storage_size(1.0_dblprec)/8
       if (allocated(adaptive_cg_state%coarse_predictor)) bytes=bytes+int(size( &
          adaptive_cg_state%coarse_predictor),int64)*storage_size(1.0_dblprec)/8
       if (allocated(adaptive_cg_state%atom_field0)) bytes=bytes+int(size( &
@@ -1911,21 +1887,6 @@ contains
       if (norm <= tiny(norm)) direction=(/0.0_dblprec,0.0_dblprec,1.0_dblprec/)
       if (norm > tiny(norm)) direction=direction/norm
    end function block_mean_direction
-
-   pure subroutine llg_rhs(direction,field,gamma,damping,rhs)
-      real(dblprec), intent(in) :: direction(3),field(3),gamma,damping
-      real(dblprec), intent(out) :: rhs(3)
-      real(dblprec) :: cross1(3),cross2(3)
-      cross1=cross(direction,field)
-      cross2=cross(direction,cross1)
-      rhs=-gamma*(cross1+damping*cross2)/(1.0_dblprec+damping*damping)
-   end subroutine llg_rhs
-
-   pure function cross(a,b) result(c)
-      real(dblprec), intent(in) :: a(3),b(3)
-      real(dblprec) :: c(3)
-      c=(/a(2)*b(3)-a(3)*b(2),a(3)*b(1)-a(1)*b(3),a(1)*b(2)-a(2)*b(1)/)
-   end function cross
 
    subroutine wrapped_displacement(i,j,value)
       integer, intent(in) :: i,j

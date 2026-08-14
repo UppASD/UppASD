@@ -52,10 +52,9 @@ evidence that the physics is right, only that it costs what it costs.
 
 `alat 1.0`, `temp 0.0`, `damping 0.05`, `SDEalgh 1` (Depondt) in both arms.
 Note that the production Depondt integrator calls `thermfield.randomize()`
-every step even at zero temperature, while the adaptive Heun path is
-deterministic and does no RNG at all. That is a real difference between the two
-production paths and it is disclosed in the harness output rather than
-normalized away.
+every step even at zero temperature. Adaptive fine spins use that same
+production path; adaptive field/coarse timing reports the CG-owned work
+separately from the shared fine-spin integration.
 
 ## Measurement scope
 

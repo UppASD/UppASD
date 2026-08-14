@@ -12,6 +12,7 @@
 #include "real_type.h"
 
 class GpuHamiltonianCalculations;
+class GpuDepondtIntegrator;
 
 class GpuSimulation {
 private:
@@ -95,7 +96,8 @@ public:
     void updateAdaptiveBlockState(const int* blockState, std::size_t count);
     bool adaptiveEnabled() const { return gpuAdaptiveRuntime.ready(); }
     void advanceAdaptiveStep(std::size_t step,
-                             GpuHamiltonianCalculations* hamiltonian = nullptr);
+                             GpuHamiltonianCalculations* hamiltonian,
+                             GpuDepondtIntegrator* integrator);
 
     void gpuRunSimulation(const int whichsim, const int whichphase, const char bf);
 

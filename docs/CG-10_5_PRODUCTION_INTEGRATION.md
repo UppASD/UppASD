@@ -9,18 +9,22 @@ the resolved solver and all source arrays. Setup happens before legacy
 Hamiltonian input storage is released and before GPU preflight.
 
 CPU measurement-phase spin dynamics runs through `sd_mphase` in
-`sd_driver.f90`. An enabled run dispatches each complete Heun step through
-`adaptive_cg_cpu_step`; a disabled run reaches the unchanged legacy field and
-integrator statements. Measurements consume `emom`/`emomM` before each step,
-and reconstruction refreshes both before the next measurement.
+`sd_driver.f90`. An enabled run assembles adaptive fields twice and dispatches
+fine atoms through the production Fortran Depondt predictor/corrector, while
+coarse blocks retain their adaptive deterministic update. A disabled run
+reaches the unchanged legacy field and integrator statements. Measurements
+consume `emom`/`emomM` before each step, and reconstruction refreshes both
+before the next measurement.
 
 GPU spin dynamics enters `FortranData_Initiate`, `GpuSimulation::initiateMatrices`,
 and `GpuSDSimulation::SDmphase`. The Fortran setup seam stages production
 topology, mutable state, projection, bond, selector, and tensor arrays before
 memory preflight. `GpuAdaptiveRuntime` validates and copies them, after which
 the staging pointers are cleared. The enabled measurement loop skips the
-ordinary all-atom short-range Hamiltonian and integrator and calls the
-adaptive Heun, reconstruction, selector, publication, and compaction path.
+ordinary all-atom short-range Hamiltonian, assembles the initial and predictor
+fields, and calls the shared production Depondt integrator for active fine
+atoms. Reconstruction, selector, publication, and compaction remain adaptive
+runtime responsibilities.
 
 Normal cleanup prints the adaptive summary before moment/topology owners are
 destroyed. Assigning the production state to its default value recursively
@@ -31,8 +35,8 @@ cleared on preflight/allocation exceptions.
 ## Capability boundary
 
 The initial production model accepts regular replicated cells with exact
-positive block divisibility, `P P P` boundaries, mode `S`, deterministic Heun
-(`SDEalgh=1`), zero measurement temperature, one ensemble-compatible
+positive block divisibility, `P P P` boundaries, mode `S`, production Depondt
+fine-spin dynamics, one ensemble-compatible
 ferromagnetic dynamical channel, scalar exchange, DMI, deterministic type-1
 uniaxial anisotropy, uniform Landé factor and damping, and no restart.
 `Initmag` modes 1 (random), 2 (cone), 3 (momfile), 5
@@ -46,8 +50,8 @@ device. `X` and `SX` replica-exchange runners remain outside this boundary.
 
 The setup diagnostic names the offending keyword or capability when it
 rejects Monte Carlo, GNEB, spin-lattice or other measurement modes;
-unsupported initial-phase modes or restart input; stochastic/finite-temperature
-measurement dynamics; tensor exchange, unsupported anisotropy kinds, legacy `do_dip`,
+unsupported initial-phase modes or restart input; unsupported stochastic coarse
+models (`do_qhb`/`do_3tm`); tensor exchange, unsupported anisotropy kinds, legacy `do_dip`,
 external/time-dependent measurement fields,
 sparse/reduced/fixed moments, energy-output paths not yet connected to hybrid
 accounting, nonperiodic or explicit-device geometry, multiple channels, or

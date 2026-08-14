@@ -1631,7 +1631,7 @@ contains
       call allocate_fields(Natom,Mensemble,flag)
 
       if(locfield=='Y'.and.flag>0)  call read_local_field(NA,locfieldfile)
-      if(SDEalgh==5 .or. ipSDEalgh==5) then
+      if(SDEalgh==5 .or. ipSDEalgh==5 .or. adaptive_cg%enabled=='Y') then
          call allocate_depondtfields(Natom, Mensemble,flag)
       elseif(SDEalgh==11) then
          call allocate_llgifields(Natom, Mensemble,flag)

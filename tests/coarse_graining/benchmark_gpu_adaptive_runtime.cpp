@@ -1072,6 +1072,16 @@ int main(int argc, char** argv) {
                           fixture.atomDirection.size() * sizeof(real),
                           GPU_MEMCPY_HOST_TO_DEVICE),
                "benchmark direction upload");
+      const auto adaptiveCoarseStep = [&]() {
+         (void)runtime.evaluateHybrid(atomDirection.data(), nullptr, nullptr,
+                                      atomField.data(), coarseField.data());
+         runtime.prepareCoarsePredictor(timestep, coarseField.data());
+         runtime.synchronize();
+         (void)runtime.evaluateHybrid(atomDirection.data(), nullptr, nullptr,
+                                      atomField.data(), coarseField.data());
+         runtime.correctCoarse(timestep, coarseField.data());
+         runtime.synchronize();
+      };
 
       // ---- Identical-physics check ----------------------------------------
       // All blocks fine: the adaptive path then owns every atom atomistically
@@ -1127,23 +1137,18 @@ int main(int argc, char** argv) {
             productionField.medianUs, productionField.madUs,
             productionStep.medianUs, productionStep.madUs,
             fixture.atoms, fixture.bonds, options.repetitions, options.iterations);
-         // Disclosure, not a correction.  GpuDepondtIntegrator::evolveFirst
+         // Disclosure, not a correction. GpuDepondtIntegrator::evolveFirst
          // calls thermfield.randomize() unconditionally, so the production step
-         // generates 3*N*M random numbers every step even at temp 0.  The
-         // adaptive Heun path is deterministic and does no RNG.  That is a real
-         // difference between the two production paths and part of what a user
-         // actually pays, so the accepted crossover below is computed against
-         // the complete step -- but a speedup that came only from skipping the
-         // thermal field would not be a coarse-graining result, so the
-         // Hamiltonian-only floor (two heisge calls, the work adaptive really
-         // replaces) is reported alongside it as the conservative bound.
+         // generates 3*N*M random numbers every step even at temp 0. Adaptive
+         // field/coarse timing excludes that shared fine-spin integration by
+         // design; the production Depondt parity test covers that integration.
          std::printf(
             "production-atomistic-composition thermfield_rng_per_step=%zu "
             "heisge_calls_per_step=2 hamiltonian_only_floor_us=%.6f "
             "rng_and_integration_residual_us=%.6f note=%s\n",
             3 * fixture.atoms, 2.0 * productionField.medianUs,
             productionStep.medianUs - 2.0 * productionField.medianUs,
-            "adaptive Heun is deterministic; production Depondt randomizes even at T=0");
+            "adaptive field/coarse timing excludes shared production Depondt");
          printSamples("production-atomistic-step-sample", productionStep.wallUs);
          printSamples("production-atomistic-field-sample", productionField.wallUs);
 
@@ -1175,17 +1180,17 @@ int main(int argc, char** argv) {
                static_cast<double>(fixture.atoms);
             point.allocatedBytes = runtime.allocatedBytes();
 
-            // Headline: complete Heun step, phase instrumentation off.
+            // Headline: complete adaptive field/coarse step, instrumentation off.
             runtime.setPhaseTimingEnabled(false);
             point.untimedStep = timeSteadyState(options, [&]() {
-               runtime.integrateHeun(timestep, atomDirection.data());
+               adaptiveCoarseStep();
             });
 
             // Breakdown: identical work, per-phase device timers on.
             runtime.setPhaseTimingEnabled(true);
             runtime.resetPhaseMetrics();
             point.instrumentedStep = timeSteadyState(options, [&]() {
-               runtime.integrateHeun(timestep, atomDirection.data());
+               adaptiveCoarseStep();
             });
             point.phases = runtime.phaseMetrics();
             point.phaseIterations = static_cast<double>(options.iterations) *

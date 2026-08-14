@@ -1110,20 +1110,25 @@ void GpuSimulation::updateAdaptiveBlockState(const int* blockState, std::size_t 
 }
 
 void GpuSimulation::advanceAdaptiveStep(
-   std::size_t step, GpuHamiltonianCalculations* hamiltonian) {
+   std::size_t step, GpuHamiltonianCalculations* hamiltonian,
+   GpuDepondtIntegrator* integrator) {
    if(!gpuAdaptiveRuntime.ready() || !gpuAdaptiveRuntime.kernelsReady())
       throw std::logic_error("GPU adaptive production step requires a ready CG-10 runtime");
+   if(!integrator)
+      throw std::logic_error("GPU adaptive production step requires the shared Depondt integrator");
    // RCG-06C (F-18): independent host wall-clock measurement of the entire
    // step, so the sum of the device-event phase timers below can be
    // reconciled against it and any unaccounted time reported rather than
    // assumed to be ~0.
    const auto adaptiveStepWallStarted = std::chrono::steady_clock::now();
-   GpuAdaptiveFftEvaluator fftEvaluator{};
-   if(hamiltonian && hamiltonian->hasAdaptiveFftDipole()) {
-      fftEvaluator = [this, hamiltonian](const real* direction) {
+   auto evaluateAdaptiveFields = [this, hamiltonian](const real* direction) {
+      gpuAdaptiveRuntime.synchronize();
+      GpuAdaptiveFftEvaluator fftEvaluator{};
+      if(hamiltonian && hamiltonian->hasAdaptiveFftDipole()) {
+         fftEvaluator = [this, hamiltonian](const real* fftDirection) {
          const auto started = std::chrono::steady_clock::now();
          auto view = hamiltonian->evaluateAdaptiveFftDipole(
-            direction, gpuLattice.mmom,
+            fftDirection, gpuLattice.mmom,
             gpuAdaptiveRuntime.deviceTopology(),
             gpuAdaptiveRuntime.deviceRuntime());
          ASSERT_GPU(GPU_STREAM_SYNC(
@@ -1133,11 +1138,38 @@ void GpuSimulation::advanceAdaptiveStep(
             std::chrono::duration<double, std::milli>(
                stopped - started).count());
          return view;
-      };
-   }
-   gpuAdaptiveRuntime.integrateHeun(
-      static_cast<real>(SimParam.delta_t), gpuLattice.emom.data(),
-      nullptr, nullptr, fftEvaluator);
+         };
+      }
+      GpuAdaptiveUniformFftField fftField{};
+      const GpuAdaptiveUniformFftField* fftFieldPtr = nullptr;
+      if(fftEvaluator) {
+         fftField = fftEvaluator(direction);
+         fftFieldPtr = &fftField;
+      }
+      (void)gpuAdaptiveRuntime.evaluateHybrid(
+         direction, nullptr, nullptr, gpuLattice.beff.data(),
+         gpuAdaptiveRuntime.coarseFieldData(), fftFieldPtr);
+      gpuAdaptiveRuntime.synchronize();
+   };
+   const std::size_t activeAtomCount = gpuAdaptiveRuntime.activeAtomCount();
+   const int* activeAtomList = gpuAdaptiveRuntime.activeAtomList();
+
+   // Initial total field -> production Depondt predictor -> predictor total
+   // field -> production Depondt corrector.  The adaptive runtime owns only
+   // field assembly and coarse-block integration; fine atoms use the same
+   // shared integrator and thermal field as feature-off ASD.
+   evaluateAdaptiveFields(gpuLattice.emom.data());
+   gpuAdaptiveRuntime.prepareCoarsePredictor(
+      static_cast<real>(SimParam.delta_t), gpuAdaptiveRuntime.coarseFieldData());
+   gpuAdaptiveRuntime.synchronize();
+   integrator->evolveFirst(gpuLattice, activeAtomList, activeAtomCount);
+   ASSERT_GPU(GPU_STREAM_SYNC(ParallelizationHelperInstance.getWorkStream()));
+   evaluateAdaptiveFields(gpuLattice.emom.data());
+   integrator->evolveSecond(gpuLattice, activeAtomList, activeAtomCount);
+   ASSERT_GPU(GPU_STREAM_SYNC(ParallelizationHelperInstance.getWorkStream()));
+   gpuAdaptiveRuntime.correctCoarse(
+      static_cast<real>(SimParam.delta_t), gpuAdaptiveRuntime.coarseFieldData());
+   gpuAdaptiveRuntime.synchronize();
    gpuAdaptiveRuntime.synchronizeAtomicState(
       gpuLattice.emom.data(), adaptiveReconstructionPolicy);
    if(adaptiveMaskEnabled && adaptiveUpdateInterval > 0 &&

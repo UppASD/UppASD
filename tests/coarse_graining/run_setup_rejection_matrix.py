@@ -54,8 +54,6 @@ def main() -> None:
         # therefore no longer a setup-time rejection to assert for this
         # case; it has been removed rather than left asserting stale
         # behaviour.
-        "temperature": (replace_line(source, "temp", "10.0"), "Temp/do_qhb/do_3tm"),
-        "stochastic-integrator": (replace_line(source, "SDEalgh", "2"), "SDEalgh/llg"),
         "boundary": (replace_line(source, "BC", "O P P"), "BC:"),
         "missing-characteristic-length": (remove_line(source, "alat"), "alat:"),
         "partial-block": (replace_line(source, "block_size_y", "3"), "block_size_x/y/z"),

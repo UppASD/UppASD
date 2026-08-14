@@ -537,22 +537,20 @@ void testKernelParityAndWorkflow() {
    }
 
    const auto beforeStep = runtime.downloadWorkSnapshot();
-   runtime.integrateHeun(real(1.0e-3), atomDirection.data(),
-                         externalField.data(), dipoleField.data());
+   (void)runtime.evaluateHybrid(atomDirection.data(), externalField.data(),
+                                dipoleField.data(), atomField.data(),
+                                coarseField.data());
+   runtime.prepareCoarsePredictor(real(1.0e-3), coarseField.data());
+   runtime.synchronize();
+   (void)runtime.evaluateHybrid(atomDirection.data(), externalField.data(),
+                                dipoleField.data(), atomField.data(),
+                                coarseField.data());
+   runtime.correctCoarse(real(1.0e-3), coarseField.data());
+   runtime.synchronize();
    const auto afterStep = runtime.downloadWorkSnapshot();
    require(beforeStep.activeAtoms == afterStep.activeAtoms &&
            beforeStep.activeBlocks == afterStep.activeBlocks,
-           "Heun integration changed adaptive state inside a stage");
-   const auto stepped = download(atomDirection.data(), atomVectors);
-   for(const int oneBasedAtom : afterStep.activeAtoms) {
-      const std::size_t atom = static_cast<std::size_t>(oneBasedAtom - 1);
-      double norm2 = 0.0;
-      for(int xyz = 0; xyz < 3; ++xyz)
-         norm2 += static_cast<double>(stepped[xyz + 3 * atom]) *
-                  static_cast<double>(stepped[xyz + 3 * atom]);
-      require(std::abs(norm2 - 1.0) < (sizeof(real) == sizeof(double) ? 2.0e-12 : 2.0e-5),
-              "GPU Heun integration did not preserve unit directions");
-   }
+           "coarse predictor/corrector changed adaptive ownership inside a stage");
 
    runtime.recordFftMilliseconds(0.125);
    const auto phases = runtime.phaseMetrics();
