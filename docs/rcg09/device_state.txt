@@ -1,0 +1,11 @@
+# RCG-09 device state during the diagnostic measurements of 2026-08-14
+# Recorded with nvidia-smi. See evidence document SS4.1: contended and thermally throttled.
+
+index, name, driver_version, utilization.gpu [%], memory.used [MiB], memory.total [MiB], temperature.gpu, clocks.current.sm [MHz], clocks.max.sm [MHz], clocks_event_reasons.active, persistence_mode, compute_mode
+0, NVIDIA RTX A4000, 610.57.04, 53 %, 4206 MiB, 16376 MiB, 93, 1710 MHz, 2100 MHz, 0x0000000000000020, Enabled, Default
+1, NVIDIA RTX A4000, 610.57.04, 95 %, 11425 MiB, 16376 MiB, 92, 1440 MHz, 2100 MHz, 0x0000000000000004, Enabled, Default
+
+# foreign compute processes
+pid, process_name, used_gpu_memory [MiB]
+2165640, /home/oskarn/GNN_project/.venv/bin/python, 4096 MiB
+2165673, /home/oskarn/GNN_project/.venv/bin/python, 11402 MiB

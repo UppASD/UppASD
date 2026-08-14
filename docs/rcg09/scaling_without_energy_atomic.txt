@@ -1,0 +1,181 @@
+# RCG-09 NEGATIVE CONTROL: identical binary except RCG09_DISABLE_BOND_ENERGY_ATOMIC
+# The single atomicAddEnergyTerm call in evaluateAdaptiveAtomisticBonds is compiled out.
+# The patch was reverted from the tree; this build exists only to establish causation.
+##### --blocks 1024 --atoms-per-block 4
+adaptive-benchmark precision=fp64 backend=CUDA blocks=1024 atoms_per_block=4 atoms=4096 ensembles=1 texture=spiral warmup=1 iterations=3 repetitions=3 crossover_margin_percent=2.000000 parity_tolerance=1.000e-12
+adaptive-benchmark-geometry atoms=4096 blocks=1024 basis=4 bonds=7168 exchange_j=0.100000
+production-baseline-setup wall_us=257357.880000 max_neighbours=4 sdealgh=1 integrator=depondt temperature=0 damping=0.100000
+adaptive-setup wall_us=11592.819000 device_bytes=2466312
+atomistic-parity max_abs_diff=1.110223e-16 max_rel_diff=2.830551e-16 reference_scale=3.922286e-01 tolerance=1.000e-12 components=12288 result=PASS
+production-atomistic field_wall_us=6.593000 field_mad_us=0.278667 step_wall_us=67.285000 step_mad_us=0.024667 atoms=4096 bonds=7168 repetitions=3 iterations=3
+production-atomistic-composition thermfield_rng_per_step=12288 heisge_calls_per_step=2 hamiltonian_only_floor_us=13.186000 rng_and_integration_residual_us=54.099000 note=adaptive Heun is deterministic; production Depondt randomizes even at T=0
+production-atomistic-step-sample index=0 wall_us=67.309667
+production-atomistic-step-sample index=1 wall_us=66.919667
+production-atomistic-step-sample index=2 wall_us=67.285000
+production-atomistic-field-sample index=0 wall_us=8.310333
+production-atomistic-field-sample index=1 wall_us=6.593000
+production-atomistic-field-sample index=2 wall_us=6.314333
+adaptive-sweep requested_fraction=1.000000 active_atoms=4096 active_blocks=0 interface_atoms=0 live_bonds=7168 active_atom_fraction=1.000000 active_block_fraction=0.000000 interface_fraction=0.000000 live_bond_fraction=1.000000 active_dof_ratio=1.000000 step_wall_us=143.182667 step_mad_us=4.339000 instrumented_wall_us=10349.692333 instrumented_mad_us=4584.703000 instrumentation_overhead_percent=7128.313716 device_bytes=2466312
+adaptive-sweep-phases requested_fraction=1.000000 atomistic_us=63.452444 coarse_us=39.224889 interface_us=40.348444 selector_us=0.000000 polarization_us=0.000000 compaction_us=0.000000 fft_us=0.000000 integration_us=49.813334 phase_sum_us=192.839111 unaccounted_us=10156.853222 phase_syncs_per_step=11.111
+adaptive-sweep-launches requested_fraction=1.000000 atomistic=8.889 coarse=11.111 interface=6.667 selector=0.000 polarization=0.000 compaction=0.000 integration=4.444
+adaptive-sweep-sample fraction=1.000000 index=0 wall_us=134.905333
+adaptive-sweep-sample fraction=1.000000 index=1 wall_us=143.182667
+adaptive-sweep-sample fraction=1.000000 index=2 wall_us=147.521667
+adaptive-sweep requested_fraction=0.750000 active_atoms=3080 active_blocks=254 interface_atoms=8 live_bonds=5394 active_atom_fraction=0.751953 active_block_fraction=0.248047 interface_fraction=0.001953 live_bond_fraction=0.752511 active_dof_ratio=0.813965 step_wall_us=14108.607000 step_mad_us=1009.615333 instrumented_wall_us=16640.612333 instrumented_mad_us=1112.362333 instrumentation_overhead_percent=17.946530 device_bytes=2466312
+adaptive-sweep-phases requested_fraction=0.750000 atomistic_us=60.295111 coarse_us=6824.049711 interface_us=109.105777 selector_us=0.000000 polarization_us=0.000000 compaction_us=0.000000 fft_us=0.000000 integration_us=83.406223 phase_sum_us=7076.856823 unaccounted_us=9563.755511 phase_syncs_per_step=11.111
+adaptive-sweep-launches requested_fraction=0.750000 atomistic=8.889 coarse=11.111 interface=6.667 selector=0.000 polarization=0.000 compaction=0.000 integration=4.444
+adaptive-sweep-sample fraction=0.750000 index=0 wall_us=8606.682667
+adaptive-sweep-sample fraction=0.750000 index=1 wall_us=14108.607000
+adaptive-sweep-sample fraction=0.750000 index=2 wall_us=15118.222333
+adaptive-sweep requested_fraction=0.500000 active_atoms=2056 active_blocks=510 interface_atoms=8 live_bonds=3602 active_atom_fraction=0.501953 active_block_fraction=0.498047 interface_fraction=0.001953 live_bond_fraction=0.502511 active_dof_ratio=0.626465 step_wall_us=5094.451667 step_mad_us=310.014000 instrumented_wall_us=18084.956000 instrumented_mad_us=777.920000 instrumentation_overhead_percent=254.993180 device_bytes=2466312
+adaptive-sweep-phases requested_fraction=0.500000 atomistic_us=79.082667 coarse_us=7061.642673 interface_us=108.163556 selector_us=0.000000 polarization_us=0.000000 compaction_us=0.000000 fft_us=0.000000 integration_us=78.165334 phase_sum_us=7327.054230 unaccounted_us=10757.901770 phase_syncs_per_step=11.111
+adaptive-sweep-launches requested_fraction=0.500000 atomistic=8.889 coarse=11.111 interface=6.667 selector=0.000 polarization=0.000 compaction=0.000 integration=4.444
+adaptive-sweep-sample fraction=0.500000 index=0 wall_us=9548.088000
+adaptive-sweep-sample fraction=0.500000 index=1 wall_us=4784.437667
+adaptive-sweep-sample fraction=0.500000 index=2 wall_us=5094.451667
+adaptive-sweep requested_fraction=0.250000 active_atoms=1032 active_blocks=766 interface_atoms=8 live_bonds=1810 active_atom_fraction=0.251953 active_block_fraction=0.748047 interface_fraction=0.001953 live_bond_fraction=0.252511 active_dof_ratio=0.438965 step_wall_us=10355.096667 step_mad_us=1395.723667 instrumented_wall_us=14420.373333 instrumented_mad_us=1401.758000 instrumentation_overhead_percent=39.258703 device_bytes=2466312
+adaptive-sweep-phases requested_fraction=0.250000 atomistic_us=76.423111 coarse_us=4731.879102 interface_us=107.132445 selector_us=0.000000 polarization_us=0.000000 compaction_us=0.000000 fft_us=0.000000 integration_us=81.944889 phase_sum_us=4997.379547 unaccounted_us=9422.993786 phase_syncs_per_step=11.111
+adaptive-sweep-launches requested_fraction=0.250000 atomistic=8.889 coarse=11.111 interface=6.667 selector=0.000 polarization=0.000 compaction=0.000 integration=4.444
+adaptive-sweep-sample fraction=0.250000 index=0 wall_us=12374.864667
+adaptive-sweep-sample fraction=0.250000 index=1 wall_us=10355.096667
+adaptive-sweep-sample fraction=0.250000 index=2 wall_us=8959.373000
+adaptive-sweep requested_fraction=0.125000 active_atoms=520 active_blocks=894 interface_atoms=8 live_bonds=914 active_atom_fraction=0.126953 active_block_fraction=0.873047 interface_fraction=0.001953 live_bond_fraction=0.127511 active_dof_ratio=0.345215 step_wall_us=8700.011000 step_mad_us=653.606000 instrumented_wall_us=7690.380667 instrumented_mad_us=3500.200000 instrumentation_overhead_percent=-11.604932 device_bytes=2466312
+adaptive-sweep-phases requested_fraction=0.125000 atomistic_us=53.020444 coarse_us=4106.001814 interface_us=100.295111 selector_us=0.000000 polarization_us=0.000000 compaction_us=0.000000 fft_us=0.000000 integration_us=69.155556 phase_sum_us=4328.472925 unaccounted_us=3361.907741 phase_syncs_per_step=11.111
+adaptive-sweep-launches requested_fraction=0.125000 atomistic=8.889 coarse=11.111 interface=6.667 selector=0.000 polarization=0.000 compaction=0.000 integration=4.444
+adaptive-sweep-sample fraction=0.125000 index=0 wall_us=9353.617000
+adaptive-sweep-sample fraction=0.125000 index=1 wall_us=8700.011000
+adaptive-sweep-sample fraction=0.125000 index=2 wall_us=3922.752333
+adaptive-sweep requested_fraction=0.062500 active_atoms=264 active_blocks=958 interface_atoms=8 live_bonds=466 active_atom_fraction=0.064453 active_block_fraction=0.935547 interface_fraction=0.001953 live_bond_fraction=0.065011 active_dof_ratio=0.298340 step_wall_us=8346.607667 step_mad_us=441.477667 instrumented_wall_us=5069.517333 instrumented_mad_us=519.919667 instrumentation_overhead_percent=-39.262542 device_bytes=2466312
+adaptive-sweep-phases requested_fraction=0.062500 atomistic_us=76.295110 coarse_us=3996.224006 interface_us=97.994667 selector_us=0.000000 polarization_us=0.000000 compaction_us=0.000000 fft_us=0.000000 integration_us=72.145778 phase_sum_us=4242.659562 unaccounted_us=826.857772 phase_syncs_per_step=11.111
+adaptive-sweep-launches requested_fraction=0.062500 atomistic=8.889 coarse=11.111 interface=6.667 selector=0.000 polarization=0.000 compaction=0.000 integration=4.444
+adaptive-sweep-sample fraction=0.062500 index=0 wall_us=7905.130000
+adaptive-sweep-sample fraction=0.062500 index=1 wall_us=8976.825000
+adaptive-sweep-sample fraction=0.062500 index=2 wall_us=8346.607667
+adaptive-sweep requested_fraction=0.000000 active_atoms=0 active_blocks=1024 interface_atoms=0 live_bonds=0 active_atom_fraction=0.000000 active_block_fraction=1.000000 interface_fraction=0.000000 live_bond_fraction=0.000000 active_dof_ratio=0.250000 step_wall_us=8953.381667 step_mad_us=74.137000 instrumented_wall_us=8478.275333 instrumented_mad_us=4379.624333 instrumentation_overhead_percent=-5.306446 device_bytes=2466312
+adaptive-sweep-phases requested_fraction=0.000000 atomistic_us=54.407111 coarse_us=4024.661356 interface_us=94.513778 selector_us=0.000000 polarization_us=0.000000 compaction_us=0.000000 fft_us=0.000000 integration_us=51.438223 phase_sum_us=4225.020466 unaccounted_us=4253.254867 phase_syncs_per_step=11.111
+adaptive-sweep-launches requested_fraction=0.000000 atomistic=8.889 coarse=11.111 interface=6.667 selector=0.000 polarization=0.000 compaction=0.000 integration=4.444
+adaptive-sweep-sample fraction=0.000000 index=0 wall_us=9027.518667
+adaptive-sweep-sample fraction=0.000000 index=1 wall_us=8485.125000
+adaptive-sweep-sample fraction=0.000000 index=2 wall_us=8953.381667
+adaptive-overhead selector_device_us=19.797334 selector_wall_us=4706.877333 compaction_device_us=1271.808027 compaction_host_wait_us=2805.383000 compaction_wall_us=2838.640333 block_bytes_per_update=4096 device_bytes=2466312
+production-crossover result=NOT_OBSERVED production_step_wall_us=67.285000 best_adaptive_step_wall_us=8953.381667 acceptance_margin_percent=2.000000
+adaptive-self-reference note=DIAGNOSTIC_NOT_A_BASELINE all_fine_step_wall_us=143.182667 zero_fine_step_wall_us=8953.381667 self_ratio=0.015992
+##### --blocks 4096 --atoms-per-block 4
+adaptive-benchmark precision=fp64 backend=CUDA blocks=4096 atoms_per_block=4 atoms=16384 ensembles=1 texture=spiral warmup=1 iterations=3 repetitions=3 crossover_margin_percent=2.000000 parity_tolerance=1.000e-12
+adaptive-benchmark-geometry atoms=16384 blocks=4096 basis=4 bonds=28672 exchange_j=0.100000
+production-baseline-setup wall_us=221110.317000 max_neighbours=4 sdealgh=1 integrator=depondt temperature=0 damping=0.100000
+adaptive-setup wall_us=17416.448000 device_bytes=9864264
+atomistic-parity max_abs_diff=1.110223e-16 max_rel_diff=2.830526e-16 reference_scale=3.922320e-01 tolerance=1.000e-12 components=49152 result=PASS
+production-atomistic field_wall_us=785.688000 field_mad_us=0.948000 step_wall_us=906.513667 step_mad_us=2.505667 atoms=16384 bonds=28672 repetitions=3 iterations=3
+production-atomistic-composition thermfield_rng_per_step=49152 heisge_calls_per_step=2 hamiltonian_only_floor_us=1571.376000 rng_and_integration_residual_us=-664.862333 note=adaptive Heun is deterministic; production Depondt randomizes even at T=0
+production-atomistic-step-sample index=0 wall_us=906.513667
+production-atomistic-step-sample index=1 wall_us=910.756667
+production-atomistic-step-sample index=2 wall_us=904.008000
+production-atomistic-field-sample index=0 wall_us=785.688000
+production-atomistic-field-sample index=1 wall_us=789.511333
+production-atomistic-field-sample index=2 wall_us=784.740000
+adaptive-sweep requested_fraction=1.000000 active_atoms=16384 active_blocks=0 interface_atoms=0 live_bonds=28672 active_atom_fraction=1.000000 active_block_fraction=0.000000 interface_fraction=0.000000 live_bond_fraction=1.000000 active_dof_ratio=1.000000 step_wall_us=207.967667 step_mad_us=4.851000 instrumented_wall_us=311.649667 instrumented_mad_us=26.549000 instrumentation_overhead_percent=49.854865 device_bytes=9864264
+adaptive-sweep-phases requested_fraction=1.000000 atomistic_us=100.000000 coarse_us=40.625778 interface_us=35.356445 selector_us=0.000000 polarization_us=0.000000 compaction_us=0.000000 fft_us=0.000000 integration_us=70.158222 phase_sum_us=246.140445 unaccounted_us=65.509221 phase_syncs_per_step=11.111
+adaptive-sweep-launches requested_fraction=1.000000 atomistic=8.889 coarse=11.111 interface=6.667 selector=0.000 polarization=0.000 compaction=0.000 integration=4.444
+adaptive-sweep-sample fraction=1.000000 index=0 wall_us=207.967667
+adaptive-sweep-sample fraction=1.000000 index=1 wall_us=213.822667
+adaptive-sweep-sample fraction=1.000000 index=2 wall_us=203.116667
+adaptive-sweep requested_fraction=0.750000 active_atoms=12296 active_blocks=1022 interface_atoms=8 live_bonds=21522 active_atom_fraction=0.750488 active_block_fraction=0.249512 interface_fraction=0.000488 live_bond_fraction=0.750628 active_dof_ratio=0.812866 step_wall_us=9130.344333 step_mad_us=207.751000 instrumented_wall_us=5918.901333 instrumented_mad_us=852.246000 instrumentation_overhead_percent=-35.173296 device_bytes=9864264
+adaptive-sweep-phases requested_fraction=0.750000 atomistic_us=89.564445 coarse_us=5044.024918 interface_us=112.679112 selector_us=0.000000 polarization_us=0.000000 compaction_us=0.000000 fft_us=0.000000 integration_us=96.259555 phase_sum_us=5342.528029 unaccounted_us=576.373304 phase_syncs_per_step=11.111
+adaptive-sweep-launches requested_fraction=0.750000 atomistic=8.889 coarse=11.111 interface=6.667 selector=0.000 polarization=0.000 compaction=0.000 integration=4.444
+adaptive-sweep-sample fraction=0.750000 index=0 wall_us=8823.152333
+adaptive-sweep-sample fraction=0.750000 index=1 wall_us=9338.095333
+adaptive-sweep-sample fraction=0.750000 index=2 wall_us=9130.344333
+adaptive-sweep requested_fraction=0.500000 active_atoms=8200 active_blocks=2046 interface_atoms=8 live_bonds=14354 active_atom_fraction=0.500488 active_block_fraction=0.499512 interface_fraction=0.000488 live_bond_fraction=0.500628 active_dof_ratio=0.625366 step_wall_us=14042.726333 step_mad_us=1537.949333 instrumented_wall_us=18104.919667 instrumented_mad_us=594.317000 instrumentation_overhead_percent=28.927384 device_bytes=9864264
+adaptive-sweep-phases requested_fraction=0.500000 atomistic_us=82.944002 coarse_us=8847.139570 interface_us=113.994667 selector_us=0.000000 polarization_us=0.000000 compaction_us=0.000000 fft_us=0.000000 integration_us=83.420444 phase_sum_us=9127.498684 unaccounted_us=8977.420983 phase_syncs_per_step=11.111
+adaptive-sweep-launches requested_fraction=0.500000 atomistic=8.889 coarse=11.111 interface=6.667 selector=0.000 polarization=0.000 compaction=0.000 integration=4.444
+adaptive-sweep-sample fraction=0.500000 index=0 wall_us=14042.726333
+adaptive-sweep-sample fraction=0.500000 index=1 wall_us=15580.675667
+adaptive-sweep-sample fraction=0.500000 index=2 wall_us=7402.595000
+adaptive-sweep requested_fraction=0.250000 active_atoms=4104 active_blocks=3070 interface_atoms=8 live_bonds=7186 active_atom_fraction=0.250488 active_block_fraction=0.749512 interface_fraction=0.000488 live_bond_fraction=0.250628 active_dof_ratio=0.437866 step_wall_us=16882.920667 step_mad_us=155.949333 instrumented_wall_us=24288.542333 instrumented_mad_us=4761.727667 instrumentation_overhead_percent=43.864577 device_bytes=9864264
+adaptive-sweep-phases requested_fraction=0.250000 atomistic_us=81.336890 coarse_us=10460.832013 interface_us=120.373334 selector_us=0.000000 polarization_us=0.000000 compaction_us=0.000000 fft_us=0.000000 integration_us=75.612444 phase_sum_us=10738.154681 unaccounted_us=13550.387652 phase_syncs_per_step=11.111
+adaptive-sweep-launches requested_fraction=0.250000 atomistic=8.889 coarse=11.111 interface=6.667 selector=0.000 polarization=0.000 compaction=0.000 integration=4.444
+adaptive-sweep-sample fraction=0.250000 index=0 wall_us=17038.870000
+adaptive-sweep-sample fraction=0.250000 index=1 wall_us=16882.920667
+adaptive-sweep-sample fraction=0.250000 index=2 wall_us=7560.709000
+adaptive-sweep requested_fraction=0.125000 active_atoms=2056 active_blocks=3582 interface_atoms=8 live_bonds=3602 active_atom_fraction=0.125488 active_block_fraction=0.874512 interface_fraction=0.000488 live_bond_fraction=0.125628 active_dof_ratio=0.344116 step_wall_us=16393.657333 step_mad_us=435.064333 instrumented_wall_us=23988.189333 instrumented_mad_us=99.786333 instrumentation_overhead_percent=46.326038 device_bytes=9864264
+adaptive-sweep-phases requested_fraction=0.125000 atomistic_us=74.037333 coarse_us=11825.585763 interface_us=170.780446 selector_us=0.000000 polarization_us=0.000000 compaction_us=0.000000 fft_us=0.000000 integration_us=66.357333 phase_sum_us=12136.760875 unaccounted_us=11851.428459 phase_syncs_per_step=11.111
+adaptive-sweep-launches requested_fraction=0.125000 atomistic=8.889 coarse=11.111 interface=6.667 selector=0.000 polarization=0.000 compaction=0.000 integration=4.444
+adaptive-sweep-sample fraction=0.125000 index=0 wall_us=16828.721667
+adaptive-sweep-sample fraction=0.125000 index=1 wall_us=16393.657333
+adaptive-sweep-sample fraction=0.125000 index=2 wall_us=7971.313333
+adaptive-sweep requested_fraction=0.062500 active_atoms=1032 active_blocks=3838 interface_atoms=8 live_bonds=1810 active_atom_fraction=0.062988 active_block_fraction=0.937012 interface_fraction=0.000488 live_bond_fraction=0.063128 active_dof_ratio=0.297241 step_wall_us=19419.775667 step_mad_us=392.795000 instrumented_wall_us=27388.363000 instrumented_mad_us=3921.643333 instrumentation_overhead_percent=41.033364 device_bytes=9864264
+adaptive-sweep-phases requested_fraction=0.062500 atomistic_us=75.111111 coarse_us=14717.980491 interface_us=174.538667 selector_us=0.000000 polarization_us=0.000000 compaction_us=0.000000 fft_us=0.000000 integration_us=68.711112 phase_sum_us=15036.341381 unaccounted_us=12352.021619 phase_syncs_per_step=11.111
+adaptive-sweep-launches requested_fraction=0.062500 atomistic=8.889 coarse=11.111 interface=6.667 selector=0.000 polarization=0.000 compaction=0.000 integration=4.444
+adaptive-sweep-sample fraction=0.062500 index=0 wall_us=10026.260333
+adaptive-sweep-sample fraction=0.062500 index=1 wall_us=19812.570667
+adaptive-sweep-sample fraction=0.062500 index=2 wall_us=19419.775667
+adaptive-sweep requested_fraction=0.000000 active_atoms=0 active_blocks=4096 interface_atoms=0 live_bonds=0 active_atom_fraction=0.000000 active_block_fraction=1.000000 interface_fraction=0.000000 live_bond_fraction=0.000000 active_dof_ratio=0.250000 step_wall_us=18544.595000 step_mad_us=932.455667 instrumented_wall_us=24095.388000 instrumented_mad_us=2553.537667 instrumentation_overhead_percent=29.932134 device_bytes=9864264
+adaptive-sweep-phases requested_fraction=0.000000 atomistic_us=32.384000 coarse_us=14067.160924 interface_us=155.260444 selector_us=0.000000 polarization_us=0.000000 compaction_us=0.000000 fft_us=0.000000 integration_us=53.262222 phase_sum_us=14308.067590 unaccounted_us=9787.320410 phase_syncs_per_step=11.111
+adaptive-sweep-launches requested_fraction=0.000000 atomistic=8.889 coarse=11.111 interface=6.667 selector=0.000 polarization=0.000 compaction=0.000 integration=4.444
+adaptive-sweep-sample fraction=0.000000 index=0 wall_us=17612.139333
+adaptive-sweep-sample fraction=0.000000 index=1 wall_us=18544.595000
+adaptive-sweep-sample fraction=0.000000 index=2 wall_us=20330.778000
+adaptive-overhead selector_device_us=21.162667 selector_wall_us=2671.690333 compaction_device_us=1622.698640 compaction_host_wait_us=2438.744667 compaction_wall_us=2471.416333 block_bytes_per_update=16384 device_bytes=9864264
+production-crossover result=PASS requested_fraction=1.000000 active_dof_ratio=1.000000 active_atom_fraction=1.000000 live_bond_fraction=1.000000 adaptive_step_wall_us=207.967667 production_step_wall_us=906.513667 speedup=4.358916 uncertainty_us=22.070000 acceptance_margin_percent=2.000000
+production-crossover-conservative hamiltonian_only_floor_us=1571.376000 adaptive_step_wall_us=207.967667 conservative_speedup=7.555867 note=excludes the production thermfield RNG the adaptive path never runs
+adaptive-self-reference note=DIAGNOSTIC_NOT_A_BASELINE all_fine_step_wall_us=207.967667 zero_fine_step_wall_us=18544.595000 self_ratio=0.011214
+##### --blocks 16384 --atoms-per-block 4
+adaptive-benchmark precision=fp64 backend=CUDA blocks=16384 atoms_per_block=4 atoms=65536 ensembles=1 texture=spiral warmup=1 iterations=3 repetitions=3 crossover_margin_percent=2.000000 parity_tolerance=1.000e-12
+adaptive-benchmark-geometry atoms=65536 blocks=16384 basis=4 bonds=114688 exchange_j=0.100000
+production-baseline-setup wall_us=250400.970000 max_neighbours=4 sdealgh=1 integrator=depondt temperature=0 damping=0.100000
+adaptive-setup wall_us=13794.417000 device_bytes=39456072
+atomistic-parity max_abs_diff=1.110223e-16 max_rel_diff=2.830525e-16 reference_scale=3.922323e-01 tolerance=1.000e-12 components=196608 result=PASS
+production-atomistic field_wall_us=810.500000 field_mad_us=3.175333 step_wall_us=1170.536000 step_mad_us=5.249000 atoms=65536 bonds=114688 repetitions=3 iterations=3
+production-atomistic-composition thermfield_rng_per_step=196608 heisge_calls_per_step=2 hamiltonian_only_floor_us=1621.000000 rng_and_integration_residual_us=-450.464000 note=adaptive Heun is deterministic; production Depondt randomizes even at T=0
+production-atomistic-step-sample index=0 wall_us=1170.536000
+production-atomistic-step-sample index=1 wall_us=1175.785000
+production-atomistic-step-sample index=2 wall_us=719.050000
+production-atomistic-field-sample index=0 wall_us=816.289333
+production-atomistic-field-sample index=1 wall_us=807.324667
+production-atomistic-field-sample index=2 wall_us=810.500000
+adaptive-sweep requested_fraction=1.000000 active_atoms=65536 active_blocks=0 interface_atoms=0 live_bonds=114688 active_atom_fraction=1.000000 active_block_fraction=0.000000 interface_fraction=0.000000 live_bond_fraction=1.000000 active_dof_ratio=1.000000 step_wall_us=4703.132000 step_mad_us=1203.862667 instrumented_wall_us=587.777667 instrumented_mad_us=14.901333 instrumentation_overhead_percent=-87.502420 device_bytes=39456072
+adaptive-sweep-phases requested_fraction=1.000000 atomistic_us=276.675554 coarse_us=57.329777 interface_us=56.024889 selector_us=0.000000 polarization_us=0.000000 compaction_us=0.000000 fft_us=0.000000 integration_us=165.408001 phase_sum_us=555.438221 unaccounted_us=32.339445 phase_syncs_per_step=11.111
+adaptive-sweep-launches requested_fraction=1.000000 atomistic=8.889 coarse=11.111 interface=6.667 selector=0.000 polarization=0.000 compaction=0.000 integration=4.444
+adaptive-sweep-sample fraction=1.000000 index=0 wall_us=5906.994667
+adaptive-sweep-sample fraction=1.000000 index=1 wall_us=4703.132000
+adaptive-sweep-sample fraction=1.000000 index=2 wall_us=452.996667
+adaptive-sweep requested_fraction=0.750000 active_atoms=49160 active_blocks=4094 interface_atoms=8 live_bonds=86034 active_atom_fraction=0.750122 active_block_fraction=0.249878 interface_fraction=0.000122 live_bond_fraction=0.750157 active_dof_ratio=0.812592 step_wall_us=23000.264000 step_mad_us=1526.500667 instrumented_wall_us=24804.573000 instrumented_mad_us=2690.595667 instrumentation_overhead_percent=7.844732 device_bytes=39456072
+adaptive-sweep-phases requested_fraction=0.750000 atomistic_us=196.732443 coarse_us=14500.064161 interface_us=231.879114 selector_us=0.000000 polarization_us=0.000000 compaction_us=0.000000 fft_us=0.000000 integration_us=137.013334 phase_sum_us=15065.689053 unaccounted_us=9738.883947 phase_syncs_per_step=11.111
+adaptive-sweep-launches requested_fraction=0.750000 atomistic=8.889 coarse=11.111 interface=6.667 selector=0.000 polarization=0.000 compaction=0.000 integration=4.444
+adaptive-sweep-sample fraction=0.750000 index=0 wall_us=24526.764667
+adaptive-sweep-sample fraction=0.750000 index=1 wall_us=15601.039667
+adaptive-sweep-sample fraction=0.750000 index=2 wall_us=23000.264000
+adaptive-sweep requested_fraction=0.500000 active_atoms=32776 active_blocks=8190 interface_atoms=8 live_bonds=57362 active_atom_fraction=0.500122 active_block_fraction=0.499878 interface_fraction=0.000122 live_bond_fraction=0.500157 active_dof_ratio=0.625092 step_wall_us=39061.250000 step_mad_us=3838.823333 instrumented_wall_us=57674.585333 instrumented_mad_us=3143.035000 instrumentation_overhead_percent=47.651663 device_bytes=39456072
+adaptive-sweep-phases requested_fraction=0.500000 atomistic_us=158.382224 coarse_us=42923.348745 interface_us=346.392887 selector_us=0.000000 polarization_us=0.000000 compaction_us=0.000000 fft_us=0.000000 integration_us=129.016890 phase_sum_us=43557.140745 unaccounted_us=14117.444588 phase_syncs_per_step=11.111
+adaptive-sweep-launches requested_fraction=0.500000 atomistic=8.889 coarse=11.111 interface=6.667 selector=0.000 polarization=0.000 compaction=0.000 integration=4.444
+adaptive-sweep-sample fraction=0.500000 index=0 wall_us=39061.250000
+adaptive-sweep-sample fraction=0.500000 index=1 wall_us=35222.426667
+adaptive-sweep-sample fraction=0.500000 index=2 wall_us=47592.431000
+adaptive-sweep requested_fraction=0.250000 active_atoms=16392 active_blocks=12286 interface_atoms=8 live_bonds=28690 active_atom_fraction=0.250122 active_block_fraction=0.749878 interface_fraction=0.000122 live_bond_fraction=0.250157 active_dof_ratio=0.437592 step_wall_us=83619.189333 step_mad_us=1330.454000 instrumented_wall_us=87019.760000 instrumented_mad_us=302.229667 instrumentation_overhead_percent=4.066735 device_bytes=39456072
+adaptive-sweep-phases requested_fraction=0.250000 atomistic_us=120.380444 coarse_us=83918.165419 interface_us=355.797337 selector_us=0.000000 polarization_us=0.000000 compaction_us=0.000000 fft_us=0.000000 integration_us=79.520000 phase_sum_us=84473.863200 unaccounted_us=2545.896800 phase_syncs_per_step=11.111
+adaptive-sweep-launches requested_fraction=0.250000 atomistic=8.889 coarse=11.111 interface=6.667 selector=0.000 polarization=0.000 compaction=0.000 integration=4.444
+adaptive-sweep-sample fraction=0.250000 index=0 wall_us=84949.643333
+adaptive-sweep-sample fraction=0.250000 index=1 wall_us=78291.131333
+adaptive-sweep-sample fraction=0.250000 index=2 wall_us=83619.189333
+adaptive-sweep requested_fraction=0.125000 active_atoms=8200 active_blocks=14334 interface_atoms=8 live_bonds=14354 active_atom_fraction=0.125122 active_block_fraction=0.874878 interface_fraction=0.000122 live_bond_fraction=0.125157 active_dof_ratio=0.343842 step_wall_us=103393.823000 step_mad_us=2094.067000 instrumented_wall_us=112116.188333 instrumented_mad_us=4196.927667 instrumentation_overhead_percent=8.436060 device_bytes=39456072
+adaptive-sweep-phases requested_fraction=0.125000 atomistic_us=85.674667 coarse_us=107303.215239 interface_us=389.589337 selector_us=0.000000 polarization_us=0.000000 compaction_us=0.000000 fft_us=0.000000 integration_us=105.233778 phase_sum_us=107883.713020 unaccounted_us=4232.475313 phase_syncs_per_step=11.111
+adaptive-sweep-launches requested_fraction=0.125000 atomistic=8.889 coarse=11.111 interface=6.667 selector=0.000 polarization=0.000 compaction=0.000 integration=4.444
+adaptive-sweep-sample fraction=0.125000 index=0 wall_us=107231.947333
+adaptive-sweep-sample fraction=0.125000 index=1 wall_us=101299.756000
+adaptive-sweep-sample fraction=0.125000 index=2 wall_us=103393.823000
+adaptive-sweep requested_fraction=0.062500 active_atoms=4104 active_blocks=15358 interface_atoms=8 live_bonds=7186 active_atom_fraction=0.062622 active_block_fraction=0.937378 interface_fraction=0.000122 live_bond_fraction=0.062657 active_dof_ratio=0.296967 step_wall_us=107662.785000 step_mad_us=2960.778000 instrumented_wall_us=117825.992000 instrumented_mad_us=5650.469667 instrumentation_overhead_percent=9.439851 device_bytes=39456072
+adaptive-sweep-phases requested_fraction=0.062500 atomistic_us=80.974222 coarse_us=116338.720110 interface_us=404.839110 selector_us=0.000000 polarization_us=0.000000 compaction_us=0.000000 fft_us=0.000000 integration_us=97.600001 phase_sum_us=116922.133444 unaccounted_us=903.858556 phase_syncs_per_step=11.111
+adaptive-sweep-launches requested_fraction=0.062500 atomistic=8.889 coarse=11.111 interface=6.667 selector=0.000 polarization=0.000 compaction=0.000 integration=4.444
+adaptive-sweep-sample fraction=0.062500 index=0 wall_us=107662.785000
+adaptive-sweep-sample fraction=0.062500 index=1 wall_us=104702.007000
+adaptive-sweep-sample fraction=0.062500 index=2 wall_us=110910.468667
+adaptive-sweep requested_fraction=0.000000 active_atoms=0 active_blocks=16384 interface_atoms=0 live_bonds=0 active_atom_fraction=0.000000 active_block_fraction=1.000000 interface_fraction=0.000000 live_bond_fraction=0.000000 active_dof_ratio=0.250000 step_wall_us=115220.665667 step_mad_us=2678.202667 instrumented_wall_us=135408.880667 instrumented_mad_us=868.199000 instrumentation_overhead_percent=17.521349 device_bytes=39456072
+adaptive-sweep-phases requested_fraction=0.000000 atomistic_us=45.909334 coarse_us=131400.527530 interface_us=472.071110 selector_us=0.000000 polarization_us=0.000000 compaction_us=0.000000 fft_us=0.000000 integration_us=66.527999 phase_sum_us=131985.035973 unaccounted_us=3423.844693 phase_syncs_per_step=11.111
+adaptive-sweep-launches requested_fraction=0.000000 atomistic=8.889 coarse=11.111 interface=6.667 selector=0.000 polarization=0.000 compaction=0.000 integration=4.444
+adaptive-sweep-sample fraction=0.000000 index=0 wall_us=112542.463000
+adaptive-sweep-sample fraction=0.000000 index=1 wall_us=115220.665667
+adaptive-sweep-sample fraction=0.000000 index=2 wall_us=118338.946000
+adaptive-overhead selector_device_us=37.770667 selector_wall_us=1259.354333 compaction_device_us=39.936000 compaction_host_wait_us=24.229333 compaction_wall_us=57.193333 block_bytes_per_update=65536 device_bytes=39456072
+production-crossover result=NOT_OBSERVED production_step_wall_us=1170.536000 best_adaptive_step_wall_us=115220.665667 acceptance_margin_percent=2.000000
+adaptive-self-reference note=DIAGNOSTIC_NOT_A_BASELINE all_fine_step_wall_us=4703.132000 zero_fine_step_wall_us=115220.665667 self_ratio=0.040818

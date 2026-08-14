@@ -1,0 +1,37 @@
+# RCG-09 SS3.1 two-point e2e, fresh build_rcg09_cuda_fp64, ordinary sd binary
+# DIAGNOSTIC: contended/throttled device, see device_state.txt
+##### spiral_adaptive Nstep=1
+Gpu: AdaptiveCG per-phase device timing enabled (default; adds one host sync per phase boundary)
+Gpu: AdaptiveCG initial active_atoms=16384 active_blocks=0 interface_atoms=0 device_bytes=42165304
+Gpu: AdaptiveCG resolution_counts fine=1024 interface=0 coarse=0 accepted_transitions=0 rejected_transitions=0
+Gpu: AdaptiveCG phase_ms field_atom=11740.800781 field_coarse=0.058368 interface=0.043872 selector=0.147328 polarization=0.024384 compaction=0.020480 fft=0.000000 integration=0.190464 wall=11757.817535 phase_sum=11741.285677 unaccounted=16.531858 device_bytes=42165304
+  Time for meas. phase    :          50.47             50.57
+  Time total              :          50.50             50.67
+  Time for one meas. iter :          50.47             50.57
+PROCWALL_S=50.62
+##### spiral_adaptive Nstep=3
+Gpu: AdaptiveCG per-phase device timing enabled (default; adds one host sync per phase boundary)
+Gpu: AdaptiveCG initial active_atoms=16384 active_blocks=0 interface_atoms=0 device_bytes=42165304
+Gpu: AdaptiveCG resolution_counts fine=1024 interface=0 coarse=0 accepted_transitions=0 rejected_transitions=0
+Gpu: AdaptiveCG phase_ms field_atom=35582.016602 field_coarse=0.413600 interface=0.269664 selector=0.500608 polarization=0.031744 compaction=0.065056 fft=0.000000 integration=0.773696 wall=35614.456436 phase_sum=35584.070970 unaccounted=30.385466 device_bytes=42165304
+  Time for meas. phase    :          73.57             73.69
+  Time total              :          73.60             73.79
+  Time for one meas. iter :          24.52             24.56
+PROCWALL_S=73.71
+##### spiral_atomistic Nstep=1
+  Time for meas. phase    :           0.30              0.40
+  Time total              :           0.33              0.49
+  Time for one meas. iter :           0.30              0.40
+PROCWALL_S=0.44
+##### spiral_atomistic Nstep=3
+  Time for meas. phase    :           0.30              0.42
+  Time total              :           0.33              0.51
+  Time for one meas. iter :           0.10              0.14
+PROCWALL_S=0.44
+##### spiral_atomistic long two-point (Nstep 100 / 1100), 3 interleaved rounds
+round=1 Nstep=100 PROCWALL_S=0.53
+round=1 Nstep=1100 PROCWALL_S=0.86
+round=2 Nstep=100 PROCWALL_S=0.55
+round=2 Nstep=1100 PROCWALL_S=0.91
+round=3 Nstep=100 PROCWALL_S=0.52
+round=3 Nstep=1100 PROCWALL_S=0.87

@@ -1248,7 +1248,7 @@ own session; none is a dependency of RCG-07.
 **Exit evidence:** CPU ownership equivalence, complexity sweep, thread-scaling
 report, and feature-off control.
 
-**RCG-07 evidence (2026-08-13, not yet closed):**
+**RCG-07 evidence (2026-08-13, closed 2026-08-14):**
 `docs/RCG-07_CPU_ALGORITHMIC_SCALING_EVIDENCE.md` records the local
 directional-stencil dilation fix (replacing the all-block-by-all-seed scan
 with a stencil bounded by the existing per-axis `buffer_width_blocks`,
@@ -1279,15 +1279,26 @@ cores), and documents one remaining unavoidable `O(n_blocks)` pass
 (`evaluate_coarse_tensor_operator` visits every block regardless of
 ownership).
 
-This evidence is not accepted as closure: no independent reviewer distinct
-from the implementer has yet examined the race-freedom reasoning (SS6 of
-the evidence document, particularly the atomic-vs-reduction choice for the
-bond loop and the derived-type-reduction workaround), matching this
+The session recorded one reservation against its own evidence: no independent
+reviewer distinct from the implementer had examined the race-freedom reasoning
+(SS6 of the evidence document, particularly the atomic-vs-reduction choice for
+the bond loop and the derived-type-reduction workaround), matching this
 blueprint's own requirement that "the author of GPU kernel parallelization
 must not be the sole parity or performance reviewer" applied to its CPU
 analogue. Compact-active-list restructuring of the remaining `O(N)` passes
 and a dedicated OpenMP race-sanitizer pass are recorded as open follow-ups,
 not prerequisites smuggled into this session's own scope.
+
+**Human closure decision (Anders Bergman, 2026-08-14):** RCG-07 is closed. All
+eleven checklist items are met as literally stated. The single reservation is
+the independent-review separation, which is the same acknowledged gap accepted
+at every prior RCG-0x closure and is not treated as a novel blocker here; the
+race-freedom argument rests on bit-identical single-thread results and an
+independent brute-force ownership cross-check, both of which are executable
+evidence rather than reviewer opinion. The open follow-ups (compact-active-list
+restructuring of the remaining `O(n_blocks)` pass, OpenMP race-sanitizer pass)
+are carried forward as tracked work, not as closure conditions. RCG-07 is
+therefore an accepted dependency of RCG-08 and RCG-09.
 
 ---
 
@@ -1356,7 +1367,7 @@ kernel patch; Luna/Sonnet for device parity harness
 **Exit evidence:** device parity suite, sanitizer logs, kernel/launch profile,
 and compaction complexity evidence.
 
-**RCG-08 evidence (2026-08-13, NOT closed):**
+**RCG-08 evidence (2026-08-13, closed 2026-08-14):**
 `docs/RCG-08_GPU_PARALLELIZATION_EVIDENCE.md` records the parallelization of
 all six F-09 kernels and the replacement of the F-12 Hillis--Steele compaction
 sweep with a linear-work hierarchical scan, with raw artifacts under
@@ -1406,8 +1417,8 @@ RCG-04-FU5 `gpu_fft_static_mixed` case, already reconfirmed at fp32 by RCG-05G
 and RCG-06E; each fp32 failure was diagnosed individually rather than
 attributed to its tracked predecessor by assumption.
 
-**This evidence is not accepted as closure.** Three independent reasons:
-(1) RCG-08's declared dependency RCG-07 is uncommitted and explicitly not
+The session withheld closure from its own evidence for three reasons:
+(1) RCG-08's declared dependency RCG-07 was uncommitted and explicitly not
 closed, and this blueprint does not accept a task before its dependencies;
 (2) RCG-08 requires review by a Sol or Opus/Terra reviewer not responsible for
 the kernel patch, and the race-freedom/determinism argument was written by the
@@ -1420,6 +1431,33 @@ clean-device re-measurement, since every timing here was taken while another
 user drove both GPUs to ~90% utilization with thermal throttling; RCG-08-FU4
 the surviving full-system `O(N)` per-step passes). RCG-08-FU2 and RCG-08-FU3
 in particular are prerequisites for RCG-09 producing a trustworthy number.
+
+**Human closure decision (Anders Bergman, 2026-08-14):** RCG-08 is closed,
+with two checklist items deliberately left unchecked rather than reworded.
+The three withholding reasons are dispositioned as follows. Reason (1) is
+resolved: RCG-07 is committed as `2f57a2e3` and closed above, so the
+dependency ordering now holds. Reason (2) is waived as the same acknowledged
+independent-review gap accepted at every prior RCG-0x closure; the substantive
+determinism claims are backed by executable evidence rather than argument --
+restriction and both Heun stages are bitwise identical to the serial
+reference, four Compute Sanitizer tools report zero errors, and the F-12 fix
+carries an executed negative control. Reason (3) stands as a real evidence
+gap, not a resolved one: HIP remains unavailable and the checklist item stays
+unchecked, tracked as RCG-08-FU1 alongside RCG-04-FU1/RCG-05-FU1/RCG-06-FU1.
+The literal "no production hot kernel is guarded to a single device thread"
+item also stays unchecked, because `finalizeAdaptiveEnergy` still runs on one
+thread; the substance of F-09 is closed and the sentence as written is not
+true, so it remains honestly unchecked.
+
+RCG-08-FU2 and RCG-08-FU3 are accepted as prerequisites for RCG-09's
+measurement rather than for RCG-08's closure, and are carried into RCG-09's
+scope: FU2 as a runtime opt-out for the per-phase blocking synchronizations,
+so headline totals are measured without the instrumentation that costs ~38%
+of the step while RCG-06C's accepted per-phase evidence remains reproducible
+with it enabled; FU3 as a hard precondition that no RCG-09 number is taken on
+a contended or thermally throttled device. RCG-08-FU4 remains an optimization
+follow-up and bounds the achievable crossover rather than blocking its
+measurement.
 
 ---
 
@@ -1457,31 +1495,337 @@ speedup wording
 
 #### Checklist
 
-- [ ] The baseline calls the real production atomistic path.
-- [ ] Baseline and adaptive cases use identical supported physics.
-- [ ] Synthetic inactive-overhead control is clearly renamed and separated.
-- [ ] Setup, warm-up, and steady-state measurement scopes are explicit.
-- [ ] CPU and GPU use appropriate wall/device timing.
-- [ ] Active atom, block, interface, and bond fractions are reported.
-- [ ] Every relevant phase and host wait is reported.
-- [ ] Median, MAD or equivalent dispersion, repetitions, and raw samples exist.
-- [ ] Device, driver, compiler, flags, clocks, and precision are recorded.
-- [ ] CUDA and HIP results are separate.
-- [ ] CPU thread count and affinity are recorded.
-- [ ] Crossover is computed against the production atomistic baseline.
+- [x] The baseline calls the real production atomistic path.
+- [x] Baseline and adaptive cases use identical supported physics.
+- [x] Synthetic inactive-overhead control is clearly renamed and separated.
+- [x] Setup, warm-up, and steady-state measurement scopes are explicit.
+- [x] CPU and GPU use appropriate wall/device timing.
+- [x] Active atom, block, interface, and bond fractions are reported.
+- [x] Every relevant phase and host wait is reported.
+- [x] Median, MAD or equivalent dispersion, repetitions, and raw samples exist.
+- [x] Device, driver, compiler, flags, clocks, and precision are recorded.
+- [x] CUDA and HIP results are separate. (Vacuously: CUDA measured, HIP
+      unavailable and marked unavailable rather than inferred.)
+- [x] CPU thread count and affinity are recorded.
+- [x] Crossover is computed against the production atomistic baseline.
 - [ ] Speedup exceeds its uncertainty margin.
-- [ ] No result is extrapolated to an unavailable backend.
-- [ ] All physics/parity fixtures pass on the measured commit.
+      **Not met, and not a measurement problem: there is no speedup.** The
+      adaptive step is ~34 000x *slower* than the production atomistic step at
+      16 384 atoms, and the deficit grows with system size. Left unchecked
+      rather than restated as "the comparison was performed".
+- [x] No result is extrapolated to an unavailable backend.
+- [x] All physics/parity fixtures pass on the measured commit. (29/29
+      `cg13-cuda` on a fresh out-of-tree build, matching RCG-08's fp64
+      baseline exactly.)
 - [ ] Human approves any restored performance wording.
+      No performance wording is restored; the recommendation is that the
+      existing `1.30x` claim be withdrawn. Requires a Human decision.
 
 **Exit evidence:** `PERF-ATOMISTIC-PROD`, `PERF-CG-SWEEP`, raw benchmark
 artifacts, and independent methodology review.
+
+**RCG-09 evidence (2026-08-14, not closed):**
+`docs/RCG-09_PRODUCTION_PERFORMANCE_EVIDENCE.md` records the measurement, with
+raw artifacts under `docs/rcg09/`.
+
+The benchmark now compares against UppASD's real atomistic GPU path.
+`tests/coarse_graining/benchmark_gpu_adaptive_runtime.cpp` was rewritten to
+construct `GpuHamiltonianCalculations` and `GpuDepondtIntegrator` on the same
+geometry the adaptive runtime uses and to execute the exact feature-off step
+sequence of `gpuSDSimulation.cpp`, and
+`tests/coarse_graining/run_rcg09_perf_e2e.py` runs the ordinary `sd` binary on
+input pairs differing only in `do_adaptive_cg`. F-10's synthetic FMA loop moved
+to its own target, `gpu_adaptive_inactive_overhead_microbenchmark`, whose output
+declares `not_a_production_baseline=true`. "Identical supported physics" is
+established as a measurement, not a claim: before any timing the two paths must
+agree on the field at all-fine, and they agree to `2.8e-16` relative at fp64.
+
+The result is negative. At 16 384 atoms the adaptive step costs 11.9 s against
+0.35 ms for the production atomistic step -- a factor of ~34 000 -- and 99.9% of
+it is the atomistic phase. Both figures come from two-point steady-state
+subtraction on the ordinary binary; the feature-off arm needs a 1000-step
+difference because at small `Nstep` its entire run is 0.44 s. No fine fraction
+helps, because the dominant cost is not proportional to the fine fraction. The
+cause is isolated to one line and demonstrated by an executed negative control
+rather than argued: `evaluateAdaptiveAtomisticBonds` accumulates the bilinear
+energy through `atomicAddEnergyTerm`, a compare-and-swap loop on a single global
+`double`, called unconditionally by every bond thread. Compiling out only that
+call leaves the field parity check passing and makes the same kernel
+242x/1 762x/10 489x faster at 7 168/28 672/114 688 bonds, changing the measured
+scaling from `O(bonds^2.0)` to sub-linear. The probe patch was reverted; the
+accumulation is a real RCG-06B contract and must be fixed by reduction, not
+removal.
+
+The negative-control build also answers whether the design itself can work.
+With the accumulator compiled out, the adaptive step's *own* atomistic phase
+(not the baseline, which has no fine-fraction dependence) falls monotonically
+from 276.7 us to 45.9 us as blocks coarsen, tracking the live-bond fraction: the
+coarse-graining mechanism does what it is supposed to, with a measured ceiling
+of **6.0x** and a floor set by RCG-08-FU4's surviving full-system `O(N)` passes.
+In the same sweep the coarse phase grows from 57 us to 131 401 us, because
+`evaluateAdaptiveCoarseTensor` and `finalizeAdaptiveCoarseLocal` contend on the
+same single-address accumulator once per active block. All-fine is bounded by
+the bond accumulator, all-coarse by the coarse accumulator, and mixed points pay
+both.
+
+RCG-08-FU2 was carried into scope as agreed:
+`GpuAdaptiveRuntime::setPhaseTimingEnabled` makes the ten per-step blocking
+phase synchronizations optional, default **on** so RCG-06C's accepted evidence
+and every existing caller are bit-for-bit unaffected, with
+`UPPASD_ADAPTIVE_PHASE_TIMING=0` selecting the lean path in production runs and
+the mode printed at setup. It changed no result and did not change the
+conclusion: at a 12 s step, a 38% instrumentation overhead is not what stands
+between adaptive coarse graining and a crossover.
+
+This evidence is not accepted as closure. RCG-08-FU3 stands: every number was
+taken on a device another user was driving at 63-75% utilization with thermal
+throttling, so absolute figures are upper bounds of unknown tightness even
+though a 10 489x ratio and a scaling exponent measured across a 256x range of
+bond counts are not products of contention. The e2e harness refuses to run on
+such a device unless explicitly overridden. RCG-09 also requires Opus/Terra
+methodology review, which the implementing session cannot supply. Five
+follow-ups are opened in the evidence document: RCG-09-FU1 (the single-address
+FP64 energy accumulation at all eight call sites -- the same CAS loop blocks the
+coarse operator as well, so the sweep has no winning operating point at either
+end; the prerequisite for any future speedup claim),
+RCG-09-FU2 (quadratic `build_unique_bonds` at setup, ~38 s at 16 384 atoms,
+the same defect class as F-08 in a routine RCG-07 did not touch), RCG-09-FU3
+(clean-device re-measurement), RCG-09-FU4 (HIP), and RCG-09-FU5 (static-mask
+e2e fine-fraction sweep).
+
+Under §13, item 9 fails. RCG-10 should withdraw the `1.30x` claim, leave the
+parent CG-10 crossover box unchecked, and describe the GPU backend as a
+correctness prototype.
+
+---
+
+### Task RCG-09A: Prove the adaptive atomistic kernel equivalent to `heisge`
+
+**Dependencies:** RCG-02 (accepted DMI convention), RCG-09 (measurement and
+harness)
+**Suggested primary:** Sol for kernel work; Luna/Sonnet for fixtures
+**Required independent review:** Opus/Terra or Sol not responsible for the
+kernel; Human for any convention or capability-boundary change
+**Risk:** High — silent wrong physics, not performance
+
+#### Background: what is claimed missing
+
+Raised by Anders Bergman on 2026-08-14 from RCG-09's finding that the all-fine
+adaptive path is not "atomistic plus overhead" but a *reimplementation* of the
+short-range Hamiltonian. Recorded in full in
+`docs/RCG-09_ADAPTIVE_ATOMISTIC_KERNEL_QUESTIONS.md`. The claims are stated
+here as claims to be tested, not as established defects.
+
+**Claim 1 — unique-pair scatter is not obviously valid for antisymmetric
+couplings.** `evaluateAdaptiveAtomisticBonds` walks a compact unique-bond list,
+evaluates each pair once, and scatters to both endpoints, forming `K s_j` for
+one endpoint and a transposed contraction for the other. For Heisenberg
+exchange `K` is symmetric and this is uncontroversial. DMI is antisymmetric,
+`D_ij = -D_ji`, so the second endpoint must receive the antisymmetric partner
+rather than the same quantity. Whether the transpose contraction plus
+`build_unique_bonds`' `atom < target` orientation sign reproduce that exactly,
+for both endpoint orderings, is not established by any current fixture.
+
+**Claim 2 — the adaptive atomistic region carries no stochastic field.** The
+atomistic region of an adaptive run is ordinary atomistic spin dynamics and at
+finite temperature should carry the same Langevin noise UppASD applies there.
+The adaptive Heun path generates none. Today this is a declared boundary rather
+than an omission — `adaptivecgproduction.f90` rejects `Temp /= 0` with
+"adaptive coarse graining requires deterministic T=0 dynamics" — but it means
+the adaptive atomistic path is not equivalent to `heisge` plus Depondt in
+general, only in the zero-temperature special case.
+
+**Claim 3 — equivalence is asserted term by term, nowhere demonstrated
+wholesale.** Every term `heisge` supports must either be shown equivalent in
+the adaptive path or rejected at setup with a named diagnostic. There is
+currently no artifact that enumerates them and states which is which.
+
+**Why current evidence does not settle any of this.**
+`tests/coarse_graining/test_gpu_dmi_dimer.cpp` exercises
+`gpu::hamiltonian::dm_field`, which is the *production* Hamiltonian's helper,
+not the adaptive bond kernel. `test_gpu_adaptive_runtime.cpp` feeds the
+adaptive bond kernel a strictly diagonal `bondMatrix` (`0.4` on the diagonal,
+zero `spiralization`), so it cannot fail if the transpose term or the
+orientation sign is wrong. RCG-09's own `2.8e-16` field-parity check runs on an
+isotropic-exchange fixture with `do_dm` disabled. The only adaptive-plus-DMI
+GPU coverage is one e2e case, `dmi_anisotropy_mixed_gpu`, whose discriminating
+power against a sign or transpose error has never been demonstrated. Per §2.3,
+none of these is a negative control for the claims above.
+
+**The proposed oracle (Anders, 2026-08-14).** A feature-off run uses `heisge`
+and is therefore the reference by construction. Run a small system with finite
+DMI feature-off, run the same system with adaptive coarse graining and every
+block fine, and require the two to agree. This needs no new analytic derivation
+and no second implementation of the convention: it compares the adaptive path
+against the production path that RCG-02 already accepted. RCG-09 built exactly
+this comparison for isotropic exchange inside
+`benchmark_gpu_adaptive_runtime.cpp`; extending it to antisymmetric couplings
+is an extension of an existing mechanism, not a new one.
+
+#### Prompt
+
+> Before editing, read `docs/ADAPTIVE_COARSE_GRAINING_REMEDIATION_BLUEPRINT.md`
+> in full and read the parent
+> `docs/ADAPTIVE_COARSE_GRAINING_BLUEPRINT.md` in full. Also read
+> `docs/RCG-02_DMI_HANDEDNESS_EVIDENCE.md` for the accepted convention,
+> `docs/RCG-09_PRODUCTION_PERFORMANCE_EVIDENCE.md` §3.5.1, and
+> `docs/RCG-09_ADAPTIVE_ATOMISTIC_KERNEL_QUESTIONS.md`. Treat their evidence
+> policy, dependencies, scope boundaries, and acceptance gates as governing
+> context for this task.
+>
+> Establish whether the adaptive atomistic kernel evaluates the same physics as
+> `heisge` for every supported term, using a feature-off run as the oracle
+> rather than a re-derived analytic reference. Build the smallest system that
+> has finite DMI and a nonzero initial torque, run it feature-off and with
+> adaptive coarse graining at all-fine, and compare per-atom fields, per-term
+> energies, and complete trajectories, not aggregate checksums.
+>
+> Demonstrate the fixture's discriminating power before trusting it: reversing
+> the DMI sign in the input, and independently disabling the kernel's transpose
+> contribution, must both make it fail. A fixture that passes under a broken
+> kernel is not evidence.
+>
+> Enumerate every term `heisge` supports — isotropic exchange, DM, tensorial
+> exchange, uniaxial and cubic anisotropy, external field, dipole — and for
+> each record either demonstrated equivalence or a setup-time rejection with a
+> named diagnostic. Silent gaps are the defect this task exists to close.
+>
+> Record the finite-temperature boundary explicitly: prove the `Temp /= 0`
+> rejection is reachable from every entry point, and state whether stochastic
+> fields in the atomistic region are a narrower near-term requirement than
+> finite-temperature coarse dynamics. Do not implement thermal fields under
+> this task.
+>
+> If equivalence cannot be demonstrated for a supported term, the decision
+> between calling `heisge` directly and retaining an equivalent workflow is a
+> Human scope decision. Present the evidence and the maintenance trade-off;
+> do not choose unilaterally.
+
+#### Checklist
+
+- [ ] A feature-off versus adaptive-all-fine oracle exists with finite DMI.
+- [ ] The fixture asserts nonzero initial torque and nonzero displacement.
+- [ ] Per-atom fields, per-term energies, and trajectories are compared.
+- [ ] Reversing the DMI sign makes the fixture fail.
+- [ ] Disabling the kernel's transpose contribution makes the fixture fail.
+- [ ] The adaptive unit fixture exercises a non-diagonal, antisymmetric bond matrix.
+- [ ] RCG-09's in-process parity check is extended beyond isotropic exchange.
+- [ ] Every `heisge` term is recorded as equivalent or setup-rejected.
+- [ ] No supported term is left in an undetermined state.
+- [ ] The `Temp /= 0` rejection is proven reachable from every entry point.
+- [ ] The atomistic-region thermal-field scope question is stated, not implemented.
+- [ ] CPU, CUDA, and HIP are reported separately; unavailable is not passing.
+- [ ] Any convention or capability change has independent physics review.
+- [ ] Human approves any capability-boundary or `heisge`-adoption decision.
+
+**Exit evidence:** the DMI equivalence fixture with both negative controls, the
+term-by-term equivalence/rejection table, and independent physics review.
+
+---
+
+### Task RCG-09B: Remove the single-address FP64 energy accumulation
+
+**Dependencies:** RCG-09 (measurement), RCG-09A (any kernel restructuring
+decision must land first)
+**Suggested primary:** Sol
+**Required independent review:** Sol or Opus/Terra not responsible for the
+patch
+**Risk:** Medium — performance change to an accepted energy contract
+
+#### Background: what is wrong
+
+Measured and demonstrated by RCG-09 §3.3 and §3.5, superseding RCG-09-FU1.
+
+`atomicAddEnergyTerm` in `gpuAtomicDouble.hpp` is a compare-and-swap loop on a
+single global `double`. Eight call sites in `gpuAdaptiveRuntime.cpp` contend on
+it: `evaluateAdaptiveAtomisticBonds` (`energyTerms[0]`, once per bond),
+`evaluateAdaptiveAtomisticOnsite` (`[1]`, once per active atom),
+`evaluateAdaptiveCoarseTensor` (`[2]`, `[3]`) and `finalizeAdaptiveCoarseLocal`
+(`[4]`, `[5]`, once per active block), and the two dipole kernels (`[6]`).
+
+The measured consequence is that the kernels do not scale. With ~10^5 bond
+threads the atomistic phase grows as `O(bonds^1.8)`, reaching `O(bonds^2.0)` at
+114 688 bonds where a single all-fine field evaluation costs 2.9 s. An executed
+negative control compiling out only the bond-kernel call made that kernel
+242x/1 762x/10 489x faster at 7 168/28 672/114 688 bonds and restored sub-linear
+scaling.
+
+The same control showed the coarse operator has the identical defect mirrored:
+as blocks coarsen, the coarse phase grows from 57 us to 131 401 us. **Fixing
+only the bond site would relocate the bottleneck rather than remove it** — the
+sweep currently has no winning operating point at either end, and both ends must
+be fixed for the feature to have one.
+
+Removal is not an option. RCG-06B established unconditional FP64 energy
+accumulation as a precision contract, and the negative-control build exists
+solely as evidence; its patch was reverted and must not be resurrected as a
+feature.
+
+#### Prompt
+
+> Before editing, read `docs/ADAPTIVE_COARSE_GRAINING_REMEDIATION_BLUEPRINT.md`
+> in full and read the parent
+> `docs/ADAPTIVE_COARSE_GRAINING_BLUEPRINT.md` in full. Also read
+> `docs/RCG-06_MEMORY_TIMING_PRECISION_EVIDENCE.md` for the FP64 energy
+> contract and `docs/RCG-09_PRODUCTION_PERFORMANCE_EVIDENCE.md` §3.3 and §3.5
+> for the measurement this task responds to. Treat their evidence policy,
+> dependencies, scope boundaries, and acceptance gates as governing context.
+>
+> Replace single-address energy accumulation with a hierarchical reduction at
+> every call site, not only the hottest one. Reduce within a thread block into
+> scratch, then across blocks, in the same shape the per-atom field
+> accumulators already use. Preserve RCG-06B's unconditional FP64 accumulation
+> exactly; a reduction that accumulates in `real` is a precision regression, not
+> an optimization.
+>
+> Energies must remain deterministic across runs and must not depend on block
+> count or launch geometry. State whether the summation order changes, and if
+> it does, bound the resulting difference against RCG-06B's accepted budget
+> rather than asserting it is negligible.
+>
+> Re-run RCG-09's scaling sweep and report the measured exponent before and
+> after, at the same sizes, on a device that meets RCG-08-FU3's cleanliness
+> condition. Re-run the production comparison and state plainly whether a
+> crossover now exists. Do not restore any speedup wording without Human
+> approval.
+>
+> Note the measured ceiling before optimizing: coarsening reduced the atomistic
+> phase by at most 6.0x in the negative-control sweep, with the residual set by
+> the full-system `O(N)` passes of RCG-08-FU4. Do not present a projection that
+> exceeds what that structure permits.
+
+#### Checklist
+
+- [ ] No energy accumulator is a compare-and-swap loop on a single address.
+- [ ] All eight call sites are converted, not only the bond kernel.
+- [ ] Accumulation remains unconditionally FP64.
+- [ ] Energies are deterministic and independent of launch geometry.
+- [ ] Any summation-order change is bounded against RCG-06B's budget.
+- [ ] Scaling exponent is re-measured at the same sizes, before and after.
+- [ ] The coarse phase no longer grows as blocks coarsen.
+- [ ] All `cg13-*` fixtures pass unchanged on a fresh out-of-tree build.
+- [ ] Measurement is taken on a device meeting RCG-08-FU3's condition.
+- [ ] The production comparison is re-run and its outcome stated plainly.
+- [ ] No projection exceeds the measured 6.0x atomistic-phase ceiling.
+- [ ] CUDA and HIP are reported separately.
+- [ ] Human approves any restored performance wording.
+
+**Exit evidence:** before/after scaling sweep on a clean device, unchanged
+`cg13-*` results, the FP64 determinism argument, and a re-run production
+comparison.
 
 ---
 
 ### Task RCG-10: Reconcile release evidence with the parent blueprint
 
-**Dependencies:** RCG-00 through RCG-09  
+**Dependencies:** RCG-00 through RCG-09 and RCG-09A. RCG-09B is **not** a
+dependency: §13 explicitly provides for item 9 failing, so RCG-10 can reconcile
+an honest "correctness prototype" outcome without it. RCG-09A **is** a
+dependency, because RCG-10 must complete parent §12's "one DMI convention
+governs CPU, CUDA, HIP, extraction, coarse, and hybrid paths" and cannot do so
+while the adaptive atomistic kernel's antisymmetric handling has no
+discriminating fixture. If RCG-09B lands first, its result supersedes RCG-09's
+performance wording and RCG-10 must reconcile against the newer evidence.  
 **Suggested primary:** Luna/Sonnet for evidence audit and documentation  
 **Suggested review:** Opus/Terra for adversarial cross-task review; Sol for
 implementation audit; Human for final acceptance  
@@ -1559,8 +1903,20 @@ Recommended session order:
 
 ```text
 RCG-00 -> RCG-01 -> RCG-02 -> RCG-03 -> RCG-04 -> RCG-05
-       -> RCG-06 -> RCG-07 -> RCG-08 -> RCG-09 -> RCG-10
+       -> RCG-06 -> RCG-07 -> RCG-08 -> RCG-09 -> RCG-09A -> RCG-10
+                                                      \-> RCG-09B -/
 ```
+
+RCG-09A and RCG-09B were inserted on 2026-08-14 (Human decision, Anders
+Bergman) after RCG-09 found that the adaptive atomistic path is a
+reimplementation of the short-range Hamiltonian rather than a call into
+`heisge`, and that its energy accumulation does not scale. They are deliberately
+separate tasks: one is a physics-convention gate and the other a performance
+change, they need different reviewers, and §5.2 forbids putting a possible sign
+correction and a kernel rewrite in front of the same review. They touch the same
+kernel, so they must not run concurrently; RCG-09A settles any restructuring
+first because it can change what RCG-09B is optimizing. RCG-09A blocks RCG-10;
+RCG-09B does not.
 
 Do not accept tasks out of order. If exploratory work for a later task is
 performed early, rebase it onto the accepted dependency commit and rerun all
