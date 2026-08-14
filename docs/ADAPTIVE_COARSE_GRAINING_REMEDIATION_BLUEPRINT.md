@@ -1562,6 +1562,9 @@ With the accumulator compiled out, the adaptive step's *own* atomistic phase
 from 276.7 us to 45.9 us as blocks coarsen, tracking the live-bond fraction: the
 coarse-graining mechanism does what it is supposed to, with a measured ceiling
 of **6.0x** and a floor set by RCG-08-FU4's surviving full-system `O(N)` passes.
+(Superseded: RCG-09C re-measured this ceiling at **11.37x** on a clean device
+after compacting the live-bond list; see that task's section below. Do not cite
+the 6.0x figure as current.)
 In the same sweep the coarse phase grows from 57 us to 131 401 us, because
 `evaluateAdaptiveCoarseTensor` and `finalizeAdaptiveCoarseLocal` contend on the
 same single-address accumulator once per active block. All-fine is bounded by
@@ -1900,6 +1903,75 @@ approximately 7.23--9.37x slower. Coarse and interface phases grew as the
 active fraction decreased, so the reduction removed the serialized energy
 atomic but did not establish production speedup. HIP execution remains open;
 no speedup claim is restored.
+
+### Task RCG-09C: Compact live adaptive bonds and remove avoidable full-system work
+
+**Dependencies:** RCG-09B.  
+**Status:** implemented and measured on a clean device; evidence in
+`docs/rcg09/rcg09c_live_bond_compaction.txt`.
+
+RCG-09B removed the serialized energy accumulation but left the atomistic bond
+kernel launching over the complete unique-bond list and returning early for
+bonds the continuum operator owns, so launch size, indexing and mask traffic
+were set by total system bonds rather than by live ones. The unique-bond list
+is now compacted once per resolution change into an ascending live-bond list,
+and the non-atomistic endpoints of live bonds are compacted into a ghost shell.
+The ownership predicate is unchanged -- it is the same
+`atomisticAtomMask[i] || atomisticAtomMask[j]` test the bond kernel used to
+evaluate per launch, hoisted into the compaction pass. Every atomistic, coarse
+and interface launch is sized from the compacted counts and skipped when its
+list is empty, and the interface restriction walks the ghost shell instead of
+every atom.
+
+Measured on an RTX A4000 meeting the RCG-08-FU3 cleanliness condition, with a
+discarded warm-up and ABBA interleaving against a pristine RCG-09B build:
+
+- **The 6.0x atomistic-phase ceiling recorded above is replaced by a measured
+  11.37x** at 16 384 blocks / 65 536 atoms / 114 688 bonds (atomistic phase
+  292.8 us all-fine to 25.8 us all-coarse), against 2.28x for the same code
+  path before the change. It is a ceiling in the same sense the 6.0x figure
+  was: the reduction the mechanism achieves on the atomistic phase between its
+  two limits. It is not a whole-step speedup and not a claim against
+  production.
+- Atomistic phase against live-bond fraction, OLS over seven sweep points at
+  16 384 blocks: `136.50 + 157.24 f` (R2 0.9888) before,
+  `51.42 + 252.11 f` (R2 0.9807) after. The non-scaling part falls 2.7x.
+- Interface phase at zero fine fraction: 384.4 -> 122.7 us (3.13x).
+- Whole-step wall time: 1.14x (all-fine) to 1.51x (all-coarse) at 16 384
+  blocks.
+- Compaction is rebuilt only on resolution change and costs 27.3 -> 51.1 us
+  device per rebuild at 16 384 blocks, of which 7.3 us is the new host
+  work-count readback; that readback removes one stream synchronization and one
+  device read from *every* timestep in `activeAtomCount()`.
+- **No production crossover.** At 16 384 blocks the production step is 276.6 us
+  and the best adaptive step 310.2 us. RCG-09's negative production result
+  stands.
+
+Remaining dominant full-system passes at small fine fraction, profiled and
+deliberately retained: the continuum operator itself (509.1 us, proportional to
+coarse blocks -- the method, not avoidable work, and the obvious next target
+given its ~31 ns/block constant), `prolongateAdaptiveGhosts` (122.7 us, needed
+by `commitAdaptiveGhosts` for every coarse atom under the ConstrainedCone
+policy), and `clearAdaptiveAtomistic` (25.8 us, which zeroes the published
+`beff` buffer and the scratch the ghost-shell restriction relies on).
+
+#### Checklist
+
+- [x] Compact live atomistic bond representation exists.
+- [x] Bond ownership semantics unchanged.
+- [x] Atomistic bond launch scales with live bonds.
+- [x] Deterministic bond ordering preserved.
+- [x] Compaction cost measured.
+- [x] Active Depondt launch scales with fine atoms.
+- [x] Remaining dominant `O(N)` passes identified.
+- [x] Safe avoidable full-system passes reduced.
+- [x] T=0 all-fine parity passes.
+- [x] T>0 all-fine parity passes.
+- [x] Mixed-resolution fixtures pass.
+- [x] RNG identity is independent of active-list position.
+- [x] New fine-fraction performance sweep recorded.
+- [x] New measured -- not projected -- speedup ceiling reported.
+- [ ] CUDA and HIP reported separately (HIP unmeasured; RCG-09-FU4 stands).
 
 ### Task RCG-10: Reconcile release evidence with the parent blueprint
 

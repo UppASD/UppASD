@@ -21,6 +21,9 @@ constexpr int bufferState = 1;
 constexpr int fineState = 2;
 constexpr real piValue = real(3.141592653589793238462643383279502884L);
 constexpr unsigned int adaptiveThreads = 256;
+// RCG-09C: components of the atom/block compaction scan -- active atoms,
+// coarse blocks, interface atoms, and the ghost shell.
+constexpr std::size_t adaptiveWorkComponents = 4;
 
 inline bool anyBufferDilation(const unsigned int width[3]) {
    return width[0] > 0 || width[1] > 0 || width[2] > 0;
@@ -791,49 +794,59 @@ __global__ void clearAdaptiveAtomistic(
    if(index < 2) kernels.energyTerms[index] = 0.0;
 }
 
-// One thread per (bond, ensemble).  The unique-pair ownership contract is
-// unchanged -- every bond is still visited exactly once and still scatters
-// the reaction field onto both of its endpoints -- but two bonds can now share
-// an endpoint atom concurrently, so the endpoint accumulation remains atomic.
-// Energy is reduced separately into one deterministic FP64 partial per block.
+// One thread per (live-bond slot, ensemble).  The unique-pair ownership
+// contract is unchanged -- every atomistically owned bond is still visited
+// exactly once and still scatters the reaction field onto both of its
+// endpoints -- but two bonds can now share an endpoint atom concurrently, so
+// the endpoint accumulation remains atomic.  Energy is reduced separately into
+// one deterministic FP64 partial per block.
+//
+// RCG-09C: the launch used to cover the complete unique-bond list and return
+// early for coarse-coarse bonds, so its size, indexing and mask traffic were
+// set by total system bonds.  It now walks runtime.activeBondList, whose
+// length is the live-bond count `liveBonds` published by the last compaction;
+// the ownership test itself moved verbatim into markAdaptiveLiveBonds.  With
+// every block fine the compact list is the identity permutation of the full
+// list, so the all-fine limit is bit-for-bit what it was.
 __global__ void evaluateAdaptiveAtomisticBonds(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
-   AdaptiveKernelDevice kernels, const real* atomDirection) {
+   AdaptiveKernelDevice kernels, const real* atomDirection,
+   std::size_t liveBonds) {
    const std::size_t work = adaptiveThreadIndex();
-   const std::size_t count = kernels.bonds * topology.ensembles;
+   const std::size_t count = liveBonds * topology.ensembles;
    double energy = 0.0;
    if(work < count) {
-      const std::size_t bond = work % kernels.bonds;
-      const std::size_t ensemble = work / kernels.bonds;
+      const std::size_t slot = work % liveBonds;
+      const std::size_t ensemble = work / liveBonds;
+      const std::size_t bond =
+         static_cast<std::size_t>(runtime.activeBondList[slot] - 1);
       const std::size_t atomI =
          static_cast<std::size_t>(kernels.bondAtom[2 * bond] - 1);
       const std::size_t atomJ =
          static_cast<std::size_t>(kernels.bondAtom[2 * bond + 1] - 1);
-      if(runtime.atomisticAtomMask[atomI] || runtime.atomisticAtomMask[atomJ]) {
-         real si[3], sj[3], ksiJ[3] = {}, ktSi[3] = {};
-         effectiveAtomDirection(topology, runtime, kernels, atomDirection,
-                                atomI, ensemble, si);
-         effectiveAtomDirection(topology, runtime, kernels, atomDirection,
-                                atomJ, ensemble, sj);
-         for(int row = 0; row < 3; ++row) {
-            for(int column = 0; column < 3; ++column) {
-               const real matrix = kernels.bondMatrix[
-                  row + 3 * (column + 3 * bond)];
-               ksiJ[row] += matrix * sj[column];
-               ktSi[column] += matrix * si[row];
-            }
+      real si[3], sj[3], ksiJ[3] = {}, ktSi[3] = {};
+      effectiveAtomDirection(topology, runtime, kernels, atomDirection,
+                             atomI, ensemble, si);
+      effectiveAtomDirection(topology, runtime, kernels, atomDirection,
+                             atomJ, ensemble, sj);
+      for(int row = 0; row < 3; ++row) {
+         for(int column = 0; column < 3; ++column) {
+            const real matrix = kernels.bondMatrix[
+               row + 3 * (column + 3 * bond)];
+            ksiJ[row] += matrix * sj[column];
+            ktSi[column] += matrix * si[row];
          }
-         energy = -static_cast<double>(dotDevice(si, ksiJ));
-         for(int xyz = 0; xyz < 3; ++xyz) {
-            atomicAdd(&kernels.atomFieldScratch[atomVectorIndex(
-                         xyz, atomI, ensemble, topology.atoms)],
-                      ksiJ[xyz] / (kernels.magneticMomentSi * kernels.atomMoment[atomI]));
+      }
+      energy = -static_cast<double>(dotDevice(si, ksiJ));
+      for(int xyz = 0; xyz < 3; ++xyz) {
+         atomicAdd(&kernels.atomFieldScratch[atomVectorIndex(
+                      xyz, atomI, ensemble, topology.atoms)],
+                   ksiJ[xyz] / (kernels.magneticMomentSi * kernels.atomMoment[atomI]));
 #if !defined(RCG09A_NEGATIVE_NO_TRANSPOSE)
-            atomicAdd(&kernels.atomFieldScratch[atomVectorIndex(
-                         xyz, atomJ, ensemble, topology.atoms)],
-                      ktSi[xyz] / (kernels.magneticMomentSi * kernels.atomMoment[atomJ]));
+         atomicAdd(&kernels.atomFieldScratch[atomVectorIndex(
+                      xyz, atomJ, ensemble, topology.atoms)],
+                   ktSi[xyz] / (kernels.magneticMomentSi * kernels.atomMoment[atomJ]));
 #endif
-         }
       }
    }
    extern __shared__ double energyShared[];
@@ -843,14 +856,19 @@ __global__ void evaluateAdaptiveAtomisticBonds(
 // One thread per (compact active-atom slot, ensemble).  activeAtomList holds
 // each atom at most once, so (atom, ensemble) is unique per thread and the
 // field update needs no atomic.
+//
+// RCG-09C: `activeAtoms` is the compacted count the launch was sized from, so
+// the slot/ensemble split now matches the launch instead of striding by total
+// system atoms with most threads retiring on the workCounts[0] bound.
 __global__ void evaluateAdaptiveAtomisticOnsite(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
-   AdaptiveKernelDevice kernels, const real* atomDirection) {
+   AdaptiveKernelDevice kernels, const real* atomDirection,
+   std::size_t activeAtoms) {
    const std::size_t index = adaptiveThreadIndex();
-   const std::size_t work = index % topology.atoms;
-   const std::size_t ensemble = index / topology.atoms;
+   const std::size_t work = activeAtoms > 0 ? index % activeAtoms : 0;
+   const std::size_t ensemble = activeAtoms > 0 ? index / activeAtoms : 0;
    double onsite = 0.0;
-   if(ensemble < topology.ensembles && work < runtime.workCounts[0]) {
+   if(ensemble < topology.ensembles && work < activeAtoms) {
       const std::size_t atom =
          static_cast<std::size_t>(runtime.activeAtomList[work] - 1);
       real direction[3];
@@ -885,11 +903,12 @@ __global__ void evaluateAdaptiveAtomisticOnsite(
 // their reaction field private for the exact projection adjoint.
 __global__ void writebackAdaptiveAtomistic(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
-   AdaptiveKernelDevice kernels, real* atomField) {
+   AdaptiveKernelDevice kernels, real* atomField, std::size_t activeAtoms) {
+   if(activeAtoms == 0) return;
    const std::size_t index = adaptiveThreadIndex();
-   const std::size_t work = index % topology.atoms;
-   const std::size_t ensemble = index / topology.atoms;
-   if(ensemble >= topology.ensembles || work >= runtime.workCounts[0]) return;
+   const std::size_t work = index % activeAtoms;
+   const std::size_t ensemble = index / activeAtoms;
+   if(ensemble >= topology.ensembles || work >= activeAtoms) return;
    const std::size_t atom =
       static_cast<std::size_t>(runtime.activeAtomList[work] - 1);
    for(int xyz = 0; xyz < 3; ++xyz)
@@ -907,15 +926,29 @@ __global__ void clearAdaptiveInterface(
    if(index < coarseVectors) kernels.coarseFieldScratch[index] = real(0);
 }
 
+// RCG-09C: this used to sweep every atom of every ensemble and skip the
+// atomistic ones, which made the coarse-side restriction an O(N) pass even
+// when the fine region was a handful of blocks.
+//
+// The pass is now driven by the ghost shell: the non-atomistic atoms that are
+// an endpoint of at least one live bond.  The restriction is exact, not
+// approximate.  atomFieldScratch is zeroed by clearAdaptiveAtomistic and
+// afterwards written only by the live-bond scatter (at live-bond endpoints)
+// and the on-site pass (at active atoms), so every non-atomistic atom outside
+// the shell still holds exactly zero here.  Its `tangent` is therefore the
+// zero vector and each of its eight corner contributions is an atomicAdd of
+// +0.0 into an accumulator clearAdaptiveInterface has just set to +0.0 --
+// omitting them changes no accumulated value.
 __global__ void restrictAdaptiveInterface(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
-   AdaptiveKernelDevice kernels) {
+   AdaptiveKernelDevice kernels, std::size_t ghostAtoms) {
+   if(ghostAtoms == 0) return;
    const std::size_t work = adaptiveThreadIndex();
-   const std::size_t count = topology.atoms * topology.ensembles;
+   const std::size_t count = ghostAtoms * topology.ensembles;
    if(work >= count) return;
-   const std::size_t atom = work % topology.atoms;
-   if(runtime.atomisticAtomMask[atom]) return;
-   const std::size_t ensemble = work / topology.atoms;
+   const std::size_t atom = static_cast<std::size_t>(
+      runtime.ghostAtomList[work % ghostAtoms] - 1);
+   const std::size_t ensemble = work / ghostAtoms;
    const int rawChannel = topology.atomToDynamicChannel[atom];
    if(rawChannel <= 0) return;
    const std::size_t channel = static_cast<std::size_t>(rawChannel - 1);
@@ -1007,15 +1040,18 @@ __global__ void clearAdaptiveCoarse(
    if(index < 6) kernels.energyTerms[index + 2] = 0.0;
 }
 
+// RCG-09C: `activeBlocks` is the compacted coarse-block count the launch was
+// sized from.  The gate is the same activeBlockList membership as before; only
+// the thread decomposition follows the compact list instead of total blocks.
 __global__ void evaluateAdaptiveCoarseTensor(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
-   AdaptiveKernelDevice kernels) {
+   AdaptiveKernelDevice kernels, std::size_t activeBlocks) {
    const std::size_t index = adaptiveThreadIndex();
-   const std::size_t work = index % topology.blocks;
-   const std::size_t ensemble = index / topology.blocks;
+   const std::size_t work = activeBlocks > 0 ? index % activeBlocks : 0;
+   const std::size_t ensemble = activeBlocks > 0 ? index / activeBlocks : 0;
    double exchangeEnergy = 0.0;
    double spiralEnergy = 0.0;
-   if(ensemble < topology.ensembles && work < runtime.workCounts[1]) {
+   if(ensemble < topology.ensembles && work < activeBlocks) {
       const std::size_t block =
          static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
       for(int p = 0; p < 3; ++p) {
@@ -1078,13 +1114,14 @@ __global__ void evaluateAdaptiveCoarseTensor(
 
 __global__ void finalizeAdaptiveCoarseLocal(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
-   AdaptiveKernelDevice kernels, const real* externalField) {
+   AdaptiveKernelDevice kernels, const real* externalField,
+   std::size_t activeBlocks) {
    const std::size_t index = adaptiveThreadIndex();
-   const std::size_t work = index % topology.blocks;
-   const std::size_t ensemble = index / topology.blocks;
+   const std::size_t work = activeBlocks > 0 ? index % activeBlocks : 0;
+   const std::size_t ensemble = activeBlocks > 0 ? index / activeBlocks : 0;
    double anisotropyEnergy = 0.0;
    double externalEnergy = 0.0;
-   if(ensemble < topology.ensembles && work < runtime.workCounts[1]) {
+   if(ensemble < topology.ensembles && work < activeBlocks) {
       const std::size_t block =
          static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
       real direction[3];
@@ -1266,11 +1303,12 @@ __global__ void addAdaptiveBasisResolvedDipole(
 
 __global__ void writeAdaptiveCoarse(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
-   AdaptiveKernelDevice kernels, real* coarseField) {
+   AdaptiveKernelDevice kernels, real* coarseField, std::size_t activeBlocks) {
+   if(activeBlocks == 0) return;
    const std::size_t index = adaptiveThreadIndex();
-   const std::size_t work = index % topology.blocks;
-   const std::size_t ensemble = index / topology.blocks;
-   if(ensemble >= topology.ensembles || work >= runtime.workCounts[1]) return;
+   const std::size_t work = index % activeBlocks;
+   const std::size_t ensemble = index / activeBlocks;
+   if(ensemble >= topology.ensembles || work >= activeBlocks) return;
    const std::size_t block =
       static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
    const std::size_t scalar = coarseScalarIndex(
@@ -1286,16 +1324,20 @@ __global__ void writeAdaptiveCoarse(
 // term has a defined FP64 order, independent of block scheduling.  There are
 // at most seven independent scalar sums in this one launch; the O(number of
 // launch blocks) work is no longer performed by contending producers.
+// RCG-09C: the dipole term keeps its own partial count.  Its kernels still
+// span every block (they carry the atomistic blocks' dipole field too), while
+// terms 2..5 now span only the compacted coarse-block list, so a single
+// "coarse" count can no longer describe both.
 __global__ void reduceAdaptiveEnergyPartials(
    AdaptiveKernelDevice kernels, int firstTerm, int termCount,
    std::size_t bondBlocks, std::size_t atomBlocks, std::size_t coarseBlocks,
-   bool includeDipole) {
+   std::size_t dipoleBlocks) {
    const int term = firstTerm + static_cast<int>(threadIdx.x);
    if(term >= firstTerm + termCount) return;
    std::size_t count = coarseBlocks;
    if(term == 0) count = bondBlocks;
    else if(term == 1) count = atomBlocks;
-   else if(term == 6 && !includeDipole) count = 0;
+   else if(term == 6) count = dipoleBlocks;
    double sum = 0.0;
    const double* partial = kernels.energyPartials +
       static_cast<std::size_t>(term) * kernels.energyPartialBlocks;
@@ -1327,11 +1369,12 @@ __device__ inline void coarseLlgRhs(const real direction[3], const real field[3]
 __global__ void predictorAdaptiveCoarse(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
    AdaptiveKernelDevice kernels, real dt, const real* savedCoarse,
-   const real* coarseField) {
+   const real* coarseField, std::size_t activeBlocks) {
+   if(activeBlocks == 0) return;
    const std::size_t index = adaptiveThreadIndex();
-   const std::size_t work = index % topology.blocks;
-   const std::size_t ensemble = index / topology.blocks;
-   if(ensemble >= topology.ensembles || work >= runtime.workCounts[1]) return;
+   const std::size_t work = index % activeBlocks;
+   const std::size_t ensemble = index / activeBlocks;
+   if(ensemble >= topology.ensembles || work >= activeBlocks) return;
    const std::size_t block =
       static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
    real direction[3], field[3], rhs[3], candidate[3];
@@ -1349,11 +1392,13 @@ __global__ void predictorAdaptiveCoarse(
 __global__ void correctorAdaptiveCoarse(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
    AdaptiveKernelDevice kernels, real dt, const real* savedCoarse,
-   const real* initialCoarseField, const real* predictorCoarseField) {
+   const real* initialCoarseField, const real* predictorCoarseField,
+   std::size_t activeBlocks) {
+   if(activeBlocks == 0) return;
    const std::size_t index = adaptiveThreadIndex();
-   const std::size_t work = index % topology.blocks;
-   const std::size_t ensemble = index / topology.blocks;
-   if(ensemble >= topology.ensembles || work >= runtime.workCounts[1]) return;
+   const std::size_t work = index % activeBlocks;
+   const std::size_t ensemble = index / activeBlocks;
+   if(ensemble >= topology.ensembles || work >= activeBlocks) return;
    const std::size_t block =
       static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
    real initial[3], predictor[3], field0[3], field1[3], rhs0[3], rhs1[3], value[3];
@@ -1475,6 +1520,43 @@ __global__ void initializeAdaptiveWorkScan(
    scan[index] = activeAtom;
    scan[scanItems + index] = activeBlock;
    scan[2 * scanItems + index] = interfaceAtom;
+   // RCG-09C: component 3 is the ghost shell.  Its membership depends on the
+   // bond list, not on block state alone, so it is cleared here and filled by
+   // markAdaptiveLiveBonds before the scan runs.
+   scan[3 * scanItems + index] = 0u;
+}
+
+// RCG-09C: one thread per unique bond, run once per compaction rather than
+// once per field evaluation.
+//
+// The predicate is exactly the one evaluateAdaptiveAtomisticBonds used to
+// evaluate inside every launch: a bond stays atomistically owned when either
+// endpoint is atomistic.  Ownership semantics are therefore unchanged -- only
+// the moment the question is asked moves.  Concretely the live set contains
+// fine-fine bonds, fine-buffer and buffer-buffer interface bonds, and
+// fine/coarse bonds whose atomistic endpoint keeps them atomistically owned;
+// it excludes coarse-coarse bonds, which belong to the continuum operator.
+//
+// Several live bonds can share the same coarse endpoint, so the ghost-shell
+// flag is set with atomicOr rather than a plain store.  The stored value is
+// the same constant from every writer, so a plain store would compute the
+// same answer, but it would be a write-write race a race detector is right to
+// flag; the atomic makes the kernel race-free by construction at a cost that
+// is invisible at compaction frequency.
+__global__ void markAdaptiveLiveBonds(
+   GpuAdaptiveDeviceRuntime runtime, const int* bondAtom, std::size_t bonds,
+   unsigned int* bondFlags, unsigned int* atomScan, std::size_t scanItems) {
+   const std::size_t bond = adaptiveThreadIndex();
+   if(bond >= bonds) return;
+   const std::size_t atomI = static_cast<std::size_t>(bondAtom[2 * bond] - 1);
+   const std::size_t atomJ = static_cast<std::size_t>(bondAtom[2 * bond + 1] - 1);
+   const bool ownedI = runtime.atomisticAtomMask[atomI] != 0;
+   const bool ownedJ = runtime.atomisticAtomMask[atomJ] != 0;
+   const bool live = ownedI || ownedJ;
+   bondFlags[bond] = static_cast<unsigned int>(live);
+   if(!live) return;
+   if(!ownedI) atomicOr(&atomScan[3 * scanItems + atomI], 1u);
+   if(!ownedJ) atomicOr(&atomScan[3 * scanItems + atomJ], 1u);
 }
 
 // RCG-08 (F-12): the compaction scan used to be a global Hillis--Steele
@@ -1536,9 +1618,10 @@ __global__ void scanAdaptiveTiles(
 
 __global__ void addAdaptiveTileOffsets(
    unsigned int* values, const unsigned int* scannedTileTotals,
-   std::size_t itemsPerComponent, std::size_t tilesPerComponent) {
+   std::size_t itemsPerComponent, std::size_t tilesPerComponent,
+   std::size_t components) {
    const std::size_t flat = adaptiveThreadIndex();
-   const std::size_t count = 3 * itemsPerComponent;
+   const std::size_t count = components * itemsPerComponent;
    if(flat >= count) return;
    const std::size_t component = flat / itemsPerComponent;
    const std::size_t index = flat - component * itemsPerComponent;
@@ -1550,9 +1633,16 @@ __global__ void addAdaptiveTileOffsets(
 
 __global__ void scatterAdaptiveWork(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
-   const unsigned int* inclusiveScan, std::size_t scanItems) {
+   const unsigned int* flags, const unsigned int* inclusiveScan,
+   std::size_t scanItems) {
    const std::size_t index = adaptiveThreadIndex();
    if(index >= scanItems) return;
+   // RCG-09C: the ghost-shell membership lives in the scan's fourth component
+   // rather than in a mask the bond pass wrote, so this is where the
+   // diagnostic mask is published.
+   if(index < topology.atoms)
+      runtime.ghostAtomMask[index] =
+         static_cast<unsigned char>(flags[3 * scanItems + index]);
    if(index < topology.atoms && runtime.atomisticAtomMask[index]) {
       const unsigned int position = inclusiveScan[index] - 1;
       runtime.activeAtomList[position] = static_cast<int>(index + 1);
@@ -1565,11 +1655,37 @@ __global__ void scatterAdaptiveWork(
       const unsigned int position = inclusiveScan[2 * scanItems + index] - 1;
       runtime.interfaceAtomList[position] = static_cast<int>(index + 1);
    }
+   if(index < topology.atoms && flags[3 * scanItems + index]) {
+      const unsigned int position = inclusiveScan[3 * scanItems + index] - 1;
+      runtime.ghostAtomList[position] = static_cast<int>(index + 1);
+   }
    if(index == 0) {
       runtime.workCounts[0] = inclusiveScan[scanItems - 1];
       runtime.workCounts[1] = inclusiveScan[2 * scanItems - 1];
       runtime.workCounts[2] = inclusiveScan[3 * scanItems - 1];
+      runtime.workCounts[3] = inclusiveScan[4 * scanItems - 1];
+      // Overwritten by scatterAdaptiveLiveBonds when the fixture has bonds;
+      // a bondless fixture must still publish a defined live-bond count.
+      runtime.workCounts[4] = 0u;
    }
+}
+
+// RCG-09C: ascending-order scatter of the live-bond list.  The scan is
+// inclusive over bond index, so slot k holds the k-th smallest live bond id
+// -- the compact list is a strictly increasing subsequence of the unique-bond
+// list, and therefore reproduces the same relative bond order the full-range
+// launch used.  Field scatter and the block-partial energy reduction both
+// depend on that ordering being a function of state alone.
+__global__ void scatterAdaptiveLiveBonds(
+   GpuAdaptiveDeviceRuntime runtime, const unsigned int* bondFlags,
+   const unsigned int* inclusiveScan, std::size_t bonds) {
+   const std::size_t index = adaptiveThreadIndex();
+   if(index >= bonds) return;
+   if(bondFlags[index]) {
+      const unsigned int position = inclusiveScan[index] - 1;
+      runtime.activeBondList[position] = static_cast<int>(index + 1);
+   }
+   if(index == 0) runtime.workCounts[4] = inclusiveScan[bonds - 1];
 }
 
 } // namespace
@@ -1946,16 +2062,19 @@ std::size_t GpuAdaptiveRuntime::estimateBytes(const GpuAdaptiveTopologyInput& t,
       checkedAdd(total, t.fftChannelsPerBlock * t.blocks, sizeof(int)) &&
       checkedAdd(total, t.dynamicChannels * t.blocks, sizeof(int)) &&
       checkedAdd(total, 4 * t.blocks, sizeof(real)) &&
-      checkedAdd(total, 2 * t.blocks + 2 * t.atoms, sizeof(unsigned char)) &&
+      // RCG-09C: ghostAtomMask_ is the third per-atom mask.
+      checkedAdd(total, 2 * t.blocks + 3 * t.atoms, sizeof(unsigned char)) &&
       checkedAdd(total, 2 * t.blocks, sizeof(int)) &&
       checkedAdd(total, 2 * t.blocks, sizeof(unsigned int)) &&
       checkedAdd(total, r.selectorCriteria * t.blocks, sizeof(real)) &&
       checkedAdd(total, 3 * vectorState + scalarState, sizeof(real)) &&
-      checkedAdd(total, 2 * t.atoms + t.blocks, sizeof(int)) &&
+      // RCG-09C: activeAtomList_, interfaceAtomList_, ghostAtomList_ and
+      // activeBlockList_.
+      checkedAdd(total, 3 * t.atoms + t.blocks, sizeof(int)) &&
       // RCG-05E: dilatedState_, the dilateAdaptiveState double buffer.
       checkedAdd(total, t.blocks, sizeof(int)) &&
-      checkedAdd(total, 3, sizeof(unsigned int)) &&
-      checkedAdd(total, 6 * std::max(t.atoms, t.blocks),
+      checkedAdd(total, 5, sizeof(unsigned int)) &&
+      checkedAdd(total, 2 * adaptiveWorkComponents * std::max(t.atoms, t.blocks),
                  sizeof(unsigned int));
    if(!ok) throw std::overflow_error("GPU adaptive runtime memory estimate overflow");
    // RCG-08 (F-12): tile-total levels for the hierarchical compaction scan.
@@ -1964,8 +2083,21 @@ std::size_t GpuAdaptiveRuntime::estimateBytes(const GpuAdaptiveTopologyInput& t,
    // this adds well under 1% of the level-0 scan buffers.
    for(const std::size_t levelItems :
        compactionScanLevelItems(std::max(t.atoms, t.blocks))) {
-      if(!checkedAdd(total, 3 * levelItems, sizeof(unsigned int)))
+      if(!checkedAdd(total, adaptiveWorkComponents * levelItems,
+                     sizeof(unsigned int)))
          throw std::overflow_error("GPU adaptive runtime memory estimate overflow");
+   }
+   // RCG-09C: the live-bond scan -- compact list plus one single-component
+   // flag/scan pair and its tile levels.
+   if(r.kernels.atomMoment && r.kernels.bonds > 0) {
+      if(!checkedAdd(total, r.kernels.bonds, sizeof(int)) ||
+         !checkedAdd(total, 2 * r.kernels.bonds, sizeof(unsigned int)))
+         throw std::overflow_error("GPU adaptive runtime memory estimate overflow");
+      for(const std::size_t levelItems :
+          compactionScanLevelItems(r.kernels.bonds)) {
+         if(!checkedAdd(total, levelItems, sizeof(unsigned int)))
+            throw std::overflow_error("GPU adaptive runtime memory estimate overflow");
+      }
    }
    if(r.kernels.atomMoment) {
       std::size_t atomEnsembles = 0;
@@ -2038,6 +2170,7 @@ void GpuAdaptiveRuntime::initialize(const GpuAdaptiveTopologyInput& topology,
       uploadRuntime(topology, runtime);
       launchCompaction();
       ASSERT_GPU(GPU_STREAM_SYNC(stream_));
+      refreshHostWorkCounts();
       convertedStaging_.clear();
       kernelsReady_ = runtime.kernels.atomMoment != nullptr;
       ready_ = true;
@@ -2083,6 +2216,7 @@ void GpuAdaptiveRuntime::allocate(const GpuAdaptiveTopologyInput& t,
    coarseBlockMask_.Allocate(b);
    atomisticAtomMask_.Allocate(n);
    interfaceAtomMask_.Allocate(n);
+   ghostAtomMask_.Allocate(n);
    if(criteria > 0) selectorScores_.Allocate(criteria * b);
    coarseMoment_.Allocate(3 * channels * b * ensembles);
    coarseDirection_.Allocate(3 * channels * b * ensembles);
@@ -2091,20 +2225,39 @@ void GpuAdaptiveRuntime::allocate(const GpuAdaptiveTopologyInput& t,
    activeAtomList_.Allocate(n);
    activeBlockList_.Allocate(b);
    interfaceAtomList_.Allocate(n);
-   workCounts_.Allocate(3);
+   ghostAtomList_.Allocate(n);
+   workCounts_.Allocate(5);
    const auto scanItems = std::max(n, b);
-   compactionScanA_.Allocate(3 * scanItems);
-   compactionScanB_.Allocate(3 * scanItems);
+   compactionScanA_.Allocate(adaptiveWorkComponents * scanItems);
+   compactionScanB_.Allocate(adaptiveWorkComponents * scanItems);
    scanLevelItems_ =
       compactionScanLevelItems(static_cast<std::size_t>(scanItems));
    scanLevelOffset_.assign(scanLevelItems_.size(), 0);
    std::size_t scanLevelTotal = 0;
    for(std::size_t level = 0; level < scanLevelItems_.size(); ++level) {
       scanLevelOffset_[level] = scanLevelTotal;
-      scanLevelTotal += 3 * scanLevelItems_[level];
+      scanLevelTotal += adaptiveWorkComponents * scanLevelItems_[level];
    }
    if(scanLevelTotal > 0)
       compactionScanLevels_.Allocate(static_cast<index_t>(scanLevelTotal));
+   // RCG-09C: single-component live-bond scan, sized by the unique-bond list.
+   // Gated on the same descriptor that gates bonds_ and bondAtom_ below, so
+   // the scan buffers exist exactly when launchCompaction can use them.
+   if(r.kernels.atomMoment && r.kernels.bonds > 0) {
+      const auto bondItems = static_cast<index_t>(r.kernels.bonds);
+      activeBondList_.Allocate(bondItems);
+      bondScanA_.Allocate(bondItems);
+      bondScanB_.Allocate(bondItems);
+      bondScanLevelItems_ = compactionScanLevelItems(r.kernels.bonds);
+      bondScanLevelOffset_.assign(bondScanLevelItems_.size(), 0);
+      std::size_t bondLevelTotal = 0;
+      for(std::size_t level = 0; level < bondScanLevelItems_.size(); ++level) {
+         bondScanLevelOffset_[level] = bondLevelTotal;
+         bondLevelTotal += bondScanLevelItems_[level];
+      }
+      if(bondLevelTotal > 0)
+         bondScanLevels_.Allocate(static_cast<index_t>(bondLevelTotal));
+   }
    if(r.kernels.atomMoment) {
       const auto atomEnsembles = n * ensembles;
       const auto vectorState = 3 * channels * b * ensembles;
@@ -2278,9 +2431,12 @@ void GpuAdaptiveRuntime::refreshDeviceDescriptors() {
    deviceRuntime_.polarizationRatio = polarizationRatioBlock_.data();
    deviceRuntime_.atomisticAtomMask = atomisticAtomMask_.data();
    deviceRuntime_.interfaceAtomMask = interfaceAtomMask_.data();
+   deviceRuntime_.ghostAtomMask = ghostAtomMask_.data();
    deviceRuntime_.activeAtomList = activeAtomList_.data();
    deviceRuntime_.activeBlockList = activeBlockList_.data();
    deviceRuntime_.interfaceAtomList = interfaceAtomList_.data();
+   deviceRuntime_.ghostAtomList = ghostAtomList_.data();
+   deviceRuntime_.activeBondList = activeBondList_.data();
    deviceRuntime_.workCounts = workCounts_.data();
    deviceRuntime_.selectorScores = selectorScores_.data();
    deviceRuntime_.coarseMoment = coarseMoment_.data();
@@ -2297,58 +2453,108 @@ void GpuAdaptiveRuntime::launchCompaction() {
    const std::size_t n0 = std::max(atoms_, blocks_);
    unsigned int* flags = compactionScanA_.data();
    unsigned int* scanned = compactionScanB_.data();
-   unsigned int* levels =
-      scanLevelItems_.empty() ? nullptr : compactionScanLevels_.data();
-   const std::size_t levelCount = scanLevelItems_.size();
    const auto tilesOf = [](std::size_t items) {
       return (items + adaptiveThreads - 1) / adaptiveThreads;
+   };
+
+   // RCG-09C: the multi-level sweep is identical for the atom/block scan and
+   // the live-bond scan, so it is written once.  `components` replaces the
+   // hard-coded 3 the atom/block scan used.
+   const auto runScan = [&](unsigned int* input, unsigned int* output,
+                            unsigned int* levels,
+                            const std::vector<std::size_t>& levelItems,
+                            const std::vector<std::size_t>& levelOffset,
+                            std::size_t items, std::size_t components) {
+      const std::size_t levelCount = levelItems.size();
+      const std::size_t tiles0 = tilesOf(items);
+      ADAPTIVE_LAUNCH(scanAdaptiveTiles, components * tiles0, stream_,
+                      input, output,
+                      levelCount ? levels + levelOffset[0] : nullptr,
+                      items, tiles0);
+      ++phaseMetrics_.compactionLaunches;
+
+      // Levels 1..L: scan the tile totals in place, each publishing the level
+      // above it.  The last level fits in one tile and publishes nothing.
+      for(std::size_t level = 0; level < levelCount; ++level) {
+         const std::size_t levelSize = levelItems[level];
+         unsigned int* values = levels + levelOffset[level];
+         unsigned int* totals = level + 1 < levelCount ?
+            levels + levelOffset[level + 1] : nullptr;
+         ADAPTIVE_LAUNCH(scanAdaptiveTiles, components * tilesOf(levelSize),
+                         stream_, values, values, totals, levelSize,
+                         tilesOf(levelSize));
+         ++phaseMetrics_.compactionLaunches;
+      }
+
+      // Propagate each level's scanned tile totals back down, finishing with
+      // level 0's own output.
+      for(std::size_t level = levelCount; level-- > 1;) {
+         const std::size_t levelSize = levelItems[level - 1];
+         ADAPTIVE_LAUNCH(addAdaptiveTileOffsets,
+                         adaptiveGrid(components * levelSize), stream_,
+                         levels + levelOffset[level - 1],
+                         levels + levelOffset[level],
+                         levelSize, tilesOf(levelSize), components);
+         ++phaseMetrics_.compactionLaunches;
+      }
+      if(levelCount) {
+         ADAPTIVE_LAUNCH(addAdaptiveTileOffsets,
+                         adaptiveGrid(components * items), stream_,
+                         output, levels + levelOffset[0], items, tiles0,
+                         components);
+         ++phaseMetrics_.compactionLaunches;
+      }
    };
 
    ADAPTIVE_LAUNCH(initializeAdaptiveWorkScan, adaptiveGrid(n0), stream_,
                    deviceTopology_, deviceRuntime_, flags, n0);
    ++phaseMetrics_.compactionLaunches;
 
-   // Level 0: scan every tile of all three components, publishing tile totals
-   // into level 1 when there is more than one tile.
-   const std::size_t tiles0 = tilesOf(n0);
-   ADAPTIVE_LAUNCH(scanAdaptiveTiles, 3 * tiles0, stream_,
-                   flags, scanned,
-                   levelCount ? levels + scanLevelOffset_[0] : nullptr,
-                   n0, tiles0);
-   ++phaseMetrics_.compactionLaunches;
-
-   // Levels 1..L: scan the tile totals in place, each publishing the level
-   // above it.  The last level fits in one tile and publishes nothing.
-   for(std::size_t level = 0; level < levelCount; ++level) {
-      const std::size_t items = scanLevelItems_[level];
-      unsigned int* values = levels + scanLevelOffset_[level];
-      unsigned int* totals = level + 1 < levelCount ?
-         levels + scanLevelOffset_[level + 1] : nullptr;
-      ADAPTIVE_LAUNCH(scanAdaptiveTiles, 3 * tilesOf(items), stream_,
-                      values, values, totals, items, tilesOf(items));
+   // RCG-09C: bond liveness and the ghost shell it induces must be decided
+   // before the atom scan runs, because the shell is one of its components.
+   if(bonds_ > 0) {
+      ADAPTIVE_LAUNCH(markAdaptiveLiveBonds, adaptiveGrid(bonds_), stream_,
+                      deviceRuntime_, bondAtom_.data(), bonds_,
+                      bondScanA_.data(), flags, n0);
       ++phaseMetrics_.compactionLaunches;
    }
 
-   // Propagate each level's scanned tile totals back down, finishing with
-   // level 0's own output.
-   for(std::size_t level = levelCount; level-- > 1;) {
-      const std::size_t items = scanLevelItems_[level - 1];
-      ADAPTIVE_LAUNCH(addAdaptiveTileOffsets, adaptiveGrid(3 * items), stream_,
-                      levels + scanLevelOffset_[level - 1],
-                      levels + scanLevelOffset_[level],
-                      items, tilesOf(items));
-      ++phaseMetrics_.compactionLaunches;
-   }
-   if(levelCount) {
-      ADAPTIVE_LAUNCH(addAdaptiveTileOffsets, adaptiveGrid(3 * n0), stream_,
-                      scanned, levels + scanLevelOffset_[0], n0, tiles0);
-      ++phaseMetrics_.compactionLaunches;
-   }
-
+   runScan(flags, scanned,
+           scanLevelItems_.empty() ? nullptr : compactionScanLevels_.data(),
+           scanLevelItems_, scanLevelOffset_, n0, adaptiveWorkComponents);
    ADAPTIVE_LAUNCH(scatterAdaptiveWork, adaptiveGrid(n0), stream_,
-                   deviceTopology_, deviceRuntime_, scanned, n0);
+                   deviceTopology_, deviceRuntime_, flags, scanned, n0);
    ++phaseMetrics_.compactionLaunches;
+
+   if(bonds_ > 0) {
+      runScan(bondScanA_.data(), bondScanB_.data(),
+              bondScanLevelItems_.empty() ? nullptr : bondScanLevels_.data(),
+              bondScanLevelItems_, bondScanLevelOffset_, bonds_, 1);
+      ADAPTIVE_LAUNCH(scatterAdaptiveLiveBonds, adaptiveGrid(bonds_), stream_,
+                      deviceRuntime_, bondScanA_.data(), bondScanB_.data(),
+                      bonds_);
+      ++phaseMetrics_.compactionLaunches;
+   }
+   ++metrics_.rebuilds;
    ASSERT_GPU(GPU_GET_LAST_ERROR());
+}
+
+// RCG-09C: every launch size below is derived from these five counts, so they
+// must be on the host.  Compaction runs only when resolution state changes
+// (initialize, updateBlockState, publishProposedState), never per timestep,
+// and this readback is bounded by it.  In exchange activeAtomCount() -- which
+// GpuSimulation::advanceAdaptiveStep called every step -- no longer
+// synchronizes at all.
+void GpuAdaptiveRuntime::refreshHostWorkCounts() {
+   const auto started = std::chrono::steady_clock::now();
+   ASSERT_GPU(GPU_STREAM_SYNC(stream_));
+   TensorDataMovementTracker::add_d2h(sizeof(hostWorkCounts_));
+   ASSERT_GPU(GPU_MEMCPY(hostWorkCounts_, workCounts_.data(),
+                         sizeof(hostWorkCounts_), GPU_MEMCPY_DEVICE_TO_HOST));
+   const auto stopped = std::chrono::steady_clock::now();
+   ++metrics_.workCountReadbacks;
+   metrics_.workCountReadbackMilliseconds +=
+      std::chrono::duration<double, std::milli>(stopped - started).count();
 }
 
 void GpuAdaptiveRuntime::updateBlockState(const int* blockState, std::size_t count) {
@@ -2372,7 +2578,10 @@ void GpuAdaptiveRuntime::updateBlockState(const int* blockState, std::size_t cou
    pendingState_.copy_async(blockState_, stream_);
    launchCompaction();
    metrics_.blockBytesUploaded += blocks_ * sizeof(int);
-   if(!timed) return;
+   if(!timed) {
+      refreshHostWorkCounts();
+      return;
+   }
    ASSERT_GPU(GPU_EVENT_RECORD(updateEnd_, stream_));
    const auto waitStart = std::chrono::steady_clock::now();
    ASSERT_GPU(GPU_EVENT_SYNCHRONIZE(updateEnd_));
@@ -2386,6 +2595,7 @@ void GpuAdaptiveRuntime::updateBlockState(const int* blockState, std::size_t cou
       std::chrono::duration<double, std::milli>(wallEnd - waitStart).count();
    metrics_.deviceMilliseconds += static_cast<double>(elapsed);
    phaseMetrics_.compactionMilliseconds += static_cast<double>(elapsed);
+   refreshHostWorkCounts();
 }
 
 void GpuAdaptiveRuntime::beginPhase() {
@@ -2587,6 +2797,9 @@ void GpuAdaptiveRuntime::publishProposedState(
    beginPhase();
    launchCompaction();
    finishPhase(phaseMetrics_.compactionMilliseconds);
+   // RCG-09C: the accepted state has changed, so the live lists have too.
+   // Every launch size for the following timesteps comes from these counts.
+   refreshHostWorkCounts();
 }
 
 GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
@@ -2636,8 +2849,9 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
       dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
       kernels);
 #endif
+   // RCG-09C: the clear and restriction launches below now count themselves,
+   // so this site records only the ghost prolongation it issues.
    ++phaseMetrics_.interfaceLaunches;
-   phaseMetrics_.interfaceLaunches += 2;
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.interfaceMilliseconds);
 
@@ -2648,134 +2862,143 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
    // (which subtracts into the same scratch non-atomically at atoms it owns
    // exclusively), and the writeback must be last.  Stream order supplies
    // exactly that: consecutive launches on one stream do not overlap.
+   // RCG-09C: the bond, on-site and writeback launches are sized from the
+   // compacted live counts, and skipped outright when a list is empty.  A
+   // skipped launch leaves stale block partials behind, so its partial count
+   // is passed as zero to the reduction below -- the reduction never reads a
+   // partial the current step did not write.
+   //
+   // clearAdaptiveAtomistic deliberately stays full-system.  It zeroes the
+   // caller's atomField for every atom, which is the published beff buffer,
+   // and it zeroes the atomFieldScratch that the ghost-shell restriction
+   // relies on being zero outside the shell.  Restricting it would change
+   // observable output, so it is left as a pure streaming write; it is
+   // reported in the sweep as the remaining O(N) atomistic pass.
+   const std::size_t liveBondWork = liveBondCount() * ensembles_;
+   const std::size_t activeAtomWork = activeAtomCount() * ensembles_;
+   const std::size_t bondPartials =
+      liveBondWork ? static_cast<std::size_t>(adaptiveGrid(liveBondWork)) : 0;
+   const std::size_t atomPartials =
+      activeAtomWork ? static_cast<std::size_t>(adaptiveGrid(activeAtomWork)) : 0;
    ADAPTIVE_LAUNCH(clearAdaptiveAtomistic,
                    adaptiveGrid(3 * atoms_ * ensembles_), stream_,
                    deviceTopology_, kernels, atomField);
-   ADAPTIVE_LAUNCH_SHARED(evaluateAdaptiveAtomisticBonds,
-                   adaptiveGrid(bonds_ * ensembles_),
-                   adaptiveThreads * sizeof(double), stream_,
-                   deviceTopology_, deviceRuntime_, kernels, atomDirection);
-   ADAPTIVE_LAUNCH_SHARED(evaluateAdaptiveAtomisticOnsite,
-                   adaptiveGrid(atoms_ * ensembles_),
-                   adaptiveThreads * sizeof(double), stream_,
-                   deviceTopology_, deviceRuntime_, kernels, atomDirection);
+   ++phaseMetrics_.atomisticLaunches;
+   if(liveBondWork > 0) {
+      ADAPTIVE_LAUNCH_SHARED(evaluateAdaptiveAtomisticBonds,
+                      adaptiveGrid(liveBondWork),
+                      adaptiveThreads * sizeof(double), stream_,
+                      deviceTopology_, deviceRuntime_, kernels, atomDirection,
+                      liveBondCount());
+      ++phaseMetrics_.atomisticLaunches;
+   }
+   if(activeAtomWork > 0) {
+      ADAPTIVE_LAUNCH_SHARED(evaluateAdaptiveAtomisticOnsite,
+                      adaptiveGrid(activeAtomWork),
+                      adaptiveThreads * sizeof(double), stream_,
+                      deviceTopology_, deviceRuntime_, kernels, atomDirection,
+                      activeAtomCount());
+      ++phaseMetrics_.atomisticLaunches;
+   }
    ADAPTIVE_LAUNCH(reduceAdaptiveEnergyPartials, 1, stream_, kernels, 0, 2,
-                   static_cast<std::size_t>(adaptiveGrid(bonds_ * ensembles_)),
-                   static_cast<std::size_t>(adaptiveGrid(atoms_ * ensembles_)),
-                   static_cast<std::size_t>(adaptiveGrid(blocks_ * ensembles_)),
-                   false);
-   ADAPTIVE_LAUNCH(writebackAdaptiveAtomistic,
-                   adaptiveGrid(atoms_ * ensembles_), stream_,
-                   deviceTopology_, deviceRuntime_, kernels, atomField);
-   phaseMetrics_.atomisticLaunches += 5;
+                   bondPartials, atomPartials, std::size_t(0), std::size_t(0));
+   ++phaseMetrics_.atomisticLaunches;
+   if(activeAtomWork > 0) {
+      ADAPTIVE_LAUNCH(writebackAdaptiveAtomistic,
+                      adaptiveGrid(activeAtomWork), stream_,
+                      deviceTopology_, deviceRuntime_, kernels, atomField,
+                      activeAtomCount());
+      ++phaseMetrics_.atomisticLaunches;
+   }
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.atomisticMilliseconds);
 
    beginPhase();
-#if defined(CUDA_V)
-   clearAdaptiveInterface<<<
-      adaptiveGrid(3 * dynamicChannels_ * blocks_ * ensembles_),
-      adaptiveThreads, 0, stream_>>>(
-      deviceTopology_, deviceRuntime_, kernels);
-   restrictAdaptiveInterface<<<
-      adaptiveGrid(atoms_ * ensembles_), adaptiveThreads, 0, stream_>>>(
-      deviceTopology_, deviceRuntime_, kernels);
-#else
-   hipLaunchKernelGGL(
-      clearAdaptiveInterface,
-      dim3(adaptiveGrid(3 * dynamicChannels_ * blocks_ * ensembles_)),
-      dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
-      kernels);
-   hipLaunchKernelGGL(
-      restrictAdaptiveInterface, dim3(adaptiveGrid(atoms_ * ensembles_)),
-      dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
-      kernels);
-#endif
+   // RCG-09C: the restriction walks the ghost shell, so its launch is
+   // proportional to the coarse atoms the atomistic field can actually reach
+   // rather than to every atom in the system.
+   const std::size_t ghostWork = ghostAtomCount() * ensembles_;
+   ADAPTIVE_LAUNCH(clearAdaptiveInterface,
+                   adaptiveGrid(3 * dynamicChannels_ * blocks_ * ensembles_),
+                   stream_, deviceTopology_, deviceRuntime_, kernels);
+   ++phaseMetrics_.interfaceLaunches;
+   if(ghostWork > 0) {
+      ADAPTIVE_LAUNCH(restrictAdaptiveInterface, adaptiveGrid(ghostWork),
+                      stream_, deviceTopology_, deviceRuntime_, kernels,
+                      ghostAtomCount());
+      ++phaseMetrics_.interfaceLaunches;
+   }
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.interfaceMilliseconds);
 
    beginPhase();
+   // RCG-09C: the continuum operator, its local finalization and the coarse
+   // writeback are sized from the compacted coarse-block list and skipped when
+   // it is empty, so an all-fine configuration issues no continuum work at
+   // all.  The two dipole kernels stay full-block on purpose: each also
+   // accumulates the atomistic blocks' dipole field, so their span is the
+   // whole grid rather than the coarse subset -- hence the separate partial
+   // count handed to the reduction.
+   //
+   // clearAdaptiveCoarse also stays full-system: it zeroes the caller's
+   // coarseField output for every block, not only the owned ones.
+   const std::size_t activeBlockWork = activeBlockCount() * ensembles_;
+   const std::size_t coarsePartials =
+      activeBlockWork ? static_cast<std::size_t>(adaptiveGrid(activeBlockWork)) : 0;
+   const bool anyDipole = uniformFftDipoleField || basisResolvedFftField;
+   const std::size_t dipolePartials = anyDipole ?
+      static_cast<std::size_t>(adaptiveGrid(blocks_ * ensembles_)) : 0;
+   ADAPTIVE_LAUNCH(clearAdaptiveCoarse,
+                   adaptiveGrid(3 * dynamicChannels_ * blocks_ * ensembles_),
+                   stream_, deviceTopology_, deviceRuntime_, kernels,
+                   coarseField);
+   ++phaseMetrics_.coarseLaunches;
+   if(activeBlockWork > 0) {
+      ADAPTIVE_LAUNCH_SHARED(evaluateAdaptiveCoarseTensor,
+                             adaptiveGrid(activeBlockWork),
+                             2 * adaptiveThreads * sizeof(double), stream_,
+                             deviceTopology_, deviceRuntime_, kernels,
+                             activeBlockCount());
+      ADAPTIVE_LAUNCH_SHARED(finalizeAdaptiveCoarseLocal,
+                             adaptiveGrid(activeBlockWork),
+                             2 * adaptiveThreads * sizeof(double), stream_,
+                             deviceTopology_, deviceRuntime_, kernels,
+                             externalCoarseField, activeBlockCount());
+      phaseMetrics_.coarseLaunches += 2;
+   }
+   if(uniformFftDipoleField) {
+      ADAPTIVE_LAUNCH_SHARED(addAdaptiveDipole,
+                             adaptiveGrid(blocks_ * ensembles_),
+                             adaptiveThreads * sizeof(double), stream_,
+                             deviceTopology_, deviceRuntime_, kernels,
+                             atomDirection, uniformFftDipoleField, atomField);
+      ++phaseMetrics_.coarseLaunches;
+   }
+   if(basisResolvedFftField) {
+      ADAPTIVE_LAUNCH_SHARED(addAdaptiveBasisResolvedDipole,
+                             adaptiveGrid(blocks_ * ensembles_),
+                             adaptiveThreads * sizeof(double), stream_,
+                             deviceTopology_, deviceRuntime_, kernels,
+                             atomDirection, *basisResolvedFftField, atomField);
+      ++phaseMetrics_.coarseLaunches;
+   }
+   ADAPTIVE_LAUNCH(reduceAdaptiveEnergyPartials, 1, stream_, kernels, 2, 5,
+                   std::size_t(0), std::size_t(0), coarsePartials,
+                   dipolePartials);
+   ++phaseMetrics_.coarseLaunches;
+   if(activeBlockWork > 0) {
+      ADAPTIVE_LAUNCH(writeAdaptiveCoarse, adaptiveGrid(activeBlockWork),
+                      stream_, deviceTopology_, deviceRuntime_, kernels,
+                      coarseField, activeBlockCount());
+      ++phaseMetrics_.coarseLaunches;
+   }
 #if defined(CUDA_V)
-   clearAdaptiveCoarse<<<
-      adaptiveGrid(3 * dynamicChannels_ * blocks_ * ensembles_),
-      adaptiveThreads, 0, stream_>>>(
-      deviceTopology_, deviceRuntime_, kernels, coarseField);
-   evaluateAdaptiveCoarseTensor<<<
-      adaptiveGrid(blocks_ * ensembles_), adaptiveThreads,
-      2 * adaptiveThreads * sizeof(double), stream_>>>(
-      deviceTopology_, deviceRuntime_, kernels);
-   finalizeAdaptiveCoarseLocal<<<
-      adaptiveGrid(blocks_ * ensembles_), adaptiveThreads,
-      2 * adaptiveThreads * sizeof(double), stream_>>>(
-      deviceTopology_, deviceRuntime_, kernels, externalCoarseField);
-   if(uniformFftDipoleField)
-      addAdaptiveDipole<<<
-         adaptiveGrid(blocks_ * ensembles_), adaptiveThreads,
-         adaptiveThreads * sizeof(double), stream_>>>(
-         deviceTopology_, deviceRuntime_, kernels, atomDirection,
-         uniformFftDipoleField, atomField);
-   if(basisResolvedFftField)
-      addAdaptiveBasisResolvedDipole<<<
-         adaptiveGrid(blocks_ * ensembles_), adaptiveThreads,
-         adaptiveThreads * sizeof(double), stream_>>>(
-         deviceTopology_, deviceRuntime_, kernels, atomDirection,
-         *basisResolvedFftField, atomField);
-   reduceAdaptiveEnergyPartials<<<1, adaptiveThreads, 0, stream_>>>(
-      kernels, 2, 5,
-      static_cast<std::size_t>(adaptiveGrid(bonds_ * ensembles_)),
-      static_cast<std::size_t>(adaptiveGrid(atoms_ * ensembles_)),
-      static_cast<std::size_t>(adaptiveGrid(blocks_ * ensembles_)),
-      uniformFftDipoleField || basisResolvedFftField);
-   writeAdaptiveCoarse<<<
-      adaptiveGrid(blocks_ * ensembles_), adaptiveThreads, 0, stream_>>>(
-      deviceTopology_, deviceRuntime_, kernels, coarseField);
    finalizeAdaptiveEnergy<<<1, 1, 0, stream_>>>(kernels);
 #else
-   hipLaunchKernelGGL(
-      clearAdaptiveCoarse,
-      dim3(adaptiveGrid(3 * dynamicChannels_ * blocks_ * ensembles_)),
-      dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
-      kernels, coarseField);
-   hipLaunchKernelGGL(
-      evaluateAdaptiveCoarseTensor,
-      dim3(adaptiveGrid(blocks_ * ensembles_)), dim3(adaptiveThreads),
-      2 * adaptiveThreads * sizeof(double),
-      stream_, deviceTopology_, deviceRuntime_, kernels);
-   hipLaunchKernelGGL(
-      finalizeAdaptiveCoarseLocal,
-      dim3(adaptiveGrid(blocks_ * ensembles_)), dim3(adaptiveThreads),
-      2 * adaptiveThreads * sizeof(double),
-      stream_, deviceTopology_, deviceRuntime_, kernels,
-      externalCoarseField);
-   if(uniformFftDipoleField)
-      hipLaunchKernelGGL(
-         addAdaptiveDipole, dim3(adaptiveGrid(blocks_ * ensembles_)),
-         dim3(adaptiveThreads), adaptiveThreads * sizeof(double), stream_,
-         deviceTopology_, deviceRuntime_,
-         kernels, atomDirection, uniformFftDipoleField, atomField);
-   if(basisResolvedFftField)
-      hipLaunchKernelGGL(
-         addAdaptiveBasisResolvedDipole,
-         dim3(adaptiveGrid(blocks_ * ensembles_)),
-         dim3(adaptiveThreads), adaptiveThreads * sizeof(double), stream_,
-         deviceTopology_, deviceRuntime_,
-         kernels, atomDirection, *basisResolvedFftField, atomField);
-   hipLaunchKernelGGL(
-      reduceAdaptiveEnergyPartials, dim3(1), dim3(adaptiveThreads), 0,
-      stream_, kernels, 2, 5,
-      static_cast<std::size_t>(adaptiveGrid(bonds_ * ensembles_)),
-      static_cast<std::size_t>(adaptiveGrid(atoms_ * ensembles_)),
-      static_cast<std::size_t>(adaptiveGrid(blocks_ * ensembles_)),
-      uniformFftDipoleField || basisResolvedFftField);
-   hipLaunchKernelGGL(
-      writeAdaptiveCoarse, dim3(adaptiveGrid(blocks_ * ensembles_)),
-      dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
-      kernels, coarseField);
    hipLaunchKernelGGL(finalizeAdaptiveEnergy, dim3(1), dim3(1), 0, stream_,
                       kernels);
 #endif
-   phaseMetrics_.coarseLaunches += 6 +
-      (uniformFftDipoleField ? 1 : 0) + (basisResolvedFftField ? 1 : 0);
+   ++phaseMetrics_.coarseLaunches;
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.coarseMilliseconds);
 
@@ -2797,16 +3020,6 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
    result.totalJ = terms[7];
    lastEnergy_ = result;
    return result;
-}
-
-std::size_t GpuAdaptiveRuntime::activeAtomCount() {
-   if(!ready_) throw std::logic_error("GPU adaptive runtime is not initialized");
-   ASSERT_GPU(GPU_STREAM_SYNC(stream_));
-   unsigned int count = 0;
-   TensorDataMovementTracker::add_d2h(sizeof(count));
-   ASSERT_GPU(GPU_MEMCPY(&count, workCounts_.data(), sizeof(count),
-                         GPU_MEMCPY_DEVICE_TO_HOST));
-   return static_cast<std::size_t>(count);
 }
 
 void GpuAdaptiveRuntime::prepareCoarsePredictor(
@@ -2835,11 +3048,14 @@ void GpuAdaptiveRuntime::prepareCoarsePredictor(
       predictorCoarse_.size() * sizeof(real),
       GPU_MEMCPY_DEVICE_TO_DEVICE, stream_));
    predictorCoarse_.copy_async(coarseDirection_, stream_);
-   ADAPTIVE_LAUNCH(predictorAdaptiveCoarse,
-                   adaptiveGrid(blocks_ * ensembles_), stream_,
-                   deviceTopology_, deviceRuntime_, kernels, timeStepSeconds,
-                   predictorCoarse_.data(), initialCoarseField_.data());
-   phaseMetrics_.integrationLaunches += 1;
+   const std::size_t predictorWork = activeBlockCount() * ensembles_;
+   if(predictorWork > 0) {
+      ADAPTIVE_LAUNCH(predictorAdaptiveCoarse, adaptiveGrid(predictorWork),
+                      stream_, deviceTopology_, deviceRuntime_, kernels,
+                      timeStepSeconds, predictorCoarse_.data(),
+                      initialCoarseField_.data(), activeBlockCount());
+      phaseMetrics_.integrationLaunches += 1;
+   }
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.integrationMilliseconds);
 }
@@ -2865,12 +3081,15 @@ void GpuAdaptiveRuntime::correctCoarse(
       coarseFieldScratch_.data(), energyTerms_.data(), transitionBackup_.data()
    };
    beginPhase();
-   ADAPTIVE_LAUNCH(correctorAdaptiveCoarse,
-                   adaptiveGrid(blocks_ * ensembles_), stream_,
-                   deviceTopology_, deviceRuntime_, kernels, timeStepSeconds,
-                   predictorCoarse_.data(), initialCoarseField_.data(),
-                   predictorCoarseField);
-   phaseMetrics_.integrationLaunches += 1;
+   const std::size_t correctorWork = activeBlockCount() * ensembles_;
+   if(correctorWork > 0) {
+      ADAPTIVE_LAUNCH(correctorAdaptiveCoarse, adaptiveGrid(correctorWork),
+                      stream_, deviceTopology_, deviceRuntime_, kernels,
+                      timeStepSeconds, predictorCoarse_.data(),
+                      initialCoarseField_.data(), predictorCoarseField,
+                      activeBlockCount());
+      phaseMetrics_.integrationLaunches += 1;
+   }
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.integrationMilliseconds);
 }
@@ -2936,7 +3155,7 @@ void GpuAdaptiveRuntime::recordStepWallMilliseconds(double elapsed) {
 GpuAdaptiveWorkSnapshot GpuAdaptiveRuntime::downloadWorkSnapshot() {
    if(!ready_) throw std::logic_error("GPU adaptive runtime is not initialized");
    ASSERT_GPU(GPU_STREAM_SYNC(stream_));
-   unsigned int counts[3] = {};
+   unsigned int counts[5] = {};
    TensorDataMovementTracker::add_d2h(sizeof(counts));
    ASSERT_GPU(GPU_MEMCPY(counts, workCounts_.data(), sizeof(counts), GPU_MEMCPY_DEVICE_TO_HOST));
 
@@ -2944,10 +3163,13 @@ GpuAdaptiveWorkSnapshot GpuAdaptiveRuntime::downloadWorkSnapshot() {
    result.activeAtoms.resize(counts[0]);
    result.activeBlocks.resize(counts[1]);
    result.interfaceAtoms.resize(counts[2]);
+   result.ghostAtoms.resize(counts[3]);
+   result.activeBonds.resize(counts[4]);
    result.atomisticBlockMask.resize(blocks_);
    result.coarseBlockMask.resize(blocks_);
    result.atomisticAtomMask.resize(atoms_);
    result.interfaceAtomMask.resize(atoms_);
+   result.ghostAtomMask.resize(atoms_);
    auto download = [](void* destination, const void* source, std::size_t bytes) {
       if(bytes == 0) return;
       TensorDataMovementTracker::add_d2h(bytes);
@@ -2956,10 +3178,13 @@ GpuAdaptiveWorkSnapshot GpuAdaptiveRuntime::downloadWorkSnapshot() {
    download(result.activeAtoms.data(), activeAtomList_.data(), counts[0] * sizeof(int));
    download(result.activeBlocks.data(), activeBlockList_.data(), counts[1] * sizeof(int));
    download(result.interfaceAtoms.data(), interfaceAtomList_.data(), counts[2] * sizeof(int));
+   download(result.ghostAtoms.data(), ghostAtomList_.data(), counts[3] * sizeof(int));
+   download(result.activeBonds.data(), activeBondList_.data(), counts[4] * sizeof(int));
    download(result.atomisticBlockMask.data(), atomisticBlockMask_.data(), blocks_);
    download(result.coarseBlockMask.data(), coarseBlockMask_.data(), blocks_);
    download(result.atomisticAtomMask.data(), atomisticAtomMask_.data(), atoms_);
    download(result.interfaceAtomMask.data(), interfaceAtomMask_.data(), atoms_);
+   download(result.ghostAtomMask.data(), ghostAtomMask_.data(), atoms_);
    return result;
 }
 
@@ -3083,12 +3308,19 @@ void GpuAdaptiveRuntime::release() {
    freeIfAllocated(atomAnisotropyAxis_);
    freeIfAllocated(atomAnisotropyAxisCount_);
    freeIfAllocated(atomMoment_);
+   freeIfAllocated(bondScanLevels_);
+   bondScanLevelItems_.clear();
+   bondScanLevelOffset_.clear();
+   freeIfAllocated(bondScanB_);
+   freeIfAllocated(bondScanA_);
    freeIfAllocated(compactionScanLevels_);
    scanLevelItems_.clear();
    scanLevelOffset_.clear();
    freeIfAllocated(compactionScanB_);
    freeIfAllocated(compactionScanA_);
    freeIfAllocated(workCounts_);
+   freeIfAllocated(activeBondList_);
+   freeIfAllocated(ghostAtomList_);
    freeIfAllocated(interfaceAtomList_);
    freeIfAllocated(activeBlockList_);
    freeIfAllocated(activeAtomList_);
@@ -3097,6 +3329,7 @@ void GpuAdaptiveRuntime::release() {
    freeIfAllocated(coarseDirection_);
    freeIfAllocated(coarseMoment_);
    freeIfAllocated(selectorScores_);
+   freeIfAllocated(ghostAtomMask_);
    freeIfAllocated(interfaceAtomMask_);
    freeIfAllocated(atomisticAtomMask_);
    freeIfAllocated(coarseBlockMask_);
@@ -3145,6 +3378,7 @@ void GpuAdaptiveRuntime::release() {
    allocatedBytes_ = 0;
    atoms_ = blocks_ = dynamicChannels_ = ensembles_ = 0;
    bonds_ = selectorEdges_ = 0;
+   for(unsigned int& count : hostWorkCounts_) count = 0;
    normalizationFloor_ = magneticMomentSi_ = gammaPerTs_ = damping_ = real(0);
    metrics_ = {};
    phaseMetrics_ = {};

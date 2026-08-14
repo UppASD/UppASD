@@ -1,0 +1,342 @@
+RCG-09C evidence: compact live adaptive bonds, remove avoidable full-system work
+================================================================================
+
+Status: clean-device acceptance measurement.  All figures below were taken on a
+device that met the RCG-08-FU3 cleanliness condition; the device record is in
+section 7.  This supersedes the RCG-09B artifact
+(rcg09b_cuda_dirty_device_scaling.txt), which was taken on a device at 81%
+foreign utilization and is diagnostic only.
+
+
+1. What changed
+---------------
+
+A. Compact live-bond list.
+   The unique-bond list is compacted once per resolution change into
+   GpuAdaptiveDeviceRuntime::activeBondList, in ascending bond order.  A bond
+   is live when either endpoint is atomistically owned -- byte for byte the
+   predicate evaluateAdaptiveAtomisticBonds used to evaluate inside every
+   launch, moved into markAdaptiveLiveBonds.  The live set therefore contains
+   fine-fine bonds, fine-buffer and buffer-buffer interface bonds, and
+   fine/coarse bonds whose atomistic endpoint keeps them atomistically owned,
+   and excludes coarse-coarse bonds, which the continuum operator owns.
+   Ownership semantics are unchanged; only the moment the question is asked
+   moved.
+
+B. Ghost shell.  markAdaptiveLiveBonds also flags the non-atomistic endpoints
+   of live bonds.  These are the only coarse atoms the atomistic reaction field
+   can reach, and are compacted into ghostAtomList by the same scan.
+
+C. Compaction lifecycle.  Both lists are built by the existing RCG-08
+   hierarchical scan.  The atom/block scan gained the ghost shell as a fourth
+   component (no extra launch: tile scans are one launch per level regardless
+   of component count); the bond scan is a separate single-component sweep,
+   because bonds outnumber atoms by the coordination number and folding them
+   into the atom scan would lengthen every atom and block component to match.
+   Compaction runs at initialize(), updateBlockState() and
+   publishProposedState() -- i.e. only when resolution state changes, never per
+   timestep.  Nothing is allocated on the hot path; the level structure is
+   fixed at allocate() time and is included in estimateBytes().
+
+D. Deterministic ordering.  Both compact lists are strictly increasing
+   subsequences of their source lists, so ordering is a function of state
+   alone.  In the all-fine limit the live-bond list is the identity permutation
+   of the full list, which is why the RCG-09A parity gates are unaffected
+   (section 4).
+
+E. Launch sizes.  Every atomistic, coarse and interface launch is now sized
+   from the host mirror of the compacted counts, and skipped outright when its
+   list is empty.  Reading the counts costs one stream synchronization and a
+   five-word device read per rebuild; in exchange
+   GpuSimulation::advanceAdaptiveStep no longer pays a stream synchronization
+   and a device read per timestep in activeAtomCount().
+
+F. Full-system passes removed.  restrictAdaptiveInterface walked every atom of
+   every ensemble and skipped the atomistic ones; it now walks the ghost shell.
+   This is exact, not approximate: atomFieldScratch is zeroed by
+   clearAdaptiveAtomistic and afterwards written only by the live-bond scatter
+   and the on-site pass, so a non-atomistic atom outside the shell still holds
+   exactly zero, its tangent is the zero vector, and its eight corner
+   contributions are atomicAdds of +0.0 into an accumulator that was just set
+   to +0.0.
+
+G. Full-system passes deliberately retained -- see section 5.
+
+
+2. Fine-fraction sweep
+----------------------
+
+Command (both arms):
+  gpu_adaptive_runtime_benchmark --blocks {1024,4096,16384} --atoms-per-block 4
+    --warmup 1 --iterations 3 --repetitions 3 --texture spiral
+
+Protocol.  The first invocation at a given size is systematically slow: the
+untouched production oracle measured 324.0 us cold against 275.3 us warm at
+16384 blocks in an earlier ordering.  Each size therefore begins with a
+discarded warm-up run and then alternates baseline/live in ABBA order, four
+runs per arm, medians reported.  The production-oracle row is the sanity check
+that the two arms saw the same device: it is identical code in both binaries.
+
+Baseline arm: 802cece3 (RCG-09B), built out of tree from a pristine worktree.
+Live arm: this change.  All times are microseconds per adaptive step; phase
+times are device-event times from the instrumented run.
+
+blocks=16384  atoms=65536  total unique bonds=114688
+production oracle step_wall_us: baseline 276.6, live arm 276.5
+
+  live_bond  live   ghost  bond launch    atomistic      coarse       interface      step wall
+   fraction  bonds  atoms  blocks         base -> live   base -> live base -> live   base -> live
+   1.0000   114688     0   448/448         292.4  292.8   50.1   16.3   22.6   16.7   354.0  310.2
+   0.7502    86034     8   337/448         254.2  243.1  283.5  275.0  170.6   63.8   674.2  558.4
+   0.5002    57362     8   225/448         212.6  187.5  363.7  355.6  242.0   83.5   772.8  599.1
+   0.2502    28690     8   113/448         187.6  123.7  367.5  360.6  301.7  112.3   809.0  574.6
+   0.1252    14354     8    57/448         153.4   92.5  514.9  511.0  322.6  118.9   939.4  700.0
+   0.0627     7186     8    29/448         150.1   72.4  517.5  512.8  348.2  136.4   960.0  696.1
+   0.0000        0     0     0/448         128.0   25.8  509.0  509.1  384.4  122.7   966.1  639.1
+
+blocks=4096  atoms=16384  total unique bonds=28672
+production oracle step_wall_us: baseline 107.7, live arm 107.7
+
+   1.0000    28672     0   112/112         112.7  113.1   47.5   17.2   22.2   16.5   183.6  147.8
+   0.7506    21522     8    85/112          99.5   89.2  329.9  327.6   82.2   56.4   493.9  463.0
+   0.5006    14354     8    57/112          95.3   84.0  330.7  330.1   83.4   56.0   495.2  459.5
+   0.2506     7186     8    29/112          94.8   61.9  331.9  331.3   84.4   55.5   495.6  442.5
+   0.1256     3602     8    15/112          93.4   57.9  331.9  333.3  139.1   68.1  543.6  447.4
+   0.0631     1810     8     8/112          95.7   58.5  332.6  333.4  138.5   68.4  542.8  449.2
+   0.0000        0     0     0/112          56.9   14.0  322.7  323.3  139.5   44.3  510.0  381.1
+
+blocks=1024  atoms=4096  total unique bonds=7168
+production oracle step_wall_us: baseline 54.8, live arm 54.8
+
+   1.0000     7168     0    28/28           60.3   59.3   45.5   16.4   20.5   16.3  133.5   97.4
+   0.7525     5394     8    22/28           59.9   58.2  325.2  320.9   79.4   53.7  459.5  426.4
+   0.5025     3602     8    15/28           59.4   57.0  326.1  325.5   79.5   54.1  458.4  427.9
+   0.2525     1810     8     8/28           59.4   56.2  326.9  325.3   79.8   54.2  457.1  425.5
+   0.1275      914     8     4/28           59.6   56.6  326.9  325.2   79.9   54.5  456.9  422.9
+   0.0650      466     8     2/28           59.4   55.1  326.4  325.4   80.9   54.7  456.6  426.5
+   0.0000        0     0     0/28           38.2   12.6  317.6  316.1   80.1   29.9  428.4  366.3
+
+The bond-launch column is the thread-block count the runtime actually issues,
+against the full-list count it issued unconditionally before.  It is reported
+by the benchmark (adaptive-sweep-livework), not inferred from a phase time.
+
+Per-step launch counts (16384 blocks, launches per step):
+
+  fraction   atomistic       coarse        interface     integration
+             base -> live  base -> live  base -> live  base -> live
+  1.0000     11.1   11.1   13.3    6.7    6.7    4.4    2.2    0.0
+  0.75-0.06  11.1   11.1   13.3   13.3    6.7    6.7    2.2    2.2
+  0.0000     11.1    4.4   13.3   13.3    6.7    4.4    2.2    2.2
+
+
+3. Does atomistic work scale with live bonds?
+---------------------------------------------
+
+Ordinary least squares of the atomistic phase time against live-bond fraction
+over the seven sweep points:
+
+  blocks=16384  baseline   atomistic_us = 136.50 + 157.24*f   R2=0.9888
+                live-list  atomistic_us =  51.42 + 252.11*f   R2=0.9807
+  blocks=4096   baseline   atomistic_us =  80.36 +  31.85*f   R2=0.5003
+                live-list  atomistic_us =  39.56 +  74.95*f   R2=0.8230
+  blocks=1024   baseline   atomistic_us =  52.63 +  10.26*f   R2=0.2296
+                live-list  atomistic_us =  41.86 +  22.98*f   R2=0.2671
+
+Read the intercept as the part of the phase that does not scale and the slope
+as the part that does.  At 16384 blocks the fixed part falls 2.7x (136.5 ->
+51.4 us) while the live-bond-proportional part rises 1.6x, which is what
+concentrating the same total work into a proportionally smaller launch looks
+like.  The residual fixed part is dominated by kernel launch latency: at 1024
+blocks the whole atomistic phase is launch-bound (R2 0.27, slope 23 us across
+the entire fine-fraction range), which is why the smallest size shows the
+scaling least clearly.  Nothing here is a projection; every number is measured.
+
+
+4. New measured speedup ceiling
+-------------------------------
+
+The RCG-09 blueprint records a 6.0x atomistic-phase ceiling, obtained from a
+negative-control build with the energy accumulator compiled out.  That figure
+is replaced, not reused.  Ratio of the atomistic phase at all-fine to the same
+phase at all-coarse, measured on the same fixture, same device, same session:
+
+  blocks=16384   baseline 2.28x   live-list 11.37x   (292.8 -> 25.8 us)
+  blocks=4096    baseline 1.98x   live-list  8.10x   (113.1 -> 14.0 us)
+  blocks=1024    baseline 1.58x   live-list  4.70x   ( 59.3 -> 12.6 us)
+
+The new empirical ceiling is 11.37x at the largest measured size, against 2.28x
+for the same code path before this change.  It is a ceiling in the same sense
+the 6.0x figure was: it is the reduction the coarse-graining mechanism achieves
+on the atomistic phase between its two limits, not a whole-step speedup and not
+a claim against production.
+
+Whole-step wall time improves by 1.14x (all-fine) to 1.51x (all-coarse) at
+16384 blocks.
+
+Interface phase, all-coarse: 384.4 -> 122.7 us, a 3.13x reduction, from
+restricting the interface pass to the ghost shell.
+
+
+5. Production comparison, stated plainly
+----------------------------------------
+
+  production-crossover result=NOT_OBSERVED
+
+At every size and every fine fraction the adaptive step remains slower than
+UppASD's production atomistic GPU step on the same geometry.  At 16384 blocks
+the production step is 276.6 us and the best adaptive step is 310.2 us
+(all-fine).  RCG-09's negative production result stands.  This change makes the
+adaptive path's own work scale with its own active resolution; it does not
+produce a crossover and no crossover is claimed.
+
+
+6. Remaining dominant O(N) passes
+---------------------------------
+
+Profiled at 16384 blocks with the fine fraction at zero, where the surviving
+full-system work is most visible:
+
+  coarse     509.1 us  evaluateAdaptiveCoarseTensor + finalizeAdaptiveCoarseLocal
+  interface  122.7 us  prolongateAdaptiveGhosts (+ clearAdaptiveInterface)
+  atomistic   25.8 us  clearAdaptiveAtomistic + the energy-partial reduction
+
+None of the three was removed, for reasons that are structural rather than
+scheduling:
+
+- The coarse phase is the continuum operator itself.  Its cost is proportional
+  to the number of coarse blocks, so it necessarily grows as the fine fraction
+  falls; that is the method, not avoidable work.  Its constant is poor -- 509 us
+  for 16384 blocks is ~31 ns per block, and the kernel issues on the order of
+  350 FP64 atomicAdds and 190 neighbour-index computations per block-thread --
+  but reducing that constant is an optimization of a kernel that is already
+  scaling correctly, and is out of scope here.  It is the single largest
+  remaining term and is the obvious next target.
+
+- prolongateAdaptiveGhosts writes ghostDirection for every non-atomistic atom.
+  commitAdaptiveGhosts consumes it for every non-atomistic atom under the
+  ConstrainedCone reconstruction policy, so the pass cannot be restricted to
+  the ghost shell without changing the reconstructed coarse-atom directions.
+  Its cost is proportional to coarse atoms, which is the resolution it serves.
+
+- clearAdaptiveAtomistic zeroes the caller's atomField for every atom.  That
+  buffer is the published beff array, and it is also the atomFieldScratch the
+  ghost-shell restriction relies on being zero outside the shell.  Restricting
+  it would change observable output.  It is a pure streaming write and is left
+  alone.
+
+Per the task instruction not to prematurely optimize tiny kernels, no other
+pass was touched.
+
+
+7. Compaction cost
+------------------
+
+Per rebuild, at a mixed (0.5) resolution point:
+
+  blocks   device us          wall us            work-count readback us
+           base -> live       base -> live       (live only)
+   1024    20.8 -> 31.7       26.3 -> 43.6        6.9
+   4096    25.4 -> 36.3       32.8 -> 49.6        7.1
+  16384    27.3 -> 51.1       43.8 -> 73.2        7.3
+
+The extra device time is the live-bond marking pass, the single-component bond
+scan and its scatter, plus the widened atom scan.  The wall increase includes
+the new work-count readback, which is the price of host-side launch sizing.
+This is paid once per resolution change (adaptive_update_interval steps), not
+per timestep, and it buys back one stream synchronization and one device read
+on *every* timestep from activeAtomCount().
+
+
+8. Correctness
+--------------
+
+  ctest -L coarse-graining          40/40 passed, 0 failed
+    including adaptive-cg-moving-off-fine, -moving-all-coarse,
+    -moving-static-mixed, -moving-adaptive-wall, -moving-dmi-chiral,
+    -moving-backend-parity (the mixed-resolution moving fixtures),
+    coarse-graining-adaptive-asd-parity (RCG-09A T=0 and T>0 all-fine parity),
+    gpu-depondt-active-atoms (active-list reorder / RNG identity),
+    adaptive-cg-ownership-map-comparator, adaptive-cg-dilation-sanitizer.
+
+  gpu_adaptive_runtime_tests        passed, now including
+    testLiveBondCompaction: the compact live-bond list and ghost shell against
+    hand-written expected lists on a fixture whose state
+    {coarse, buffer, fine, coarse} exercises every ownership case
+    (coarse-coarse excluded, buffer-buffer / fine-fine / buffer-fine included,
+    coarse-buffer and fine-coarse included with the coarse endpoint entering
+    the ghost shell); ascending order; stability across a rebuild from an
+    unchanged state; the all-fine identity permutation; and the empty all-coarse
+    limit.
+
+  benchmark_gpu_adaptive_runtime    the device's compact list is compared
+    against an independent host oracle at every sweep point, and the sweep
+    fails if membership or order differs.
+
+RCG-09A parity, all-fine, T=0 and T>0 (--parity-only --require-acceptance):
+every stage PASS, with depondt-predictor, second-thermal-state and
+depondt-corrector-final-spin bitwise identical to the production feature-off
+path.  This is expected rather than lucky: at all-fine the live-bond list is
+the identity permutation of the full list, so the launch geometry, the thread
+-> bond assignment and the block-partial energy reduction are all unchanged.
+
+Determinism.  Both compact lists are strictly increasing, so their content and
+order are functions of resolution state alone.  Away from the all-fine limit
+the number of launch blocks changes with the live count, which changes the
+number of FP64 block partials the energy reduction consumes and therefore its
+summation order.  That is a genuine order change, bounded by RCG-06B's budget
+in the same way every previous launch-geometry change was; it is not observable
+in the all-fine parity gates because there the geometry is identical.
+
+Negative controls executed:
+- Live-bond predicate changed from (ownedI || ownedJ) to (ownedI && ownedJ),
+  i.e. interface bonds silently dropped from atomistic ownership.
+  gpu_adaptive_runtime_tests aborts with "live-bond compaction changed the
+  hybrid bond ownership rule".  Reverted.
+  Note: the all-fine RCG-09A parity gate does *not* catch this defect, because
+  at all-fine both predicates agree.  This is exactly why the structural list
+  check exists.
+- compute-sanitizer over gpu_adaptive_runtime_tests, all four tools:
+    memcheck   ERROR SUMMARY: 0 errors
+    racecheck  RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)
+    initcheck  ERROR SUMMARY: 0 errors
+    synccheck  ERROR SUMMARY: 0 errors
+  The ghost-shell flag is set with atomicOr rather than a plain store for this
+  reason: every writer stores the same constant, so a plain store computes the
+  same answer, but it is a write-write race a detector is right to flag.
+
+Defect found and fixed in the harness: the benchmark fixture's host live-bond
+oracle indexed its ownership mask with one-based atom ids from the runtime's
+work lists as if they were zero-based, shifting the mask by one atom.  It went
+unnoticed because no live-bond count in the sweep changed by more than one bond
+and nothing compared the host set against the device's.  Fixed in
+AdaptiveFixture::ownedAtomMask; the device/host comparison added by this change
+is what exposed it.
+
+
+9. Environment
+--------------
+
+  backend CUDA; precision fp64
+  CUDA compiler /usr/local/cuda-13.3/bin/nvcc; Release flags -O3 -DNDEBUG
+  Linux 6.8.0-137-generic x86_64
+  CPU 11th Gen Intel(R) Core(TM) i9-11900 @ 2.50GHz
+  GPU 0: NVIDIA RTX A4000, 16376 MiB
+
+Device cleanliness during the measurement (RCG-08-FU3 condition):
+  compute processes on GPU 0: none.  The only contexts present were
+  /usr/lib/xorg/Xorg (57 MiB) and /usr/bin/gnome-shell (20 MiB), i.e. graphics,
+  not compute.
+  Utilization sampled before/after each size: 0-34%, all of it this benchmark.
+  clocks_throttle_reasons.active: 0x0 while active (0x1 = GpuIdle when idle).
+  No thermal throttle was observed; temperature 50-57 C.
+
+This host's two RTX A4000s are shared with another user.  They were idle for the
+duration of this measurement, which is recorded above rather than assumed; the
+ABBA interleaving in section 2 is designed so that any drift that did occur hits
+both arms equally.
+
+HIP: not measured.  No HIP toolchain or device exists in this environment.
+Every launch this change introduced or rewrote goes through the
+ADAPTIVE_LAUNCH / ADAPTIVE_LAUNCH_SHARED macros, so the CUDA and HIP spellings
+are structurally identical by construction, but that is a compile-time property
+and is not evidence of HIP behaviour.  RCG-09-FU4 stands.

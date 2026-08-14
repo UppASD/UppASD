@@ -450,18 +450,62 @@ struct AdaptiveFixture {
    // also be reduced").
    std::size_t liveBonds(const std::vector<int>& activeAtoms,
                          const std::vector<int>& interfaceAtoms) const {
+      return liveBondList(activeAtoms, interfaceAtoms).size();
+   }
+
+   // RCG-09C: the runtime's work lists carry one-based atom ids (the Fortran
+   // convention documented on GpuAdaptiveDeviceRuntime), while bondAtom is
+   // read here as a zero-based index.  This helper does the conversion in one
+   // place.  Before RCG-09C the conversion was missing and the ownership mask
+   // was shifted by one atom; it went unnoticed because no live-bond count in
+   // the sweep changed by more than one bond, and nothing compared the host
+   // set against the device's.
+   std::vector<char> ownedAtomMask(const std::vector<int>& activeAtoms,
+                                   const std::vector<int>& interfaceAtoms) const {
       std::vector<char> owned(atoms, 0);
-      for(const int atom : activeAtoms)
-         if(atom >= 0 && static_cast<std::size_t>(atom) < atoms) owned[atom] = 1;
-      for(const int atom : interfaceAtoms)
-         if(atom >= 0 && static_cast<std::size_t>(atom) < atoms) owned[atom] = 1;
-      std::size_t live = 0;
+      const auto mark = [&](const std::vector<int>& list) {
+         for(const int atom : list)
+            if(atom >= 1 && static_cast<std::size_t>(atom) <= atoms)
+               owned[static_cast<std::size_t>(atom) - 1] = 1;
+      };
+      mark(activeAtoms);
+      mark(interfaceAtoms);
+      return owned;
+   }
+
+   // RCG-09C: the same predicate expressed as an explicit host list, so the
+   // device's compact live-bond list can be checked against an independent
+   // implementation at every sweep point instead of only being counted.
+   std::vector<int> liveBondList(const std::vector<int>& activeAtoms,
+                                 const std::vector<int>& interfaceAtoms) const {
+      const auto owned = ownedAtomMask(activeAtoms, interfaceAtoms);
+      std::vector<int> live;
       for(std::size_t bond = 0; bond < bonds; ++bond) {
          const std::size_t atomI = static_cast<std::size_t>(bondAtom[2 * bond] - 1);
          const std::size_t atomJ = static_cast<std::size_t>(bondAtom[2 * bond + 1] - 1);
-         if(owned[atomI] || owned[atomJ]) ++live;
+         if(owned[atomI] || owned[atomJ]) live.push_back(static_cast<int>(bond + 1));
       }
       return live;
+   }
+
+   // The ghost shell: non-atomistic atoms that a live bond reaches.  These are
+   // the only coarse atoms carrying a nonzero atomistic reaction field, and
+   // therefore the only ones the interface restriction has to visit.
+   std::vector<int> ghostAtomList(const std::vector<int>& activeAtoms,
+                                  const std::vector<int>& interfaceAtoms) const {
+      const auto owned = ownedAtomMask(activeAtoms, interfaceAtoms);
+      std::vector<char> ghost(atoms, 0);
+      for(std::size_t bond = 0; bond < bonds; ++bond) {
+         const std::size_t atomI = static_cast<std::size_t>(bondAtom[2 * bond] - 1);
+         const std::size_t atomJ = static_cast<std::size_t>(bondAtom[2 * bond + 1] - 1);
+         if(!owned[atomI] && !owned[atomJ]) continue;
+         if(!owned[atomI]) ghost[atomI] = 1;
+         if(!owned[atomJ]) ghost[atomJ] = 1;
+      }
+      std::vector<int> result;
+      for(std::size_t atom = 0; atom < atoms; ++atom)
+         if(ghost[atom]) result.push_back(static_cast<int>(atom + 1));
+      return result;
    }
 };
 
@@ -853,7 +897,16 @@ struct SweepPoint {
    std::size_t activeBlocks = 0;
    std::size_t interfaceAtoms = 0;
    std::size_t liveBonds = 0;
+   // RCG-09C: ghost shell size, and the launch sizes the runtime actually
+   // issues, so "the launch scales with the live list" is reported as a
+   // measured launch geometry rather than inferred from a phase time.
+   std::size_t ghostAtoms = 0;
+   std::size_t bondLaunchBlocks = 0;
+   std::size_t atomLaunchBlocks = 0;
+   std::size_t coarseLaunchBlocks = 0;
+   std::size_t ghostLaunchBlocks = 0;
    std::size_t allocatedBytes = 0;
+   GpuAdaptiveCompactionMetrics compaction{};
    // Headline timing, per-phase instrumentation disabled (RCG-08-FU2).
    TimingSample untimedStep;
    // Same work with per-phase device timers enabled: the breakdown, and the
@@ -1528,8 +1581,37 @@ int main(int argc, char** argv) {
             point.activeAtoms = snapshot.activeAtoms.size();
             point.activeBlocks = snapshot.activeBlocks.size();
             point.interfaceAtoms = snapshot.interfaceAtoms.size();
-            point.liveBonds = fixture.liveBonds(snapshot.activeAtoms,
-                                                snapshot.interfaceAtoms);
+            // RCG-09C: the device's compact list must equal the host oracle
+            // exactly -- same membership and same ascending order -- at every
+            // fine fraction.  A silent ownership change would otherwise show up
+            // only as a faster benchmark.
+            {
+               const auto expectedBonds = fixture.liveBondList(
+                  snapshot.activeAtoms, snapshot.interfaceAtoms);
+               const auto expectedGhosts = fixture.ghostAtomList(
+                  snapshot.activeAtoms, snapshot.interfaceAtoms);
+               if(snapshot.activeBonds != expectedBonds ||
+                  snapshot.ghostAtoms != expectedGhosts) {
+                  std::printf("live-bond-compaction requested_fraction=%.6f "
+                              "device_live_bonds=%zu host_live_bonds=%zu "
+                              "device_ghost_atoms=%zu host_ghost_atoms=%zu "
+                              "result=FAIL\n",
+                              fraction, snapshot.activeBonds.size(),
+                              expectedBonds.size(), snapshot.ghostAtoms.size(),
+                              expectedGhosts.size());
+                  return 1;
+               }
+            }
+            point.liveBonds = snapshot.activeBonds.size();
+            point.ghostAtoms = snapshot.ghostAtoms.size();
+            const auto launchBlocks = [&](std::size_t items) {
+               const std::size_t work = items * fixture.ensembles;
+               return work == 0 ? std::size_t(0) : (work + 255) / 256;
+            };
+            point.bondLaunchBlocks = launchBlocks(point.liveBonds);
+            point.atomLaunchBlocks = launchBlocks(point.activeAtoms);
+            point.coarseLaunchBlocks = launchBlocks(point.activeBlocks);
+            point.ghostLaunchBlocks = launchBlocks(point.ghostAtoms);
             point.activeAtomFraction = static_cast<double>(point.activeAtoms) /
                static_cast<double>(fixture.atoms);
             point.activeBlockFraction = static_cast<double>(point.activeBlocks) /
@@ -1558,6 +1640,7 @@ int main(int argc, char** argv) {
             point.phases = runtime.phaseMetrics();
             point.phaseIterations = static_cast<double>(options.iterations) *
                static_cast<double>(options.repetitions);
+            point.compaction = runtime.compactionMetrics();
             sweep.push_back(point);
 
             const double scale = 1000.0 / point.phaseIterations;
@@ -1624,6 +1707,30 @@ int main(int argc, char** argv) {
                static_cast<double>(point.phases.polarizationLaunches) / point.phaseIterations,
                static_cast<double>(point.phases.compactionLaunches) / point.phaseIterations,
                static_cast<double>(point.phases.integrationLaunches) / point.phaseIterations);
+            // RCG-09C: launch geometry and the price of maintaining it.  The
+            // *_launch_blocks columns are the thread-block counts the runtime
+            // issues for the live lists; compaction is rebuilt once per
+            // resolution change, so its cost is reported per rebuild, not per
+            // step, and is not part of the phase times above.
+            std::printf(
+               "adaptive-sweep-livework requested_fraction=%.6f "
+               "total_bonds=%zu live_bonds=%zu live_bond_fraction=%.6f "
+               "ghost_atoms=%zu bond_launch_blocks=%zu atom_launch_blocks=%zu "
+               "coarse_launch_blocks=%zu ghost_launch_blocks=%zu "
+               "full_bond_launch_blocks=%zu full_atom_launch_blocks=%zu "
+               "compaction_rebuilds=%llu compaction_readbacks=%llu "
+               "compaction_readback_us_per_rebuild=%.6f\n",
+               point.requestedFraction, fixture.bonds, point.liveBonds,
+               point.liveBondFraction, point.ghostAtoms,
+               point.bondLaunchBlocks, point.atomLaunchBlocks,
+               point.coarseLaunchBlocks, point.ghostLaunchBlocks,
+               (fixture.bonds * fixture.ensembles + 255) / 256,
+               (fixture.atoms * fixture.ensembles + 255) / 256,
+               static_cast<unsigned long long>(point.compaction.rebuilds),
+               static_cast<unsigned long long>(point.compaction.workCountReadbacks),
+               point.compaction.workCountReadbacks == 0 ? 0.0 :
+                  1000.0 * point.compaction.workCountReadbackMilliseconds /
+                     static_cast<double>(point.compaction.workCountReadbacks));
             char tag[96];
             std::snprintf(tag, sizeof(tag),
                           "adaptive-sweep-sample fraction=%.6f", fraction);

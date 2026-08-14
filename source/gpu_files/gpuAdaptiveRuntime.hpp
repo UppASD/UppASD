@@ -143,10 +143,19 @@ struct GpuAdaptiveDeviceRuntime {
    real* polarizationRatio = nullptr;
    unsigned char* atomisticAtomMask = nullptr;
    unsigned char* interfaceAtomMask = nullptr;
+   // RCG-09C: non-atomistic atoms that are an endpoint of at least one live
+   // bond -- the only coarse atoms the atomistic reaction field can reach.
+   unsigned char* ghostAtomMask = nullptr;
    int* activeAtomList = nullptr;
    int* activeBlockList = nullptr;
    int* interfaceAtomList = nullptr;
-   unsigned int* workCounts = nullptr; // active atoms, active blocks, interface atoms
+   int* ghostAtomList = nullptr;
+   // RCG-09C: the compact live-bond list -- unique bonds that remain
+   // atomistically owned, in ascending bond order.
+   int* activeBondList = nullptr;
+   // active atoms, active (coarse) blocks, interface atoms, ghost atoms,
+   // live bonds
+   unsigned int* workCounts = nullptr;
    real* selectorScores = nullptr;
    real* coarseMoment = nullptr;
    real* coarseDirection = nullptr;
@@ -158,10 +167,13 @@ struct GpuAdaptiveWorkSnapshot {
    std::vector<int> activeAtoms;
    std::vector<int> activeBlocks;
    std::vector<int> interfaceAtoms;
+   std::vector<int> ghostAtoms;
+   std::vector<int> activeBonds;
    std::vector<unsigned char> atomisticBlockMask;
    std::vector<unsigned char> coarseBlockMask;
    std::vector<unsigned char> atomisticAtomMask;
    std::vector<unsigned char> interfaceAtomMask;
+   std::vector<unsigned char> ghostAtomMask;
 };
 
 struct GpuAdaptiveCompactionMetrics {
@@ -170,6 +182,14 @@ struct GpuAdaptiveCompactionMetrics {
    double elapsedMilliseconds = 0.0;       // complete staged update wall time
    double hostWaitMilliseconds = 0.0;      // time blocked in end-event synchronization
    double deviceMilliseconds = 0.0;        // GPU event interval
+   // RCG-09C: compaction now publishes its work counts to the host so launch
+   // sizes can be cut to the live lists.  That readback is one stream
+   // synchronization plus a five-word copy per rebuild -- not per timestep --
+   // and is measured here rather than folded into the numbers above, so the
+   // price of live-list launching is visible next to its benefit.
+   std::uint64_t rebuilds = 0;
+   std::uint64_t workCountReadbacks = 0;
+   double workCountReadbackMilliseconds = 0.0;
 };
 
 struct GpuAdaptiveEnergy {
@@ -356,7 +376,15 @@ public:
    // shared production Depondt integrator owns the fine-atom updates.
    real* coarseFieldData() { return coarseField_.data(); }
    const int* activeAtomList() const { return activeAtomList_.data(); }
-   std::size_t activeAtomCount();
+   // RCG-09C: served from the host mirror refreshed by every compaction.  The
+   // counts can only change when compaction runs, so this no longer costs a
+   // stream synchronization and a device read per timestep.
+   std::size_t activeAtomCount() const { return hostWorkCounts_[0]; }
+   std::size_t activeBlockCount() const { return hostWorkCounts_[1]; }
+   std::size_t interfaceAtomCount() const { return hostWorkCounts_[2]; }
+   std::size_t ghostAtomCount() const { return hostWorkCounts_[3]; }
+   std::size_t liveBondCount() const { return hostWorkCounts_[4]; }
+   std::size_t bondCount() const { return bonds_; }
    void prepareCoarsePredictor(real timeStepSeconds,
                                const real* initialCoarseField);
    void correctCoarse(real timeStepSeconds,
@@ -408,6 +436,9 @@ private:
    void uploadTopology(const GpuAdaptiveTopologyInput&);
    void uploadRuntime(const GpuAdaptiveTopologyInput&, const GpuAdaptiveRuntimeInput&);
    void launchCompaction();
+   // RCG-09C: publish the freshly compacted work counts to hostWorkCounts_.
+   // Called once per rebuild, never per timestep.
+   void refreshHostWorkCounts();
    void refreshDeviceDescriptors();
    void beginPhase();
    double finishPhase(double& accumulator);
@@ -455,11 +486,21 @@ private:
    GpuTensor<unsigned int, 1> stateAge_, transitionEpoch_;
    GpuTensor<unsigned char, 1> atomisticBlockMask_, coarseBlockMask_;
    GpuTensor<unsigned char, 1> atomisticAtomMask_, interfaceAtomMask_;
+   GpuTensor<unsigned char, 1> ghostAtomMask_;
    GpuTensor<real, 1> selectorScores_;
    GpuTensor<real, 1> coarseMoment_, coarseDirection_, coarseField_;
    GpuTensor<real, 1> channelMomentSum_;
    GpuTensor<int, 1> activeAtomList_, activeBlockList_, interfaceAtomList_;
+   GpuTensor<int, 1> ghostAtomList_, activeBondList_;
    GpuTensor<unsigned int, 1> workCounts_, compactionScanA_, compactionScanB_;
+   // RCG-09C: the live-bond scan is a separate, single-component sweep over
+   // the unique-bond list.  Bonds outnumber atoms by the coordination number,
+   // so folding them into the atom/block scan would make every atom and block
+   // component that many times longer for no benefit.
+   GpuTensor<unsigned int, 1> bondScanA_, bondScanB_, bondScanLevels_;
+   std::vector<std::size_t> bondScanLevelItems_, bondScanLevelOffset_;
+   // Host mirror of workCounts_, refreshed by refreshHostWorkCounts().
+   unsigned int hostWorkCounts_[5] = {};
    // RCG-08 (F-12): tile-total storage for the hierarchical compaction scan.
    // One flat buffer holding levels 1..L back to back; scanLevelItems_[i] is
    // level i+1's per-component item count and scanLevelOffset_[i] its element

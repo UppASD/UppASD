@@ -303,6 +303,88 @@ std::vector<real> download(const real* source, std::size_t count) {
    return result;
 }
 
+// RCG-09C: the compact live-bond list and the ghost shell it induces.
+//
+// KernelFixture's state {coarse, buffer, fine, coarse} over a periodic chain
+// exercises every ownership case the accepted hybrid rule distinguishes, so
+// the expected lists below are written out rather than recomputed with the
+// same predicate the implementation uses:
+//
+//   atoms 1,2 -> block 1 (coarse)   atoms 5,6 -> block 3 (fine)
+//   atoms 3,4 -> block 2 (buffer)   atoms 7,8 -> block 4 (coarse)
+//
+//   bond 1 (1,2) coarse-coarse   -> owned by the continuum operator, excluded
+//   bond 2 (3,4) buffer-buffer   -> atomistic
+//   bond 3 (5,6) fine-fine       -> atomistic
+//   bond 4 (7,8) coarse-coarse   -> excluded
+//   bond 5 (2,3) coarse-buffer   -> atomistic, ghost endpoint atom 2
+//   bond 6 (4,5) buffer-fine     -> atomistic
+//   bond 7 (6,7) fine-coarse     -> atomistic, ghost endpoint atom 7
+//   bond 8 (8,1) coarse-coarse   -> excluded
+void testLiveBondCompaction() {
+   KernelFixture fixture;
+   const auto topology = fixture.topology();
+   const auto input = fixture.runtime();
+   GpuAdaptiveRuntime runtime;
+   runtime.initialize(topology, input, KernelFixture::atoms,
+                      KernelFixture::ensembles);
+
+   const std::vector<int> expectedBonds{2, 3, 5, 6, 7};
+   const std::vector<int> expectedGhosts{2, 7};
+   const auto snapshot = runtime.downloadWorkSnapshot();
+   expectEqual(snapshot.activeBonds, expectedBonds,
+               "live-bond compaction changed the hybrid bond ownership rule");
+   expectEqual(snapshot.ghostAtoms, expectedGhosts,
+               "ghost shell does not contain exactly the coarse endpoints of "
+               "live bonds");
+   require(runtime.liveBondCount() == expectedBonds.size(),
+           "host live-bond mirror disagrees with the device list");
+   require(runtime.ghostAtomCount() == expectedGhosts.size(),
+           "host ghost-shell mirror disagrees with the device list");
+   require(runtime.liveBondCount() < runtime.bondCount(),
+           "fixture does not actually exclude any coarse-coarse bond, so it "
+           "cannot demonstrate compaction");
+
+   // Ordering is a function of state alone: the list is strictly ascending,
+   // and rebuilding from the identical state reproduces it exactly.  Field
+   // scatter and the block-partial energy reduction both depend on that.
+   for(std::size_t slot = 1; slot < snapshot.activeBonds.size(); ++slot)
+      require(snapshot.activeBonds[slot - 1] < snapshot.activeBonds[slot],
+              "live-bond list is not in ascending bond order");
+   runtime.updateBlockState(fixture.state, KernelFixture::blocks);
+   const auto rebuilt = runtime.downloadWorkSnapshot();
+   expectEqual(rebuilt.activeBonds, expectedBonds,
+               "recompaction from an unchanged state produced a different "
+               "live-bond ordering");
+   expectEqual(rebuilt.ghostAtoms, expectedGhosts,
+               "recompaction from an unchanged state produced a different "
+               "ghost shell");
+
+   // All-fine is the limit the RCG-09A parity gates run in: every bond stays
+   // live and the compact list must be the identity permutation, so the
+   // all-fine launch is the same work in the same order it was before.
+   std::vector<int> allFine(KernelFixture::blocks, 2);
+   runtime.updateBlockState(allFine.data(), allFine.size());
+   const auto fine = runtime.downloadWorkSnapshot();
+   require(fine.activeBonds.size() == KernelFixture::bonds,
+           "all-fine state dropped a bond from the live list");
+   for(std::size_t bond = 0; bond < KernelFixture::bonds; ++bond)
+      require(fine.activeBonds[bond] == static_cast<int>(bond + 1),
+              "all-fine live-bond list is not the identity permutation");
+   require(fine.ghostAtoms.empty(),
+           "all-fine state produced a ghost shell");
+
+   // All-coarse is the other limit: the continuum operator owns every bond,
+   // so the atomistic evaluator has nothing to launch at all.
+   std::vector<int> allCoarse(KernelFixture::blocks, 0);
+   runtime.updateBlockState(allCoarse.data(), allCoarse.size());
+   const auto coarse = runtime.downloadWorkSnapshot();
+   require(coarse.activeBonds.empty() && coarse.ghostAtoms.empty() &&
+           runtime.liveBondCount() == 0 && runtime.activeAtomCount() == 0,
+           "all-coarse state left atomistic work in the live lists");
+   runtime.release();
+}
+
 void testKernelParityAndWorkflow() {
    KernelFixture fixture;
    const auto topology = fixture.topology();
@@ -807,10 +889,19 @@ void testHierarchicalCompaction() {
                "hierarchical scan produced the wrong coarse block list");
    expectEqual(snapshot.interfaceAtoms, expectedInterface,
                "hierarchical scan produced the wrong interface atom list");
+   // RCG-09C: this fixture carries no operator inventory, so it has no bonds
+   // and therefore no ghost shell.  The scan still carries the fourth
+   // component; it must come back empty rather than uninitialized.
+   require(snapshot.ghostAtoms.empty() && snapshot.activeBonds.empty(),
+           "bondless fixture produced a nonempty ghost shell or live-bond list");
 
    // 76800 items -> tile levels {300, 2}: initialize, three tile scans, two
-   // offset additions, scatter = 7.  Bound at 8 to tolerate one extra level
-   // if adaptiveThreads is ever retuned, while still failing hard on the
+   // offset additions, scatter = 7.  RCG-09C widened the scan from three
+   // components to four (the ghost shell) and added a separate single-
+   // component bond scan, but neither changes the launch count here: the tile
+   // scans are one launch per level regardless of component count, and this
+   // fixture has no bonds.  Bound left at 8 to tolerate one extra level if
+   // adaptiveThreads is ever retuned, while still failing hard on the
    // pre-fix sweep's 19.
    const auto metrics = runtime.phaseMetrics();
    require(metrics.compactionLaunches > 0,
@@ -918,6 +1009,10 @@ int main() {
    require(!runtime.ready(), "runtime remained ready after release");
    require(TensorMemoryTracker::current_device() == baseline,
            "release did not restore device memory accounting");
+   // RCG-09C: the live lists are a precondition of every field launch, so the
+   // structural check runs before the numerical one; a compaction defect then
+   // reports itself as a wrong list rather than as a wrong energy.
+   testLiveBondCompaction();
    testKernelParityAndWorkflow();
    testPolarizationGate();
    testHierarchicalCompaction();
