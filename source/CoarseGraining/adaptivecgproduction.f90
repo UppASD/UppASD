@@ -1022,6 +1022,43 @@ contains
       end if
    end function wall_clock_seconds
 
+   !> Static CPU/GPU parity uses diagnostics=3. The caller refreshes the
+   !> field before each snapshot, without changing an accepted direction, so
+   !> every stage includes the atomistic energy of its own state.
+   subroutine print_static_stage_trace(step,stage,atom_direction,coarse_direction)
+      integer, intent(in) :: step
+      character(len=*), intent(in) :: stage
+      real(dblprec), intent(in) :: atom_direction(:,:,:), coarse_direction(:,:,:,:)
+      integer :: atom, ensemble
+      real(dblprec) :: atomistic_direction_sum, atomistic_direction_norm2
+
+      if (adaptive_cg%diagnostics < 3 .or. adaptive_cg_state%adaptive_mask) return
+      atomistic_direction_sum = 0.0_dblprec
+      atomistic_direction_norm2 = 0.0_dblprec
+      do ensemble = 1, size(atom_direction,3)
+         do atom = 1, size(atom_direction,2)
+            if (.not. adaptive_cg_state%runtime%hybrid%atomistic_atom(atom)) cycle
+            atomistic_direction_sum = atomistic_direction_sum + &
+               sum(atom_direction(:,atom,ensemble))
+            atomistic_direction_norm2 = atomistic_direction_norm2 + &
+               sum(atom_direction(:,atom,ensemble)**2)
+         end do
+      end do
+      write(*,'(a,i0,a,a,a,es24.16,a,es24.16,a,es24.16,a,es24.16,a,es24.16,a,es24.16,a,es24.16,a,es24.16,a,es24.16,a,es24.16,a,es24.16)') &
+         'AdaptiveCG: stage_trace step=',step,' stage=',trim(stage), &
+         ' atom_direction_sum=',sum(atom_direction), &
+         ' atom_direction_norm2=',sum(atom_direction*atom_direction), &
+         ' atomistic_direction_sum=',atomistic_direction_sum, &
+         ' atomistic_direction_norm2=',atomistic_direction_norm2, &
+         ' coarse_direction_sum=',sum(coarse_direction), &
+         ' coarse_direction_norm2=',sum(coarse_direction*coarse_direction), &
+         ' atom_field_sum=',adaptive_cg_state%last_atom_field_sum_t, &
+         ' atom_field_norm2=',adaptive_cg_state%last_atom_field_norm2_t2, &
+         ' coarse_field_sum=',adaptive_cg_state%last_coarse_field_sum_t, &
+         ' coarse_field_norm2=',adaptive_cg_state%last_coarse_field_norm2_t2, &
+         ' atomistic_bilinear=',adaptive_cg_state%last_energy%atomistic_bilinear_j
+   end subroutine print_static_stage_trace
+
    subroutine adaptive_cg_cpu_step(step,atom_direction,atom_magnitude,atom_moment,temprescale,status,diagnostic)
       integer, intent(in) :: step
       real(dblprec), intent(inout) :: atom_direction(:,:,:)
@@ -1065,6 +1102,7 @@ contains
 
       call evaluate_all_ensembles(atom0,coarse0,atom_field0,coarse_field0,local_status,diagnostic)
       if (local_status /= STATIC_HYBRID_OK) return
+      call print_static_stage_trace(step,'initial',atom_direction,coarse0)
       time0 = wall_clock_seconds()
       do ensemble = 1, Mensemble
          call coarse_llg_rhs(adaptive_cg_state%tensor,coarse0(:,1,:,ensemble), &
@@ -1088,6 +1126,7 @@ contains
       call evaluate_all_ensembles(atom_direction,coarse_predictor,atom_field1,coarse_field1, &
          local_status,diagnostic)
       if (local_status /= STATIC_HYBRID_OK) return
+      call print_static_stage_trace(step,'predictor',atom_direction,coarse_predictor)
       time0 = wall_clock_seconds()
       do ensemble = 1, Mensemble
          call coarse_llg_rhs(adaptive_cg_state%tensor,coarse0(:,1,:,ensemble), &
@@ -1110,12 +1149,26 @@ contains
          lambda1_array,atom_field1,b2eff,btorque,atom_direction,atom0,delta_t,stt,do_she, &
          she_btorque,do_sot,sot_btorque,adaptive_cg_state%runtime%active_atom_list)
       atom_direction = atom0
+      if (adaptive_cg%diagnostics >= 3 .and. .not. adaptive_cg_state%adaptive_mask) then
+         call evaluate_all_ensembles(atom_direction,adaptive_cg_state%coarse_direction, &
+            atom_field1,coarse_field1,local_status,diagnostic)
+         if (local_status /= STATIC_HYBRID_OK) return
+      end if
+      call print_static_stage_trace(step,'corrector',atom_direction, &
+         adaptive_cg_state%coarse_direction)
       time1 = wall_clock_seconds()
       adaptive_cg_state%integration_seconds = adaptive_cg_state%integration_seconds + &
          max(0.0_dblprec,time1-time0)
       time0 = wall_clock_seconds()
       call reconstruct_coarse_atoms(atom_direction,status,diagnostic)
       if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
+      if (adaptive_cg%diagnostics >= 3 .and. .not. adaptive_cg_state%adaptive_mask) then
+         call evaluate_all_ensembles(atom_direction,adaptive_cg_state%coarse_direction, &
+            atom_field1,coarse_field1,local_status,diagnostic)
+         if (local_status /= STATIC_HYBRID_OK) return
+      end if
+      call print_static_stage_trace(step,'reconstructed',atom_direction, &
+         adaptive_cg_state%coarse_direction)
       time1 = wall_clock_seconds()
       adaptive_cg_state%reconstruction_seconds = adaptive_cg_state%reconstruction_seconds + &
          max(0.0_dblprec,time1-time0)

@@ -1151,6 +1151,31 @@ void GpuSimulation::advanceAdaptiveStep(
          gpuAdaptiveRuntime.coarseFieldData(), fftFieldPtr);
       gpuAdaptiveRuntime.synchronize();
    };
+   // Diagnostics level 3 is already used by the CPU/GPU static-parity
+   // fixtures. Emit a matching diagnostic evaluation at each Depondt/Heun
+   // handoff so the harness can report the first divergent stage instead of
+   // attributing a final energy mismatch to a reduction. The two extra
+   // evaluations below are restricted to static diagnostics and do not alter
+   // an accepted direction; the next production step would evaluate again.
+   const auto printStaticStageTrace = [this, step](const char* stage,
+                                                   const real* direction) {
+      if(adaptiveDiagnostics < 3 || adaptiveMaskEnabled) return;
+      const auto diagnostic = gpuAdaptiveRuntime.diagnosticSnapshot(direction);
+      std::printf("Gpu: AdaptiveCG: stage_trace step=%zu stage=%s "
+                  "atom_direction_sum=%.16e atom_direction_norm2=%.16e "
+                  "atomistic_direction_sum=%.16e atomistic_direction_norm2=%.16e "
+                  "coarse_direction_sum=%.16e coarse_direction_norm2=%.16e "
+                  "atom_field_sum=%.16e atom_field_norm2=%.16e "
+                  "coarse_field_sum=%.16e coarse_field_norm2=%.16e "
+                  "atomistic_bilinear=%.16e\n",
+                  step, stage, diagnostic.directionSum, diagnostic.directionNorm2,
+                  diagnostic.atomisticDirectionSum,
+                  diagnostic.atomisticDirectionNorm2,
+                  diagnostic.coarseDirectionSum, diagnostic.coarseDirectionNorm2,
+                  diagnostic.atomFieldSumT, diagnostic.atomFieldNorm2T2,
+                  diagnostic.coarseFieldSumT, diagnostic.coarseFieldNorm2T2,
+                  diagnostic.energy.atomisticBilinearJ);
+   };
    const std::size_t activeAtomCount = gpuAdaptiveRuntime.activeAtomCount();
    const int* activeAtomList = gpuAdaptiveRuntime.activeAtomList();
 
@@ -1159,30 +1184,43 @@ void GpuSimulation::advanceAdaptiveStep(
    // field assembly and coarse-block integration; fine atoms use the same
    // shared integrator and thermal field as feature-off ASD.
    evaluateAdaptiveFields(gpuLattice.emom.data());
+   printStaticStageTrace("initial", gpuLattice.emom.data());
    gpuAdaptiveRuntime.prepareCoarsePredictor(
       static_cast<real>(SimParam.delta_t), gpuAdaptiveRuntime.coarseFieldData());
    gpuAdaptiveRuntime.synchronize();
    integrator->evolveFirst(gpuLattice, activeAtomList, activeAtomCount);
    ASSERT_GPU(GPU_STREAM_SYNC(ParallelizationHelperInstance.getWorkStream()));
    evaluateAdaptiveFields(gpuLattice.emom.data());
+   printStaticStageTrace("predictor", gpuLattice.emom.data());
    integrator->evolveSecond(gpuLattice, activeAtomList, activeAtomCount);
    ASSERT_GPU(GPU_STREAM_SYNC(ParallelizationHelperInstance.getWorkStream()));
    gpuAdaptiveRuntime.correctCoarse(
       static_cast<real>(SimParam.delta_t), gpuAdaptiveRuntime.coarseFieldData());
    gpuAdaptiveRuntime.synchronize();
+   if(adaptiveDiagnostics >= 3 && !adaptiveMaskEnabled)
+      evaluateAdaptiveFields(gpuLattice.emom2.data());
+   printStaticStageTrace("corrector", gpuLattice.emom2.data());
+   // The active-subset Depondt corrector leaves the accepted fine-atom
+   // vectors in emom2, matching the full-range integrator's buffer contract.
+   // Assemble coarse atoms into that same buffer. GpuMomentUpdater owns the
+   // one post-step emom/emom2 swap for every SD path; promoting here as well
+   // would make its unconditional swap publish the stale pre-step buffer.
    gpuAdaptiveRuntime.synchronizeAtomicState(
-      gpuLattice.emom.data(), adaptiveReconstructionPolicy);
+      gpuLattice.emom2.data(), adaptiveReconstructionPolicy);
+   if(adaptiveDiagnostics >= 3 && !adaptiveMaskEnabled)
+      evaluateAdaptiveFields(gpuLattice.emom2.data());
+   printStaticStageTrace("reconstructed", gpuLattice.emom2.data());
    if(adaptiveMaskEnabled && adaptiveUpdateInterval > 0 &&
       step % adaptiveUpdateInterval == 0) {
-      gpuAdaptiveRuntime.restrictMoments(gpuLattice.emom.data());
-      gpuAdaptiveRuntime.evaluateSelectorScores(gpuLattice.emom.data());
+      gpuAdaptiveRuntime.restrictMoments(gpuLattice.emom2.data());
+      gpuAdaptiveRuntime.evaluateSelectorScores(gpuLattice.emom2.data());
       gpuAdaptiveRuntime.evaluatePolarizationGate(adaptivePolarizationThreshold);
       gpuAdaptiveRuntime.proposeSelectorState(
          adaptiveSelectorPolicy, gpuAdaptiveRuntime.polarizationUnsafeBlockMask());
       gpuAdaptiveRuntime.publishProposedState(
-         gpuLattice.emom.data(), adaptiveReconstructionPolicy, true);
+         gpuLattice.emom2.data(), adaptiveReconstructionPolicy, true);
       gpuAdaptiveRuntime.synchronizeAtomicState(
-         gpuLattice.emom.data(), adaptiveReconstructionPolicy);
+         gpuLattice.emom2.data(), adaptiveReconstructionPolicy);
    }
    ASSERT_GPU(GPU_STREAM_SYNC(gpuAdaptiveRuntime.stream()));
    const auto adaptiveStepWallStopped = std::chrono::steady_clock::now();

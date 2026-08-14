@@ -234,6 +234,10 @@ struct GpuAdaptiveDiagnosticSnapshot {
    double coarseFieldNorm2T2 = 0.0;
    double directionSum = 0.0;
    double directionNorm2 = 0.0;
+   double atomisticDirectionSum = 0.0;
+   double atomisticDirectionNorm2 = 0.0;
+   double coarseDirectionSum = 0.0;
+   double coarseDirectionNorm2 = 0.0;
 };
 
 // Basis-resolved uniform FFT field view. The convolution owner retains the
@@ -490,6 +494,12 @@ private:
    // values remain explicit `real` everywhere else; only this 8-slot
    // reduction target is widened.
    GpuTensor<double, 1> energyTerms_;
+   // RCG-09B: each energy-producing kernel writes one deterministic FP64
+   // partial per launch block into this compact term-major buffer.  The
+   // final ordered reduction consumes these partials; no adaptive energy
+   // kernel writes a contended global scalar.
+   GpuTensor<double, 1> energyPartials_;
+   std::size_t energyPartialBlocks_ = 0;
    GpuTensor<unsigned char, 1> acceptedBlockMask_;
    GpuTensor<unsigned char, 1> polarizationUnsafeBlockMask_;
    GpuTensor<real, 1> polarizationRatioBlock_;

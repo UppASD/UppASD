@@ -1,6 +1,6 @@
 simid cg105dmik
 alat 2.0e-10
-ncell 10 2 2
+ncell 10 4 2
 BC P P P
 cell 1.0 0.0 0.0
      0.0 1.0 0.0

@@ -1845,6 +1845,49 @@ comparison.
 
 ---
 
+#### RCG-09B implementation status (2026-08-14)
+
+The live inventory and implementation record are in
+`docs/RCG-09B_REDUCTION_EVIDENCE.md`. All eight producer groups were converted
+in `source/gpu_files/gpuAdaptiveRuntime.cpp`: atomistic bonds and onsite,
+coarse tensor and local terms, and both dipole paths. Each now performs a
+block-local FP64 tree reduction into term-major scratch, followed by an ordered
+block-index reduction. The existing unconditional FP64 `energyTerms[0..7]`
+contract remains in place, and the pathological single-address implementation
+is not selectable in production.
+
+The CUDA fp64 Release build and a CUDA SINGLE-storage/fp64-energy compile pass.
+The CUDA handoff run then passed the standalone RCG-09A Hamiltonian and
+adaptive-ASD parity-only target at roundoff-level field/energy differences.
+The original full selected ctest command failed before reaching its GPU cases:
+the CPU `dmi_anisotropy_mixed` fixture aliased its `+y` and `-y` DMI shells
+when `ncell y=2`, so the RCG-09A reciprocal-pair validator correctly rejected
+canonical pair 1/21. Both CPU and GPU fixture inputs were corrected to
+`ncell 10 4 2`, and a fresh local CPU production-e2e rerun passed all cases.
+The first corrected CUDA run then exposed a separate diagnostic-only bug: the
+GPU checksum path read the zeroed `predictorCoarseField_` scratch buffer
+instead of the assembled `coarseField_`, producing `coarse_sum=0.0` where the
+CPU reported `535.7009401755746`. The diagnostic now reads the assembled
+buffer; no field, integration, or energy calculation is changed. The corrected
+CUDA GPU production-e2e arm still requires a fresh device-side rerun.
+The next rerun passed the coarse checksum but failed the existing static
+CPU/GPU restart-state trajectory budget: maximum component difference
+`6.291162e-3` versus `8.0e-5`, localized to the coarse reconstructed block.
+The tolerance was not widened. Source inspection identified the remaining
+state-handoff defect: the active-subset Depondt corrector stores accepted
+fine-atom vectors in `emom2`, while the adaptive driver reconstructed/published
+`emom` and then used that stale pre-corrector buffer for the next step. The
+driver now reconstructs into `emom2` and swaps the accepted buffer into `emom`
+before selector work or the next field evaluation. CUDA trajectory parity
+remains pending the device-side rerun after this fix.
+Separately, the direct five-size scaling sweep was run, but
+the device gate reported 81% utilization and two foreign Python compute
+processes, so the production e2e harness refused the measurement. Its raw
+diagnostic data and metadata are recorded in
+`docs/rcg09/rcg09b_cuda_dirty_device_scaling.txt`; they do not close the
+clean-device performance, production-comparison, or scaling checklist items.
+HIP execution remains open. No performance claim is restored.
+
 ### Task RCG-10: Reconcile release evidence with the parent blueprint
 
 **Dependencies:** RCG-00 through RCG-09 and RCG-09A. RCG-09B is **not** a

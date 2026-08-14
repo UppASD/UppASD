@@ -178,7 +178,8 @@ All fixtures share `posfile` (2 atoms/cell, positions `(0,0,0)` and
 `Landeg=2.0`), and `jfile` (4 isotropic-exchange shells, no stated
 antisymmetric term) unless a row states otherwise. `ncell 6 2 2` with
 `block_size 1×2×2` gives 48 atoms in 12 blocks (4 atoms/block) everywhere
-except `dmi_anisotropy_mixed[_gpu]` (`ncell 10 2 2`, 80 atoms, 20 blocks) and
+except `dmi_anisotropy_mixed[_gpu]` (`ncell 10 4 2`, 160 atoms, 40 blocks;
+expanded from `10 2 2` so its explicit ±y DMI shells do not alias) and
 the rejection cases. **No fixture in the suite sets `do_tottraj Y`.**
 **No fixture computes or asserts an initial torque or field norm.**
 
@@ -228,7 +229,7 @@ any texture moving during the run — see §3.5.
 
 | Fixture (path) | Init & steps | State | Terms & ownership | Observables asserted | Neg. control | Claim category |
 | --- | --- | --- | --- | --- | --- | --- |
-| `dmi_anisotropy_mixed`/`dmi_anisotropy_mixed_gpu` (`ncell 10 2 2`, 80 atoms) | `Initmag 1` (`mseed 73129`), `Nstep 2`, PROJECTED, STATIC, `mask.dat` (mixed) | R | exchange + DMI (`dmfile_cg`, directed ± pairs) + uniaxial anisotropy (`kfile_cg`, easy axis `(0,1,0)`, not aligned with the random state); fine+coarse+interface | CPU: `abs(term) > 1e-30` for `atomistic_onsite`, `coarse_spiralization`, `coarse_anisotropy` only (**nonzero-magnitude check, no sign, no oracle**); GPU: aggregate CPU/GPU parity of 8 energies + 4 field checksums + `final_state` (rel 5e-4/8e-4) | none | **currently unsupported claim** (DMI/anisotropy *dynamics or chirality*; only nonzero-term and weak aggregate CPU/GPU parity are actually asserted) |
+| `dmi_anisotropy_mixed`/`dmi_anisotropy_mixed_gpu` (`ncell 10 4 2`, 160 atoms; expanded from `10 2 2` to keep the explicit ±y DMI shells from aliasing under periodic folding) | `Initmag 1` (`mseed 73129`), `Nstep 2`, PROJECTED, STATIC, `mask.dat` (mixed) | R | exchange + DMI (`dmfile_cg`, directed ± pairs) + uniaxial anisotropy (`kfile_cg`, easy axis `(0,1,0)`, not aligned with the random state); fine+coarse+interface | CPU: `abs(term) > 1e-30` for `atomistic_onsite`, `coarse_spiralization`, `coarse_anisotropy` only (**nonzero-magnitude check, no sign, no oracle**); GPU: aggregate CPU/GPU parity of 8 energies + 4 field checksums + `final_state` (rel 5e-4/8e-4) | none | **currently unsupported claim** (DMI/anisotropy *dynamics or chirality*; only nonzero-term and weak aggregate CPU/GPU parity are actually asserted) |
 | `anisotropy_uniform_fine`/`anisotropy_uniform_coarse` (`kfile_cg_x`, easy axis `(1,0,0)` — aligned with `momfile`) | `Initmag 3`, `Nstep 1`, TENSOR, STATIC (all-fine / all-coarse via `mask.dat`) | U+K | exchange + uniaxial anisotropy, aligned (stationary) | `atomistic_onsite`/`coarse_anisotropy` == closed-form `24·(-0.002-0.003)·2.179872325e-21` J to 2e-12 relative; opposite-ownership term `< 1e-32` | none | **setup smoke** with a genuine independent analytic oracle for a *static* energy value (the strongest oracle-backed check in the whole suite) — explicitly **not** a dynamics or chirality claim; `Nstep 1` performs no integration |
 
 ### 3.4 Polarization-gate negative-control family (RCG-03 regression, retained)

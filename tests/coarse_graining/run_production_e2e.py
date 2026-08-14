@@ -87,6 +87,69 @@ def restart_state(case: Path) -> list[list[float]]:
     return state
 
 
+def static_stage_trace(output: str) -> list[tuple[int, str, dict[str, float]]]:
+    """Return the diagnostic RCG-09B handoff snapshots in emission order."""
+    traces: list[tuple[int, str, dict[str, float]]] = []
+    pattern = re.compile(
+        r"(?:Gpu:\s+)?AdaptiveCG: stage_trace step=(\d+) stage=(\w+) (.*)"
+    )
+    for match in pattern.finditer(output):
+        values = {
+            name: float(value)
+            for name, value in re.findall(
+                r"([a-z0-9_]+)=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][+-]?\d+)?)",
+                match.group(3),
+            )
+        }
+        traces.append((int(match.group(1)), match.group(2), values))
+    return traces
+
+
+def assert_static_stage_parity(cpu: str, gpu: str) -> None:
+    """Fail at the first static Depondt/Heun handoff that diverges."""
+    reference = static_stage_trace(cpu)
+    candidate = static_stage_trace(gpu)
+    assert reference, f"missing CPU static stage trace\\n{cpu}"
+    assert len(reference) == len(candidate), (
+        f"static stage trace count differs: CPU={len(reference)} GPU={len(candidate)}\\n"
+        f"GPU output\\n{gpu}"
+    )
+    tolerances = {
+        "atom_direction_sum": (8.0e-5, 8.0e-5),
+        "atom_direction_norm2": (8.0e-5, 8.0e-5),
+        "atomistic_direction_sum": (8.0e-5, 8.0e-5),
+        "atomistic_direction_norm2": (8.0e-5, 8.0e-5),
+        "coarse_direction_sum": (8.0e-5, 8.0e-5),
+        "coarse_direction_norm2": (8.0e-5, 8.0e-5),
+        "atom_field_sum": (8.0e-4, 2.0e-6),
+        "atom_field_norm2": (8.0e-4, 2.0e-6),
+        "coarse_field_sum": (8.0e-4, 2.0e-6),
+        "coarse_field_norm2": (8.0e-4, 2.0e-6),
+        "atomistic_bilinear": (5.0e-4, 2.0e-24),
+    }
+    for (step, stage, expected), (actual_step, actual_stage, actual) in zip(
+        reference, candidate
+    ):
+        assert (step, stage) == (actual_step, actual_stage), (
+            "static stage order differs: "
+            f"CPU=({step}, {stage}) GPU=({actual_step}, {actual_stage})"
+        )
+        for metric_name, (relative, absolute) in tolerances.items():
+            if stage == "corrector" and metric_name.startswith("atom_direction"):
+                # The subset Depondt contract leaves non-atomistic entries in
+                # emom2 untouched until the following reconstruction. Compare
+                # its accepted active atoms here; full directions are checked
+                # after the reconstructed stage.
+                continue
+            assert metric_name in expected and metric_name in actual, (
+                f"static stage {step}/{stage} is missing {metric_name}"
+            )
+            assert close(expected[metric_name], actual[metric_name], relative, absolute), (
+                f"static CPU/GPU first divergence at step={step} stage={stage} "
+                f"metric={metric_name}: {expected[metric_name]} vs {actual[metric_name]}"
+            )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--binary", type=Path, required=True)
@@ -348,6 +411,8 @@ def main() -> None:
                     f"{mode} CPU/GPU state decisions differ\n"
                     f"CPU {final_state(cpu)}\nGPU {final_state(gpu)}"
                 )
+                if mode == "static":
+                    assert_static_stage_parity(cpu, gpu)
                 for key in (
                     "atomistic_bilinear",
                     "atomistic_onsite",
@@ -375,11 +440,15 @@ def main() -> None:
                 cpu_state = restart_state(root / f"parity_{mode}_cpu")
                 gpu_state = restart_state(root / f"parity_{mode}_gpu")
                 assert len(cpu_state) == len(gpu_state) == 48
-                assert max(
+                restart_max_error = max(
                     abs(reference - candidate)
                     for reference_row, candidate_row in zip(cpu_state, gpu_state)
                     for reference, candidate in zip(reference_row, candidate_row)
-                ) <= 8.0e-5
+                )
+                assert restart_max_error <= 8.0e-5, (
+                    f"{mode} CPU/GPU restart state differs: "
+                    f"max_abs={restart_max_error:.16e} tolerance=8.0e-5"
+                )
                 if mode == "adaptive":
                     assert metric(cpu, "accepted_transitions") == metric(
                         gpu, "accepted_transitions"

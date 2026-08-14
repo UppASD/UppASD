@@ -2,7 +2,6 @@
 
 #include "base.hpp"
 #include "gpuAdaptiveReconstructionRng.hpp"
-#include "gpuAtomicDouble.hpp"
 #include "measurement/memoryMeasurement.h"
 
 #include <algorithm>
@@ -37,6 +36,22 @@ __device__ inline std::size_t adaptiveThreadIndex() {
    return static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
 }
 
+// RCG-09B: deterministic block-local FP64 reduction.  Every thread reaches
+// this tree, including out-of-range work items which contribute zero.  The
+// fixed binary tree defines the order within a launch block; the final
+// reduction below consumes block IDs in ascending order.
+__device__ inline void reduceAdaptiveEnergyBlock(
+   double value, double* partial, double* shared) {
+   shared[threadIdx.x] = value;
+   __syncthreads();
+   for(unsigned int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+      if(threadIdx.x < stride)
+         shared[threadIdx.x] += shared[threadIdx.x + stride];
+      __syncthreads();
+   }
+   if(threadIdx.x == 0) partial[blockIdx.x] = shared[0];
+}
+
 // RCG-08: every launch site this task introduced or rewrote goes through this
 // macro.  No HIP toolchain or device exists in any environment used across
 // RCG-02..RCG-08, so the HIP spelling of a new launch cannot be compiled, let
@@ -57,6 +72,15 @@ __device__ inline std::size_t adaptiveThreadIndex() {
 #define ADAPTIVE_LAUNCH(kernel, grid, stream, ...) \
    hipLaunchKernelGGL(kernel, dim3(grid), dim3(adaptiveThreads), 0, (stream), \
                       __VA_ARGS__)
+#endif
+
+#if defined(CUDA_V)
+#define ADAPTIVE_LAUNCH_SHARED(kernel, grid, shared, stream, ...) \
+   kernel<<<(grid), adaptiveThreads, (shared), (stream)>>>(__VA_ARGS__)
+#elif defined(HIP_V)
+#define ADAPTIVE_LAUNCH_SHARED(kernel, grid, shared, stream, ...) \
+   hipLaunchKernelGGL(kernel, dim3(grid), dim3(adaptiveThreads), (shared), \
+                      (stream), __VA_ARGS__)
 #endif
 
 // Level sizes for the hierarchical compaction scan: n_0 = scanItems and
@@ -106,6 +130,9 @@ struct AdaptiveKernelDevice {
    // header comment on GpuAdaptiveRuntime::energyTerms_.
    double* energyTerms;
    real* transitionBackup;
+   // RCG-09B: term-major FP64 block partials and their fixed stride.
+   double* energyPartials = nullptr;
+   std::size_t energyPartialBlocks = 0;
 };
 
 __host__ __device__ inline std::size_t atomVectorIndex(
@@ -767,86 +794,91 @@ __global__ void clearAdaptiveAtomistic(
 // One thread per (bond, ensemble).  The unique-pair ownership contract is
 // unchanged -- every bond is still visited exactly once and still scatters
 // the reaction field onto both of its endpoints -- but two bonds can now share
-// an endpoint atom concurrently, so the endpoint accumulation must be atomic.
-// This mirrors the choice RCG-07 accepted for the CPU analogue of the same
-// loop (per-component atomic updates rather than an atom-sized per-thread
-// reduction array, which would multiply an O(natoms) array by the thread
-// count and undo RCG-06A).  The energy accumulates through the RCG-06B FP64
-// accumulator, so the term stays FP64 regardless of build precision; its
-// summation order becomes atomic-arrival order, exactly as the already
-// accepted coarse energy terms (energyTerms[2..6]) have been since CG-10.
+// an endpoint atom concurrently, so the endpoint accumulation remains atomic.
+// Energy is reduced separately into one deterministic FP64 partial per block.
 __global__ void evaluateAdaptiveAtomisticBonds(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
    AdaptiveKernelDevice kernels, const real* atomDirection) {
    const std::size_t work = adaptiveThreadIndex();
    const std::size_t count = kernels.bonds * topology.ensembles;
-   if(work >= count) return;
-   const std::size_t bond = work % kernels.bonds;
-   const std::size_t ensemble = work / kernels.bonds;
-   const std::size_t atomI =
-      static_cast<std::size_t>(kernels.bondAtom[2 * bond] - 1);
-   const std::size_t atomJ =
-      static_cast<std::size_t>(kernels.bondAtom[2 * bond + 1] - 1);
-   if(!runtime.atomisticAtomMask[atomI] && !runtime.atomisticAtomMask[atomJ]) return;
-   real si[3], sj[3], ksiJ[3] = {}, ktSi[3] = {};
-   effectiveAtomDirection(topology, runtime, kernels, atomDirection, atomI, ensemble, si);
-   effectiveAtomDirection(topology, runtime, kernels, atomDirection, atomJ, ensemble, sj);
-   for(int row = 0; row < 3; ++row) {
-      for(int column = 0; column < 3; ++column) {
-         const real matrix = kernels.bondMatrix[row + 3 * (column + 3 * bond)];
-         ksiJ[row] += matrix * sj[column];
-         ktSi[column] += matrix * si[row];
+   double energy = 0.0;
+   if(work < count) {
+      const std::size_t bond = work % kernels.bonds;
+      const std::size_t ensemble = work / kernels.bonds;
+      const std::size_t atomI =
+         static_cast<std::size_t>(kernels.bondAtom[2 * bond] - 1);
+      const std::size_t atomJ =
+         static_cast<std::size_t>(kernels.bondAtom[2 * bond + 1] - 1);
+      if(runtime.atomisticAtomMask[atomI] || runtime.atomisticAtomMask[atomJ]) {
+         real si[3], sj[3], ksiJ[3] = {}, ktSi[3] = {};
+         effectiveAtomDirection(topology, runtime, kernels, atomDirection,
+                                atomI, ensemble, si);
+         effectiveAtomDirection(topology, runtime, kernels, atomDirection,
+                                atomJ, ensemble, sj);
+         for(int row = 0; row < 3; ++row) {
+            for(int column = 0; column < 3; ++column) {
+               const real matrix = kernels.bondMatrix[
+                  row + 3 * (column + 3 * bond)];
+               ksiJ[row] += matrix * sj[column];
+               ktSi[column] += matrix * si[row];
+            }
+         }
+         energy = -static_cast<double>(dotDevice(si, ksiJ));
+         for(int xyz = 0; xyz < 3; ++xyz) {
+            atomicAdd(&kernels.atomFieldScratch[atomVectorIndex(
+                         xyz, atomI, ensemble, topology.atoms)],
+                      ksiJ[xyz] / (kernels.magneticMomentSi * kernels.atomMoment[atomI]));
+#if !defined(RCG09A_NEGATIVE_NO_TRANSPOSE)
+            atomicAdd(&kernels.atomFieldScratch[atomVectorIndex(
+                         xyz, atomJ, ensemble, topology.atoms)],
+                      ktSi[xyz] / (kernels.magneticMomentSi * kernels.atomMoment[atomJ]));
+#endif
+         }
       }
    }
-   atomicAddEnergyTerm(&kernels.energyTerms[0],
-                       -static_cast<double>(dotDevice(si, ksiJ)));
-   for(int xyz = 0; xyz < 3; ++xyz) {
-      atomicAdd(&kernels.atomFieldScratch[atomVectorIndex(
-                   xyz, atomI, ensemble, topology.atoms)],
-                ksiJ[xyz] / (kernels.magneticMomentSi * kernels.atomMoment[atomI]));
-#if !defined(RCG09A_NEGATIVE_NO_TRANSPOSE)
-      atomicAdd(&kernels.atomFieldScratch[atomVectorIndex(
-                   xyz, atomJ, ensemble, topology.atoms)],
-                ktSi[xyz] / (kernels.magneticMomentSi * kernels.atomMoment[atomJ]));
-#endif
-   }
+   extern __shared__ double energyShared[];
+   reduceAdaptiveEnergyBlock(energy, kernels.energyPartials, energyShared);
 }
 
 // One thread per (compact active-atom slot, ensemble).  activeAtomList holds
 // each atom at most once, so (atom, ensemble) is unique per thread and the
-// field update needs no atomic; only the shared energy term does.
+// field update needs no atomic.
 __global__ void evaluateAdaptiveAtomisticOnsite(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
    AdaptiveKernelDevice kernels, const real* atomDirection) {
    const std::size_t index = adaptiveThreadIndex();
    const std::size_t work = index % topology.atoms;
    const std::size_t ensemble = index / topology.atoms;
-   if(ensemble >= topology.ensembles || work >= runtime.workCounts[0]) return;
-   const std::size_t atom =
-      static_cast<std::size_t>(runtime.activeAtomList[work] - 1);
-   real direction[3];
-   loadAtomVector(atomDirection, topology, atom, ensemble, direction);
    double onsite = 0.0;
-   for(int axisIndex = 0;
-       axisIndex < kernels.atomAnisotropyAxisCount[atom]; ++axisIndex) {
-      real axis[3];
-      for(int xyz = 0; xyz < 3; ++xyz)
-         axis[xyz] = kernels.atomAnisotropyAxis[
-            xyz + 3 * (axisIndex + 2 * atom)];
-      const real c = dotDevice(direction, axis);
-      const real k1 = kernels.atomAnisotropyK1[axisIndex + 2 * atom];
-      const real k2 = kernels.atomAnisotropyK2[axisIndex + 2 * atom];
-      onsite += static_cast<double>(
-         k1 * c * c + k2 * (real(2) * c * c - c * c * c * c));
-      const real derivative = real(2) * c *
-         (k1 + real(2) * k2 * (real(1) - c * c));
-      for(int xyz = 0; xyz < 3; ++xyz)
-         kernels.atomFieldScratch[atomVectorIndex(
-            xyz, atom, ensemble, topology.atoms)] -=
-            derivative * axis[xyz] /
-            (kernels.magneticMomentSi * kernels.atomMoment[atom]);
+   if(ensemble < topology.ensembles && work < runtime.workCounts[0]) {
+      const std::size_t atom =
+         static_cast<std::size_t>(runtime.activeAtomList[work] - 1);
+      real direction[3];
+      loadAtomVector(atomDirection, topology, atom, ensemble, direction);
+      for(int axisIndex = 0;
+          axisIndex < kernels.atomAnisotropyAxisCount[atom]; ++axisIndex) {
+         real axis[3];
+         for(int xyz = 0; xyz < 3; ++xyz)
+            axis[xyz] = kernels.atomAnisotropyAxis[
+               xyz + 3 * (axisIndex + 2 * atom)];
+         const real c = dotDevice(direction, axis);
+         const real k1 = kernels.atomAnisotropyK1[axisIndex + 2 * atom];
+         const real k2 = kernels.atomAnisotropyK2[axisIndex + 2 * atom];
+         onsite += static_cast<double>(
+            k1 * c * c + k2 * (real(2) * c * c - c * c * c * c));
+         const real derivative = real(2) * c *
+            (k1 + real(2) * k2 * (real(1) - c * c));
+         for(int xyz = 0; xyz < 3; ++xyz)
+            kernels.atomFieldScratch[atomVectorIndex(
+               xyz, atom, ensemble, topology.atoms)] -=
+               derivative * axis[xyz] /
+               (kernels.magneticMomentSi * kernels.atomMoment[atom]);
+      }
    }
-   if(onsite != 0.0) atomicAddEnergyTerm(&kernels.energyTerms[1], onsite);
+   extern __shared__ double energyShared[];
+   reduceAdaptiveEnergyBlock(
+      onsite, kernels.energyPartials + kernels.energyPartialBlocks,
+      energyShared);
 }
 
 // The writeback traverses the compact active-atom list.  Coarse ghosts keep
@@ -981,59 +1013,67 @@ __global__ void evaluateAdaptiveCoarseTensor(
    const std::size_t index = adaptiveThreadIndex();
    const std::size_t work = index % topology.blocks;
    const std::size_t ensemble = index / topology.blocks;
-   if(ensemble >= topology.ensembles || work >= runtime.workCounts[1]) return;
-   const std::size_t block =
-      static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
-
-   for(int p = 0; p < 3; ++p) {
-      for(int q = 0; q < 3; ++q) {
-         if(!tensorTermOwned(topology, runtime, kernels, block, p, q)) continue;
-         real gradientP[3], gradientQ[3], derivative[3];
-         physicalGradient(topology, kernels, runtime.coarseDirection,
-                          block, ensemble, p, gradientP);
-         physicalGradient(topology, kernels, runtime.coarseDirection,
-                          block, ensemble, q, gradientQ);
-         const real volume = topology.blockVolume[block];
-         const real stiffness = kernels.exchangeStiffness[p + 3 * q];
-         atomicAddEnergyTerm(&kernels.energyTerms[2], static_cast<double>(
-                   volume * stiffness * dotDevice(gradientP, gradientQ)));
-         for(int xyz = 0; xyz < 3; ++xyz)
-            derivative[xyz] = volume * stiffness * gradientQ[xyz];
-         atomicAddDerivativeStencil(topology, kernels, runtime.coarseField,
-                                    block, ensemble, p, derivative, real(2));
-      }
-   }
-
-   real direction[3];
-   loadCoarseVector(runtime.coarseDirection, topology, 0, block,
-                    ensemble, direction);
-   for(int k = 0; k < 3; ++k) {
-      real basis[3] = {real(0), real(0), real(0)};
-      basis[k] = real(1);
+   double exchangeEnergy = 0.0;
+   double spiralEnergy = 0.0;
+   if(ensemble < topology.ensembles && work < runtime.workCounts[1]) {
+      const std::size_t block =
+         static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
       for(int p = 0; p < 3; ++p) {
-         if(!tensorTermOwned(topology, runtime, kernels, block, p, -1)) continue;
-         real gradient[3], crossMG[3], crossBasisGradient[3];
-         real crossBasisDirection[3], derivative[3];
-         physicalGradient(topology, kernels, runtime.coarseDirection,
-                          block, ensemble, p, gradient);
-         crossDevice(direction, gradient, crossMG);
-         crossDevice(basis, gradient, crossBasisGradient);
-         crossDevice(basis, direction, crossBasisDirection);
-         const real volume = topology.blockVolume[block];
-         const real spiral = kernels.spiralization[k + 3 * p];
-         atomicAddEnergyTerm(&kernels.energyTerms[3],
-                   static_cast<double>(volume * spiral * crossMG[k]));
-         for(int xyz = 0; xyz < 3; ++xyz) {
-            atomicAdd(&runtime.coarseField[coarseVectorIndex(
-                         xyz, 0, block, ensemble, topology.dynamicChannels,
-                         topology.blocks)],
-                      -volume * spiral * crossBasisGradient[xyz]);
-            derivative[xyz] = volume * spiral * crossBasisDirection[xyz];
+         for(int q = 0; q < 3; ++q) {
+            if(!tensorTermOwned(topology, runtime, kernels, block, p, q)) continue;
+            real gradientP[3], gradientQ[3], derivative[3];
+            physicalGradient(topology, kernels, runtime.coarseDirection,
+                             block, ensemble, p, gradientP);
+            physicalGradient(topology, kernels, runtime.coarseDirection,
+                             block, ensemble, q, gradientQ);
+            const real volume = topology.blockVolume[block];
+            const real stiffness = kernels.exchangeStiffness[p + 3 * q];
+            exchangeEnergy += static_cast<double>(
+               volume * stiffness * dotDevice(gradientP, gradientQ));
+            for(int xyz = 0; xyz < 3; ++xyz)
+               derivative[xyz] = volume * stiffness * gradientQ[xyz];
+            atomicAddDerivativeStencil(topology, kernels, runtime.coarseField,
+                                       block, ensemble, p, derivative, real(2));
          }
-         atomicAddDerivativeStencil(topology, kernels, runtime.coarseField,
-                                    block, ensemble, p, derivative, real(1));
+      }
+      real direction[3];
+      loadCoarseVector(runtime.coarseDirection, topology, 0, block,
+                       ensemble, direction);
+      for(int k = 0; k < 3; ++k) {
+         real basis[3] = {real(0), real(0), real(0)};
+         basis[k] = real(1);
+         for(int p = 0; p < 3; ++p) {
+            if(!tensorTermOwned(topology, runtime, kernels, block, p, -1)) continue;
+            real gradient[3], crossMG[3], crossBasisGradient[3];
+            real crossBasisDirection[3], derivative[3];
+            physicalGradient(topology, kernels, runtime.coarseDirection,
+                             block, ensemble, p, gradient);
+            crossDevice(direction, gradient, crossMG);
+            crossDevice(basis, gradient, crossBasisGradient);
+            crossDevice(basis, direction, crossBasisDirection);
+            const real volume = topology.blockVolume[block];
+            const real spiral = kernels.spiralization[k + 3 * p];
+            spiralEnergy += static_cast<double>(
+               volume * spiral * crossMG[k]);
+            for(int xyz = 0; xyz < 3; ++xyz) {
+               atomicAdd(&runtime.coarseField[coarseVectorIndex(
+                            xyz, 0, block, ensemble, topology.dynamicChannels,
+                            topology.blocks)],
+                         -volume * spiral * crossBasisGradient[xyz]);
+               derivative[xyz] = volume * spiral * crossBasisDirection[xyz];
+            }
+            atomicAddDerivativeStencil(topology, kernels, runtime.coarseField,
+                                       block, ensemble, p, derivative, real(1));
+         }
       }
    }
+   extern __shared__ double energyShared[];
+   reduceAdaptiveEnergyBlock(
+      exchangeEnergy, kernels.energyPartials + 2 * kernels.energyPartialBlocks,
+      energyShared);
+   reduceAdaptiveEnergyBlock(
+      spiralEnergy, kernels.energyPartials + 3 * kernels.energyPartialBlocks,
+      energyShared + blockDim.x);
 }
 
 __global__ void finalizeAdaptiveCoarseLocal(
@@ -1042,49 +1082,58 @@ __global__ void finalizeAdaptiveCoarseLocal(
    const std::size_t index = adaptiveThreadIndex();
    const std::size_t work = index % topology.blocks;
    const std::size_t ensemble = index / topology.blocks;
-   if(ensemble >= topology.ensembles || work >= runtime.workCounts[1]) return;
-   const std::size_t block =
-      static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
-   real direction[3];
-   loadCoarseVector(runtime.coarseDirection, topology, 0, block,
-                    ensemble, direction);
-   for(int axisIndex = 0;
-       axisIndex < kernels.anisotropyAxisCount[block]; ++axisIndex) {
-      real axis[3];
-      for(int xyz = 0; xyz < 3; ++xyz)
-         axis[xyz] = kernels.anisotropyAxis[
-            xyz + 3 * (axisIndex + 2 * block)];
-      const real c = dotDevice(direction, axis);
-      const real k1 = kernels.anisotropyK1[axisIndex + 2 * block];
-      const real k2 = kernels.anisotropyK2[axisIndex + 2 * block];
-      const real volume = topology.blockVolume[block];
-      atomicAddEnergyTerm(&kernels.energyTerms[4], static_cast<double>(volume *
-         (k1 * c * c + real(2) * k2 * c * c -
-          k2 * c * c * c * c)));
-      const real derivative = volume * real(2) * c *
-         (k1 + real(2) * k2 * (real(1) - c * c));
-      for(int xyz = 0; xyz < 3; ++xyz)
-         runtime.coarseField[coarseVectorIndex(
-            xyz, 0, block, ensemble, topology.dynamicChannels,
-            topology.blocks)] += derivative * axis[xyz];
+   double anisotropyEnergy = 0.0;
+   double externalEnergy = 0.0;
+   if(ensemble < topology.ensembles && work < runtime.workCounts[1]) {
+      const std::size_t block =
+         static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
+      real direction[3];
+      loadCoarseVector(runtime.coarseDirection, topology, 0, block,
+                       ensemble, direction);
+      for(int axisIndex = 0;
+          axisIndex < kernels.anisotropyAxisCount[block]; ++axisIndex) {
+         real axis[3];
+         for(int xyz = 0; xyz < 3; ++xyz)
+            axis[xyz] = kernels.anisotropyAxis[
+               xyz + 3 * (axisIndex + 2 * block)];
+         const real c = dotDevice(direction, axis);
+         const real k1 = kernels.anisotropyK1[axisIndex + 2 * block];
+         const real k2 = kernels.anisotropyK2[axisIndex + 2 * block];
+         const real volume = topology.blockVolume[block];
+         anisotropyEnergy += static_cast<double>(volume *
+            (k1 * c * c + real(2) * k2 * c * c -
+             k2 * c * c * c * c));
+         const real derivative = volume * real(2) * c *
+            (k1 + real(2) * k2 * (real(1) - c * c));
+         for(int xyz = 0; xyz < 3; ++xyz)
+            runtime.coarseField[coarseVectorIndex(
+               xyz, 0, block, ensemble, topology.dynamicChannels,
+               topology.blocks)] += derivative * axis[xyz];
+      }
+      const std::size_t scalar = coarseScalarIndex(
+         0, block, ensemble, topology.dynamicChannels, topology.blocks);
+      const real moment = runtime.channelMomentSum[scalar];
+      for(int xyz = 0; xyz < 3; ++xyz) {
+         const std::size_t vector = 3 * scalar + xyz;
+         runtime.coarseField[vector] *=
+            -real(1) / (kernels.magneticMomentSi * moment);
+         if(externalField) runtime.coarseField[vector] += externalField[vector];
+      }
+      if(externalField) {
+         real external[3];
+         for(int xyz = 0; xyz < 3; ++xyz)
+            external[xyz] = externalField[3 * scalar + xyz];
+         externalEnergy = -static_cast<double>(
+            kernels.magneticMomentSi * moment * dotDevice(external, direction));
+      }
    }
-   const std::size_t scalar = coarseScalarIndex(
-      0, block, ensemble, topology.dynamicChannels, topology.blocks);
-   const real moment = runtime.channelMomentSum[scalar];
-   for(int xyz = 0; xyz < 3; ++xyz) {
-      const std::size_t vector = 3 * scalar + xyz;
-      runtime.coarseField[vector] *=
-         -real(1) / (kernels.magneticMomentSi * moment);
-      if(externalField) runtime.coarseField[vector] += externalField[vector];
-   }
-   if(externalField) {
-      real external[3];
-      for(int xyz = 0; xyz < 3; ++xyz)
-         external[xyz] = externalField[3 * scalar + xyz];
-      atomicAddEnergyTerm(&kernels.energyTerms[5],
-                -static_cast<double>(kernels.magneticMomentSi * moment *
-                 dotDevice(external, direction)));
-   }
+   extern __shared__ double energyShared[];
+   reduceAdaptiveEnergyBlock(
+      anisotropyEnergy, kernels.energyPartials + 4 * kernels.energyPartialBlocks,
+      energyShared);
+   reduceAdaptiveEnergyBlock(
+      externalEnergy, kernels.energyPartials + 5 * kernels.energyPartialBlocks,
+      energyShared + blockDim.x);
 }
 
 __global__ void addAdaptiveDipole(
@@ -1093,41 +1142,46 @@ __global__ void addAdaptiveDipole(
    const real* fftDipoleField, real* atomField) {
    const std::size_t index = adaptiveThreadIndex();
    const std::size_t count = topology.blocks * topology.ensembles;
-   if(index >= count) return;
-   const std::size_t block = index % topology.blocks;
-   const std::size_t ensemble = index / topology.blocks;
-   const std::size_t scalar = coarseScalarIndex(
-      0, block, ensemble, topology.dynamicChannels, topology.blocks);
-   real direction[3] = {}, dipole[3], source[3] = {};
-   for(int xyz = 0; xyz < 3; ++xyz)
-      dipole[xyz] = fftDipoleField[3 * scalar + xyz];
-   if(runtime.coarseBlockMask[block]) {
-      loadCoarseVector(runtime.coarseDirection, topology, 0, block,
-                       ensemble, direction);
+   double dipoleEnergy = 0.0;
+   if(index < count) {
+      const std::size_t block = index % topology.blocks;
+      const std::size_t ensemble = index / topology.blocks;
+      const std::size_t scalar = coarseScalarIndex(
+         0, block, ensemble, topology.dynamicChannels, topology.blocks);
+      real direction[3] = {}, dipole[3], source[3] = {};
       for(int xyz = 0; xyz < 3; ++xyz)
-         source[xyz] = runtime.channelMomentSum[scalar] * direction[xyz];
-   } else {
-      const int begin = topology.blockAtomOffset[block];
-      const int end = topology.blockAtomOffset[block + 1];
-      for(int position = begin; position < end; ++position) {
-         const std::size_t atom =
-            static_cast<std::size_t>(topology.blockAtoms[position] - 1);
-         real atomVector[3];
-         loadAtomVector(atomDirection, topology, atom, ensemble, atomVector);
-         for(int xyz = 0; xyz < 3; ++xyz) {
-            source[xyz] += kernels.atomMoment[atom] * atomVector[xyz];
-            atomField[atomVectorIndex(xyz, atom, ensemble, topology.atoms)] +=
-               dipole[xyz];
+         dipole[xyz] = fftDipoleField[3 * scalar + xyz];
+      if(runtime.coarseBlockMask[block]) {
+         loadCoarseVector(runtime.coarseDirection, topology, 0, block,
+                          ensemble, direction);
+         for(int xyz = 0; xyz < 3; ++xyz)
+            source[xyz] = runtime.channelMomentSum[scalar] * direction[xyz];
+      } else {
+         const int begin = topology.blockAtomOffset[block];
+         const int end = topology.blockAtomOffset[block + 1];
+         for(int position = begin; position < end; ++position) {
+            const std::size_t atom =
+               static_cast<std::size_t>(topology.blockAtoms[position] - 1);
+            real atomVector[3];
+            loadAtomVector(atomDirection, topology, atom, ensemble, atomVector);
+            for(int xyz = 0; xyz < 3; ++xyz) {
+               source[xyz] += kernels.atomMoment[atom] * atomVector[xyz];
+               atomField[atomVectorIndex(xyz, atom, ensemble, topology.atoms)] +=
+                  dipole[xyz];
+            }
          }
       }
+      dipoleEnergy = -static_cast<double>(real(0.5) * kernels.magneticMomentSi *
+                       dotDevice(dipole, source));
+      if(runtime.coarseBlockMask[block]) {
+         for(int xyz = 0; xyz < 3; ++xyz)
+            runtime.coarseField[3 * scalar + xyz] += dipole[xyz];
+      }
    }
-   atomicAddEnergyTerm(&kernels.energyTerms[6],
-             -static_cast<double>(real(0.5) * kernels.magneticMomentSi *
-              dotDevice(dipole, source)));
-   if(runtime.coarseBlockMask[block]) {
-      for(int xyz = 0; xyz < 3; ++xyz)
-         runtime.coarseField[3 * scalar + xyz] += dipole[xyz];
-   }
+   extern __shared__ double energyShared[];
+   reduceAdaptiveEnergyBlock(
+      dipoleEnergy, kernels.energyPartials + 6 * kernels.energyPartialBlocks,
+      energyShared);
 }
 
 __device__ inline void loadBasisResolvedFftField(
@@ -1153,55 +1207,61 @@ __global__ void addAdaptiveBasisResolvedDipole(
    GpuAdaptiveUniformFftField fft, real* atomField) {
    const std::size_t index = adaptiveThreadIndex();
    const std::size_t count = topology.blocks * topology.ensembles;
-   if(index >= count) return;
-   const std::size_t block = index % topology.blocks;
-   const std::size_t ensemble = index / topology.blocks;
-   const std::size_t scalar = coarseScalarIndex(
-      0, block, ensemble, topology.dynamicChannels, topology.blocks);
-   real coarseDirection[3] = {};
-   if(runtime.coarseBlockMask[block])
-      loadCoarseVector(runtime.coarseDirection, topology, 0, block,
-                       ensemble, coarseDirection);
    real coarseWeightedField[3] = {};
-   // RCG-06B (F-11): this per-thread partial sum feeds the FP64 global
-   // energy accumulator below; keep it double even though the field terms
-   // it is built from stay `real`.
+   // RCG-09B: this per-thread FP64 sum feeds the compact block partial below;
+   // keep it double even though the field terms it is built from stay `real`.
    double dipoleEnergy = 0.0;
-   const int begin = topology.blockAtomOffset[block];
-   const int end = topology.blockAtomOffset[block + 1];
-   for(int position = begin; position < end; ++position) {
-      const std::size_t atom =
-         static_cast<std::size_t>(topology.blockAtoms[position] - 1);
-      const int oneBasedFftChannel = topology.atomToFftChannel[atom];
-      if(oneBasedFftChannel <= 0 ||
-         static_cast<unsigned int>(oneBasedFftChannel) > fft.basis) continue;
-      real field[3], sourceDirection[3];
-      loadBasisResolvedFftField(
-         fft, block, static_cast<unsigned int>(oneBasedFftChannel - 1),
-         static_cast<unsigned int>(ensemble), field);
-      if(runtime.coarseBlockMask[block]) {
+   std::size_t block = 0;
+   std::size_t ensemble = 0;
+   std::size_t scalar = 0;
+   real coarseDirection[3] = {};
+   if(index < count) {
+      block = index % topology.blocks;
+      ensemble = index / topology.blocks;
+      scalar = coarseScalarIndex(
+         0, block, ensemble, topology.dynamicChannels, topology.blocks);
+      if(runtime.coarseBlockMask[block])
+         loadCoarseVector(runtime.coarseDirection, topology, 0, block,
+                          ensemble, coarseDirection);
+      const int begin = topology.blockAtomOffset[block];
+      const int end = topology.blockAtomOffset[block + 1];
+      for(int position = begin; position < end; ++position) {
+         const std::size_t atom =
+            static_cast<std::size_t>(topology.blockAtoms[position] - 1);
+         const int oneBasedFftChannel = topology.atomToFftChannel[atom];
+         if(oneBasedFftChannel <= 0 ||
+            static_cast<unsigned int>(oneBasedFftChannel) > fft.basis) continue;
+         real field[3], sourceDirection[3];
+         loadBasisResolvedFftField(
+            fft, block, static_cast<unsigned int>(oneBasedFftChannel - 1),
+            static_cast<unsigned int>(ensemble), field);
+         if(runtime.coarseBlockMask[block]) {
+            for(int xyz = 0; xyz < 3; ++xyz)
+               sourceDirection[xyz] = coarseDirection[xyz];
+         } else {
+            loadAtomVector(atomDirection, topology, atom, ensemble,
+                           sourceDirection);
+            for(int xyz = 0; xyz < 3; ++xyz)
+               atomField[atomVectorIndex(
+                  xyz, atom, ensemble, topology.atoms)] += field[xyz];
+         }
+         const real moment = kernels.atomMoment[atom];
+         dipoleEnergy -= static_cast<double>(real(0.5) * kernels.magneticMomentSi *
+                         moment * dotDevice(field, sourceDirection));
          for(int xyz = 0; xyz < 3; ++xyz)
-            sourceDirection[xyz] = coarseDirection[xyz];
-      } else {
-         loadAtomVector(atomDirection, topology, atom, ensemble,
-                        sourceDirection);
-         for(int xyz = 0; xyz < 3; ++xyz)
-            atomField[atomVectorIndex(
-               xyz, atom, ensemble, topology.atoms)] += field[xyz];
+            coarseWeightedField[xyz] += moment * field[xyz];
       }
-      const real moment = kernels.atomMoment[atom];
-      dipoleEnergy -= static_cast<double>(real(0.5) * kernels.magneticMomentSi *
-                      moment * dotDevice(field, sourceDirection));
-      for(int xyz = 0; xyz < 3; ++xyz)
-         coarseWeightedField[xyz] += moment * field[xyz];
+      if(runtime.coarseBlockMask[block]) {
+         const real inverseMoment = real(1) / runtime.channelMomentSum[scalar];
+         for(int xyz = 0; xyz < 3; ++xyz)
+            runtime.coarseField[3 * scalar + xyz] +=
+               inverseMoment * coarseWeightedField[xyz];
+      }
    }
-   atomicAddEnergyTerm(&kernels.energyTerms[6], dipoleEnergy);
-   if(runtime.coarseBlockMask[block]) {
-      const real inverseMoment = real(1) / runtime.channelMomentSum[scalar];
-      for(int xyz = 0; xyz < 3; ++xyz)
-         runtime.coarseField[3 * scalar + xyz] +=
-            inverseMoment * coarseWeightedField[xyz];
-   }
+   extern __shared__ double energyShared[];
+   reduceAdaptiveEnergyBlock(
+      dipoleEnergy, kernels.energyPartials + 6 * kernels.energyPartialBlocks,
+      energyShared);
 }
 
 __global__ void writeAdaptiveCoarse(
@@ -1222,16 +1282,28 @@ __global__ void writeAdaptiveCoarse(
    }
 }
 
-// RCG-08 (F-09) documented exception: this kernel is a genuine O(1) reduction
-// -- seven FP64 loads, six adds, one store -- of accumulators that every other
-// energy-producing kernel has already reduced in parallel.  It is launched
-// <<<1,1>>> because there is exactly one element of work, not because O(N)
-// work has been serialized onto one lane, which is what F-09 objected to and
-// what the other five kernels in that finding actually did.  It is left
-// single-threaded deliberately; parallelizing a seven-term sum would add a
-// launch and a reduction buffer to save nanoseconds.  The guard is written
-// against the shared thread-index helper so it stays correct if the launch
-// geometry is ever widened.
+// RCG-09B: consume the compact block partials in ascending block order.  Each
+// term has a defined FP64 order, independent of block scheduling.  There are
+// at most seven independent scalar sums in this one launch; the O(number of
+// launch blocks) work is no longer performed by contending producers.
+__global__ void reduceAdaptiveEnergyPartials(
+   AdaptiveKernelDevice kernels, int firstTerm, int termCount,
+   std::size_t bondBlocks, std::size_t atomBlocks, std::size_t coarseBlocks,
+   bool includeDipole) {
+   const int term = firstTerm + static_cast<int>(threadIdx.x);
+   if(term >= firstTerm + termCount) return;
+   std::size_t count = coarseBlocks;
+   if(term == 0) count = bondBlocks;
+   else if(term == 1) count = atomBlocks;
+   else if(term == 6 && !includeDipole) count = 0;
+   double sum = 0.0;
+   const double* partial = kernels.energyPartials +
+      static_cast<std::size_t>(term) * kernels.energyPartialBlocks;
+   for(std::size_t block = 0; block < count; ++block)
+      sum += partial[block];
+   kernels.energyTerms[term] = sum;
+}
+
 __global__ void finalizeAdaptiveEnergy(AdaptiveKernelDevice kernels) {
    if(adaptiveThreadIndex() != 0) return;
    kernels.energyTerms[7] = kernels.energyTerms[0] + kernels.energyTerms[1] +
@@ -1899,6 +1971,13 @@ std::size_t GpuAdaptiveRuntime::estimateBytes(const GpuAdaptiveTopologyInput& t,
       std::size_t atomEnsembles = 0;
       if(!checkedProduct({t.atoms, t.ensembles}, atomEnsembles))
          throw std::overflow_error("GPU adaptive kernel memory estimate overflow");
+      const std::size_t energyPartialBlocks = std::max({
+         static_cast<std::size_t>(adaptiveGrid(r.kernels.bonds * t.ensembles)),
+         static_cast<std::size_t>(adaptiveGrid(t.atoms * t.ensembles)),
+         static_cast<std::size_t>(adaptiveGrid(t.blocks * t.ensembles))});
+      std::size_t energyPartialSlots = 0;
+      if(!checkedProduct({7, energyPartialBlocks}, energyPartialSlots))
+         throw std::overflow_error("GPU adaptive kernel memory estimate overflow");
       const bool kernelOk =
          checkedAdd(total, 9 * t.atoms + 2 * r.kernels.bonds +
                            2 * r.kernels.selectorEdges + t.blocks, sizeof(int)) &&
@@ -1909,6 +1988,7 @@ std::size_t GpuAdaptiveRuntime::estimateBytes(const GpuAdaptiveTopologyInput& t,
          // independent of `real`'s build precision, so they are no longer
          // part of the sizeof(real) bucket above.
          checkedAdd(total, 8, sizeof(double)) &&
+         checkedAdd(total, energyPartialSlots, sizeof(double)) &&
          checkedAdd(total, 2 * t.blocks, sizeof(unsigned char));
       if(!kernelOk)
          throw std::overflow_error("GPU adaptive kernel memory estimate overflow");
@@ -2059,6 +2139,11 @@ void GpuAdaptiveRuntime::allocate(const GpuAdaptiveTopologyInput& t,
       initialCoarseField_.Allocate(vectorState);
       predictorCoarseField_.Allocate(vectorState);
       energyTerms_.Allocate(8);
+      energyPartialBlocks_ = std::max({
+         static_cast<std::size_t>(adaptiveGrid(bonds_ * ensembles_)),
+         static_cast<std::size_t>(adaptiveGrid(atoms_ * ensembles_)),
+         static_cast<std::size_t>(adaptiveGrid(blocks_ * ensembles_))});
+      energyPartials_.Allocate(static_cast<index_t>(7 * energyPartialBlocks_));
       acceptedBlockMask_.Allocate(b);
       polarizationUnsafeBlockMask_.Allocate(b);
       polarizationRatioBlock_.Allocate(b);
@@ -2067,6 +2152,7 @@ void GpuAdaptiveRuntime::allocate(const GpuAdaptiveTopologyInput& t,
       atomFieldScratch_.zeros_async(stream_);
       predictorCoarseField_.zeros_async(stream_);
       energyTerms_.zeros_async(stream_);
+      energyPartials_.zeros_async(stream_);
    }
    stagedBlockState_.AllocateHost(b);
    refreshDeviceDescriptors();
@@ -2537,6 +2623,8 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
       projectionNorm_.data(), atomFieldScratch_.data(),
       coarseFieldScratch_.data(), energyTerms_.data(), transitionBackup_.data()
    };
+   kernels.energyPartials = energyPartials_.data();
+   kernels.energyPartialBlocks = energyPartialBlocks_;
    beginPhase();
 #if defined(CUDA_V)
    prolongateAdaptiveGhosts<<<
@@ -2563,16 +2651,23 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
    ADAPTIVE_LAUNCH(clearAdaptiveAtomistic,
                    adaptiveGrid(3 * atoms_ * ensembles_), stream_,
                    deviceTopology_, kernels, atomField);
-   ADAPTIVE_LAUNCH(evaluateAdaptiveAtomisticBonds,
-                   adaptiveGrid(bonds_ * ensembles_), stream_,
+   ADAPTIVE_LAUNCH_SHARED(evaluateAdaptiveAtomisticBonds,
+                   adaptiveGrid(bonds_ * ensembles_),
+                   adaptiveThreads * sizeof(double), stream_,
                    deviceTopology_, deviceRuntime_, kernels, atomDirection);
-   ADAPTIVE_LAUNCH(evaluateAdaptiveAtomisticOnsite,
-                   adaptiveGrid(atoms_ * ensembles_), stream_,
+   ADAPTIVE_LAUNCH_SHARED(evaluateAdaptiveAtomisticOnsite,
+                   adaptiveGrid(atoms_ * ensembles_),
+                   adaptiveThreads * sizeof(double), stream_,
                    deviceTopology_, deviceRuntime_, kernels, atomDirection);
+   ADAPTIVE_LAUNCH(reduceAdaptiveEnergyPartials, 1, stream_, kernels, 0, 2,
+                   static_cast<std::size_t>(adaptiveGrid(bonds_ * ensembles_)),
+                   static_cast<std::size_t>(adaptiveGrid(atoms_ * ensembles_)),
+                   static_cast<std::size_t>(adaptiveGrid(blocks_ * ensembles_)),
+                   false);
    ADAPTIVE_LAUNCH(writebackAdaptiveAtomistic,
                    adaptiveGrid(atoms_ * ensembles_), stream_,
                    deviceTopology_, deviceRuntime_, kernels, atomField);
-   phaseMetrics_.atomisticLaunches += 4;
+   phaseMetrics_.atomisticLaunches += 5;
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.atomisticMilliseconds);
 
@@ -2606,21 +2701,31 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
       adaptiveThreads, 0, stream_>>>(
       deviceTopology_, deviceRuntime_, kernels, coarseField);
    evaluateAdaptiveCoarseTensor<<<
-      adaptiveGrid(blocks_ * ensembles_), adaptiveThreads, 0, stream_>>>(
+      adaptiveGrid(blocks_ * ensembles_), adaptiveThreads,
+      2 * adaptiveThreads * sizeof(double), stream_>>>(
       deviceTopology_, deviceRuntime_, kernels);
    finalizeAdaptiveCoarseLocal<<<
-      adaptiveGrid(blocks_ * ensembles_), adaptiveThreads, 0, stream_>>>(
+      adaptiveGrid(blocks_ * ensembles_), adaptiveThreads,
+      2 * adaptiveThreads * sizeof(double), stream_>>>(
       deviceTopology_, deviceRuntime_, kernels, externalCoarseField);
    if(uniformFftDipoleField)
       addAdaptiveDipole<<<
-         adaptiveGrid(blocks_ * ensembles_), adaptiveThreads, 0, stream_>>>(
+         adaptiveGrid(blocks_ * ensembles_), adaptiveThreads,
+         adaptiveThreads * sizeof(double), stream_>>>(
          deviceTopology_, deviceRuntime_, kernels, atomDirection,
          uniformFftDipoleField, atomField);
    if(basisResolvedFftField)
       addAdaptiveBasisResolvedDipole<<<
-         adaptiveGrid(blocks_ * ensembles_), adaptiveThreads, 0, stream_>>>(
+         adaptiveGrid(blocks_ * ensembles_), adaptiveThreads,
+         adaptiveThreads * sizeof(double), stream_>>>(
          deviceTopology_, deviceRuntime_, kernels, atomDirection,
          *basisResolvedFftField, atomField);
+   reduceAdaptiveEnergyPartials<<<1, adaptiveThreads, 0, stream_>>>(
+      kernels, 2, 5,
+      static_cast<std::size_t>(adaptiveGrid(bonds_ * ensembles_)),
+      static_cast<std::size_t>(adaptiveGrid(atoms_ * ensembles_)),
+      static_cast<std::size_t>(adaptiveGrid(blocks_ * ensembles_)),
+      uniformFftDipoleField || basisResolvedFftField);
    writeAdaptiveCoarse<<<
       adaptiveGrid(blocks_ * ensembles_), adaptiveThreads, 0, stream_>>>(
       deviceTopology_, deviceRuntime_, kernels, coarseField);
@@ -2633,24 +2738,35 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
       kernels, coarseField);
    hipLaunchKernelGGL(
       evaluateAdaptiveCoarseTensor,
-      dim3(adaptiveGrid(blocks_ * ensembles_)), dim3(adaptiveThreads), 0,
+      dim3(adaptiveGrid(blocks_ * ensembles_)), dim3(adaptiveThreads),
+      2 * adaptiveThreads * sizeof(double),
       stream_, deviceTopology_, deviceRuntime_, kernels);
    hipLaunchKernelGGL(
       finalizeAdaptiveCoarseLocal,
-      dim3(adaptiveGrid(blocks_ * ensembles_)), dim3(adaptiveThreads), 0,
+      dim3(adaptiveGrid(blocks_ * ensembles_)), dim3(adaptiveThreads),
+      2 * adaptiveThreads * sizeof(double),
       stream_, deviceTopology_, deviceRuntime_, kernels,
       externalCoarseField);
    if(uniformFftDipoleField)
       hipLaunchKernelGGL(
          addAdaptiveDipole, dim3(adaptiveGrid(blocks_ * ensembles_)),
-         dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
+         dim3(adaptiveThreads), adaptiveThreads * sizeof(double), stream_,
+         deviceTopology_, deviceRuntime_,
          kernels, atomDirection, uniformFftDipoleField, atomField);
    if(basisResolvedFftField)
       hipLaunchKernelGGL(
          addAdaptiveBasisResolvedDipole,
          dim3(adaptiveGrid(blocks_ * ensembles_)),
-         dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
+         dim3(adaptiveThreads), adaptiveThreads * sizeof(double), stream_,
+         deviceTopology_, deviceRuntime_,
          kernels, atomDirection, *basisResolvedFftField, atomField);
+   hipLaunchKernelGGL(
+      reduceAdaptiveEnergyPartials, dim3(1), dim3(adaptiveThreads), 0,
+      stream_, kernels, 2, 5,
+      static_cast<std::size_t>(adaptiveGrid(bonds_ * ensembles_)),
+      static_cast<std::size_t>(adaptiveGrid(atoms_ * ensembles_)),
+      static_cast<std::size_t>(adaptiveGrid(blocks_ * ensembles_)),
+      uniformFftDipoleField || basisResolvedFftField);
    hipLaunchKernelGGL(
       writeAdaptiveCoarse, dim3(adaptiveGrid(blocks_ * ensembles_)),
       dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
@@ -2658,7 +2774,7 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
    hipLaunchKernelGGL(finalizeAdaptiveEnergy, dim3(1), dim3(1), 0, stream_,
                       kernels);
 #endif
-   phaseMetrics_.coarseLaunches += 5 +
+   phaseMetrics_.coarseLaunches += 6 +
       (uniformFftDipoleField ? 1 : 0) + (basisResolvedFftField ? 1 : 0);
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.coarseMilliseconds);
@@ -2878,13 +2994,20 @@ GpuAdaptiveDiagnosticSnapshot GpuAdaptiveRuntime::diagnosticSnapshot(
    std::vector<real> atomField(3 * atoms_ * ensembles_);
    std::vector<real> coarseField(3 * dynamicChannels_ * blocks_ * ensembles_);
    std::vector<real> direction(3 * atoms_ * ensembles_);
+   std::vector<real> coarseDirection(
+      3 * dynamicChannels_ * blocks_ * ensembles_);
    std::vector<unsigned char> atomisticMask(atoms_);
    download(atomField.data(), atomFieldScratch_.data(),
             atomField.size() * sizeof(real));
-   download(coarseField.data(), predictorCoarseField_.data(),
+   // The final field checksum describes the field assembled by
+   // evaluateHybrid().  predictorCoarseField_ is a separate integration
+   // scratch buffer and is not populated by the static-mask parity path.
+   download(coarseField.data(), coarseField_.data(),
             coarseField.size() * sizeof(real));
    download(direction.data(), atomDirection,
             direction.size() * sizeof(real));
+   download(coarseDirection.data(), coarseDirection_.data(),
+            coarseDirection.size() * sizeof(real));
    download(atomisticMask.data(), atomisticAtomMask_.data(),
             atomisticMask.size() * sizeof(unsigned char));
    for(std::size_t ensemble = 0; ensemble < ensembles_; ++ensemble)
@@ -2908,6 +3031,22 @@ GpuAdaptiveDiagnosticSnapshot GpuAdaptiveRuntime::diagnosticSnapshot(
       result.directionNorm2 +=
          static_cast<double>(value) * static_cast<double>(value);
    }
+   for(std::size_t ensemble = 0; ensemble < ensembles_; ++ensemble)
+      for(std::size_t atom = 0; atom < atoms_; ++atom) {
+         if(!atomisticMask[atom]) continue;
+         for(int xyz = 0; xyz < 3; ++xyz) {
+            const real value = direction[atomVectorIndex(
+               xyz, atom, ensemble, atoms_)];
+            result.atomisticDirectionSum += static_cast<double>(value);
+            result.atomisticDirectionNorm2 +=
+               static_cast<double>(value) * static_cast<double>(value);
+         }
+      }
+   for(const real value : coarseDirection) {
+      result.coarseDirectionSum += static_cast<double>(value);
+      result.coarseDirectionNorm2 +=
+         static_cast<double>(value) * static_cast<double>(value);
+   }
    result.energy = lastEnergy_;
    return result;
 }
@@ -2917,6 +3056,7 @@ void GpuAdaptiveRuntime::release() {
    freeIfAllocated(acceptedBlockMask_);
    freeIfAllocated(polarizationUnsafeBlockMask_);
    freeIfAllocated(polarizationRatioBlock_);
+   freeIfAllocated(energyPartials_);
    freeIfAllocated(energyTerms_);
    freeIfAllocated(predictorCoarseField_);
    freeIfAllocated(initialCoarseField_);
