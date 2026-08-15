@@ -915,6 +915,17 @@ if(BUILD_TESTING)
    target_link_libraries(coarse_tensor_operator_tests PRIVATE ${UppASD_LIB})
    add_test(NAME coarse-graining-tensor-operator COMMAND coarse_tensor_operator_tests)
 
+   # RCG-04-FU4: production all-coarse exchange/DMI Fourier-mode sweep.
+   # The executable reports energy and linearized field-curvature ratios
+   # versus qh for several physical block sizes; its oracle is the exact
+   # symbol of physical_forward_gradient and its discrete transpose.
+   add_executable(coarse_dispersion_tests
+      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_coarse_dispersion.f90)
+   set_target_properties(coarse_dispersion_tests PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/coarse_dispersion_tests)
+   target_link_libraries(coarse_dispersion_tests PRIVATE ${UppASD_LIB})
+   add_test(NAME coarse-graining-dispersion COMMAND coarse_dispersion_tests)
+
    # CG-11 controlled two-sublattice CPU reference.  This target intentionally
    # has no GPU dependency: GPU enablement remains blocked on this diagnostic
    # gate and an independent physics review.

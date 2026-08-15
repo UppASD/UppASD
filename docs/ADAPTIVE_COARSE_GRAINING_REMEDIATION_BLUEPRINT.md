@@ -917,12 +917,17 @@ session; none is a dependency of RCG-05.
   transition is genuinely demonstrated during motion, or determine whether
   `RECONSTRUCTION_CONE` succeeds where `RECONSTRUCTION_ALIGNED` was rejected
   in RCG-04G's own investigation. Dependencies: accepted RCG-04G.
-- **RCG-04-FU4 — RCG-04E quantitative rate reconciliation.** Derive the
-  coarse operator's precession-rate dependence on block size quantitatively
-  and reconcile it against the atomistic reference, resolving whether the
-  discrete-Laplacian dispersion argument (§13.6) fully explains the residual
-  mismatch or whether an additional scale factor remains. Dependencies:
-  accepted RCG-04E.
+- **RCG-04-FU4 — RCG-04E quantitative rate reconciliation (complete
+  2026-08-15).** The production forward-gradient/discrete-transpose pair was
+  measured on 24 periodic exchange-only and DMI-only Fourier cases spanning
+  four block sizes and six wavelengths. Results collapse versus `q*h` onto
+  the exact exchange and DMI lattice symbols; maximum residuals are
+  `8.881E-16` and `9.992E-16`, respectively, and the fitted multiplicative
+  factors are unity. No additional coarse scale factor is required. Full
+  derivation, tabulation, and the residual-factor test are recorded in
+  [`docs/RCG-04_FU4_DISPERSION_EVIDENCE.md`](RCG-04_FU4_DISPERSION_EVIDENCE.md)
+  and enforced by `coarse-graining-dispersion`. Dependencies: accepted
+  RCG-04E.
 - **RCG-04-FU5 — fp32 `gpu_fft_static_mixed` failure.** Determine whether
   CUDA fp32 `EWALD3D_FFT` dipole coupling has a genuine precision-floor
   problem, or replace the fragile `coarse_dipole != 0` assertion (found by
