@@ -241,6 +241,25 @@ struct GpuAdaptivePhaseMetrics {
    bool phaseTimingEnabled = true;
 };
 
+// CGP-00 evidence-only diagnostic: the real per-block FP64 partials each
+// production energy kernel writes for the most recent evaluateHybrid() call,
+// sliced to only the blocks that call actually wrote (stale entries from a
+// previous, larger step are never included). Not part of the production
+// timestep's data path -- this exists so the CGP-00 hierarchical-precision
+// evidence harness can be fed the real magnitude/sign distribution
+// production physics produces, without building parallel precision-variant
+// copies of the physics kernels themselves. See
+// GpuAdaptiveRuntime::downloadEnergyPartialsSnapshot().
+struct GpuAdaptiveEnergyPartialsSnapshot {
+   std::vector<double> atomisticBilinearJ;   // term 0: evaluateAdaptiveAtomisticBonds
+   std::vector<double> atomisticOnsiteJ;     // term 1: evaluateAdaptiveAtomisticOnsite
+   std::vector<double> coarseExchangeJ;      // term 2: evaluateAdaptiveCoarseTensor
+   std::vector<double> coarseSpiralizationJ; // term 3: evaluateAdaptiveCoarseTensor
+   std::vector<double> coarseAnisotropyJ;    // term 4: finalizeAdaptiveCoarseLocal
+   std::vector<double> coarseExternalJ;      // term 5: finalizeAdaptiveCoarseLocal
+   std::vector<double> dipoleJ;              // term 6: addAdaptiveDipole / basis-resolved
+};
+
 struct GpuAdaptiveDiagnosticSnapshot {
    std::vector<int> blockState;
    std::vector<unsigned int> stateAge;
@@ -430,6 +449,11 @@ public:
    // Explicit diagnostics/test path.  It is not used by selector updates.
    GpuAdaptiveWorkSnapshot downloadWorkSnapshot();
    GpuAdaptiveDiagnosticSnapshot diagnosticSnapshot(const real* atomDirection);
+   // CGP-00 evidence-only: must be called immediately after evaluateHybrid()
+   // (same contract as diagnosticSnapshot()'s dependence on lastEnergy_) so
+   // the downloaded partials reflect that call, not a stale earlier one.
+   GpuAdaptiveEnergyPartialsSnapshot downloadEnergyPartialsSnapshot(
+      bool dipoleActive) const;
 
 private:
    void allocate(const GpuAdaptiveTopologyInput&, const GpuAdaptiveRuntimeInput&);

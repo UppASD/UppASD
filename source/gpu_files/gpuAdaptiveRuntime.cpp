@@ -2,6 +2,7 @@
 
 #include "base.hpp"
 #include "gpuAdaptiveReconstructionRng.hpp"
+#include "gpuAtomicDouble.hpp"
 #include "measurement/memoryMeasurement.h"
 
 #include <algorithm>
@@ -43,16 +44,15 @@ __device__ inline std::size_t adaptiveThreadIndex() {
 // this tree, including out-of-range work items which contribute zero.  The
 // fixed binary tree defines the order within a launch block; the final
 // reduction below consumes block IDs in ascending order.
+//
+// CGP-00: the tree itself now lives in gpuAtomicDouble.hpp as
+// reduceAdaptiveEnergyBlockT<Acc>, generalized over the accumulator type so
+// the CGP-00 hierarchical-precision evidence fixture can instantiate it at
+// Acc=float without reimplementing it. This wrapper pins production to
+// Acc=double, so every call site below is unchanged codegen.
 __device__ inline void reduceAdaptiveEnergyBlock(
    double value, double* partial, double* shared) {
-   shared[threadIdx.x] = value;
-   __syncthreads();
-   for(unsigned int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
-      if(threadIdx.x < stride)
-         shared[threadIdx.x] += shared[threadIdx.x + stride];
-      __syncthreads();
-   }
-   if(threadIdx.x == 0) partial[blockIdx.x] = shared[0];
+   reduceAdaptiveEnergyBlockT<double>(value, partial, shared);
 }
 
 // RCG-08: every launch site this task introduced or rewrote goes through this
@@ -3400,6 +3400,52 @@ GpuAdaptiveDiagnosticSnapshot GpuAdaptiveRuntime::diagnosticSnapshot(
          static_cast<double>(value) * static_cast<double>(value);
    }
    result.energy = lastEnergy_;
+   return result;
+}
+
+// CGP-00 evidence-only. Mirrors exactly the valid-block-count arithmetic
+// evaluateHybrid() uses to decide how many partials each term's launch
+// actually wrote (gpuAdaptiveRuntime.cpp's evaluateHybrid, "bondPartials"
+// through "dipolePartials") -- duplicated here rather than factored out
+// because evaluateHybrid computes it inline from launch-sizing locals that
+// do not otherwise escape the function, and this diagnostic must not alter
+// that function's control flow. `dipoleActive` must match what the caller's
+// preceding evaluateHybrid() call actually passed a dipole field for.
+GpuAdaptiveEnergyPartialsSnapshot GpuAdaptiveRuntime::downloadEnergyPartialsSnapshot(
+   bool dipoleActive) const {
+   if(!ready_) throw std::logic_error("GPU adaptive runtime is not initialized");
+   ASSERT_GPU(GPU_STREAM_SYNC(stream_));
+
+   const std::size_t liveBondWork = liveBondCount() * ensembles_;
+   const std::size_t activeAtomWork = activeAtomCount() * ensembles_;
+   const std::size_t activeBlockWork = activeBlockCount() * ensembles_;
+   const std::size_t bondPartials =
+      liveBondWork ? static_cast<std::size_t>(adaptiveGrid(liveBondWork)) : 0;
+   const std::size_t atomPartials =
+      activeAtomWork ? static_cast<std::size_t>(adaptiveGrid(activeAtomWork)) : 0;
+   const std::size_t coarsePartials =
+      activeBlockWork ? static_cast<std::size_t>(adaptiveGrid(activeBlockWork)) : 0;
+   const std::size_t dipolePartials = dipoleActive ?
+      static_cast<std::size_t>(adaptiveGrid(blocks_ * ensembles_)) : 0;
+
+   auto download = [this](std::vector<double>& destination, std::size_t term,
+                          std::size_t count) {
+      destination.resize(count);
+      if(count == 0) return;
+      TensorDataMovementTracker::add_d2h(count * sizeof(double));
+      ASSERT_GPU(GPU_MEMCPY(destination.data(),
+                            energyPartials_.data() + term * energyPartialBlocks_,
+                            count * sizeof(double), GPU_MEMCPY_DEVICE_TO_HOST));
+   };
+
+   GpuAdaptiveEnergyPartialsSnapshot result;
+   download(result.atomisticBilinearJ, 0, bondPartials);
+   download(result.atomisticOnsiteJ, 1, atomPartials);
+   download(result.coarseExchangeJ, 2, coarsePartials);
+   download(result.coarseSpiralizationJ, 3, coarsePartials);
+   download(result.coarseAnisotropyJ, 4, coarsePartials);
+   download(result.coarseExternalJ, 5, coarsePartials);
+   download(result.dipoleJ, 6, dipolePartials);
    return result;
 }
 

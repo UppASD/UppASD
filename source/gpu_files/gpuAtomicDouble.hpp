@@ -32,3 +32,25 @@ __device__ inline void atomicAddEnergyTerm(double* address, double value) {
          static_cast<unsigned long long>(__double_as_longlong(sum)));
    } while(observed != assumed);
 }
+
+// CGP-00: the deterministic block-local tree reduction RCG-09B introduced
+// (one partial per launch block, fixed binary-tree accumulation order),
+// generalized over the accumulator type instead of hardcoded to `double`.
+// Production instantiates this at `Acc = double` only, so
+// `reduceAdaptiveEnergyBlockT<double>` is byte-for-byte the same codegen
+// RCG-09B shipped; the CGP-00 hierarchical-precision evidence fixture
+// (test_energy_hierarchical_precision.cpp) additionally instantiates
+// `Acc = float`, sharing this literal primitive rather than reimplementing
+// it, for the same anti-drift reason `atomicAddEnergyTerm` above is shared.
+template <typename Acc>
+__device__ inline void reduceAdaptiveEnergyBlockT(
+   Acc value, Acc* partial, Acc* shared) {
+   shared[threadIdx.x] = value;
+   __syncthreads();
+   for(unsigned int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+      if(threadIdx.x < stride)
+         shared[threadIdx.x] += shared[threadIdx.x + stride];
+      __syncthreads();
+   }
+   if(threadIdx.x == 0) partial[blockIdx.x] = shared[0];
+}

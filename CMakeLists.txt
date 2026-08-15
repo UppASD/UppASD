@@ -1536,6 +1536,38 @@ if(BUILD_TESTING)
             PROPERTIES LABELS "coarse-graining;cg13;cg13-hip")
       endif()
 
+      # CGP-00: standalone microbenchmark sweeping local/block/final
+      # accumulator precision through the literal RCG-09B block-tree
+      # reduction (reduceAdaptiveEnergyBlockT, gpuAtomicDouble.hpp), the
+      # question docs/CGP_work.md CGP-00 asks. Deliberately NOT linked
+      # against asdlib, matching RCG-06B's energy_fp32_accum precedent, and
+      # deliberately kept separate from that fixture rather than repurposing
+      # it: that one is protected historical evidence for the older,
+      # already-fixed flat-atomicAdd defect class.
+      add_executable(energy_hierarchical_precision_tests
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_energy_hierarchical_precision.cpp)
+      target_include_directories(energy_hierarchical_precision_tests PRIVATE
+         ${CMAKE_SOURCE_DIR}/source/gpu_files)
+      if(USE_CUDA)
+         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_energy_hierarchical_precision.cpp
+            PROPERTIES LANGUAGE CUDA)
+         target_compile_definitions(energy_hierarchical_precision_tests PRIVATE CUDA_V)
+         target_link_libraries(energy_hierarchical_precision_tests PRIVATE CUDA::cudart)
+      else()
+         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_energy_hierarchical_precision.cpp
+            PROPERTIES LANGUAGE HIP)
+         target_compile_definitions(energy_hierarchical_precision_tests PRIVATE HIP_V)
+      endif()
+      add_test(NAME adaptive-cg-energy-hierarchical-precision COMMAND energy_hierarchical_precision_tests)
+      set_tests_properties(adaptive-cg-energy-hierarchical-precision PROPERTIES SKIP_RETURN_CODE 77)
+      if(USE_CUDA)
+         set_tests_properties(adaptive-cg-energy-hierarchical-precision
+            PROPERTIES LABELS "coarse-graining;cg13;cg13-cuda")
+      else()
+         set_tests_properties(adaptive-cg-energy-hierarchical-precision
+            PROPERTIES LABELS "coarse-graining;cg13;cg13-hip")
+      endif()
+
       # RCG-06D RECONSTRUCTION-RNG-SPATIAL-STATS GPU companion (F-20):
       # standalone, deliberately NOT linked against asdlib, matching
       # RCG-06B's energy_fp32_accum precedent. Shares the literal device

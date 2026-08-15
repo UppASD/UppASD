@@ -451,6 +451,36 @@ void testKernelParityAndWorkflow() {
    require(std::abs(energy.totalJ - 2.85) < 5.0 * tolerance,
            "GPU hybrid total energy does not equal the CPU reference");
 
+   // CGP-00: downloadEnergyPartialsSnapshot() must reproduce the same
+   // per-term totals evaluateHybrid() just computed -- it downloads the
+   // identical per-block FP64 partials from that same call, sliced to the
+   // blocks that call actually wrote, so an ordered sum over each term's
+   // partials must equal that term's entry in `energy`. This doubles as real
+   // production-kernel evidence for CGP-00 Part C: the per-block
+   // magnitude/sign distribution the actual atomistic exchange+DMI-folded
+   // bond, onsite anisotropy, coarse exchange/spiralization/anisotropy/
+   // external, and dipole kernels produce, not a synthetic proxy.
+   const auto partials = runtime.downloadEnergyPartialsSnapshot(true);
+   auto orderedSum = [](const std::vector<double>& values) {
+      double total = 0.0;
+      for(const double value : values) total += value;
+      return total;
+   };
+   require(std::abs(orderedSum(partials.atomisticBilinearJ) - energy.atomisticBilinearJ) < tolerance,
+           "downloaded atomistic bilinear partials do not reproduce evaluateHybrid's own total");
+   require(std::abs(orderedSum(partials.atomisticOnsiteJ) - energy.atomisticOnsiteJ) < tolerance,
+           "downloaded atomistic onsite partials do not reproduce evaluateHybrid's own total");
+   require(std::abs(orderedSum(partials.coarseExchangeJ) - energy.coarseExchangeJ) < tolerance,
+           "downloaded coarse exchange partials do not reproduce evaluateHybrid's own total");
+   require(std::abs(orderedSum(partials.coarseSpiralizationJ) - energy.coarseSpiralizationJ) < tolerance,
+           "downloaded coarse spiralization partials do not reproduce evaluateHybrid's own total");
+   require(std::abs(orderedSum(partials.coarseAnisotropyJ) - energy.coarseAnisotropyJ) < tolerance,
+           "downloaded coarse anisotropy partials do not reproduce evaluateHybrid's own total");
+   require(std::abs(orderedSum(partials.coarseExternalJ) - energy.coarseExternalJ) < tolerance,
+           "downloaded coarse external partials do not reproduce evaluateHybrid's own total");
+   require(std::abs(orderedSum(partials.dipoleJ) - energy.dipoleJ) < tolerance,
+           "downloaded dipole partials do not reproduce evaluateHybrid's own total");
+
    const auto fineField = download(atomField.data(), atomVectors);
    for(std::size_t atom = 2; atom <= 5; ++atom)
       require(std::abs(static_cast<double>(fineField[2 + 3 * atom]) -
