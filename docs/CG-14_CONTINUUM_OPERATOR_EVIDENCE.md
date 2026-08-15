@@ -18,9 +18,13 @@ the production atomistic GPU path at 65 536 atoms, in the all-coarse limit,
 with 16 or more atoms per block, the benchmark's own conservative crossover
 test passes on 17 of 20 measured runs at ~1.05x. It fails on 0 of 20 baseline
 runs. At four atoms per block there is no crossover at any size, in either arm.
-Section 6 states this plainly and section 9 records that **no speedup wording
-has been restored anywhere**, and that §14 item 9's amendment is left standing
-pending Human decision.
+It exists only at a fine fraction of exactly zero, and **it does not survive
+fp32** (§6.6): in single precision the atomistic reference gains 3.61x against
+the adaptive path's 2.04x and the crossover disappears, which shows it is partly
+an artifact of this device's 1:64 FP64 ratio. Section 6 states all of this
+plainly and section 9 records that **no speedup wording has been restored
+anywhere**, and that §14 item 9's amendment is left standing pending Human
+decision.
 
 ---
 
@@ -229,7 +233,7 @@ gpu_adaptive_runtime_benchmark --blocks B --atoms-per-block A \
     --warmup 1 --iterations 3 --repetitions 3 --texture spiral
 ```
 
-Raw JSON: `docs/cg14/cg14_abba_fine.json`,
+Raw JSON: `docs/cg14/cg14_abba_fine.json`, `docs/cg14/cg14_abba_fp32.json`,
 `docs/cg14/cg14_abba_blocksize.json`, `docs/cg14/cg14_abba_confirm.json`.
 
 ### 6.2 Fine-fraction sweep, four atoms per block
@@ -348,6 +352,73 @@ phase fell from 4.2x to 1.67x. Two successors are named:
    1 024 blocks the phase does not go below ~120 µs at all. If the coarse phase
    is attacked again, that fixed remainder — not the operator — is where the
    time is.
+
+### 6.6 The crossover does not survive fp32, and probably not a datacenter GPU
+
+Added 2026-08-15 after the sections above, in answer to "can the FP64 parts go
+away?". It qualifies §6.4 materially and is recorded here rather than left for
+a reader to discover.
+
+The same ABBA protocol, both arms rebuilt with `UPPASD_PRECISION=SINGLE`
+(the production oracle is fp32 in both arms, so the comparison is internally
+fair):
+
+| | fp64 | fp32 | fp32 gain |
+|---|---|---|---|
+| coarse kernel (16 384 blocks) | 83.9 µs | **16.0 µs** | 5.25x |
+| coarse-phase constant | 12.60 ns/block | **5.18 ns/block** | 2.43x |
+| adaptive all-coarse step, 4 096 blocks / 16 atoms per block | 261.8 µs | **128.4 µs** | 2.04x |
+| **production atomistic step, same geometry** | 275.2 µs | **76.2 µs** | **3.61x** |
+| crossover | **PASS (1.05x)** | **NOT_OBSERVED (0.59x)** | — |
+
+The kernel gets 5.25x faster in fp32 and the crossover **disappears**, because
+the production atomistic path gains more from single precision (3.61x) than the
+adaptive path does (2.04x). The atomistic reference does FP64 work proportional
+to 65 536 atoms and is punished hard by this device's 1:64 FP64 ratio; the
+adaptive all-coarse path does far less FP64 work but carries a fixed residual of
+launch latency and atom-proportional passes (§6.5) that no precision change
+touches.
+
+Two consequences, stated plainly because they cut against §6.4:
+
+1. **The fp64 crossover is partly an artifact of the measuring device.** It
+   exists because an RTX A4000 penalises the atomistic reference more than it
+   penalises the coarse operator. On a datacenter GPU with a 1:2 FP64 ratio
+   (A100, H100) the atomistic reference would speed up by roughly the factor
+   fp32 gives here while the adaptive path's fixed residual would not, so the
+   crossover should be expected to narrow or vanish. **It has not been measured
+   on such a device and must not be assumed to transfer.**
+2. **Removing FP64 is not the lever it looks like.** It makes everything
+   faster and the adaptive path relatively worse. FP64 is worth attacking for
+   absolute throughput, not for the crossover.
+
+One targeted FP64 reduction does survive this argument. In the fp32 build the
+kernel still issues 26 624 FP64 instructions — 52 per block-thread, the
+RCG-06B-mandated `double` energy accumulation — and they still occupy **48.7%
+of the FP64 pipe**, against 36.3% overall SM throughput. That accumulator is
+the largest single utilisation number in an otherwise-fp32 kernel. Accumulating
+a block-thread's nine energy terms in `real` and widening to `double` only at
+the block reduction would keep the global sum in FP64, where RCG-06B's
+microbenchmark actually demonstrated the need (N up to 3e6), while removing the
+per-term FP64 traffic. Estimated up to ~2x on the fp32 kernel. It is a
+summation-precision change and would need its own bound; it is not attempted
+here.
+
+### 6.7 The ceiling on any further continuum-operator work
+
+At the qualifying geometry (4 096 blocks, 16 atoms per block, all-coarse), the
+step is 261.8 µs of which the coarse phase is 114.9 µs. **A continuum operator
+that cost nothing at all** would give 146.9 µs against 275.2 µs production, i.e.
+**1.87x — that is the hard ceiling on every remaining optimisation in this
+kernel and its phase.** In fp32 the same arithmetic gives 70.2 µs against
+76.2 µs, a ceiling of 1.09x.
+
+The remaining 146.9 µs is interface (116.6), integration (24.2) and atomistic
+(26.3) — all proportional to atoms, none of them falling with block size
+(§6.5, and the flat 261.8 / 261.1 / 261.7 µs across 16, 32 and 64 atoms per
+block in §6.3). Further work on the continuum operator is therefore
+subject to sharply diminishing returns, and `prolongateAdaptiveGhosts` is not
+merely the next target but the one that sets the ceiling for everything else.
 
 ## 7. Correctness
 
@@ -531,11 +602,24 @@ Section 6.4 demonstrates a crossover for the first time — marginal, all-coarse
 only, and at block sizes of 16 atoms and above. Per the task's instruction,
 this document **proposes that §14 item 9's amendment be revisited** and does
 not revisit it. That decision requires Human approval, and the following should
-be weighed with it: the crossover is ~5% at the benchmark's own 2% acceptance
-margin; it is not unanimous across repeats at two of three qualifying sizes; it
-does not exist at four atoms per block; and it compares an all-coarse step
-against a full-resolution atomistic one. Until that approval is recorded, the
-amendment stands and the branch remains a correctness/reference implementation.
+be weighed with it:
+
+- the crossover is ~5% at the benchmark's own 2% acceptance margin, and is not
+  unanimous across repeats at two of three qualifying sizes;
+- it does not exist at four or eight atoms per block;
+- it exists **only at a fine fraction of exactly zero**. At 6.25% fine atoms
+  the adaptive step is already 0.86x production, i.e. slower. An adaptive run
+  with any fine region at all does not benefit (§6.3);
+- it compares an all-coarse step against a full-resolution atomistic one;
+- **it does not survive fp32, and is partly an artifact of this device's 1:64
+  FP64 ratio** (§6.6). It has not been measured on a GPU with datacenter FP64
+  and should not be assumed to transfer.
+
+On that evidence a defensible reading is that the amendment should stand as
+written, with §6.4 recorded as a bounded, geometry- and device-specific
+observation rather than as a speedup claim. Until Human approval is recorded
+the amendment stands and the branch remains a correctness/reference
+implementation.
 
 ## 10. Environment
 
@@ -564,8 +648,13 @@ RCG-09-FU4 stands. **Unavailable is not passing.**
    coarse phase were. Section 4 gives the measured reason and the remaining
    headroom (~1.22x from scheduling, the rest only from fewer FP64
    instructions).
-2. The crossover in section 6.4 is marginal and geometry-dependent, and is
-   reported with every qualification rather than as a result.
+2. The crossover in section 6.4 is marginal, geometry-dependent, confined to a
+   fine fraction of exactly zero, and does not survive fp32 (section 6.6). It
+   is reported with every qualification rather than as a result.
+2b. Only one device was measured. The FP64-roofline finding in section 4 and
+   the crossover in section 6.4 are both properties of an RTX A4000's 1:64
+   FP64 ratio. Neither has been measured on a datacenter GPU, where the
+   atomistic reference would gain far more than the adaptive path.
 3. The field re-association is bounded empirically (section 5.2), not proven.
    The bound is tight — within 2–4x of the code's own run-to-run floor — but it
    is a measurement over 19 fixtures, not a theorem.

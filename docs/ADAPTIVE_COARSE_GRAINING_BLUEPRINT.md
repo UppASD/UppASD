@@ -2350,7 +2350,11 @@ name their reason rather than being reworded to fit.
 - [x] Crossover existence stated plainly. **A crossover exists for the first
       time**, marginally: all-coarse only, ≥16 atoms per block, ~1.03–1.06×,
       17/20 runs against 0/20 baseline. It does **not** exist at four atoms per
-      block at any size (evidence §6.4).
+      block at any size, does **not** exist at any nonzero fine fraction, and
+      does **not** survive fp32 — in single precision the atomistic reference
+      gains 3.61× against the adaptive path's 2.04× and the crossover
+      disappears, so it is partly an artifact of this device's 1:64 FP64 ratio
+      (evidence §6.4, §6.6).
 - [x] New dominant phase named if the coarse phase stops dominating. The coarse
       phase still dominates but its margin fell from 4.2× to 1.67×;
       `prolongateAdaptiveGhosts` (123.4 µs) and the coarse phase's own

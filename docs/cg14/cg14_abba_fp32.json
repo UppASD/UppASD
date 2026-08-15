@@ -1,0 +1,1362 @@
+{
+ "texture": "spiral",
+ "reps_per_arm": 4,
+ "sizes": [
+  {
+   "blocks": 16384,
+   "atoms_per_block": 4,
+   "device_before": {
+    "gpu": "0 %, 102 MiB, 51, 210 MHz, 0x0000000000000001",
+    "compute_apps": "none"
+   },
+   "runs": {
+    "base": [
+     {
+      "points": {
+       "1.000000": {
+        "step_wall_us": 225.991333,
+        "active_blocks": 0,
+        "atomistic_us": 191.367109,
+        "coarse_us": 17.973333,
+        "interface_us": 20.913778,
+        "integration_us": 10.168889
+       },
+       "0.750000": {
+        "step_wall_us": 354.667333,
+        "active_blocks": 4094,
+        "atomistic_us": 162.933338,
+        "coarse_us": 156.583115,
+        "interface_us": 42.094222,
+        "integration_us": 17.258666
+       },
+       "0.500000": {
+        "step_wall_us": 367.433667,
+        "active_blocks": 8190,
+        "atomistic_us": 123.043555,
+        "coarse_us": 209.152004,
+        "interface_us": 50.311111,
+        "integration_us": 16.536889
+       },
+       "0.250000": {
+        "step_wall_us": 349.27,
+        "active_blocks": 12286,
+        "atomistic_us": 79.697779,
+        "coarse_us": 219.559113,
+        "interface_us": 58.360888,
+        "integration_us": 16.970667
+       },
+       "0.125000": {
+        "step_wall_us": 405.487333,
+        "active_blocks": 14334,
+        "atomistic_us": 61.710222,
+        "coarse_us": 299.303106,
+        "interface_us": 62.268445,
+        "integration_us": 19.854222
+       },
+       "0.062500": {
+        "step_wall_us": 402.430667,
+        "active_blocks": 15358,
+        "atomistic_us": 52.739557,
+        "coarse_us": 301.891549,
+        "interface_us": 63.395556,
+        "integration_us": 17.123556
+       },
+       "0.000000": {
+        "step_wall_us": 329.214333,
+        "active_blocks": 16384,
+        "atomistic_us": 15.249778,
+        "coarse_us": 273.539551,
+        "interface_us": 52.213333,
+        "integration_us": 18.051556
+       }
+      },
+      "production_us": [
+       80.167667
+      ],
+      "zero_fine_step_wall_us": 329.214333,
+      "seconds": 0.3,
+      "crossover": "NOT_OBSERVED",
+      "production_step_wall_us": 80.167667,
+      "best_adaptive_step_wall_us": 329.214333
+     },
+     {
+      "points": {
+       "1.000000": {
+        "step_wall_us": 223.481333,
+        "active_blocks": 0,
+        "atomistic_us": 191.608888,
+        "coarse_us": 18.503111,
+        "interface_us": 18.200889,
+        "integration_us": 9.301333
+       },
+       "0.750000": {
+        "step_wall_us": 346.728,
+        "active_blocks": 4094,
+        "atomistic_us": 163.573337,
+        "coarse_us": 157.472003,
+        "interface_us": 41.528889,
+        "integration_us": 15.829333
+       },
+       "0.500000": {
+        "step_wall_us": 369.215333,
+        "active_blocks": 8190,
+        "atomistic_us": 123.086222,
+        "coarse_us": 209.376004,
+        "interface_us": 50.332445,
+        "integration_us": 16.931555
+       },
+       "0.250000": {
+        "step_wall_us": 349.150333,
+        "active_blocks": 12286,
+        "atomistic_us": 79.107557,
+        "coarse_us": 220.309336,
+        "interface_us": 58.53511,
+        "integration_us": 16.728889
+       },
+       "0.125000": {
+        "step_wall_us": 412.473,
+        "active_blocks": 14334,
+        "atomistic_us": 61.176889,
+        "coarse_us": 298.549328,
+        "interface_us": 61.511112,
+        "integration_us": 17.155556
+       },
+       "0.062500": {
+        "step_wall_us": 403.647667,
+        "active_blocks": 15358,
+        "atomistic_us": 52.757335,
+        "coarse_us": 301.759993,
+        "interface_us": 64.384,
+        "integration_us": 17.109333
+       },
+       "0.000000": {
+        "step_wall_us": 334.972667,
+        "active_blocks": 16384,
+        "atomistic_us": 15.502222,
+        "coarse_us": 273.823995,
+        "interface_us": 51.97511,
+        "integration_us": 16.878222
+       }
+      },
+      "production_us": [
+       79.549
+      ],
+      "zero_fine_step_wall_us": 334.972667,
+      "seconds": 0.3,
+      "crossover": "NOT_OBSERVED",
+      "production_step_wall_us": 79.549,
+      "best_adaptive_step_wall_us": 334.972667
+     },
+     {
+      "points": {
+       "1.000000": {
+        "step_wall_us": 226.220333,
+        "active_blocks": 0,
+        "atomistic_us": 190.57422,
+        "coarse_us": 17.987556,
+        "interface_us": 18.481778,
+        "integration_us": 10.464
+       },
+       "0.750000": {
+        "step_wall_us": 349.254333,
+        "active_blocks": 4094,
+        "atomistic_us": 162.862227,
+        "coarse_us": 156.188447,
+        "interface_us": 41.532444,
+        "integration_us": 15.377778
+       },
+       "0.500000": {
+        "step_wall_us": 370.298333,
+        "active_blocks": 8190,
+        "atomistic_us": 123.192889,
+        "coarse_us": 208.949337,
+        "interface_us": 49.944889,
+        "integration_us": 16.458667
+       },
+       "0.250000": {
+        "step_wall_us": 352.356,
+        "active_blocks": 12286,
+        "atomistic_us": 78.80889,
+        "coarse_us": 220.124444,
+        "interface_us": 58.840888,
+        "integration_us": 16.974222
+       },
+       "0.125000": {
+        "step_wall_us": 408.4,
+        "active_blocks": 14334,
+        "atomistic_us": 61.745778,
+        "coarse_us": 298.865774,
+        "interface_us": 62.254222,
+        "integration_us": 17.134222
+       },
+       "0.062500": {
+        "step_wall_us": 403.016,
+        "active_blocks": 15358,
+        "atomistic_us": 53.408001,
+        "coarse_us": 301.703109,
+        "interface_us": 63.630223,
+        "integration_us": 17.109334
+       },
+       "0.000000": {
+        "step_wall_us": 332.030333,
+        "active_blocks": 16384,
+        "atomistic_us": 15.178667,
+        "coarse_us": 274.695107,
+        "interface_us": 53.020443,
+        "integration_us": 17.340445
+       }
+      },
+      "production_us": [
+       79.613333
+      ],
+      "zero_fine_step_wall_us": 332.030333,
+      "seconds": 0.3,
+      "crossover": "NOT_OBSERVED",
+      "production_step_wall_us": 79.613333,
+      "best_adaptive_step_wall_us": 332.030333
+     },
+     {
+      "points": {
+       "1.000000": {
+        "step_wall_us": 210.326,
+        "active_blocks": 0,
+        "atomistic_us": 177.941331,
+        "coarse_us": 16.558222,
+        "interface_us": 17.468444,
+        "integration_us": 9.045333
+       },
+       "0.750000": {
+        "step_wall_us": 327.814667,
+        "active_blocks": 4094,
+        "atomistic_us": 151.60889,
+        "coarse_us": 142.271998,
+        "interface_us": 39.111112,
+        "integration_us": 14.471111
+       },
+       "0.500000": {
+        "step_wall_us": 342.241,
+        "active_blocks": 8190,
+        "atomistic_us": 114.179554,
+        "coarse_us": 188.963554,
+        "interface_us": 47.559112,
+        "integration_us": 16.120889
+       },
+       "0.250000": {
+        "step_wall_us": 320.708667,
+        "active_blocks": 12286,
+        "atomistic_us": 73.696,
+        "coarse_us": 199.520001,
+        "interface_us": 55.754667,
+        "integration_us": 15.530667
+       },
+       "0.125000": {
+        "step_wall_us": 368.427,
+        "active_blocks": 14334,
+        "atomistic_us": 57.080888,
+        "coarse_us": 271.007996,
+        "interface_us": 60.106667,
+        "integration_us": 18.129778
+       },
+       "0.062500": {
+        "step_wall_us": 367.902333,
+        "active_blocks": 15358,
+        "atomistic_us": 48.974222,
+        "coarse_us": 274.730663,
+        "interface_us": 61.077335,
+        "integration_us": 15.616
+       },
+       "0.000000": {
+        "step_wall_us": 310.801,
+        "active_blocks": 16384,
+        "atomistic_us": 14.087111,
+        "coarse_us": 248.142223,
+        "interface_us": 50.904888,
+        "integration_us": 16.497778
+       }
+      },
+      "production_us": [
+       76.818333
+      ],
+      "zero_fine_step_wall_us": 310.801,
+      "seconds": 0.3,
+      "crossover": "NOT_OBSERVED",
+      "production_step_wall_us": 76.818333,
+      "best_adaptive_step_wall_us": 310.801
+     }
+    ],
+    "live": [
+     {
+      "points": {
+       "1.000000": {
+        "step_wall_us": 223.869667,
+        "active_blocks": 0,
+        "atomistic_us": 190.897776,
+        "coarse_us": 17.831111,
+        "interface_us": 18.656,
+        "integration_us": 9.507556
+       },
+       "0.750000": {
+        "step_wall_us": 266.081,
+        "active_blocks": 4094,
+        "atomistic_us": 162.456892,
+        "coarse_us": 66.581334,
+        "interface_us": 41.891555,
+        "integration_us": 15.868445
+       },
+       "0.500000": {
+        "step_wall_us": 243.441333,
+        "active_blocks": 8190,
+        "atomistic_us": 122.279111,
+        "coarse_us": 70.588443,
+        "interface_us": 49.838222,
+        "integration_us": 17.575111
+       },
+       "0.250000": {
+        "step_wall_us": 219.127333,
+        "active_blocks": 12286,
+        "atomistic_us": 79.175112,
+        "coarse_us": 73.674666,
+        "interface_us": 58.961777,
+        "integration_us": 17.148445
+       },
+       "0.125000": {
+        "step_wall_us": 213.158333,
+        "active_blocks": 14334,
+        "atomistic_us": 61.038222,
+        "coarse_us": 87.345776,
+        "interface_us": 61.952,
+        "integration_us": 16.988445
+       },
+       "0.062500": {
+        "step_wall_us": 207.828667,
+        "active_blocks": 15358,
+        "atomistic_us": 53.120001,
+        "coarse_us": 88.248886,
+        "interface_us": 64.021334,
+        "integration_us": 17.763556
+       },
+       "0.000000": {
+        "step_wall_us": 165.75,
+        "active_blocks": 16384,
+        "atomistic_us": 14.762667,
+        "coarse_us": 86.911998,
+        "interface_us": 51.886221,
+        "integration_us": 17.340445
+       }
+      },
+      "production_us": [
+       79.380667
+      ],
+      "zero_fine_step_wall_us": 165.75,
+      "seconds": 0.3,
+      "crossover": "NOT_OBSERVED",
+      "production_step_wall_us": 79.380667,
+      "best_adaptive_step_wall_us": 165.75
+     },
+     {
+      "points": {
+       "1.000000": {
+        "step_wall_us": 225.248,
+        "active_blocks": 0,
+        "atomistic_us": 190.652442,
+        "coarse_us": 17.596444,
+        "interface_us": 18.592,
+        "integration_us": 9.457778
+       },
+       "0.750000": {
+        "step_wall_us": 267.551,
+        "active_blocks": 4094,
+        "atomistic_us": 162.318226,
+        "coarse_us": 66.414223,
+        "interface_us": 41.443555,
+        "integration_us": 15.761778
+       },
+       "0.500000": {
+        "step_wall_us": 243.921333,
+        "active_blocks": 8190,
+        "atomistic_us": 122.015999,
+        "coarse_us": 69.930665,
+        "interface_us": 49.575111,
+        "integration_us": 16.224
+       },
+       "0.250000": {
+        "step_wall_us": 217.055,
+        "active_blocks": 12286,
+        "atomistic_us": 79.35289,
+        "coarse_us": 73.479111,
+        "interface_us": 59.253333,
+        "integration_us": 17.909334
+       },
+       "0.125000": {
+        "step_wall_us": 211.173667,
+        "active_blocks": 14334,
+        "atomistic_us": 60.938666,
+        "coarse_us": 86.705776,
+        "interface_us": 61.521779,
+        "integration_us": 17.063111
+       },
+       "0.062500": {
+        "step_wall_us": 206.279333,
+        "active_blocks": 15358,
+        "atomistic_us": 52.615112,
+        "coarse_us": 87.214221,
+        "interface_us": 64.273778,
+        "integration_us": 16.746667
+       },
+       "0.000000": {
+        "step_wall_us": 165.230333,
+        "active_blocks": 16384,
+        "atomistic_us": 15.786667,
+        "coarse_us": 87.420442,
+        "interface_us": 52.095999,
+        "integration_us": 16.753778
+       }
+      },
+      "production_us": [
+       79.334667
+      ],
+      "zero_fine_step_wall_us": 165.230333,
+      "seconds": 0.3,
+      "crossover": "NOT_OBSERVED",
+      "production_step_wall_us": 79.334667,
+      "best_adaptive_step_wall_us": 165.230333
+     },
+     {
+      "points": {
+       "1.000000": {
+        "step_wall_us": 211.215333,
+        "active_blocks": 0,
+        "atomistic_us": 182.478218,
+        "coarse_us": 17.162667,
+        "interface_us": 17.781333,
+        "integration_us": 9.162667
+       },
+       "0.750000": {
+        "step_wall_us": 261.124333,
+        "active_blocks": 4094,
+        "atomistic_us": 154.766225,
+        "coarse_us": 62.748445,
+        "interface_us": 39.904,
+        "integration_us": 15.018667
+       },
+       "0.500000": {
+        "step_wall_us": 230.019,
+        "active_blocks": 8190,
+        "atomistic_us": 116.334221,
+        "coarse_us": 65.877335,
+        "interface_us": 47.953778,
+        "integration_us": 15.943111
+       },
+       "0.250000": {
+        "step_wall_us": 208.223667,
+        "active_blocks": 12286,
+        "atomistic_us": 75.36,
+        "coarse_us": 70.030222,
+        "interface_us": 56.917333,
+        "integration_us": 17.240889
+       },
+       "0.125000": {
+        "step_wall_us": 204.843333,
+        "active_blocks": 14334,
+        "atomistic_us": 58.641777,
+        "coarse_us": 81.934224,
+        "interface_us": 60.02489,
+        "integration_us": 16.106667
+       },
+       "0.062500": {
+        "step_wall_us": 204.48,
+        "active_blocks": 15358,
+        "atomistic_us": 50.947556,
+        "coarse_us": 82.862225,
+        "interface_us": 62.730667,
+        "integration_us": 18.055111
+       },
+       "0.000000": {
+        "step_wall_us": 164.373,
+        "active_blocks": 16384,
+        "atomistic_us": 14.599111,
+        "coarse_us": 82.983113,
+        "interface_us": 50.570667,
+        "integration_us": 16.394667
+       }
+      },
+      "production_us": [
+       77.407
+      ],
+      "zero_fine_step_wall_us": 164.373,
+      "seconds": 0.3,
+      "crossover": "NOT_OBSERVED",
+      "production_step_wall_us": 77.407,
+      "best_adaptive_step_wall_us": 164.373
+     },
+     {
+      "points": {
+       "1.000000": {
+        "step_wall_us": 210.111,
+        "active_blocks": 0,
+        "atomistic_us": 182.439106,
+        "coarse_us": 16.412445,
+        "interface_us": 18.208,
+        "integration_us": 9.116445
+       },
+       "0.750000": {
+        "step_wall_us": 262.384667,
+        "active_blocks": 4094,
+        "atomistic_us": 154.823114,
+        "coarse_us": 62.944,
+        "interface_us": 40.032,
+        "integration_us": 15.061333
+       },
+       "0.500000": {
+        "step_wall_us": 232.570667,
+        "active_blocks": 8190,
+        "atomistic_us": 116.796443,
+        "coarse_us": 66.378668,
+        "interface_us": 48.519111,
+        "integration_us": 15.953778
+       },
+       "0.250000": {
+        "step_wall_us": 208.847,
+        "active_blocks": 12286,
+        "atomistic_us": 75.509334,
+        "coarse_us": 69.649777,
+        "interface_us": 56.764444,
+        "integration_us": 17.468445
+       },
+       "0.125000": {
+        "step_wall_us": 206.128,
+        "active_blocks": 14334,
+        "atomistic_us": 58.08711,
+        "coarse_us": 82.104891,
+        "interface_us": 60.31289,
+        "integration_us": 17.788445
+       },
+       "0.062500": {
+        "step_wall_us": 205.990333,
+        "active_blocks": 15358,
+        "atomistic_us": 50.776889,
+        "coarse_us": 82.506669,
+        "interface_us": 62.055113,
+        "integration_us": 17.048889
+       },
+       "0.000000": {
+        "step_wall_us": 165.119333,
+        "active_blocks": 16384,
+        "atomistic_us": 14.734222,
+        "coarse_us": 82.663114,
+        "interface_us": 51.217777,
+        "integration_us": 16.508444
+       }
+      },
+      "production_us": [
+       77.731
+      ],
+      "zero_fine_step_wall_us": 165.119333,
+      "seconds": 0.3,
+      "crossover": "NOT_OBSERVED",
+      "production_step_wall_us": 77.731,
+      "best_adaptive_step_wall_us": 165.119333
+     }
+    ]
+   },
+   "device_after": {
+    "gpu": "32 %, 102 MiB, 54, 1665 MHz, 0x0000000000000000",
+    "compute_apps": "none"
+   },
+   "table": [
+    {
+     "fraction": 1.0,
+     "active_blocks": 0,
+     "base_atomistic_us": 190.9706645,
+     "live_atomistic_us": 186.56533000000002,
+     "base_coarse_us": 17.9804445,
+     "live_coarse_us": 17.379555500000002,
+     "base_interface_us": 18.341333499999998,
+     "live_interface_us": 18.4,
+     "base_integration_us": 9.735111,
+     "live_integration_us": 9.3102225,
+     "base_step_wall_us": 224.736333,
+     "live_step_wall_us": 217.5425
+    },
+    {
+     "fraction": 0.75,
+     "active_blocks": 4094,
+     "base_atomistic_us": 162.8977825,
+     "live_atomistic_us": 158.57067,
+     "base_coarse_us": 156.385781,
+     "live_coarse_us": 64.6791115,
+     "base_interface_us": 41.530666499999995,
+     "live_interface_us": 40.7377775,
+     "base_integration_us": 15.603555499999999,
+     "live_integration_us": 15.411555499999999,
+     "base_step_wall_us": 347.99116649999996,
+     "live_step_wall_us": 264.23283349999997
+    },
+    {
+     "fraction": 0.5,
+     "active_blocks": 8190,
+     "base_atomistic_us": 123.0648885,
+     "live_atomistic_us": 119.40622099999999,
+     "base_coarse_us": 209.05067050000002,
+     "live_coarse_us": 68.1546665,
+     "base_interface_us": 50.128,
+     "live_interface_us": 49.047111,
+     "base_integration_us": 16.497777999999997,
+     "live_integration_us": 16.088889,
+     "base_step_wall_us": 368.3245,
+     "live_step_wall_us": 238.00599999999997
+    },
+    {
+     "fraction": 0.25,
+     "active_blocks": 12286,
+     "base_atomistic_us": 78.9582235,
+     "live_atomistic_us": 77.34222299999999,
+     "base_coarse_us": 219.8417785,
+     "live_coarse_us": 71.7546665,
+     "base_interface_us": 58.447999,
+     "live_interface_us": 57.939555,
+     "base_integration_us": 16.849778,
+     "live_integration_us": 17.354667,
+     "base_step_wall_us": 349.2101665,
+     "live_step_wall_us": 212.95100000000002
+    },
+    {
+     "fraction": 0.125,
+     "active_blocks": 14334,
+     "base_atomistic_us": 61.4435555,
+     "live_atomistic_us": 59.7902215,
+     "base_coarse_us": 298.70755099999997,
+     "live_coarse_us": 84.4053335,
+     "base_interface_us": 61.882667,
+     "live_interface_us": 60.9173345,
+     "base_integration_us": 17.642667000000003,
+     "live_integration_us": 17.025778,
+     "base_step_wall_us": 406.94366649999995,
+     "live_step_wall_us": 208.65083349999998
+    },
+    {
+     "fraction": 0.0625,
+     "active_blocks": 15358,
+     "base_atomistic_us": 52.748446,
+     "live_atomistic_us": 51.781334,
+     "base_coarse_us": 301.73155099999997,
+     "live_coarse_us": 85.03822299999999,
+     "base_interface_us": 63.5128895,
+     "live_interface_us": 63.376000499999996,
+     "base_integration_us": 17.109333499999998,
+     "live_integration_us": 17.4062225,
+     "base_step_wall_us": 402.7233335,
+     "live_step_wall_us": 206.13483300000001
+    },
+    {
+     "fraction": 0.0,
+     "active_blocks": 16384,
+     "base_atomistic_us": 15.2142225,
+     "live_atomistic_us": 14.748444500000002,
+     "base_coarse_us": 273.681773,
+     "live_coarse_us": 84.94755549999999,
+     "base_interface_us": 52.0942215,
+     "live_interface_us": 51.551998999999995,
+     "base_integration_us": 17.109333499999998,
+     "live_integration_us": 16.631111,
+     "base_step_wall_us": 330.622333,
+     "live_step_wall_us": 165.174833
+    }
+   ],
+   "base_production_step_wall_us": 79.5811665,
+   "base_best_adaptive_step_wall_us": 330.622333,
+   "base_crossover": [
+    "NOT_OBSERVED"
+   ],
+   "base_zero_fine_step_wall_us": 330.622333,
+   "base_crossover_speedup": null,
+   "base_crossover_fraction": null,
+   "live_production_step_wall_us": 78.5328335,
+   "live_best_adaptive_step_wall_us": 165.174833,
+   "live_crossover": [
+    "NOT_OBSERVED"
+   ],
+   "live_zero_fine_step_wall_us": 165.174833,
+   "live_crossover_speedup": null,
+   "live_crossover_fraction": null
+  },
+  {
+   "blocks": 4096,
+   "atoms_per_block": 16,
+   "device_before": {
+    "gpu": "32 %, 102 MiB, 54, 1665 MHz, 0x0000000000000000",
+    "compute_apps": "none"
+   },
+   "runs": {
+    "base": [
+     {
+      "points": {
+       "1.000000": {
+        "step_wall_us": 216.576333,
+        "active_blocks": 0,
+        "atomistic_us": 188.444441,
+        "coarse_us": 15.701334,
+        "interface_us": 17.468444,
+        "integration_us": 8.067556
+       },
+       "0.750000": {
+        "step_wall_us": 324.308,
+        "active_blocks": 1022,
+        "atomistic_us": 153.696002,
+        "coarse_us": 137.226666,
+        "interface_us": 39.399111,
+        "integration_us": 14.179555
+       },
+       "0.500000": {
+        "step_wall_us": 294.024667,
+        "active_blocks": 2046,
+        "atomistic_us": 120.526221,
+        "coarse_us": 140.68622,
+        "interface_us": 48.675556,
+        "integration_us": 16.604444
+       },
+       "0.250000": {
+        "step_wall_us": 270.432667,
+        "active_blocks": 3070,
+        "atomistic_us": 76.092444,
+        "coarse_us": 140.764442,
+        "interface_us": 56.554666,
+        "integration_us": 14.144
+       },
+       "0.125000": {
+        "step_wall_us": 250.640333,
+        "active_blocks": 3582,
+        "atomistic_us": 57.955555,
+        "coarse_us": 141.941331,
+        "interface_us": 60.152889,
+        "integration_us": 14.670222
+       },
+       "0.062500": {
+        "step_wall_us": 252.948333,
+        "active_blocks": 3838,
+        "atomistic_us": 49.425778,
+        "coarse_us": 142.051554,
+        "interface_us": 62.101335,
+        "integration_us": 15.882667
+       },
+       "0.000000": {
+        "step_wall_us": 195.956,
+        "active_blocks": 4096,
+        "atomistic_us": 13.824,
+        "coarse_us": 130.538668,
+        "interface_us": 50.915555,
+        "integration_us": 13.674667
+       }
+      },
+      "production_us": [
+       77.174667
+      ],
+      "zero_fine_step_wall_us": 195.956,
+      "seconds": 0.3,
+      "crossover": "NOT_OBSERVED",
+      "production_step_wall_us": 77.174667,
+      "best_adaptive_step_wall_us": 195.956
+     },
+     {
+      "points": {
+       "1.000000": {
+        "step_wall_us": 206.815667,
+        "active_blocks": 0,
+        "atomistic_us": 182.979553,
+        "coarse_us": 15.367111,
+        "interface_us": 17.486222,
+        "integration_us": 8.170667
+       },
+       "0.750000": {
+        "step_wall_us": 312.268333,
+        "active_blocks": 1022,
+        "atomistic_us": 148.974222,
+        "coarse_us": 132.02489,
+        "interface_us": 39.822222,
+        "integration_us": 15.594667
+       },
+       "0.500000": {
+        "step_wall_us": 291.787,
+        "active_blocks": 2046,
+        "atomistic_us": 115.946665,
+        "coarse_us": 133.340446,
+        "interface_us": 46.624,
+        "integration_us": 13.788444
+       },
+       "0.250000": {
+        "step_wall_us": 255.702,
+        "active_blocks": 3070,
+        "atomistic_us": 73.102222,
+        "coarse_us": 133.980446,
+        "interface_us": 56.508444,
+        "integration_us": 14.648889
+       },
+       "0.125000": {
+        "step_wall_us": 250.822,
+        "active_blocks": 3582,
+        "atomistic_us": 54.851557,
+        "coarse_us": 135.996445,
+        "interface_us": 59.406223,
+        "integration_us": 13.788445
+       },
+       "0.062500": {
+        "step_wall_us": 238.877667,
+        "active_blocks": 3838,
+        "atomistic_us": 47.694222,
+        "coarse_us": 135.363556,
+        "interface_us": 61.329778,
+        "integration_us": 13.080889
+       },
+       "0.000000": {
+        "step_wall_us": 192.039333,
+        "active_blocks": 4096,
+        "atomistic_us": 13.372445,
+        "coarse_us": 125.024,
+        "interface_us": 49.546667,
+        "integration_us": 15.473778
+       }
+      },
+      "production_us": [
+       76.150333
+      ],
+      "zero_fine_step_wall_us": 192.039333,
+      "seconds": 0.3,
+      "crossover": "NOT_OBSERVED",
+      "production_step_wall_us": 76.150333,
+      "best_adaptive_step_wall_us": 192.039333
+     },
+     {
+      "points": {
+       "1.000000": {
+        "step_wall_us": 206.653333,
+        "active_blocks": 0,
+        "atomistic_us": 183.111107,
+        "coarse_us": 15.029333,
+        "interface_us": 17.034667,
+        "integration_us": 7.925333
+       },
+       "0.750000": {
+        "step_wall_us": 306.671667,
+        "active_blocks": 1022,
+        "atomistic_us": 148.974222,
+        "coarse_us": 132.380447,
+        "interface_us": 39.281778,
+        "integration_us": 15.399111
+       },
+       "0.500000": {
+        "step_wall_us": 291.922,
+        "active_blocks": 2046,
+        "atomistic_us": 115.886221,
+        "coarse_us": 133.155558,
+        "interface_us": 46.332444,
+        "integration_us": 15.057778
+       },
+       "0.250000": {
+        "step_wall_us": 260.788,
+        "active_blocks": 3070,
+        "atomistic_us": 73.411555,
+        "coarse_us": 134.236447,
+        "interface_us": 56.046222,
+        "integration_us": 14.147556
+       },
+       "0.125000": {
+        "step_wall_us": 251.772667,
+        "active_blocks": 3582,
+        "atomistic_us": 54.855112,
+        "coarse_us": 136.593778,
+        "interface_us": 59.342223,
+        "integration_us": 16.583111
+       },
+       "0.062500": {
+        "step_wall_us": 242.556667,
+        "active_blocks": 3838,
+        "atomistic_us": 47.345777,
+        "coarse_us": 136.796445,
+        "interface_us": 60.455112,
+        "integration_us": 14.506667
+       },
+       "0.000000": {
+        "step_wall_us": 192.238667,
+        "active_blocks": 4096,
+        "atomistic_us": 13.592889,
+        "coarse_us": 125.283556,
+        "interface_us": 51.338667,
+        "integration_us": 14.104889
+       }
+      },
+      "production_us": [
+       76.052333
+      ],
+      "zero_fine_step_wall_us": 192.238667,
+      "seconds": 0.3,
+      "crossover": "NOT_OBSERVED",
+      "production_step_wall_us": 76.052333,
+      "best_adaptive_step_wall_us": 192.238667
+     },
+     {
+      "points": {
+       "1.000000": {
+        "step_wall_us": 206.432,
+        "active_blocks": 0,
+        "atomistic_us": 182.698664,
+        "coarse_us": 15.160889,
+        "interface_us": 17.12,
+        "integration_us": 7.793778
+       },
+       "0.750000": {
+        "step_wall_us": 306.098333,
+        "active_blocks": 1022,
+        "atomistic_us": 148.906667,
+        "coarse_us": 132.295113,
+        "interface_us": 39.032889,
+        "integration_us": 13.820444
+       },
+       "0.500000": {
+        "step_wall_us": 291.725,
+        "active_blocks": 2046,
+        "atomistic_us": 116.35911,
+        "coarse_us": 133.400891,
+        "interface_us": 46.542222,
+        "integration_us": 13.550222
+       },
+       "0.250000": {
+        "step_wall_us": 260.616,
+        "active_blocks": 3070,
+        "atomistic_us": 73.646222,
+        "coarse_us": 134.730669,
+        "interface_us": 55.420444,
+        "integration_us": 14.087111
+       },
+       "0.125000": {
+        "step_wall_us": 251.247333,
+        "active_blocks": 3582,
+        "atomistic_us": 54.940446,
+        "coarse_us": 136.170665,
+        "interface_us": 59.132445,
+        "integration_us": 14.624
+       },
+       "0.062500": {
+        "step_wall_us": 243.679,
+        "active_blocks": 3838,
+        "atomistic_us": 47.477333,
+        "coarse_us": 136.782223,
+        "interface_us": 61.105779,
+        "integration_us": 13.848889
+       },
+       "0.000000": {
+        "step_wall_us": 192.735333,
+        "active_blocks": 4096,
+        "atomistic_us": 13.319111,
+        "coarse_us": 124.938667,
+        "interface_us": 49.756445,
+        "integration_us": 13.056
+       }
+      },
+      "production_us": [
+       76.741
+      ],
+      "zero_fine_step_wall_us": 192.735333,
+      "seconds": 0.3,
+      "crossover": "NOT_OBSERVED",
+      "production_step_wall_us": 76.741,
+      "best_adaptive_step_wall_us": 192.735333
+     }
+    ],
+    "live": [
+     {
+      "points": {
+       "1.000000": {
+        "step_wall_us": 209.71,
+        "active_blocks": 0,
+        "atomistic_us": 188.522663,
+        "coarse_us": 17.020444,
+        "interface_us": 18.122667,
+        "integration_us": 7.740445
+       },
+       "0.750000": {
+        "step_wall_us": 265.367667,
+        "active_blocks": 1022,
+        "atomistic_us": 154.008892,
+        "coarse_us": 58.680888,
+        "interface_us": 41.475555,
+        "integration_us": 15.900444
+       },
+       "0.500000": {
+        "step_wall_us": 226.617,
+        "active_blocks": 2046,
+        "atomistic_us": 119.722666,
+        "coarse_us": 58.556444,
+        "interface_us": 47.527111,
+        "integration_us": 13.649778
+       },
+       "0.250000": {
+        "step_wall_us": 198.933333,
+        "active_blocks": 3070,
+        "atomistic_us": 76.049779,
+        "coarse_us": 58.744888,
+        "interface_us": 56.529777,
+        "integration_us": 14.140444
+       },
+       "0.125000": {
+        "step_wall_us": 184.668667,
+        "active_blocks": 3582,
+        "atomistic_us": 56.604444,
+        "coarse_us": 60.014222,
+        "interface_us": 59.569778,
+        "integration_us": 14.784
+       },
+       "0.062500": {
+        "step_wall_us": 183.466333,
+        "active_blocks": 3838,
+        "atomistic_us": 48.871111,
+        "coarse_us": 59.964444,
+        "interface_us": 62.083557,
+        "integration_us": 14.026667
+       },
+       "0.000000": {
+        "step_wall_us": 129.772333,
+        "active_blocks": 4096,
+        "atomistic_us": 13.955556,
+        "coarse_us": 60.792888,
+        "interface_us": 51.164445,
+        "integration_us": 14.734222
+       }
+      },
+      "production_us": [
+       76.616
+      ],
+      "zero_fine_step_wall_us": 129.772333,
+      "seconds": 0.3,
+      "crossover": "NOT_OBSERVED",
+      "production_step_wall_us": 76.616,
+      "best_adaptive_step_wall_us": 129.772333
+     },
+     {
+      "points": {
+       "1.000000": {
+        "step_wall_us": 215.576667,
+        "active_blocks": 0,
+        "atomistic_us": 188.216886,
+        "coarse_us": 15.427556,
+        "interface_us": 17.383111,
+        "integration_us": 8.302222
+       },
+       "0.750000": {
+        "step_wall_us": 249.177667,
+        "active_blocks": 1022,
+        "atomistic_us": 153.312003,
+        "coarse_us": 58.460444,
+        "interface_us": 41.219556,
+        "integration_us": 14.026667
+       },
+       "0.500000": {
+        "step_wall_us": 227.654333,
+        "active_blocks": 2046,
+        "atomistic_us": 119.754665,
+        "coarse_us": 58.979555,
+        "interface_us": 47.424,
+        "integration_us": 13.870222
+       },
+       "0.250000": {
+        "step_wall_us": 201.079333,
+        "active_blocks": 3070,
+        "atomistic_us": 75.623111,
+        "coarse_us": 58.847999,
+        "interface_us": 56.721777,
+        "integration_us": 14.517333
+       },
+       "0.125000": {
+        "step_wall_us": 185.382333,
+        "active_blocks": 3582,
+        "atomistic_us": 56.949332,
+        "coarse_us": 59.726222,
+        "interface_us": 59.722667,
+        "integration_us": 14.250667
+       },
+       "0.062500": {
+        "step_wall_us": 173.132333,
+        "active_blocks": 3838,
+        "atomistic_us": 49.102222,
+        "coarse_us": 60.362666,
+        "interface_us": 62.332445,
+        "integration_us": 13.774222
+       },
+       "0.000000": {
+        "step_wall_us": 130.457667,
+        "active_blocks": 4096,
+        "atomistic_us": 13.546667,
+        "coarse_us": 59.221333,
+        "interface_us": 50.538667,
+        "integration_us": 14.008889
+       }
+      },
+      "production_us": [
+       76.755333
+      ],
+      "zero_fine_step_wall_us": 130.457667,
+      "seconds": 0.3,
+      "crossover": "NOT_OBSERVED",
+      "production_step_wall_us": 76.755333,
+      "best_adaptive_step_wall_us": 130.457667
+     },
+     {
+      "points": {
+       "1.000000": {
+        "step_wall_us": 207.394667,
+        "active_blocks": 0,
+        "atomistic_us": 182.901329,
+        "coarse_us": 14.872889,
+        "interface_us": 16.711111,
+        "integration_us": 7.843556
+       },
+       "0.750000": {
+        "step_wall_us": 240.830333,
+        "active_blocks": 1022,
+        "atomistic_us": 149.237334,
+        "coarse_us": 56.888889,
+        "interface_us": 39.608889,
+        "integration_us": 15.054222
+       },
+       "0.500000": {
+        "step_wall_us": 221.682,
+        "active_blocks": 2046,
+        "atomistic_us": 115.377777,
+        "coarse_us": 56.625778,
+        "interface_us": 45.909334,
+        "integration_us": 13.902222
+       },
+       "0.250000": {
+        "step_wall_us": 191.271333,
+        "active_blocks": 3070,
+        "atomistic_us": 73.635556,
+        "coarse_us": 56.895999,
+        "interface_us": 55.708444,
+        "integration_us": 14.300444
+       },
+       "0.125000": {
+        "step_wall_us": 183.393,
+        "active_blocks": 3582,
+        "atomistic_us": 54.709335,
+        "coarse_us": 57.83111,
+        "interface_us": 59.541334,
+        "integration_us": 14.983111
+       },
+       "0.062500": {
+        "step_wall_us": 176.270667,
+        "active_blocks": 3838,
+        "atomistic_us": 48.046222,
+        "coarse_us": 59.399111,
+        "interface_us": 62.410668,
+        "integration_us": 16.540445
+       },
+       "0.000000": {
+        "step_wall_us": 126.466667,
+        "active_blocks": 4096,
+        "atomistic_us": 12.96,
+        "coarse_us": 57.187555,
+        "interface_us": 50.16889,
+        "integration_us": 13.834667
+       }
+      },
+      "production_us": [
+       75.747667
+      ],
+      "zero_fine_step_wall_us": 126.466667,
+      "seconds": 0.3,
+      "crossover": "NOT_OBSERVED",
+      "production_step_wall_us": 75.747667,
+      "best_adaptive_step_wall_us": 126.466667
+     },
+     {
+      "points": {
+       "1.000000": {
+        "step_wall_us": 207.589333,
+        "active_blocks": 0,
+        "atomistic_us": 182.975996,
+        "coarse_us": 14.976,
+        "interface_us": 16.892444,
+        "integration_us": 7.914667
+       },
+       "0.750000": {
+        "step_wall_us": 240.023667,
+        "active_blocks": 1022,
+        "atomistic_us": 149.191111,
+        "coarse_us": 55.733334,
+        "interface_us": 38.766223,
+        "integration_us": 14.119111
+       },
+       "0.500000": {
+        "step_wall_us": 218.431,
+        "active_blocks": 2046,
+        "atomistic_us": 115.637332,
+        "coarse_us": 56.174223,
+        "interface_us": 46.211556,
+        "integration_us": 13.447111
+       },
+       "0.250000": {
+        "step_wall_us": 189.773,
+        "active_blocks": 3070,
+        "atomistic_us": 73.560889,
+        "coarse_us": 56.487111,
+        "interface_us": 55.392,
+        "integration_us": 14.023111
+       },
+       "0.125000": {
+        "step_wall_us": 182.038,
+        "active_blocks": 3582,
+        "atomistic_us": 55.516445,
+        "coarse_us": 58.108444,
+        "interface_us": 59.079111,
+        "integration_us": 14.549333
+       },
+       "0.062500": {
+        "step_wall_us": 170.367667,
+        "active_blocks": 3838,
+        "atomistic_us": 47.374222,
+        "coarse_us": 57.681777,
+        "interface_us": 61.148446,
+        "integration_us": 20.906667
+       },
+       "0.000000": {
+        "step_wall_us": 127.028667,
+        "active_blocks": 4096,
+        "atomistic_us": 13.216,
+        "coarse_us": 56.991999,
+        "interface_us": 49.984,
+        "integration_us": 12.846222
+       }
+      },
+      "production_us": [
+       75.583667
+      ],
+      "zero_fine_step_wall_us": 127.028667,
+      "seconds": 0.3,
+      "crossover": "NOT_OBSERVED",
+      "production_step_wall_us": 75.583667,
+      "best_adaptive_step_wall_us": 127.028667
+     }
+    ]
+   },
+   "device_after": {
+    "gpu": "17 %, 102 MiB, 55, 1800 MHz, 0x0000000000000000",
+    "compute_apps": "none"
+   },
+   "table": [
+    {
+     "fraction": 1.0,
+     "active_blocks": 0,
+     "base_atomistic_us": 183.04533,
+     "live_atomistic_us": 185.596441,
+     "base_coarse_us": 15.264,
+     "live_coarse_us": 15.201778000000001,
+     "base_interface_us": 17.294222,
+     "live_interface_us": 17.1377775,
+     "base_integration_us": 7.9964445,
+     "live_integration_us": 7.8791115000000005,
+     "base_step_wall_us": 206.7345,
+     "live_step_wall_us": 208.64966650000002
+    },
+    {
+     "fraction": 0.75,
+     "active_blocks": 1022,
+     "base_atomistic_us": 148.974222,
+     "live_atomistic_us": 151.27466850000002,
+     "base_coarse_us": 132.33778,
+     "live_coarse_us": 57.6746665,
+     "base_interface_us": 39.340444500000004,
+     "live_interface_us": 40.414222499999994,
+     "base_integration_us": 14.789333,
+     "live_integration_us": 14.5866665,
+     "base_step_wall_us": 309.47,
+     "live_step_wall_us": 245.00400000000002
+    },
+    {
+     "fraction": 0.5,
+     "active_blocks": 2046,
+     "base_atomistic_us": 116.15288749999999,
+     "live_atomistic_us": 117.67999900000001,
+     "base_coarse_us": 133.3706685,
+     "live_coarse_us": 57.591111,
+     "base_interface_us": 46.583111,
+     "live_interface_us": 46.817778000000004,
+     "base_integration_us": 14.423111,
+     "live_integration_us": 13.76,
+     "base_step_wall_us": 291.85450000000003,
+     "live_step_wall_us": 224.1495
+    },
+    {
+     "fraction": 0.25,
+     "active_blocks": 3070,
+     "base_atomistic_us": 73.5288885,
+     "live_atomistic_us": 74.6293335,
+     "base_coarse_us": 134.48355800000002,
+     "live_coarse_us": 57.8204435,
+     "base_interface_us": 56.277333,
+     "live_interface_us": 56.119110500000005,
+     "base_integration_us": 14.145778,
+     "live_integration_us": 14.220444,
+     "base_step_wall_us": 260.702,
+     "live_step_wall_us": 195.102333
+    },
+    {
+     "fraction": 0.125,
+     "active_blocks": 3582,
+     "base_atomistic_us": 54.897779,
+     "live_atomistic_us": 56.0604445,
+     "base_coarse_us": 136.3822215,
+     "live_coarse_us": 58.917333,
+     "base_interface_us": 59.374223,
+     "live_interface_us": 59.555555999999996,
+     "base_integration_us": 14.647111,
+     "live_integration_us": 14.666666500000002,
+     "base_step_wall_us": 251.03466650000001,
+     "live_step_wall_us": 184.0308335
+    },
+    {
+     "fraction": 0.0625,
+     "active_blocks": 3838,
+     "base_atomistic_us": 47.585777500000006,
+     "live_atomistic_us": 48.4586665,
+     "base_coarse_us": 136.789334,
+     "live_coarse_us": 59.681777499999995,
+     "base_interface_us": 61.217778499999994,
+     "live_interface_us": 62.208000999999996,
+     "base_integration_us": 14.177778,
+     "live_integration_us": 15.283555999999999,
+     "base_step_wall_us": 243.11783350000002,
+     "live_step_wall_us": 174.7015
+    },
+    {
+     "fraction": 0.0,
+     "active_blocks": 4096,
+     "base_atomistic_us": 13.482667,
+     "live_atomistic_us": 13.3813335,
+     "base_coarse_us": 125.153778,
+     "live_coarse_us": 58.204444,
+     "base_interface_us": 50.336,
+     "live_interface_us": 50.3537785,
+     "base_integration_us": 13.889778,
+     "live_integration_us": 13.921778,
+     "base_step_wall_us": 192.487,
+     "live_step_wall_us": 128.4005
+    }
+   ],
+   "base_production_step_wall_us": 76.4456665,
+   "base_best_adaptive_step_wall_us": 192.487,
+   "base_crossover": [
+    "NOT_OBSERVED"
+   ],
+   "base_zero_fine_step_wall_us": 192.487,
+   "base_crossover_speedup": null,
+   "base_crossover_fraction": null,
+   "live_production_step_wall_us": 76.18183350000001,
+   "live_best_adaptive_step_wall_us": 128.4005,
+   "live_crossover": [
+    "NOT_OBSERVED"
+   ],
+   "live_zero_fine_step_wall_us": 128.4005,
+   "live_crossover_speedup": null,
+   "live_crossover_fraction": null
+  }
+ ]
+}
