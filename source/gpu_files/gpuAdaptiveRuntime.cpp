@@ -182,18 +182,28 @@ __device__ inline real epsilonDevice() {
 #endif
 }
 
-__device__ inline std::size_t plusBlock(const GpuAdaptiveDeviceTopology& topology,
-                                        std::size_t block, int direction) {
-   int coordinate[3] = {
+// CG-14: the three forward-neighbour block indices of `block`, produced in one
+// call.  This replaces a single-direction plusBlock() that the continuum
+// operator used to call about 189 times per block-thread for three values that
+// cannot change within a launch -- each call reading the same three ints from
+// blockGridCoordinate and performing an integer modulo.  The arithmetic per
+// direction is unchanged, so plus[d] is the value plusBlock(topology, block, d)
+// returned; only the grid coordinate is now read once instead of once per call.
+__device__ inline void plusBlockTriple(const GpuAdaptiveDeviceTopology& topology,
+                                       std::size_t block, std::size_t plus[3]) {
+   const int coordinate[3] = {
       topology.blockGridCoordinate[0 + 3 * block],
       topology.blockGridCoordinate[1 + 3 * block],
       topology.blockGridCoordinate[2 + 3 * block]
    };
-   coordinate[direction] = (coordinate[direction] + 1) %
+   for(int direction = 0; direction < 3; ++direction) {
+      int shifted[3] = {coordinate[0], coordinate[1], coordinate[2]};
+      shifted[direction] = (shifted[direction] + 1) %
                            topology.blockGrid[direction];
-   return static_cast<std::size_t>(
-      coordinate[0] + topology.blockGrid[0] *
-      (coordinate[1] + topology.blockGrid[1] * coordinate[2]));
+      plus[direction] = static_cast<std::size_t>(
+         shifted[0] + topology.blockGrid[0] *
+         (shifted[1] + topology.blockGrid[1] * shifted[2]));
+   }
 }
 
 __device__ inline void loadAtomVector(const real* data,
@@ -975,54 +985,128 @@ __global__ void restrictAdaptiveInterface(
    }
 }
 
+// CG-14: one component of a cross product, without evaluating the other two.
+// Identical arithmetic to crossDevice()'s `component`-th line.  The
+// spiralization energy consumes only component k of (m x grad), so the other
+// six multiplies and two subtractions crossDevice() performed per (k, p) term
+// were never read.
+__device__ inline real crossComponent(const real a[3], const real b[3],
+                                      int component) {
+   const int i = (component + 1) % 3;
+   const int j = (component + 2) % 3;
+   return a[i] * b[j] - a[j] * b[i];
+}
+
+// CG-14: (e_k x v)[component], where e_k is the k-th Cartesian basis vector.
+//
+// The spiralization loop crossed a basis vector with the gradient and with the
+// direction.  crossDevice() evaluated all six products of each such cross, four
+// of which multiply an exact zero.  For finite v this returns the identical
+// value with those terms dropped: crossDevice() computes 0*v[i] - 0*v[j] = +0.0
+// for the vanishing component and 1*v[i] - 0*v[j] = v[i] for the others, and
+// multiplication by 1 and addition of +0.0 are exact.  The equivalence is
+// stated for finite v because 0*inf is NaN where this returns zero; the runtime
+// rejects non-finite topology and state in validate(), and a non-finite
+// gradient would already have destroyed the energy terms.
+__device__ inline real basisCross(int k, const real v[3], int component) {
+   if(component == k) return real(0);
+   const int remaining = 3 - component - k;
+   return k == (component + 1) % 3 ? v[remaining] : -v[remaining];
+}
+
+// CG-14: neighbour differences of the coarse direction field, read once per
+// block-thread.  delta[direction][xyz] is exactly the parenthesised difference
+// physicalGradient() used to re-read from global memory on every one of its 27
+// invocations.
+__device__ inline void loadNeighbourDeltas(
+   const GpuAdaptiveDeviceTopology& topology, const real* coarseDirection,
+   std::size_t block, const std::size_t plus[3], std::size_t ensemble,
+   const real direction[3], real delta[3][3]) {
+   for(int d = 0; d < 3; ++d)
+      for(int xyz = 0; xyz < 3; ++xyz)
+         delta[d][xyz] = coarseDirection[coarseVectorIndex(
+                            xyz, 0, plus[d], ensemble, topology.dynamicChannels,
+                            topology.blocks)] - direction[xyz];
+}
+
+// CG-14: physicalGradient(), evaluated from hoisted deltas and a hoisted
+// inverse block transpose.  Same direction order, same coefficient, same
+// accumulator, so the result is bit-identical to the pre-change kernel's.
 __device__ inline void physicalGradient(
-   const GpuAdaptiveDeviceTopology& topology, const AdaptiveKernelDevice& kernels,
-   const real* coarseDirection, std::size_t block, std::size_t ensemble,
+   const real inverseTranspose[9], const real delta[3][3],
    int physical, real gradient[3]) {
    gradient[0] = gradient[1] = gradient[2] = real(0);
    for(int direction = 0; direction < 3; ++direction) {
-      const real coefficient = kernels.inverseBlockTranspose[physical + 3 * direction];
-      const std::size_t plus = plusBlock(topology, block, direction);
+      const real coefficient = inverseTranspose[physical + 3 * direction];
       for(int xyz = 0; xyz < 3; ++xyz)
-         gradient[xyz] += coefficient *
-            (coarseDirection[coarseVectorIndex(
-                xyz, 0, plus, ensemble, topology.dynamicChannels, topology.blocks)] -
-             coarseDirection[coarseVectorIndex(
-                xyz, 0, block, ensemble, topology.dynamicChannels, topology.blocks)]);
+         gradient[xyz] += coefficient * delta[direction][xyz];
    }
 }
 
+// CG-14: the ownership predicate over hoisted inputs.  `selfCoarse` and
+// `neighbourCoarse[d]` are the same coarseBlockMask lookups the predicate used
+// to repeat, and the short-circuit structure is unchanged, so the boolean is
+// the same for every (p, q).
 __device__ inline bool tensorTermOwned(
-   const GpuAdaptiveDeviceTopology& topology,
-   const GpuAdaptiveDeviceRuntime& runtime,
-   const AdaptiveKernelDevice& kernels, std::size_t block, int p, int q) {
-   if(!runtime.coarseBlockMask[block]) return false;
+   const real inverseTranspose[9], bool selfCoarse,
+   const bool neighbourCoarse[3], int p, int q) {
+   if(!selfCoarse) return false;
    for(int direction = 0; direction < 3; ++direction) {
-      if(kernels.inverseBlockTranspose[p + 3 * direction] == real(0) &&
-         (q < 0 || kernels.inverseBlockTranspose[q + 3 * direction] == real(0)))
+      if(inverseTranspose[p + 3 * direction] == real(0) &&
+         (q < 0 || inverseTranspose[q + 3 * direction] == real(0)))
          continue;
-      if(!runtime.coarseBlockMask[plusBlock(topology, block, direction)]) return false;
+      if(!neighbourCoarse[direction]) return false;
    }
    return true;
 }
 
-__device__ inline void atomicAddDerivativeStencil(
-   const GpuAdaptiveDeviceTopology& topology, const AdaptiveKernelDevice& kernels,
-   real* derivative, std::size_t block, std::size_t ensemble,
+// CG-14: atomicAddDerivativeStencil()'s arithmetic, accumulated into the
+// block-thread's own four-entry stencil footprint instead of issued as
+// eighteen global atomics per call.
+//
+// contribution[0] is this block; contribution[1 + d] its forward neighbour
+// along direction d.  The coefficient and the +/- endpoint pairing are
+// unchanged.  Two things about the sum are not: a block-thread's summands for
+// an address are now added in registers and committed once rather than
+// interleaved into the global accumulator in scheduler order, and the caller
+// passes one derivative summed over the term index rather than calling this
+// once per term (see the kernel).  Both are re-associations of the same
+// mathematical sum; neither is claimed to be bit-identical, and the measured
+// difference is reported in docs/CG-14_CONTINUUM_OPERATOR_EVIDENCE.md.
+__device__ inline void accumulateDerivativeStencil(
+   const real inverseTranspose[9], real contribution[4][3],
    int physical, const real value[3], real scale) {
    for(int direction = 0; direction < 3; ++direction) {
       const real coefficient =
-         scale * kernels.inverseBlockTranspose[physical + 3 * direction];
-      const std::size_t plus = plusBlock(topology, block, direction);
+         scale * inverseTranspose[physical + 3 * direction];
       for(int xyz = 0; xyz < 3; ++xyz) {
+         contribution[1 + direction][xyz] += coefficient * value[xyz];
+         contribution[0][xyz] -= coefficient * value[xyz];
+      }
+   }
+}
+
+// CG-14: commit the accumulated stencil footprint.  At most twelve atomics per
+// block-thread replace the 351 the scatter issued into these same twelve
+// addresses -- 324 from the eighteen stencil calls plus the 27 direct
+// spiralization terms, which now land in contribution[0] as well.
+//
+// A zero contribution is skipped rather than added.  clearAdaptiveCoarse zeroes
+// the field to +0.0 and every subsequent update is an addition, so the
+// accumulator can never hold -0.0; adding +/-0.0 to it is therefore a no-op for
+// every reachable value, and skipping is exactly equivalent, not merely close.
+__device__ inline void commitDerivativeStencil(
+   const GpuAdaptiveDeviceTopology& topology, real* derivative,
+   std::size_t block, const std::size_t plus[3], std::size_t ensemble,
+   const real contribution[4][3]) {
+   for(int corner = 0; corner < 4; ++corner) {
+      const std::size_t target = corner == 0 ? block : plus[corner - 1];
+      for(int xyz = 0; xyz < 3; ++xyz) {
+         if(contribution[corner][xyz] == real(0)) continue;
          atomicAdd(&derivative[coarseVectorIndex(
-                      xyz, 0, plus, ensemble, topology.dynamicChannels,
+                      xyz, 0, target, ensemble, topology.dynamicChannels,
                       topology.blocks)],
-                   coefficient * value[xyz]);
-         atomicAdd(&derivative[coarseVectorIndex(
-                      xyz, 0, block, ensemble, topology.dynamicChannels,
-                      topology.blocks)],
-                   -coefficient * value[xyz]);
+                   contribution[corner][xyz]);
       }
    }
 }
@@ -1054,54 +1138,97 @@ __global__ void evaluateAdaptiveCoarseTensor(
    if(ensemble < topology.ensembles && work < activeBlocks) {
       const std::size_t block =
          static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
-      for(int p = 0; p < 3; ++p) {
-         for(int q = 0; q < 3; ++q) {
-            if(!tensorTermOwned(topology, runtime, kernels, block, p, q)) continue;
-            real gradientP[3], gradientQ[3], derivative[3];
-            physicalGradient(topology, kernels, runtime.coarseDirection,
-                             block, ensemble, p, gradientP);
-            physicalGradient(topology, kernels, runtime.coarseDirection,
-                             block, ensemble, q, gradientQ);
-            const real volume = topology.blockVolume[block];
-            const real stiffness = kernels.exchangeStiffness[p + 3 * q];
-            exchangeEnergy += static_cast<double>(
-               volume * stiffness * dotDevice(gradientP, gradientQ));
-            for(int xyz = 0; xyz < 3; ++xyz)
-               derivative[xyz] = volume * stiffness * gradientQ[xyz];
-            atomicAddDerivativeStencil(topology, kernels, runtime.coarseField,
-                                       block, ensemble, p, derivative, real(2));
-         }
-      }
+
+      // CG-14: everything below this point that does not depend on (p, q) or
+      // (k, p) is evaluated once per block-thread.  Before this task the two
+      // nine-iteration loops re-derived all of it inside every term: three
+      // neighbour indices about 189 times, three physical gradients 27 times,
+      // the block volume 18 times, and the three constant 3x3 matrices on
+      // every use.  Nothing here changes what is computed, only how often.
+      std::size_t plus[3];
+      plusBlockTriple(topology, block, plus);
+      const bool selfCoarse = runtime.coarseBlockMask[block] != 0;
+      const bool neighbourCoarse[3] = {
+         runtime.coarseBlockMask[plus[0]] != 0,
+         runtime.coarseBlockMask[plus[1]] != 0,
+         runtime.coarseBlockMask[plus[2]] != 0
+      };
+      real inverseTranspose[9];
+      for(int component = 0; component < 9; ++component)
+         inverseTranspose[component] = kernels.inverseBlockTranspose[component];
+      const real volume = topology.blockVolume[block];
+
       real direction[3];
       loadCoarseVector(runtime.coarseDirection, topology, 0, block,
                        ensemble, direction);
-      for(int k = 0; k < 3; ++k) {
-         real basis[3] = {real(0), real(0), real(0)};
-         basis[k] = real(1);
-         for(int p = 0; p < 3; ++p) {
-            if(!tensorTermOwned(topology, runtime, kernels, block, p, -1)) continue;
-            real gradient[3], crossMG[3], crossBasisGradient[3];
-            real crossBasisDirection[3], derivative[3];
-            physicalGradient(topology, kernels, runtime.coarseDirection,
-                             block, ensemble, p, gradient);
-            crossDevice(direction, gradient, crossMG);
-            crossDevice(basis, gradient, crossBasisGradient);
-            crossDevice(basis, direction, crossBasisDirection);
-            const real volume = topology.blockVolume[block];
-            const real spiral = kernels.spiralization[k + 3 * p];
-            spiralEnergy += static_cast<double>(
-               volume * spiral * crossMG[k]);
-            for(int xyz = 0; xyz < 3; ++xyz) {
-               atomicAdd(&runtime.coarseField[coarseVectorIndex(
-                            xyz, 0, block, ensemble, topology.dynamicChannels,
-                            topology.blocks)],
-                         -volume * spiral * crossBasisGradient[xyz]);
-               derivative[xyz] = volume * spiral * crossBasisDirection[xyz];
-            }
-            atomicAddDerivativeStencil(topology, kernels, runtime.coarseField,
-                                       block, ensemble, p, derivative, real(1));
+      real delta[3][3];
+      loadNeighbourDeltas(topology, runtime.coarseDirection, block, plus,
+                          ensemble, direction, delta);
+      real gradient[3][3];
+      for(int p = 0; p < 3; ++p)
+         physicalGradient(inverseTranspose, delta, p, gradient[p]);
+
+      // CG-14: the derivative stencil is accumulated here and committed once
+      // below, instead of being scattered by 324 atomics into these same
+      // twelve addresses.
+      real contribution[4][3] = {};
+
+      // CG-14: the exchange energy is accumulated in the same (p, q) order, so
+      // it is bit-identical to the pre-change kernel's.  The derivative is
+      // summed over q before being pushed through the stencil once per p,
+      // instead of being pushed through it once per (p, q): the stencil
+      // coefficient does not depend on q, so this is distributivity, and the
+      // owned-term gate is applied to exactly the same (p, q) set as before.
+      for(int p = 0; p < 3; ++p) {
+         real derivativeSum[3] = {real(0), real(0), real(0)};
+         bool anyOwned = false;
+         for(int q = 0; q < 3; ++q) {
+            if(!tensorTermOwned(inverseTranspose, selfCoarse, neighbourCoarse,
+                                p, q)) continue;
+            anyOwned = true;
+            const real stiffness = kernels.exchangeStiffness[p + 3 * q];
+            exchangeEnergy += static_cast<double>(
+               volume * stiffness * dotDevice(gradient[p], gradient[q]));
+            for(int xyz = 0; xyz < 3; ++xyz)
+               derivativeSum[xyz] += volume * stiffness * gradient[q][xyz];
          }
+         if(anyOwned)
+            accumulateDerivativeStencil(inverseTranspose, contribution, p,
+                                        derivativeSum, real(2));
       }
+
+      // CG-14: the spiralization energy keeps its own (k, p) loop so that its
+      // accumulation order, and therefore its value, is unchanged.  Only
+      // component k of (m x grad_p) was ever read from it.
+      for(int k = 0; k < 3; ++k)
+         for(int p = 0; p < 3; ++p) {
+            if(!tensorTermOwned(inverseTranspose, selfCoarse, neighbourCoarse,
+                                p, -1)) continue;
+            spiralEnergy += static_cast<double>(
+               volume * kernels.spiralization[k + 3 * p] *
+               crossComponent(direction, gradient[p], k));
+         }
+
+      // CG-14: the spiralization field is evaluated p-major so that the
+      // stencil, whose coefficient does not depend on k, runs once per p
+      // instead of once per (k, p).  The ownership gate does not depend on k
+      // either, so it is tested once per p rather than nine times.
+      for(int p = 0; p < 3; ++p) {
+         if(!tensorTermOwned(inverseTranspose, selfCoarse, neighbourCoarse,
+                             p, -1)) continue;
+         real derivativeSum[3] = {real(0), real(0), real(0)};
+         for(int k = 0; k < 3; ++k) {
+            const real weight = volume * kernels.spiralization[k + 3 * p];
+            for(int xyz = 0; xyz < 3; ++xyz) {
+               contribution[0][xyz] -= weight * basisCross(k, gradient[p], xyz);
+               derivativeSum[xyz] += weight * basisCross(k, direction, xyz);
+            }
+         }
+         accumulateDerivativeStencil(inverseTranspose, contribution, p,
+                                     derivativeSum, real(1));
+      }
+      commitDerivativeStencil(topology, runtime.coarseField, block, plus,
+                              ensemble, contribution);
    }
    extern __shared__ double energyShared[];
    reduceAdaptiveEnergyBlock(

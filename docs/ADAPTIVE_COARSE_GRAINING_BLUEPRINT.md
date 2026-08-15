@@ -2114,6 +2114,256 @@ active atom/block/interface fractions, phase timings, selector/compaction
 device and host-wait costs, uploaded mask bytes, allocation, and unaccounted
 wall time alongside the speedup/crossover measurement.
 
+**CG-13 clean-clone validation (RCG-10, 2026-08-15).** Commit `abda6534`
+(`v6.0.2-488-gabda`) was validated from a fresh `git clone` with an empty
+`git status`, in fresh out-of-tree build directories:
+
+| Backend / precision | Suite | Result |
+|---|---|---|
+| CPU fp64 | `ctest -L cg13-cpu` | 29/29 passed |
+| CPU fp64 | full `ctest`, incl. `regression-test` and `asd-tests` | 37/38; the one failure (`dipole-open-fft-oracle`) is proven pre-existing at the pre-remediation commit with bit-identical numbers, and is outside this package |
+| CUDA fp64 | `ctest -L cg13-cuda` | 32/32 passed |
+| CUDA fp32 | `ctest -L cg13-cuda` | 31/32 passed; the one failure is the pre-existing RCG-04-FU5 harness assertion |
+| HIP | — | **UNAVAILABLE**: no toolchain and no device. Not inferred from CUDA. |
+| Legacy GNU `make gfortran` | — | **Not a supported build** for current GPU builds (Human decision, Anders Bergman, 2026-08-15). CMake is the supported build system. The path does currently fail, for a pre-existing GPU-branch tooling reason unrelated to coarse graining; that is recorded as diagnosis in RCG-10 §3.4, not as a release gate. |
+
+Devices: two NVIDIA RTX A4000, driver 610.57.04, both at 0% utilization with no
+foreign compute process during the runs. Toolchain, commands, and raw logs:
+`docs/rcg10/`.
+
+---
+
+### Task CG-14: Reduce the GPU continuum operator constant
+
+**Opened:** 2026-08-15, after RCG-10 closed the remediation program with §14
+item 9 amended and the GPU production-performance gates left open. CG-14 is the
+task that would let that amendment be withdrawn.
+
+**Dependencies:** CG-10, CG-10.5 and CG-13 accepted; RCG-09C's clean-device
+measurement as the quantitative baseline; RCG-04-FU4's dispersion oracle and
+RCG-09A.4's parity harness as the correctness guards.
+**Suggested primary:** Sol
+**Required independent review:** Sol or Opus/Terra not responsible for the
+kernel; Human for any restored performance wording.
+**Risk:** Medium. This is a performance change to accepted physics. The
+mathematics must not move; the only thing that may change is how many times it
+is evaluated.
+
+#### Background: the constant, not the scaling
+
+RCG-09C left the adaptive GPU path scaling correctly and still slower than
+production. At 16 384 blocks / 65 536 atoms / 114 688 bonds on a clean RTX
+A4000, with the fine fraction at zero:
+
+| Phase | Time |
+|---|---|
+| coarse (`evaluateAdaptiveCoarseTensor` + `finalizeAdaptiveCoarseLocal`) | **509.1 µs** |
+| interface (`prolongateAdaptiveGhosts` + `clearAdaptiveInterface`) | 122.7 µs |
+| atomistic (`clearAdaptiveAtomistic` + energy-partial reduction) | 25.8 µs |
+| **adaptive step wall** | **639.1 µs** |
+| **production oracle step** | **276.6 µs** |
+
+The coarse operator's cost is proportional to coarse blocks, which is the
+method and is correct. Its _constant_ is not: 509.1 µs for 16 384 blocks is
+**~31 ns per block**, against ~4.5 ns per atom for the atomistic path it
+replaces. At the benchmark's four atoms per block, coarsening a block therefore
+_raises_ cost from ~18 ns to ~31 ns. That is why the step gets worse as blocks
+coarsen, and why no crossover exists: coarse graining is currently a
+pessimization per degree of freedom.
+
+Source inspection of `evaluateAdaptiveCoarseTensor`
+(`source/gpu_files/gpuAdaptiveRuntime.cpp`) shows the constant is almost
+entirely recomputation of three values:
+
+| Quantity | Distinct values per block | Times computed |
+|---|---|---|
+| `plusBlock(block, direction)` — 3 global int loads and 3 integer `%` per call | **3** | **~189** |
+| `physicalGradient(p)` — ~18 global loads per call | **3** | **27** |
+| stencil `atomicAdd` targets (self + 3 neighbours) × 3 components | **12 addresses** | **324 atomics** |
+| `blockVolume[block]` | 1 | 18 |
+| `inverseBlockTranspose`, `exchangeStiffness`, `spiralization` | three constant 3×3 matrices | reloaded from global throughout |
+
+The cause is structural: the `p,q` loop evaluates `physicalGradient` for both
+`p` and `q` on all nine iterations and the `k,p` loop evaluates it again on all
+nine, giving 27 calls for three distinct gradients; each call, plus
+`tensorTermOwned` and `atomicAddDerivativeStencil`, recomputes the same three
+neighbour indices. Roughly 90–97% of the kernel is redundant.
+
+#### Prompt
+
+> Before editing, read `docs/ADAPTIVE_COARSE_GRAINING_BLUEPRINT.md` and
+> `docs/ADAPTIVE_COARSE_GRAINING_REMEDIATION_BLUEPRINT.md` in full, plus
+> `docs/rcg09/rcg09c_live_bond_compaction.txt` for the baseline this task must
+> beat and `docs/RCG-10_RELEASE_RECONCILIATION.md` for the release state it may
+> change. Treat their evidence policy, claim discipline, and acceptance gates as
+> governing context.
+>
+> Reduce the per-block constant of the GPU continuum operator without changing
+> its mathematics. Hoist the three neighbour indices and the three physical
+> gradients into registers, accumulate the derivative stencil locally and
+> scatter once, hoist the block volume and the neighbour-coarse predicate, and
+> move the constant 3×3 matrices out of repeated global loads. These are common
+> subexpression eliminations: summation order must be preserved exactly, and any
+> step that does change it must be identified and its difference bounded against
+> RCG-06B's accepted FP64 budget rather than asserted negligible.
+>
+> Consider, and decide explicitly rather than silently: converting the stencil
+> scatter to a gather over minus-neighbours, which removes the atomics entirely
+> and would make the coarse field deterministic by construction instead of by
+> scheduling; and an orthogonal-cell fast path, where `inverseBlockTranspose` is
+> diagonal and `physicalGradient` has one nonzero direction instead of three.
+> State whether each was adopted and why.
+>
+> Re-measure on a device meeting RCG-08-FU3's cleanliness condition, with a
+> discarded warm-up and ABBA interleaving against a pristine pre-change build,
+> at the same sizes RCG-09C used. Report the coarse-phase constant in ns per
+> block before and after, the whole-step comparison against the production
+> oracle at every sweep point, and state plainly whether a crossover now exists.
+> Do not restore any speedup wording without Human approval.
+>
+> Sweep block size as well as fine fraction. Four atoms per block is the least
+> favourable geometry for the method; report whether the crossover, if any,
+> depends on it.
+>
+> If the coarse phase ceases to dominate, say so and name the new dominant
+> term rather than continuing to optimize the old one.
+
+#### Checklist
+
+Completed 2026-08-15. Evidence:
+[`docs/CG-14_CONTINUUM_OPERATOR_EVIDENCE.md`](CG-14_CONTINUUM_OPERATOR_EVIDENCE.md),
+raw measurements in [`docs/cg14/`](cg14/). A box is checked only where a
+citable, currently-passing artifact supports it; the two that are not checked
+name their reason rather than being reworded to fit.
+
+- [x] No physics, sign, prefactor, or tensor-index contract changed. One
+      kernel and its four device helpers; CPU operator and Fortran layer
+      untouched (evidence §1).
+- [x] Neighbour indices computed once per block-thread (`plusBlockTriple`).
+- [x] Physical gradients computed once per `p` per block-thread.
+- [x] Derivative stencil accumulated locally and scattered once. Measured
+      351 → 6 atomics per block-thread (evidence §3).
+- [x] Constant 3×3 matrices are not reloaded from global memory per term.
+- [x] Any summation-order change is identified and bounded against RCG-06B's
+      FP64 budget. Two re-associations identified (evidence §1 changes 3 and
+      7); worst measured field-checksum difference 2.65e-15 against a
+      same-binary run-to-run floor of 1.24e-15, i.e. 2.6e-12 of the frozen
+      1.0e-3 budget. Both coarse energy terms are **bitwise identical** on
+      every static-resolution fixture (evidence §5).
+- [x] Gather-versus-scatter decision is recorded with its reasoning. Not
+      adopted; it would raise the binding FP64 instruction count ~4× to remove
+      a resource already reduced 58× (evidence §8.1).
+- [x] Orthogonal-cell fast-path decision is recorded with its reasoning.
+      Deferred with a measured ~30%-of-kernel estimate that cannot change the
+      crossover verdict (evidence §8.2).
+- [x] `coarse-graining-dispersion` (RCG-04-FU4) passes unchanged in both the
+      CPU and CUDA trees. **Recorded caveat:** it exercises the Fortran
+      `CoarseTensorOperator` on the CPU and never enters the GPU kernel, so it
+      caught none of the five injected defects and is not the discriminating
+      oracle for this change (evidence §7.4).
+- [x] The forward-gradient / discrete-transpose adjoint pair remains exact.
+      Untouched Fortran; held by `coarse-graining-tensor-operator` and
+      `coarse-graining-dispersion`, and checked on the GPU side directly by the
+      new host-reference fixture (evidence §7.1).
+- [x] RCG-09A.4 staged ASD parity passes on a device, including bitwise
+      thermal-field identity. `--parity-only --require-acceptance`: exit 0,
+      205 PASS, 0 FAIL (evidence §7.2).
+- [x] `cg13-cpu` and `cg13-cuda` pass unchanged on fresh out-of-tree builds.
+      32/32 and 29/29 (evidence §7).
+- [x] fp32 is reported separately and inherits no fp64 claim. 31/32; the one
+      failure is RCG-04-FU5 and fails identically on a fresh fp32 build of the
+      pristine baseline worktree (evidence §7.3).
+- [x] A negative control demonstrates the fixtures would catch an error
+      introduced by the rewrite. Five defects injected; **three were invisible
+      to every pre-existing fixture** for structural reasons (orthogonal cells,
+      cubic materials, one-axis textures). `testContinuumOperatorAgainstHostReference`
+      was added to close the gap and is now the first oracle to fail on all
+      five (evidence §7.4).
+- [x] Coarse-phase ns/block reported before and after at the same sizes.
+      31.98 → 12.60 ns/block at 16 384 blocks; all sizes in evidence §6.2–6.3.
+- [x] Measurement taken on a device meeting RCG-08-FU3's cleanliness condition,
+      with the device state recorded rather than assumed (evidence §6.1).
+- [x] ABBA interleaving against a pristine pre-change build built out of tree
+      from an rsync'd copy of the pre-change worktree (evidence §6.1).
+- [x] Whole-step comparison against the production oracle at every sweep point
+      (evidence §6.2–6.3).
+- [x] Block-size sweep reported, not only fine fraction. Fixed 65 536 atoms,
+      4 to 64 atoms per block (evidence §6.3).
+- [x] Crossover existence stated plainly. **A crossover exists for the first
+      time**, marginally: all-coarse only, ≥16 atoms per block, ~1.03–1.06×,
+      17/20 runs against 0/20 baseline. It does **not** exist at four atoms per
+      block at any size (evidence §6.4).
+- [x] New dominant phase named if the coarse phase stops dominating. The coarse
+      phase still dominates but its margin fell from 4.2× to 1.67×;
+      `prolongateAdaptiveGhosts` (123.4 µs) and the coarse phase's own
+      non-tensor remainder are both named (evidence §6.5).
+- [ ] CUDA and HIP reported separately; unavailable is not passing. **CUDA
+      only.** No HIP toolchain or AMD device exists in this environment, as in
+      every RCG-0x session. No launch site changed, so the two spellings remain
+      structurally identical by construction, but that is a compile-time
+      property. RCG-09-FU4 stands (evidence §10).
+- [ ] Independent reviewer sign-off. **Not obtained.** Required per the task's
+      "Required independent review" line before this task can be considered
+      accepted.
+- [x] Human approves any restored performance wording. **No performance wording
+      was restored anywhere.** §14 item 9's amendment, §14.2 and
+      `docs/CG-13_RELEASE_VALIDATION.md` are untouched. The evidence document
+      §9 _proposes_ that the amendment be revisited on the strength of §6.4 and
+      explicitly does not revisit it; that decision is Human's.
+
+#### Acceptance targets
+
+From the RCG-09C baseline, the arithmetic the result will be judged against:
+
+| Coarse-kernel improvement | Projected all-coarse step | Outcome |
+|---|---|---|
+| ~3× | ≈ 300 µs | Still no crossover against 276.6 µs |
+| **~5×** | ≈ 240 µs | **First crossover, ~1.15×** |
+| **~10×** | ≈ 190 µs | **~1.45×, a decisive result** |
+
+The redundancy table above makes ~10× plausible, so that is the target rather
+than the hope. Note that at ~190 µs `prolongateAdaptiveGhosts` (122.7 µs)
+becomes co-dominant; either bring it into scope explicitly or hand it to a
+named successor task.
+
+**Exit evidence:** before/after coarse-phase constant at matched sizes on a
+clean device, ABBA-interleaved whole-step comparison against the production
+oracle across fine fraction and block size, unchanged `cg13-*` and dispersion
+results, the summation-order statement, and an independent review report. If a
+crossover is demonstrated, §14 item 9's amendment may be revisited — that
+requires Human approval and is not automatic.
+
+#### Measured outcome (2026-08-15)
+
+Recorded against the table above rather than replacing it, because the gap
+between the projection and the result is itself the finding.
+
+| Quantity | Projected | Measured |
+|---|---|---|
+| Coarse-kernel improvement | ~10× target | **3.01×** (252.9 → 83.9 µs at 16 384 blocks) |
+| Coarse-phase constant | — | **31.98 → 12.60 ns/block** (2.54×) |
+| All-coarse step at 16 384 blocks / 4 atoms per block | ≈190 µs at 10× | **656.3 → 365.0 µs** vs 279.4 µs production |
+| Crossover | first at ~5× | **exists, but only at ≥16 atoms per block, all-coarse, ~1.05×** |
+
+The 10× projection assumed the §4.2-equivalent redundancy ratios — neighbour
+indices, atomics, global loads — would translate into time. They did not,
+because the kernel was never limited by them. Nsight Compute measures the
+_pre-change_ kernel at 67.9% of this device's FP64 pipeline peak (RTX A4000,
+GA104, 2 FP64 ops/SM/clock). CG-14 removed 5.88× of total instructions and
+58.5× of atomics, but only 2.78× of FP64 instructions, and it is the FP64 count
+that sets the runtime. The post-change kernel sits at 82.0% of that peak, so at
+most a further ~1.22× is available from scheduling; anything more must come
+from evaluating fewer FP64 operations, which means changing the arithmetic
+rather than eliminating repetition of it. See
+[`docs/CG-14_CONTINUUM_OPERATOR_EVIDENCE.md`](CG-14_CONTINUUM_OPERATOR_EVIDENCE.md)
+§4, which also names the one identified route past that limit and why it is not
+a common-subexpression elimination.
+
+The named successor is confirmed but is no longer alone: at 16 384 blocks the
+coarse phase's lead over the interface phase fell from 4.2× to 1.67×, and more
+than half of the remaining coarse phase is the four small coarse kernels and
+launch latency rather than the continuum operator. Evidence §6.5.
+
 ---
 
 ## 12. Cross-task review checklists

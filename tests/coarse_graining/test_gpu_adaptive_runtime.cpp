@@ -913,6 +913,403 @@ void testHierarchicalCompaction() {
    runtime.release();
 }
 
+// CG-14 CONTINUUM-OPERATOR-HOST-REFERENCE.
+//
+// Why this fixture exists.  CG-14 rewrote evaluateAdaptiveCoarseTensor, and
+// four deliberate defects were injected into the rewrite to find out which
+// oracle would catch them.  Only two were caught, and by the whole-run
+// fixtures rather than by any unit test:
+//
+//   dropped stencil neighbour along direction 0   caught (production e2e)
+//   inverted basis-cross chirality                caught (production e2e)
+//   dropped stencil neighbour along direction 2   NOT caught by anything
+//   transposed inverseBlockTranspose index        NOT caught by anything
+//   exchange derivative index p/q swapped         NOT caught by anything
+//
+// The three misses are structural, not accidental.  Every geometry that runs
+// end to end today is orthogonal (RCG-05-FU3: neighbourmap.f90 rejects the
+// skew fixture at setup), so inverseBlockTranspose is diagonal and transposing
+// it is the identity; the tracked materials are cubic, so exchangeStiffness is
+// diagonal and Sum_q C_pq grad_q collapses to a multiple of grad_p; and every
+// tracked texture varies along one axis, so the transverse stencil branches
+// carry exact zero.
+//
+// This fixture removes all three degeneracies at the unit level: a 3x3x3
+// periodic block grid so each of the three forward neighbours is a distinct
+// block, a dense non-symmetric inverseBlockTranspose, a dense *symmetric*
+// exchangeStiffness (validate() requires symmetry, and symmetric-but-not-
+// diagonal is what discriminates the p/q contract), a dense spiralization, and
+// a direction field that varies in all three block directions.  It compares
+// the device against a host reference written straight from the operator's
+// definition -- per-term gradients, per-term scatter, the pre-CG-14
+// formulation -- rather than against a restatement of the device code.
+struct ContinuumFixture {
+   static constexpr int side = 3;
+   static constexpr std::size_t blocks = side * side * side;
+   static constexpr std::size_t atoms = blocks;
+   static constexpr std::size_t basis = 1;
+   static constexpr std::size_t channels = 1;
+   static constexpr std::size_t ensembles = 1;
+   static constexpr std::size_t bonds = atoms;
+   static constexpr double blockVolumeValue = 1.75;
+   static constexpr double moment = 1.5;
+
+   int repetitionShape[3] = {side, side, side};
+   int blockShape[3] = {1, 1, 1};
+   int blockGrid[3] = {side, side, side};
+   double cellVectors[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+   double blockVectors[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+
+   // Dense and deliberately non-symmetric: B[physical + 3*direction].  A
+   // transposed index therefore selects a different number.
+   double inverseBlockTranspose[9] = {
+      1.30, 0.40, -0.20,
+      0.25, 0.90, 0.35,
+      -0.15, 0.50, 1.10
+   };
+   // Dense and symmetric (validate() enforces symmetry).  Off-diagonal entries
+   // are what make Sum_q C_pq grad_q differ from a multiple of grad_p.
+   double exchange[9] = {
+      0.90, 0.30, -0.20,
+      0.30, 0.70, 0.15,
+      -0.20, 0.15, 1.10
+   };
+   // Dense: D[k + 3*physical].  Every (k, p) spiralization term is live.
+   double spiralization[9] = {
+      0.21, -0.13, 0.34,
+      0.17, 0.29, -0.11,
+      -0.23, 0.19, 0.26
+   };
+
+   int atomToBlock[atoms] = {};
+   int atomToBasis[atoms] = {};
+   int atomToDynamic[atoms] = {};
+   int atomToFft[atoms] = {};
+   int atomToFftGrid[atoms] = {};
+   int basisToDynamic[basis] = {1};
+   int basisToFft[basis] = {1};
+   int blockCount[blocks] = {};
+   int blockOffset[blocks + 1] = {};
+   int blockAtoms[atoms] = {};
+   int blockCoordinate[3 * blocks] = {};
+   int basisPopulation[basis * blocks] = {};
+   int fftPopulation[basis * blocks] = {};
+   int dynamicPopulation[channels * blocks] = {};
+   double center[3 * blocks] = {};
+   double volume[blocks] = {};
+   int state[blocks] = {};
+   double scores[blocks] = {};
+   double atomMoment[atoms] = {};
+   int atomAxisCount[atoms] = {};
+   double atomAxis[6 * atoms] = {};
+   double atomK1[2 * atoms] = {};
+   double atomK2[2 * atoms] = {};
+   int projectionBlock[8 * atoms] = {};
+   double projectionWeight[8 * atoms] = {};
+   int bondAtom[2 * bonds] = {};
+   double bondMatrix[9 * bonds] = {};
+   int selectorEdge[2 * bonds] = {};
+   // No coarse anisotropy: this fixture is about the tensor operator alone.
+   int axisCount[blocks] = {};
+   double axis[6 * blocks] = {};
+   double k1[2 * blocks] = {};
+   double k2[2 * blocks] = {};
+
+   std::vector<double> coarseMoment =
+      std::vector<double>(3 * blocks, 0.0);
+   std::vector<double> coarseDirection =
+      std::vector<double>(3 * blocks, 0.0);
+   std::vector<double> coarseField =
+      std::vector<double>(3 * blocks, 0.0);
+   std::vector<double> momentSum =
+      std::vector<double>(blocks, moment);
+
+   ContinuumFixture() {
+      for(std::size_t block = 0; block < blocks; ++block) {
+         const int ix = static_cast<int>(block % side);
+         const int iy = static_cast<int>((block / side) % side);
+         const int iz = static_cast<int>(block / (side * side));
+         blockCoordinate[0 + 3 * block] = ix;
+         blockCoordinate[1 + 3 * block] = iy;
+         blockCoordinate[2 + 3 * block] = iz;
+         center[0 + 3 * block] = ix + 0.5;
+         center[1 + 3 * block] = iy + 0.5;
+         center[2 + 3 * block] = iz + 0.5;
+         volume[block] = blockVolumeValue;
+         blockCount[block] = 1;
+         blockOffset[block] = static_cast<int>(block);
+         blockAtoms[block] = static_cast<int>(block) + 1;
+         basisPopulation[block] = 1;
+         fftPopulation[block] = 1;
+         dynamicPopulation[block] = 1;
+         state[block] = 0;   // every block coarse
+         atomToBlock[block] = static_cast<int>(block) + 1;
+         atomToBasis[block] = 1;
+         atomToDynamic[block] = 1;
+         atomToFft[block] = 1;
+         atomToFftGrid[block] = static_cast<int>(block) + 1;
+         atomMoment[block] = moment;
+         for(int corner = 0; corner < 8; ++corner)
+            projectionBlock[corner + 8 * block] = static_cast<int>(block) + 1;
+         projectionWeight[8 * block] = 1.0;
+         // A texture that varies along all three block directions, so no
+         // stencil branch and no gradient component is identically zero.
+         const double theta = 0.35 + 0.41 * ix + 0.23 * iy + 0.17 * iz;
+         const double phi = 0.19 + 0.37 * ix - 0.29 * iy + 0.53 * iz;
+         coarseDirection[0 + 3 * block] = std::sin(theta) * std::cos(phi);
+         coarseDirection[1 + 3 * block] = std::sin(theta) * std::sin(phi);
+         coarseDirection[2 + 3 * block] = std::cos(theta);
+         for(int xyz = 0; xyz < 3; ++xyz)
+            coarseMoment[xyz + 3 * block] =
+               moment * coarseDirection[xyz + 3 * block];
+      }
+      blockOffset[blocks] = static_cast<int>(atoms);
+      // A periodic bond ring.  Every bond is coarse-coarse, so the continuum
+      // operator owns all of them and no atomistic work is launched.
+      for(std::size_t bond = 0; bond < bonds; ++bond) {
+         bondAtom[bond] = static_cast<int>(bond) + 1;
+         bondAtom[bonds + bond] = static_cast<int>((bond + 1) % bonds) + 1;
+         selectorEdge[bond] = bondAtom[bond];
+         selectorEdge[bonds + bond] = bondAtom[bonds + bond];
+      }
+   }
+
+   GpuAdaptiveTopologyInput topology() const {
+      GpuAdaptiveTopologyInput t;
+      t.geometryMode = 1;
+      t.atoms = atoms;
+      t.blocks = blocks;
+      t.basis = basis;
+      t.fftChannelsPerBlock = basis;
+      t.fftGridChannels = basis * blocks;
+      t.dynamicChannels = channels;
+      t.ensembles = ensembles;
+      t.repetitionShape = repetitionShape;
+      t.blockShape = blockShape;
+      t.blockGrid = blockGrid;
+      t.cellVectors = cellVectors;
+      t.blockVectors = blockVectors;
+      t.atomToBlock = atomToBlock;
+      t.atomToBasis = atomToBasis;
+      t.atomToDynamicChannel = atomToDynamic;
+      t.atomToFftChannel = atomToFft;
+      t.atomToFftGridIndex = atomToFftGrid;
+      t.basisToDynamicChannel = basisToDynamic;
+      t.basisToFftChannel = basisToFft;
+      t.blockAtomCount = blockCount;
+      t.blockAtomOffset = blockOffset;
+      t.blockAtoms = blockAtoms;
+      t.blockGridCoordinate = blockCoordinate;
+      t.blockBasisPopulation = basisPopulation;
+      t.blockFftChannelPopulation = fftPopulation;
+      t.blockDynamicChannelPopulation = dynamicPopulation;
+      t.blockCenter = center;
+      t.blockVolume = volume;
+      return t;
+   }
+
+   GpuAdaptiveRuntimeInput runtime() {
+      GpuAdaptiveRuntimeInput r;
+      r.blockState = state;
+      r.selectorCriteria = 1;
+      r.selectorScores = scores;
+      r.coarseMoment = coarseMoment.data();
+      r.coarseDirection = coarseDirection.data();
+      r.coarseField = coarseField.data();
+      r.channelMomentSum = momentSum.data();
+      r.kernels.atomMoment = atomMoment;
+      r.kernels.atomAnisotropyAxisCount = atomAxisCount;
+      r.kernels.atomAnisotropyAxis = atomAxis;
+      r.kernels.atomAnisotropyK1 = atomK1;
+      r.kernels.atomAnisotropyK2 = atomK2;
+      r.kernels.projectionBlock = projectionBlock;
+      r.kernels.projectionWeight = projectionWeight;
+      r.kernels.bonds = bonds;
+      r.kernels.bondAtom = bondAtom;
+      r.kernels.bondMatrix = bondMatrix;
+      r.kernels.selectorEdges = bonds;
+      r.kernels.selectorEdge = selectorEdge;
+      r.kernels.inverseBlockTranspose = inverseBlockTranspose;
+      r.kernels.exchangeStiffness = exchange;
+      r.kernels.spiralization = spiralization;
+      r.kernels.anisotropyAxisCount = axisCount;
+      r.kernels.anisotropyAxis = axis;
+      r.kernels.anisotropyK1 = k1;
+      r.kernels.anisotropyK2 = k2;
+      r.kernels.magneticMomentSi = 1.0;
+      r.kernels.gammaPerTs = 2.0;
+      r.kernels.damping = 0.1;
+      return r;
+   }
+};
+
+// The host reference.  Written from the operator's definition in the same
+// shape the pre-CG-14 device kernel had: neighbour indices, gradients and the
+// stencil are all evaluated per tensor term, without any of the hoisting or
+// factoring CG-14 introduced.  Its agreement with the device is therefore
+// evidence about the rewrite, not a restatement of it.
+struct ContinuumReference {
+   std::vector<double> derivative;   // dE/dm, before the -1/(mu*M) scaling
+   double exchangeEnergy = 0.0;
+   double spiralEnergy = 0.0;
+};
+
+ContinuumReference continuumHostReference(const ContinuumFixture& fixture) {
+   constexpr int side = ContinuumFixture::side;
+   constexpr std::size_t blocks = ContinuumFixture::blocks;
+   const double* B = fixture.inverseBlockTranspose;
+   const double* C = fixture.exchange;
+   const double* D = fixture.spiralization;
+   const std::vector<double>& m = fixture.coarseDirection;
+
+   ContinuumReference result;
+   result.derivative.assign(3 * blocks, 0.0);
+
+   auto plusBlock = [&](std::size_t block, int direction) {
+      int c[3] = {fixture.blockCoordinate[0 + 3 * block],
+                  fixture.blockCoordinate[1 + 3 * block],
+                  fixture.blockCoordinate[2 + 3 * block]};
+      c[direction] = (c[direction] + 1) % side;
+      return static_cast<std::size_t>(c[0] + side * (c[1] + side * c[2]));
+   };
+   auto gradient = [&](std::size_t block, int physical, double g[3]) {
+      g[0] = g[1] = g[2] = 0.0;
+      for(int direction = 0; direction < 3; ++direction) {
+         const double coefficient = B[physical + 3 * direction];
+         const std::size_t plus = plusBlock(block, direction);
+         for(int xyz = 0; xyz < 3; ++xyz)
+            g[xyz] += coefficient * (m[xyz + 3 * plus] - m[xyz + 3 * block]);
+      }
+   };
+   auto scatter = [&](std::size_t block, int physical, const double value[3],
+                      double scale) {
+      for(int direction = 0; direction < 3; ++direction) {
+         const double coefficient = scale * B[physical + 3 * direction];
+         const std::size_t plus = plusBlock(block, direction);
+         for(int xyz = 0; xyz < 3; ++xyz) {
+            result.derivative[xyz + 3 * plus] += coefficient * value[xyz];
+            result.derivative[xyz + 3 * block] -= coefficient * value[xyz];
+         }
+      }
+   };
+   auto cross = [](const double a[3], const double b[3], double out[3]) {
+      out[0] = a[1] * b[2] - a[2] * b[1];
+      out[1] = a[2] * b[0] - a[0] * b[2];
+      out[2] = a[0] * b[1] - a[1] * b[0];
+   };
+
+   for(std::size_t block = 0; block < blocks; ++block) {
+      const double volume = fixture.volume[block];
+      for(int p = 0; p < 3; ++p)
+         for(int q = 0; q < 3; ++q) {
+            double gp[3], gq[3], derivative[3];
+            gradient(block, p, gp);
+            gradient(block, q, gq);
+            const double stiffness = C[p + 3 * q];
+            result.exchangeEnergy += volume * stiffness *
+               (gp[0] * gq[0] + gp[1] * gq[1] + gp[2] * gq[2]);
+            for(int xyz = 0; xyz < 3; ++xyz)
+               derivative[xyz] = volume * stiffness * gq[xyz];
+            scatter(block, p, derivative, 2.0);
+         }
+      double direction[3] = {m[0 + 3 * block], m[1 + 3 * block],
+                             m[2 + 3 * block]};
+      for(int k = 0; k < 3; ++k) {
+         double basis[3] = {0.0, 0.0, 0.0};
+         basis[k] = 1.0;
+         for(int p = 0; p < 3; ++p) {
+            double g[3], crossMG[3], crossBG[3], crossBD[3], derivative[3];
+            gradient(block, p, g);
+            cross(direction, g, crossMG);
+            cross(basis, g, crossBG);
+            cross(basis, direction, crossBD);
+            const double spiral = D[k + 3 * p];
+            result.spiralEnergy += volume * spiral * crossMG[k];
+            for(int xyz = 0; xyz < 3; ++xyz) {
+               result.derivative[xyz + 3 * block] -=
+                  volume * spiral * crossBG[xyz];
+               derivative[xyz] = volume * spiral * crossBD[xyz];
+            }
+            scatter(block, p, derivative, 1.0);
+         }
+      }
+   }
+   return result;
+}
+
+void testContinuumOperatorAgainstHostReference() {
+   ContinuumFixture fixture;
+   const auto topology = fixture.topology();
+   auto input = fixture.runtime();
+   std::string diagnostic;
+   require(GpuAdaptiveRuntime::validate(topology, input, ContinuumFixture::atoms,
+                                        ContinuumFixture::ensembles, diagnostic),
+           "CG-14 continuum reference fixture was rejected: " + diagnostic);
+
+   GpuAdaptiveRuntime runtime;
+   runtime.initialize(topology, input, ContinuumFixture::atoms,
+                      ContinuumFixture::ensembles);
+   require(runtime.activeBlockCount() == ContinuumFixture::blocks,
+           "CG-14 reference fixture did not put every block in the coarse list");
+   require(runtime.liveBondCount() == 0,
+           "CG-14 reference fixture launched atomistic work, so its coarse "
+           "field would not isolate the continuum operator");
+
+   const std::size_t atomVectors = 3 * ContinuumFixture::atoms;
+   const std::size_t coarseVectors = 3 * ContinuumFixture::blocks;
+   GpuTensor<real, 1> atomDirection, atomField, coarseField;
+   atomDirection.Allocate(static_cast<index_t>(atomVectors));
+   atomField.Allocate(static_cast<index_t>(atomVectors));
+   coarseField.Allocate(static_cast<index_t>(coarseVectors));
+   // Every block is coarse, so restriction keeps the fixture's own coarse
+   // directions and the atom directions never enter the coarse equation.
+   upload(atomDirection.data(),
+          deviceVector(std::vector<double>(atomVectors, 0.0)));
+   runtime.restrictMoments(atomDirection.data());
+   const auto energy = runtime.evaluateHybrid(
+      atomDirection.data(), nullptr, nullptr, atomField.data(),
+      coarseField.data());
+   const auto deviceField = download(coarseField.data(), coarseVectors);
+
+   const auto reference = continuumHostReference(fixture);
+
+   // A gate on the fixture itself: if the reference operator produced a
+   // near-zero field or near-zero energies, agreement would be vacuous.
+   double referenceScale = 0.0;
+   for(const double value : reference.derivative)
+      referenceScale = std::max(referenceScale, std::abs(value));
+   require(referenceScale > 1.0e-3,
+           "CG-14 reference fixture produced a vanishing continuum derivative");
+   require(std::abs(reference.exchangeEnergy) > 1.0e-3 &&
+           std::abs(reference.spiralEnergy) > 1.0e-3,
+           "CG-14 reference fixture produced vanishing coarse energies");
+
+   const double tolerance = sizeof(real) == sizeof(double) ? 1.0e-11 : 5.0e-4;
+   require(std::abs(energy.coarseExchangeJ - reference.exchangeEnergy) <=
+              tolerance * std::abs(reference.exchangeEnergy),
+           "GPU coarse exchange energy disagrees with the host reference "
+           "operator");
+   require(std::abs(energy.coarseSpiralizationJ - reference.spiralEnergy) <=
+              tolerance * std::abs(reference.spiralEnergy),
+           "GPU coarse spiralization energy disagrees with the host reference "
+           "operator");
+
+   // The published coarse field is -(dE/dm)/(mu*M); there is no external
+   // field, no dipole and no coarse anisotropy in this fixture, and the
+   // interface scratch is zero because no atom is atomistically owned.
+   const double scale = -1.0 / (1.0 * ContinuumFixture::moment);
+   double worst = 0.0;
+   for(std::size_t component = 0; component < coarseVectors; ++component) {
+      const double expected = scale * reference.derivative[component];
+      worst = std::max(worst,
+         std::abs(static_cast<double>(deviceField[component]) - expected));
+   }
+   require(worst <= tolerance * referenceScale * std::abs(scale),
+           "GPU continuum coarse field disagrees with the host reference "
+           "operator: worst component deviation " + std::to_string(worst));
+   runtime.release();
+}
+
 } // namespace
 
 int main() {
@@ -1014,6 +1411,7 @@ int main() {
    // reports itself as a wrong list rather than as a wrong energy.
    testLiveBondCompaction();
    testKernelParityAndWorkflow();
+   testContinuumOperatorAgainstHostReference();
    testPolarizationGate();
    testHierarchicalCompaction();
    std::cout << "CG-09/CG-10 GPU adaptive runtime tests passed\n";
