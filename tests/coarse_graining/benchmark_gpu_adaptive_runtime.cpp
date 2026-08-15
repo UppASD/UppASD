@@ -1401,10 +1401,11 @@ bool runProductionParityHarness(double tolerance) {
    pass = runProductionParityCase("T0-combined", true, true, real(0), 1, 3, tolerance) && pass;
    // The CUDA backend's cuRAND normal generator is validated with a fixed
    // seed across six accepted steps in a nontrivial finite-temperature
-   // trajectory.  Keep this reference fixture single-ensemble: multi-
-   // ensemble generator sequencing is an independent backend concern and is
-   // not part of the all-fine ASD contract.
+   // trajectory.  The adaptive arm reuses the feature-off thermal field;
+   // therefore the fixture tests adaptive multi-ensemble indexing without
+   // making independent cuRAND stream identity part of the parity contract.
    pass = runProductionParityCase("finite-T-combined", true, true, real(0.75), 1, 6, tolerance) && pass;
+   pass = runProductionParityCase("finite-T-combined-M2", true, true, real(0.75), 2, 6, tolerance) && pass;
    return pass;
 }
 

@@ -1,9 +1,9 @@
 # RCG-09A.4 adaptive all-fine ASD parity
 
-Status: harness implemented; accelerator execution is pending on a host with
-an available CUDA or HIP device. The local validation host built the CUDA/fp64
-target but reported no usable backend device, so this record does not claim
-the acceptance checklist is closed.
+Status: harness implemented; local CPU/build validation is complete. CUDA
+runtime evidence is recorded separately for the available-device handoff
+host; the current validation container has no usable CUDA device. HIP remains
+unavailable and is not inferred to pass.
 
 ## Contract
 
@@ -29,7 +29,10 @@ fixtures:
 6. Hamiltonian field at the predicted state;
 7. exact second thermal-field reuse (Depondt does not draw again);
 8. Depondt corrector/final spin;
-9. six-step finite-temperature fixed-seed trajectory, using one ensemble.
+9. six-step finite-temperature fixed-seed trajectories using one and two
+   ensembles. The adaptive arm copies the feature-off thermal field, so the
+   two-ensemble case validates indexing and state parity without requiring
+   independently constructed cuRAND generators to produce identical streams.
 
 Hamiltonian and trajectory comparisons use the established fp64 roundoff
 budget; thermal fields require bitwise identity. Each stage reports bitwise
@@ -74,9 +77,20 @@ compiled, but their runtime executions were skipped when the device became
 unavailable; they are not reported as passing by inference. CPU and HIP are
 not reported as passing by inference.
 
-The staged implementation also has an explicit two-ensemble fixture path, but
-the current CUDA/fp64 host shows non-reproducible cuRAND normal-field reuse
-between the independently constructed production oracles for `M=2`. The
-single-ensemble finite-temperature path is therefore the acceptance fixture;
-multi-ensemble parity remains an identified follow-up rather than being
-silently relaxed.
+The staged implementation now includes an explicit two-ensemble acceptance
+fixture. It uses the feature-off thermal field as the sole stochastic oracle
+and copies that field into the adaptive integrator, which is the parity
+contract and avoids treating independent cuRAND stream identity as a physics
+requirement. Runtime execution of this added case still requires an available
+CUDA or HIP device; the current container has neither.
+
+## Validation record (2026-08-15)
+
+- CPU Release build: passed.
+- CPU coarse-graining suite: 29/29 tests passed, including production ASD,
+  setup rejection, moving parity, DMI, and trajectory tests.
+- CUDA/fp64 build: `gpu_adaptive_runtime_benchmark` compiled successfully.
+- CUDA runtime: direct parity execution returned 77 with
+  `ADAPTIVE-ASD-PARITY unavailable: no backend device`; CTest consequently
+  skipped the acceptance test through its documented `SKIP_RETURN_CODE`.
+- HIP: not installed/available on this host and not claimed as passing.

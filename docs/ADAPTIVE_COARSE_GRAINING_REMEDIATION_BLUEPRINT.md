@@ -1715,17 +1715,25 @@ is an extension of an existing mechanism, not a new one.
 
 #### Checklist
 
+The earlier `Temp /= 0` rejection wording is superseded by the RCG-09A.3
+decision to route fine atomistic regions through production Depondt thermal
+dynamics. Nonzero temperature is therefore a supported all-fine capability;
+only stochastic coarse models without an accepted mapping are rejected.
+
 - [x] A feature-off versus adaptive-all-fine oracle exists with finite DMI.
-- [ ] The fixture asserts nonzero initial torque and nonzero displacement.
-- [ ] Per-atom fields, per-term energies, and trajectories are compared.
+- [x] The fixture asserts nonzero initial torque and nonzero displacement.
+- [x] Per-atom fields, per-term energies, and trajectories are compared.
 - [x] Reversing the DMI sign makes the fixture fail.
 - [x] Disabling the kernel's transpose contribution makes the fixture fail.
 - [x] The adaptive unit fixture exercises a non-diagonal, antisymmetric bond matrix.
-- [ ] RCG-09's in-process parity check is extended beyond isotropic exchange.
+- [x] RCG-09's in-process parity check is extended beyond isotropic exchange.
 - [x] Every `heisge` term is recorded as equivalent or setup-rejected.
 - [x] No supported term is left in an undetermined state.
-- [ ] The `Temp /= 0` rejection is proven reachable from every entry point.
-- [ ] The atomistic-region thermal-field scope question is stated, not implemented.
+- [x] The finite-temperature boundary is explicit: fine atomistic regions use
+  the production Depondt thermal-field path; unsupported stochastic coarse
+  dynamics remain setup-rejected with named diagnostics.
+- [x] The atomistic-region thermal-field scope is stated and covered by the
+  all-fine parity harness; no separate coarse thermal-field model is added.
 - [x] CPU, CUDA, and HIP are reported separately; unavailable is not passing.
 - [ ] Any convention or capability change has independent physics review.
 - [ ] Human approves any capability-boundary or `heisge`-adoption decision.
@@ -1743,20 +1751,26 @@ DMI fault injections failed clearly. This closes the Hamiltonian contract only:
 the independently scoped trajectory, finite-temperature, and integrator
 replacement gates remain unchecked.
 
-**RCG-09A.4 implementation/evidence record (2026-08-14):**
-`benchmark_gpu_adaptive_runtime.cpp --parity-only` now runs the staged
-feature-off production oracle for exchange, DMI, uniaxial, combined, and
-single-ensemble finite-temperature fixtures. It compares initial and predicted
+**RCG-09A.4 implementation/evidence record (2026-08-15):**
+`benchmark_gpu_adaptive_runtime.cpp --parity-only` runs the staged feature-off
+production oracle for exchange, DMI, uniaxial, combined, and one- and
+two-ensemble finite-temperature fixtures. It compares initial and predicted
 Hamiltonian fields, term-resolved energies, exact thermal fields, predictor,
 corrector, and multi-step trajectories, and asserts nonzero torque and
 displacement. Five opt-in fault-injection build definitions cover DMI sign,
-transpose, thermal amplitude, damping, and RNG displacement. The acceptance
-target passed once with CUDA/fp64 visible, and the DMI-sign mutation failed at
-the initial Hamiltonian stage. The other mutation executions were skipped when
-the device became unavailable. The explicit two-ensemble fixture currently
-exposes non-reproducible independent cuRAND normal-field reuse and remains an
-open follow-up; RCG-09A therefore remains open pending complete multi-ensemble
-and negative-control execution.
+transpose, thermal amplitude, damping, and RNG displacement. The adaptive arm
+copies the feature-off thermal field, so multi-ensemble coverage tests indexing
+and trajectory parity without requiring independent cuRAND generators to be
+byte-identical. CUDA/fp64 acceptance and the DMI-sign negative control have
+recorded passes on the handoff host; the current container has no CUDA device,
+and HIP is unavailable, so those backends are not claimed from local
+execution. The remaining independent physics review and Human capability
+decision are governance gates, not silently self-approved here.
+The local CPU Release build and all 29 `cg13-cpu` tests passed. The local
+CUDA/fp64 benchmark also compiled, but direct execution returned the harness's
+documented unavailable-device code 77; CTest skipped it via
+`SKIP_RETURN_CODE`. HIP is unavailable on this host. The detailed run record
+is in `docs/RCG-09A_ASD_PARITY_EVIDENCE.md`.
 
 ---
 

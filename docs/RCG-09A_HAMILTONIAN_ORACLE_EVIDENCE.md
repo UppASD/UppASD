@@ -70,7 +70,8 @@ No row is unknown.
 | External, pulse, and demagnetizing fields | EXPLICITLY_REJECTED_BY_ADAPTIVE_SETUP | `hfield`, `do_bpulse`, `demag`. |
 | Legacy atomistic/macrocell dipole | EXPLICITLY_REJECTED_BY_ADAPTIVE_SETUP | `do_dip`. |
 | GPU periodic FFT dipole | SUPPORTED_AND_PROVEN | This is not an atomistic `heisge` short-range contribution. Adaptive execution delegates its all-grid field to the production `GpuHamiltonianCalculations::evaluateAdaptiveFftDipole` / `dipoleConvolution` owner; no legacy `do_dip` comparison is relevant. |
-| Finite-temperature stochastic field | EXPLICITLY_REJECTED_BY_ADAPTIVE_SETUP | `Temp /= 0` is rejected before runtime setup. |
+| Fine atomistic finite-temperature Depondt path | SUPPORTED_AND_PROVEN_BY_RCG09A4 | The all-fine adaptive path reuses production `GpuDepondtIntegrator` thermal-field semantics; see `docs/RCG-09A_ASD_PARITY_EVIDENCE.md`. |
+| Stochastic coarse model | EXPLICITLY_REJECTED_BY_ADAPTIVE_SETUP | `do_qhb`/`do_3tm` are rejected with `adaptive coarse blocks have no accepted stochastic coarse model`. |
 
 ## Negative controls
 
