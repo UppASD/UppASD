@@ -1,0 +1,120 @@
+Internal ctest changing into directory: /tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/build_cpu2
+Test project /tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/build_cpu2
+      Start  1: regression-test
+ 1/38 Test  #1: regression-test ..................................   Passed    0.63 sec
+      Start  2: asd-tests
+ 2/38 Test  #2: asd-tests ........................................   Passed    5.26 sec
+      Start  3: coarse-graining-block-topology
+ 3/38 Test  #3: coarse-graining-block-topology ...................   Passed    0.00 sec
+      Start  4: coarse-graining-stiffness-material
+ 4/38 Test  #4: coarse-graining-stiffness-material ...............   Passed    0.00 sec
+      Start  5: coarse-graining-dmi-dimer-energy
+ 5/38 Test  #5: coarse-graining-dmi-dimer-energy .................   Passed    0.00 sec
+      Start  6: coarse-graining-adaptive-hamiltonian-contract
+ 6/38 Test  #6: coarse-graining-adaptive-hamiltonian-contract ....   Passed    0.00 sec
+      Start  7: coarse-graining-tensor-operator
+ 7/38 Test  #7: coarse-graining-tensor-operator ..................   Passed    0.01 sec
+      Start  8: coarse-graining-dispersion
+ 8/38 Test  #8: coarse-graining-dispersion .......................   Passed    0.01 sec
+      Start  9: coarse-graining-multichannel-tensor-operator
+ 9/38 Test  #9: coarse-graining-multichannel-tensor-operator .....   Passed    0.00 sec
+      Start 10: coarse-graining-smooth-projected-operator
+10/38 Test #10: coarse-graining-smooth-projected-operator ........   Passed    0.00 sec
+      Start 11: coarse-graining-static-hybrid-operator
+11/38 Test #11: coarse-graining-static-hybrid-operator ...........   Passed    0.01 sec
+      Start 12: coarse-graining-static-hybrid-dilation-scaling
+12/38 Test #12: coarse-graining-static-hybrid-dilation-scaling ...   Passed    0.07 sec
+      Start 13: coarse-graining-adaptive-setup-scaling
+13/38 Test #13: coarse-graining-adaptive-setup-scaling ...........   Passed    0.13 sec
+      Start 14: coarse-graining-block-selector
+14/38 Test #14: coarse-graining-block-selector ...................   Passed    0.00 sec
+      Start 15: coarse-graining-adaptive-hybrid-solver
+15/38 Test #15: coarse-graining-adaptive-hybrid-solver ...........   Passed    0.00 sec
+      Start 16: coarse-graining-polarization-gate
+16/38 Test #16: coarse-graining-polarization-gate ................   Passed    0.00 sec
+      Start 17: coarse-graining-moving-state-generator
+17/38 Test #17: coarse-graining-moving-state-generator ...........   Passed    0.05 sec
+      Start 18: coarse-graining-trajectory-evidence
+18/38 Test #18: coarse-graining-trajectory-evidence ..............   Passed    0.05 sec
+      Start 19: coarse-graining-torque-oracle
+19/38 Test #19: coarse-graining-torque-oracle ....................   Passed    0.10 sec
+      Start 20: coarse-graining-coarse-torque-oracle
+20/38 Test #20: coarse-graining-coarse-torque-oracle .............   Passed    0.10 sec
+      Start 21: coarse-graining-static-topology-oracle
+21/38 Test #21: coarse-graining-static-topology-oracle ...........   Passed    1.87 sec
+      Start 22: coarse-graining-ownership-map-comparator
+22/38 Test #22: coarse-graining-ownership-map-comparator .........   Passed    6.04 sec
+      Start 23: adaptive-cg-mem-large-host
+23/38 Test #23: adaptive-cg-mem-large-host .......................   Passed    1.15 sec
+      Start 24: adaptive-cg-reconstruction-rng-spatial-stats
+24/38 Test #24: adaptive-cg-reconstruction-rng-spatial-stats .....   Passed    0.47 sec
+      Start 25: adaptive-cg-production-e2e
+25/38 Test #25: adaptive-cg-production-e2e .......................   Passed    0.49 sec
+      Start 26: adaptive-cg-setup-rejection-matrix
+26/38 Test #26: adaptive-cg-setup-rejection-matrix ...............   Passed    2.17 sec
+      Start 27: adaptive-cg-moving-off-fine
+27/38 Test #27: adaptive-cg-moving-off-fine ......................   Passed    0.18 sec
+      Start 28: adaptive-cg-moving-all-coarse
+28/38 Test #28: adaptive-cg-moving-all-coarse ....................   Passed    6.82 sec
+      Start 29: adaptive-cg-moving-static-mixed
+29/38 Test #29: adaptive-cg-moving-static-mixed ..................   Passed    5.23 sec
+      Start 30: adaptive-cg-moving-adaptive-wall
+30/38 Test #30: adaptive-cg-moving-adaptive-wall .................   Passed    5.86 sec
+      Start 31: adaptive-cg-moving-dmi-chiral
+31/38 Test #31: adaptive-cg-moving-dmi-chiral ....................   Passed    6.70 sec
+      Start 32: adaptive-cg-timing-reconciliation
+32/38 Test #32: adaptive-cg-timing-reconciliation ................   Passed    0.43 sec
+      Start 33: adaptive-cg-fixture-dependencies
+33/38 Test #33: adaptive-cg-fixture-dependencies .................   Passed    0.04 sec
+      Start 34: adaptive-cg-transition-ownership-invariants
+34/38 Test #34: adaptive-cg-transition-ownership-invariants ......   Passed    0.10 sec
+      Start 35: dipole-open-fft-oracle
+35/38 Test #35: dipole-open-fft-oracle ...........................***Failed    0.05 sec
+test_delta_sources_at_every_active_corner_do_not_wrap (__main__.OpenFftOracleTests) ... ok
+test_energy_finite_difference_derivative (__main__.OpenFftOracleTests) ... FAIL
+test_ensemble_channels_are_distinct (__main__.OpenFftOracleTests) ... ok
+test_frozen_goldens_match_the_independent_evaluator (__main__.OpenFftOracleTests) ... ok
+test_no_opposite_face_wrap_and_g3_fastest_ordering (__main__.OpenFftOracleTests) ... ok
+test_padded_storage_has_zero_gap_and_active_source_extent (__main__.OpenFftOracleTests) ... ok
+test_pair_sign_and_exact_self (__main__.OpenFftOracleTests) ... ok
+test_same_embedded_kernel_matches_finite_sum_without_prefactor (__main__.OpenFftOracleTests) ... ok
+test_units_are_applied_after_dimensionless_tensor (__main__.OpenFftOracleTests) ... ok
+
+======================================================================
+FAIL: test_energy_finite_difference_derivative (__main__.OpenFftOracleTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/clone2/tests/dipole_validation/test_open_fft_oracle.py", line 151, in test_energy_finite_difference_derivative
+    self.assertAlmostEqual(numerical, analytic, delta=max(abs(analytic) * 2.0e-10, 1.0e-40))
+AssertionError: -1.155179279520103e-25 != -1.1551792784777866e-25 within 2.3103585569555732e-35 delta (1.0423163510038918e-34 difference)
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.015s
+
+FAILED (failures=1)
+
+      Start 36: dipole-open-host-builder
+36/38 Test #36: dipole-open-host-builder .........................   Passed    0.00 sec
+      Start 37: dipole-open-host-goldens
+37/38 Test #37: dipole-open-host-goldens .........................   Passed    0.04 sec
+      Start 38: dipole-ewald-host-builder
+38/38 Test #38: dipole-ewald-host-builder ........................   Passed    0.15 sec
+
+97% tests passed, 1 tests failed out of 38
+
+Label Time Summary:
+cg13               =  38.11 sec*proc (30 tests)
+cg13-cpu           =  38.07 sec*proc (29 tests)
+coarse-graining    =  38.11 sec*proc (30 tests)
+moving-parity      =  25.23 sec*proc (6 tests)
+ownership          =   0.10 sec*proc (1 test)
+packaging          =   0.04 sec*proc (1 test)
+production         =   0.49 sec*proc (1 test)
+reference          =   8.45 sec*proc (18 tests)
+rejection          =   2.17 sec*proc (1 test)
+
+Total Test time (real) =  44.26 sec
+
+The following tests FAILED:
+	 35 - dipole-open-fft-oracle (Failed)
+Errors while running CTest

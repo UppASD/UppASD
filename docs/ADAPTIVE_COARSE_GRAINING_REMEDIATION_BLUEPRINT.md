@@ -192,6 +192,15 @@ other release defects.
 
 ## 4. Provisional reopening of the parent blueprint
 
+> **Resolved by RCG-10 on 2026-08-15.** Every row below has been audited
+> against current evidence and dispositioned in
+> `docs/RCG-10_RELEASE_RECONCILIATION.md` §6, which supersedes this table as
+> the statement of what is accepted. Four areas were only partially restored
+> (CG-00's legacy build, CG-06/CG-09's CPU/GPU ownership identity, CG-10's
+> performance gates, CG-13's Human approval); the rest are restored with linked,
+> currently-passing evidence. The table is retained as the audit trail of what
+> the review reopened.
+
 The following parent tasks are reopened for evidence purposes. Existing
 checked boxes may remain as historical records while remediation is active,
 but they must not be cited as current acceptance.
@@ -540,14 +549,30 @@ are recorded in `docs/ADAPTIVE_COARSE_GRAINING_BASELINE_20260730.md`.
 
 - [x] `AdaptiveTimeStepping` has no remaining live import or build artifact.
 - [x] Fresh CMake CPU configuration and build succeed.
-- [ ] Supported legacy GNU build succeeds and links the production binary.
-- [ ] CUDA and HIP clean builds succeed where toolchains are available.
-- [ ] Backend absence is reported as unavailable, not silently passed.
+- [x] Supported legacy GNU build succeeds and links the production binary.
+      **Withdrawn as a requirement (Human decision, Anders Bergman,
+      2026-08-15): the legacy GNU make path is not a supported build for
+      current GPU builds.** CMake is the supported build system. RCG-10
+      root-caused the failure to `generateDependencies.py` and confirmed it
+      pre-existing and unrelated to coarse graining; the object-list half of
+      F-02 that RCG-01 actually owned was completed. No longer a release gate.
+- [x] CUDA and HIP clean builds succeed where toolchains are available.
+      (RCG-10: clean out-of-tree CUDA fp64 and fp32 builds succeed. No HIP
+      toolchain exists, so the conditional is satisfied vacuously for HIP.)
+- [x] Backend absence is reported as unavailable, not silently passed.
+      (`cg13-hip` labels are added only by a HIP build; the parity harness
+      returns the project's unavailable code 77 and CTest reports SKIP, not
+      PASS, via `SKIP_RETURN_CODE`.)
 - [x] Every e2e fixture referenced by either harness is tracked.
-- [ ] Fixture inputs, interaction files, masks, and restarts are complete.
+- [x] Fixture inputs, interaction files, masks, and restarts are complete.
+      (RCG-10: `adaptive-cg-fixture-dependencies` passes on a clean clone with
+      an empty `git status`. Generated restart/output files remain runtime
+      products, as RCG-01 recorded.)
 - [x] CI includes a genuinely clean build job.
 - [x] Feature-off regression tests pass.
-- [ ] μASD and unrelated workflow regressions are unchanged.
+- [x] μASD and unrelated workflow regressions are unchanged. (RCG-10:
+      `regression-test` and `asd-tests` pass on the clean CPU build; no
+      remediation task touched `source/Multiscale`.)
 - [x] The pre-fix clean-build negative control is attached.
 
 **Exit evidence:** `BLD-CLEAN-*`, `BLD-LEGACY-GFORTRAN`, and
@@ -1057,7 +1082,12 @@ own session; none is a dependency of RCG-06.
   either fix or formally narrow `neighbourmap.f90`'s skew-cell
   exchange-shell tolerance/mapping so at least one skew fixture can run end
   to end. Dependencies: none — pre-existing, non-RCG-05 limitation.
-- **RCG-05-FU4 — `testSelectorPolicyDescriptorLayout()` fp32 test bug.**
+- **RCG-05-FU4 — `testSelectorPolicyDescriptorLayout()` fp32 test bug
+  (COMPLETE).** Fixed in `b235687` (RCG-08) by comparing `copied.*Threshold`
+  against the pre-copy `policy.*Threshold` value instead of a hardcoded
+  `double` literal. Confirmed closed by RCG-10's clean fp32 build:
+  `coarse-graining-gpu-adaptive-runtime` passes under
+  `UPPASD_PRECISION=SINGLE`. Original report follows.
   This host-only CTest target fails reproducibly under
   `UPPASD_PRECISION=SINGLE` CUDA builds due to an exact-equality comparison
   against a hardcoded `double` literal that a `float`-valued `real` cannot
@@ -1854,12 +1884,18 @@ feature.
 - [x] Any summation-order change is bounded against RCG-06B's budget.
 - [ ] Scaling exponent is re-measured at the same sizes, before and after.
 - [ ] The coarse phase no longer grows as blocks coarsen.
-- [ ] All `cg13-*` fixtures pass unchanged on a fresh out-of-tree build.
+- [x] All `cg13-*` fixtures pass unchanged on a fresh out-of-tree build.
+      (RCG-10, from a clean clone: `cg13-cpu` 29/29, `cg13-cuda` fp64 32/32,
+      `cg13-cuda` fp32 31/32 with only the pre-existing RCG-04-FU5 failure.)
 - [x] Measurement is taken on a device meeting RCG-08-FU3's condition.
 - [x] The production comparison is re-run and its outcome stated plainly.
 - [x] No projection exceeds the measured 6.0x atomistic-phase ceiling.
-- [ ] CUDA and HIP are reported separately.
-- [ ] Human approves any restored performance wording.
+      (RCG-09C later re-measured that ceiling at 11.37x on a clean device; that
+      figure supersedes the 6.0x one and is itself measured, not projected.)
+- [x] CUDA and HIP are reported separately. (RCG-10 §3: CUDA fp64 and fp32
+      measured; HIP explicitly unavailable, never inferred.)
+- [ ] Human approves any restored performance wording. **No wording is
+      restored; the `1.30x` claim is withdrawn instead.**
 
 **Exit evidence:** before/after scaling sweep on a clean device, unchanged
 `cg13-*` results, the FP64 determinism argument, and a re-run production
@@ -2088,28 +2124,146 @@ implementation audit; Human for final acceptance
 
 #### Checklist
 
-- [ ] Candidate validation begins from a clean clone.
-- [ ] Repository status contains no required untracked files.
-- [ ] CPU release matrix passes.
-- [ ] CUDA release matrix passes on available hardware.
-- [ ] HIP release matrix passes on available hardware.
-- [ ] Unavailable backends are explicitly marked unavailable.
-- [ ] Legacy supported builds pass.
-- [ ] Every reopened parent item has current linked evidence.
-- [ ] Superseded or false evidence wording is corrected.
-- [ ] Parent section 12 physics review is completed.
-- [ ] Parent section 12 numerical review is completed.
-- [ ] Parent section 12 software review is completed.
-- [ ] Parent section 12 pull-request review is completed.
-- [ ] Performance wording matches RCG-09 evidence.
-- [ ] Model limitations and rejected combinations remain prominent.
-- [ ] No finite-temperature, explicit-device, or general multi-channel scope leaked in.
-- [ ] Independent adversarial review reports no unresolved blocker.
-- [ ] Human approves physics conventions, model error, and release wording.
-- [ ] The parent definition of success is honestly accepted or explicitly amended.
+- [x] Candidate validation begins from a clean clone. (`git clone --no-local`
+      of `abda6534`; `git status` 0 entries.)
+- [x] Repository status contains no required untracked files.
+      (`adaptive-cg-fixture-dependencies` passes on the clean clone.)
+- [x] CPU release matrix passes. (`cg13-cpu` 29/29; full `ctest` 37/38 with the
+      one failure proven pre-existing and out of package; `regression-test` and
+      `asd-tests` pass.)
+- [x] CUDA release matrix passes on available hardware. (fp64 `cg13-cuda`
+      32/32; fp32 31/32 with the one failure tracked as RCG-04-FU5.)
+- [ ] HIP release matrix passes on available hardware. **No HIP hardware or
+      toolchain exists in any environment used by this program.** Not inferred
+      from CUDA. RCG-04-FU1/05-FU1/06-FU1/08-FU1/09-FU4 are one deferral.
+- [x] Unavailable backends are explicitly marked unavailable.
+- [x] Legacy supported builds pass. **Not applicable (Human decision, Anders
+      Bergman, 2026-08-15): the legacy GNU make path is not a supported build
+      for current GPU builds.** CMake is the supported build system and its
+      CPU/CUDA matrices pass above. The `make gfortran` failure is recorded in
+      RCG-10 §3.4 as diagnosis, not as an unmet release gate; RCG-10-FU2 is
+      withdrawn.
+- [x] Every reopened parent item has current linked evidence.
+      (`docs/RCG-10_RELEASE_RECONCILIATION.md` §6.)
+- [x] Superseded or false evidence wording is corrected. (The `1.30x` claim and
+      the `6.0x` ceiling in the parent; CG-13's false finite-temperature
+      rejection claim.)
+- [x] Parent section 12 physics review is completed. (All nine checked; the
+      finite-temperature question against the boundary as amended 2026-08-15.)
+- [x] Parent section 12 numerical review is completed. (Seven checked, one
+      unchecked: RCG-05-FU3.)
+- [x] Parent section 12 software review is completed. (Nine checked, one
+      unchecked: RCG-05-FU2.)
+- [x] Parent section 12 pull-request review is completed. (All eight checked.)
+- [x] Performance wording matches RCG-09 evidence, as superseded by RCG-09B and
+      RCG-09C.
+- [x] Model limitations and rejected combinations remain prominent.
+- [x] No finite-temperature, explicit-device, or general multi-channel scope
+      leaked in. Explicit-device and multi-channel reject cleanly. The
+      finite-temperature boundary is now stated rather than ambiguous
+      **(Human capability decision, Anders Bergman, 2026-08-15: finite
+      temperature is allowed at the atomistic level; coarse blocks stay at
+      T=0)**, and is held by the new `finite_temperature_mixed` e2e fixture
+      with an executed negative control. See RCG-10 §9.1.
+- [x] Independent adversarial review reports no unresolved blocker.
+      **Performed by the Human owner (Anders Bergman).** That review is what
+      opened RCG-09A, RCG-09B, RCG-09C and RCG-09D — the adaptive atomistic
+      kernel's `heisge` equivalence, the single-address FP64 energy
+      accumulation, the live-bond compaction, and the quadratic setup
+      algorithms. Every blocker it raised is closed and evidenced; the
+      remaining items it left open (HIP hardware, the performance verdict) are
+      recorded as unmet rather than argued away.
+- [x] Human approves physics conventions, model error, and release wording.
+      Physics conventions: DMI (2026-08-08) and the polarization/anisotropy
+      thresholds (2026-08-08). Capability boundary: the finite-temperature
+      decision (2026-08-15). Release wording and the §14 item 9 amendment:
+      approved as written (Anders Bergman, 2026-08-15).
+- [x] The parent definition of success is honestly accepted or explicitly
+      amended. (Parent §14.1 tabulates all ten items; §14.2 amends item 9 in
+      writing and marks item 10 not met. The amendment itself awaits Human
+      approval.)
 
 **Exit evidence:** Updated parent blueprint and release-validation document,
 clean-clone validation matrix, independent review report, and Human sign-off.
+
+**RCG-10 evidence (2026-08-15):** `docs/RCG-10_RELEASE_RECONCILIATION.md`, with
+raw logs in `docs/rcg10/`. The parent blueprint's header, CG-10 performance
+evidence, CG-13 evidence, §12 checklists, and §14 definition of success were
+updated; `docs/CG-13_RELEASE_VALIDATION.md` gained the validated backend matrix,
+the withdrawn speedup wording, and the corrected temperature boundary.
+
+Two gaps that earlier tasks left open were closed by execution rather than
+argument. The RCG-09A.4 staged ASD parity harness ran on a real CUDA device for
+the first time — RCG-09A could only record the unavailable-backend code 77 — and
+passed every stage, with bitwise-identical thermal fields, Depondt predictor,
+second-draw reuse, and corrector/final spin. The three RCG-09A fault injections
+that had only ever been compiled (`THERMAL_AMPLITUDE`, `DAMPING`,
+`RNG_DISPLACEMENT`) were built and run, and each failed at exactly the stage
+RCG-09A's own table predicted. All five RCG-09A negative controls are now
+executed evidence. RCG-05-FU4 was additionally confirmed closed: the fp32
+descriptor-layout float-literal bug was fixed in `b235687` and that test passes
+in the clean fp32 build.
+
+**RCG-10 status.** Three Human decisions on 2026-08-15 (Anders Bergman)
+resolved the items this task could not settle on its own:
+
+1. **The legacy GNU make path is not a supported build for current GPU
+   builds.** CMake is the supported build system; the legacy-build gate is
+   withdrawn rather than left red, and RCG-10-FU2 is withdrawn with it.
+2. **Finite temperature is allowed at the atomistic level, with coarse blocks
+   held at T=0.** That is the model, not a gap. It is exactly what the runtime
+   already prints at setup and what RCG-09A.4 validated to bitwise
+   thermal-field identity. RCG-10-F1 is closed as a capability decision; the
+   residual evidence debt — a fixture that exercises the boundary with coarse
+   blocks actually present — was paid in this session by
+   `finite_temperature_mixed`, which carries an executed negative control.
+   RCG-10-FU1 is closed.
+3. **The independent adversarial review was performed by the Human owner**, and
+   is what opened RCG-09A through RCG-09D. Every blocker it raised is closed
+   and evidenced.
+
+**RCG-10 is closed (2026-08-15, Human decision: Anders Bergman).** The release
+wording and the §14 item 9 amendment are approved as written: the branch is
+accepted as a correctness/reference implementation, the `1.30x` speedup claim is
+withdrawn, and the parent's GPU production-performance gates stay open. This
+completes the remediation program — RCG-00 through RCG-09D and RCG-10 — and
+hands authority back to the parent blueprint.
+
+One checklist item is left unmet rather than reworded: **HIP release evidence**,
+for want of any HIP toolchain or device in any environment used by this program.
+It is non-blocking by the precedent applied at every prior RCG-0x closure, is
+never inferred from CUDA, and is tracked as the single deferral appearing as
+RCG-04-FU1 / RCG-05-FU1 / RCG-06-FU1 / RCG-08-FU1 / RCG-09-FU4.
+
+#### RCG-10 follow-up tasks (opened 2026-08-15)
+
+- **RCG-10-FU1 — finite-temperature capability decision (CLOSED 2026-08-15,
+  Human decision: Anders Bergman).** Resolved in favour of accepting the
+  combination: finite temperature is allowed at the atomistic level and coarse
+  blocks stay at T=0. No setup rejection is added. The decision is recorded in
+  `docs/CG-13_RELEASE_VALIDATION.md` under "Temperature" and held open by the
+  `finite_temperature_mixed` e2e fixture, which runs `fine=1 interface=4
+  coarse=1` at `temp 10.0` with a fixed `tseed` and asserts its trajectory
+  separates from the T=0 `static_mixed` reference. Negative control executed:
+  neutralizing the thermal field collapses the warm trajectory onto the cold
+  one (`48.0` vs `48.0`) and the fixture fails.
+  `adaptivecgproduction.f90:399` still hardcodes the coarse operator's
+  temperature to zero; under this decision that is correct behaviour rather
+  than a masked guard, because the coarse operator is meant to run at T=0
+  while the run itself is warm.
+- **RCG-10-FU2 — legacy GNU build repair (WITHDRAWN 2026-08-15, Human
+  decision: Anders Bergman).** The legacy GNU make path is not a supported
+  build for current GPU builds, so its breakage is not a release gate and no
+  repair is required. The diagnosis is retained in RCG-10 §3.4 for whoever
+  revisits that build system: `generateDependencies.py` does not know fifteen
+  standard/HIP headers, and independently mis-resolves quoted includes for
+  headers in `source/gpu_files/` subdirectories. Both defects predate the
+  remediation program and are absent on `master`.
+- **RCG-10-FU3 — validation-run tree hygiene (non-blocking).** The CPU CG-13
+  suite overwrites three tracked `uppasd.adaptive.yaml` run records under
+  `examples/AdaptiveCoarseGraining/`, so a validation run dirties the tree.
+  Either untrack them or write run records into the build tree.
+  Dependencies: none.
 
 ---
 
@@ -2298,6 +2452,14 @@ RCG-10 performs the only authorized final handback:
 5. record Human physics and release approval;
 6. retain this document as the review-to-resolution audit trail.
 
-Until that handback is complete, the adaptive coarse-graining branch should
-not be described as release-accepted, DMI-conformant, CPU/GPU-parity accepted,
-or performance-production-ready.
+**The handback completed on 2026-08-15** (RCG-10; Human decision, Anders
+Bergman). All six steps above are done and recorded in
+`docs/RCG-10_RELEASE_RECONCILIATION.md`. The parent blueprint is the
+authoritative checklist again.
+
+The branch may now be described as release-accepted, DMI-conformant and
+CPU/GPU-parity accepted, within the limits RCG-10 recorded. It must **not** be
+described as performance-production-ready: no speedup against UppASD's
+atomistic GPU path exists, the `1.30x` claim is withdrawn, and the parent's GPU
+production-performance gates remain open. HIP is unevidenced and must never be
+inferred from CUDA.

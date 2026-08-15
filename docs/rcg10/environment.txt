@@ -1,0 +1,130 @@
+RCG-10 release reconciliation: environment and provenance
+=========================================================
+
+Candidate commit
+----------------
+  commit    abda6534ee6c60e438f2c72e6f63863a23dace62
+  subject   RCG-09A: complete adaptive all-fine parity coverage
+  branch    gpu_hip_cu_ab_cg
+  describe  v6.0.2-488-gabda
+
+Clean clone
+-----------
+  git clone --no-local --single-branch --branch gpu_hip_cu_ab_cg <repo> clone
+  git -C clone checkout abda6534ee6c60e438f2c72e6f63863a23dace62
+  git -C clone status --short   ->  0 entries
+
+  The source worktree had 0 modified tracked files at the start of the audit.
+  Its untracked entries are local build directories, run outputs and example
+  artifacts; none is referenced by any test harness.  The executable form of
+  that claim is the `adaptive-cg-fixture-dependencies` (PKG-TRACKED-E2E) test,
+  which passes on the clean clone.
+
+Toolchain
+---------
+  OS            Linux 6.8.0-137-generic x86_64
+  CPU           11th Gen Intel(R) Core(TM) i9-11900 @ 2.50GHz (2 cores)
+  Fortran       GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+  C / C++       gcc (Ubuntu 12.4.0-2ubuntu1~24.04.1) 12.4.0
+  CUDA          nvcc release 13.3, V13.3.73
+  CMake         3.28.3
+  Python        3.9.15
+  CMAKE_CUDA_ARCHITECTURES  native
+  CMAKE_BUILD_TYPE          Release
+
+Devices
+-------
+  GPU 0  NVIDIA RTX A4000, driver 610.57.04
+  GPU 1  NVIDIA RTX A4000, driver 610.57.04
+
+  State before and during the CUDA suites (both devices):
+    utilization 0 %, temperature 48 C / 40 C, 102 MiB / 15 MiB resident.
+    Only graphics contexts present; no foreign compute process.
+
+  Both A4000s in this host are shared with another user, so this state is
+  recorded rather than assumed (the RCG-08-FU3 condition).  The CUDA results
+  in this task are pass/fail correctness suites, not timing measurements.
+
+HIP / ROCm
+----------
+  UNAVAILABLE.  `which hipcc` -> not found.  /opt/rocm does not exist.
+  No HIP result is claimed, projected, or inherited from CUDA.
+
+Configure commands
+------------------
+  cmake -S clone -B build_cpu       -DCMAKE_BUILD_TYPE=Release \
+        -DUPPASD_GPU_BACKEND=OFF  -DUPPASD_PRECISION=DOUBLE
+  cmake -S clone -B build_cuda      -DCMAKE_BUILD_TYPE=Release \
+        -DUPPASD_GPU_BACKEND=CUDA -DUPPASD_PRECISION=DOUBLE
+  cmake -S clone -B build_cuda_fp32 -DCMAKE_BUILD_TYPE=Release \
+        -DUPPASD_GPU_BACKEND=CUDA -DUPPASD_PRECISION=SINGLE
+
+Test commands and results
+-------------------------
+  ctest --test-dir build_cpu       -L cg13-cpu  --output-on-failure   29/29 pass
+  ctest --test-dir build_cpu                    --output-on-failure   37/38
+        (the single failure, dipole-open-fft-oracle, is proven pre-existing)
+  ctest --test-dir build_cuda      -L cg13-cuda --output-on-failure   32/32 pass
+  ctest --test-dir build_cuda_fp32 -L cg13-cuda --output-on-failure   31/32
+        (the single failure, adaptive-cg-production-e2e, is RCG-04-FU5)
+
+Negative-control builds (fault injection, OFF by default in production)
+-----------------------------------------------------------------------
+  cmake -S clone -B build_neg -DCMAKE_BUILD_TYPE=Release \
+        -DUPPASD_GPU_BACKEND=CUDA -DUPPASD_PRECISION=DOUBLE \
+        -DRCG09A_NEGATIVE_<MUTATION>=ON
+  cmake --build build_neg --target gpu_adaptive_runtime_benchmark
+  build_neg/bin/gpu_adaptive_runtime_benchmark --parity-only --require-acceptance \
+        --blocks 8 --atoms-per-block 2 --warmup 1 --iterations 1 --repetitions 3
+
+  THERMAL_AMPLITUDE  exit 2, first failure stage=thermal-field
+  DAMPING            exit 2, first failure stage=depondt-predictor (T=0)
+  RNG_DISPLACEMENT   exit 2, first failure stage=thermal-field (finite-T)
+
+Baseline-failure controls
+-------------------------
+  dipole-open-fft-oracle re-run at f8e27f1eb6b95ed114d8a0bc8801686f6c529203
+  (the last commit before the remediation program began on 2026-07-30):
+  fails with bit-identical numbers.  Pre-existing.
+
+  source/make/generateDependencies.py re-run at the same pre-remediation
+  commit: aborts identically ("Add <array> to list of excluded libs").
+  Re-run on master: succeeds and writes dependencies.make.  The legacy-build
+  breakage is a GPU-branch build-tooling defect that predates remediation.
+
+Addendum (2026-08-15): Human decisions and the re-run matrix
+------------------------------------------------------------
+Three Human decisions (Anders Bergman) after the first audit pass:
+
+  1. The legacy GNU make path is not a supported build for current GPU builds.
+     CMake is the supported build system; the legacy gate is withdrawn.
+  2. Finite temperature is allowed at the atomistic level; coarse blocks stay
+     at T=0.  Accepted as the model, not rejected as a gap.
+  3. The independent adversarial review was performed by the Human owner and
+     is what opened RCG-09A, RCG-09B, RCG-09C and RCG-09D.
+
+Decision 2 was given fixture backing in this session:
+
+  tests/coarse_graining/e2e/finite_temperature_mixed
+    static_mixed at temp 10.0 with tseed 4711 -> fine=1 interface=4 coarse=1.
+    run_production_e2e.py requires its trajectory checksum to separate from
+    the T=0 static_mixed reference (48.051222 vs 48.000000).
+
+  Negative control (executed): neutralizing the thermal field collapses the
+  warm trajectory onto the cold one and the assertion fails with
+    "mixed-resolution thermal field did not move the fine atoms:
+     warm=48.0 cold=48.0"
+
+  fixture_dependencies.all_e2e_cases() did not previously list
+  FINITE_TEMPERATURE_CASE, so that fixture's inputs were never covered by the
+  PKG-TRACKED-E2E audit.  Both finite-temperature cases are now registered.
+
+Matrix re-run from a clean clone carrying the new fixture:
+
+  ctest --test-dir build_cpu2       -L cg13-cpu   ->  29/29 pass, 38.28 s
+  ctest --test-dir build_cpu2                     ->  37/38 (same pre-existing
+                                                      dipole-open-fft-oracle)
+  ctest --test-dir build_cuda2      -L cg13-cuda  ->  32/32 pass, 152.98 s
+  tests/coarse_graining/audit_fixture_dependencies.py
+                                                  ->  PASS, 61 fixture
+                                                      directories, 126 inputs

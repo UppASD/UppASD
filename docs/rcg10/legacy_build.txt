@@ -1,0 +1,10 @@
+make[1]: Entering directory '/tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/clone/source'
+Building target sd using profile gfortran 
+make[2]: Entering directory '/tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/clone/source'
+make[2]: warning: -j4 forced in submake: resetting jobserver mode.
+Makefile:184: make/dependencies.make: No such file or directory
+make[2]: *** No rule to make target 'make/dependencies.make'.  Stop.
+make[2]: Leaving directory '/tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/clone/source'
+make[1]: *** [Makefile:166: nocopyprofile] Error 2
+make[1]: Leaving directory '/tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/clone/source'
+make: *** [Makefile:71: gfortran] Error 2

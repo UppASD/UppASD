@@ -1,5 +1,18 @@
 # CG-10 GPU adaptive kernel contract
 
+> **Performance claim withdrawn (RCG-10, 2026-08-15).** The `1.3016x`
+> "active-DOF crossover" recorded in "CUDA performance measurement" below is
+> **not a speedup against UppASD** and must not be cited. It compared the
+> adaptive runtime at a low fine fraction against the adaptive runtime at 100%
+> fine, with a synthetic FMA loop as the control (review finding F-10).
+> Measured against the real production path, there is **no crossover at any
+> system size or active fraction**: at 16 384 blocks the production step is
+> 276.6 µs against a best adaptive step of 310.2 µs. See
+> [`RCG-10_RELEASE_RECONCILIATION.md`](RCG-10_RELEASE_RECONCILIATION.md) §7 and
+> [`RCG-09_PRODUCTION_PERFORMANCE_EVIDENCE.md`](RCG-09_PRODUCTION_PERFORMANCE_EVIDENCE.md).
+> The correctness, parity, overhead-accounting, and fp32-budget content of this
+> document is unaffected and remains current.
+
 ## Accepted scope
 
 `GpuAdaptiveRuntime` now owns the backend-neutral CUDA/HIP implementation of
@@ -241,8 +254,12 @@ update.
 
 The post-optimization crossover is accepted at a 0.813232 active-DOF ratio.
 The all-atomistic median was 40705.61 us with a 2.81 us MAD; the crossover
-median was 31274.23 us with a 2.93 us MAD.  This is a 1.3016x speedup and is
-well separated from the required 2% plus three-combined-MAD margin.  The
-zero-fine median was 2368.32 us.  The optimized fp64 and fp32 parity fixtures
+median was 31274.23 us with a 2.93 us MAD.  This is a 1.3016x ratio **between
+two modes of the adaptive runtime** and is well separated from the required 2%
+plus three-combined-MAD margin.  The zero-fine median was 2368.32 us.
+**Withdrawn as a speedup claim by RCG-10** — see the note at the top of this
+document.  The "all-atomistic median" here is the adaptive runtime driven to
+100% fine, not UppASD's production atomistic GPU path, so this ratio does not
+support any statement about production performance.  The optimized fp64 and fp32 parity fixtures
 pass, Compute Sanitizer reports zero errors, and the fp64 FFT dipole suite
 continues to pass.

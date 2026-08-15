@@ -7,9 +7,25 @@
 **Primary scope:** Optional low-temperature two-scale spin dynamics on CPU and GPU  
 **Explicitly out of scope:** Reimplementation, integration, or redesign of the existing μASD package
 
-**Active review remediation:** `docs/ADAPTIVE_COARSE_GRAINING_REMEDIATION_BLUEPRINT.md`;
-acceptance claims contradicted by that review are provisionally reopened until
-its RCG-10 handback is complete
+**Review remediation, handed back 2026-08-15:**
+`docs/ADAPTIVE_COARSE_GRAINING_REMEDIATION_BLUEPRINT.md` ran RCG-00 through
+RCG-09D and completed its RCG-10 handback. This blueprint is the authoritative
+checklist again. The reconciliation record — clean-clone CPU/CUDA validation
+matrix, the per-item evidence audit, the completed §12 review, and the
+withdrawn performance claim — is
+[`docs/RCG-10_RELEASE_RECONCILIATION.md`](RCG-10_RELEASE_RECONCILIATION.md).
+
+**Release state:** the adaptive coarse-graining path is accepted as a
+**correctness/reference implementation**, not a production-performance backend.
+No speedup against UppASD's atomistic GPU path has been demonstrated; §14 item 9
+is amended accordingly, and §14 item 10's finite-temperature clause is amended
+to the boundary the Human owner set on 2026-08-15 — finite temperature at the
+atomistic level, coarse blocks at T=0. The independent adversarial review was
+performed by the Human owner and is what opened RCG-09A through RCG-09D.
+Release wording and the §14 item 9 amendment are **approved (Anders Bergman,
+2026-08-15)**; RCG-10 is closed and the remediation program is complete. HIP
+remains unevidenced for want of hardware and is the one carried-forward gap; it
+is never inferred from CUDA.
 
 ---
 
@@ -1144,6 +1160,12 @@ a meaningful crossover/speedup is demonstrated, and at least one supported
 static and one supported adaptive input run through the normal UppASD
 executable without test-only construction or direct kernel invocation.
 
+**Status (2026-08-15):** met except for the crossover clause. Physics, parity
+and the production wiring are accepted (CG-10, CG-10.5, CG-13, and the RCG-00
+to RCG-10 remediation); HIP is unevidenced for want of hardware. No crossover
+against UppASD's atomistic GPU path exists, so §14 item 9 is amended and this
+gate stays open. **Task CG-14** is the work that would close it.
+
 ### Phase 5: Multi-channel production
 
 Deliver validated ferri-/antiferromagnetic material extraction and coupled
@@ -1718,7 +1740,10 @@ initial kernel; Luna/Sonnet for parity harness
 - [x] Existing FFT dipole tests still pass.
 - [x] Feature-off performance is unchanged within noise.
 - [x] Selector/compaction overhead is reported.
-- [x] A real active-DOF crossover is measured.
+- [ ] A real active-DOF crossover is measured. **Withdrawn by RCG-10.** The
+      figure previously recorded here compared two modes of the adaptive
+      runtime, not adaptive CG against UppASD's atomistic GPU path; see the
+      evidence note below.
 - [x] FP32 error budgets are documented separately.
 - [x] No untracked device allocations bypass memory accounting.
 
@@ -1744,24 +1769,55 @@ existing fp64 FFT dipole suite; Compute Sanitizer reports zero errors for the
 adaptive fp64 fixture.  No HIP device/toolchain was available, so the shared
 HIP path remains an execution gate.
 
-The first fp64 `gpu_adaptive_runtime_benchmark` run on an NVIDIA RTX A4000
-with driver 610.43.02 measured feature-off and overhead successfully but
-returned `NOT_OBSERVED` for crossover: the 58568.20 us atomistic median grew
-at every coarsened point.  After fp64-accepted parallelization of
-prolongation, interface restriction, and compact active-block coarse work, the
-same command passed.  The atomistic median was 40705.61 us; the first accepted
-crossover was 31274.23 us at a 0.813232 active-DOF ratio, a 1.3016x speedup
-with the three-MAD uncertainty well inside the 2% acceptance margin.  The
-zero-fine median was 2368.32 us.
+**CG-10 performance evidence, reconciled by RCG-10 (2026-08-15).** This
+paragraph previously recorded a `1.3016x`/`1.3017x` "active-DOF crossover"
+measured by `gpu_adaptive_runtime_benchmark`. **That claim is withdrawn.** It
+compared the adaptive runtime at a low fine fraction against the adaptive
+runtime at 100% fine — two modes of the same object — with a synthetic FMA loop
+(`featureOffAtomisticWork`) as the control. It was never a comparison against
+UppASD's production atomistic GPU path (review finding F-10). Do not cite
+`1.30x`, `1.3016x`, or `1.3017x`; do not cite the superseded `6.0x`
+atomistic-phase ceiling either.
 
-The accepted rerun measured a +0.023% paired feature-off delta with zero
-inventory change.  A subsequent parallel selector and stable scan compaction
-pass reduced selector wall time from 5990.19 us to 25.05 us and compaction
-wall time from 725.77 us to 41.58 us.  Together they take 0.308% of the mixed
-field step instead of 31.00%, while preserving the 1.3017x active-DOF
-crossover.  The scan buffers are tracked by memory preflight.  Optimized fp64
-and fp32 parity fixtures pass, Compute Sanitizer reports zero errors, and the
-fp64 FFT dipole suite still passes.
+What is measured against the real production path — `GpuHamiltonianCalculations`
+plus `GpuDepondtIntegrator`, and end to end through the ordinary `sd` binary —
+is recorded in `docs/RCG-09_PRODUCTION_PERFORMANCE_EVIDENCE.md`,
+`docs/RCG-09B_REDUCTION_EVIDENCE.md`, and
+`docs/rcg09/rcg09c_live_bond_compaction.txt`:
+
+- RCG-09: the adaptive step was ~3.4 × 10⁴ times slower at 16 384 atoms, caused
+  by a single-address FP64 compare-and-swap energy accumulator that made the
+  kernels scale as `O(bonds^1.8..2.0)`.
+- RCG-09B replaced that accumulator with hierarchical FP64 reductions at all
+  eight call sites; adaptive remained ~7.2–9.4x slower, with no crossover at any
+  size or requested active fraction.
+- RCG-09C compacted the live-bond list and removed avoidable full-system work.
+  On a clean, ABBA-interleaved device at 16 384 blocks the production step is
+  **276.6 µs** against a best adaptive step of **310.2 µs**. **There is no
+  production crossover.**
+
+The current, citable mechanism figure is RCG-09C's **11.37x** reduction of the
+adaptive _atomistic phase_ between its all-fine and all-coarse limits (292.8 µs
+→ 25.8 µs at 16 384 blocks / 65 536 atoms / 114 688 bonds). That is a property
+of the coarse-graining mechanism's own phase, not a whole-step speedup and not
+a claim against production.
+
+Accordingly the GPU backend is accepted as a **correctness prototype**, the
+crossover box above is unchecked, and §14 item 9 is amended (see §14). The
+correctness evidence is unaffected and stands: the accepted rerun measured a
++0.023% paired feature-off delta with zero inventory change; parallel selector
+and stable scan compaction reduced selector wall time from 5990.19 us to 25.05
+us and compaction from 725.77 us to 41.58 us, taking 0.308% of the mixed field
+step instead of 31.00%; the scan buffers are tracked by memory preflight;
+optimized fp64 and fp32 parity fixtures pass; Compute Sanitizer reports zero
+errors; and the fp64 FFT dipole suite still passes.
+
+RCG-10 re-ran the correctness matrix from a clean clone of commit `abda6534`:
+`cg13-cuda` passes **32/32** at fp64 and **31/32** at fp32 (the one fp32 failure
+is the pre-existing RCG-04-FU5 harness assertion). The RCG-09A.4 staged ASD
+parity harness executed on a real CUDA device for the first time and passed
+every stage, with bitwise-identical thermal fields and Depondt states. Full
+record: `docs/RCG-10_RELEASE_RECONCILIATION.md`.
 
 ---
 
@@ -2102,7 +2158,9 @@ UppASD release claim
 - [x] Restart support or rejection is documented.
 - [x] Performance reports include active fractions and overhead.
 - [x] No finite-temperature claim exceeds the implemented model.
-- [ ] Human approves release wording.
+- [x] Human approves release wording. (Anders Bergman, 2026-08-15: approved as
+      the correctness/reference implementation wording set by RCG-10, including
+      the §14 item 9 amendment.)
 
 **CG-13 evidence:** `docs/CG-13_RELEASE_VALIDATION.md` is the user-facing
 scope and release-validation contract. The `cg13-cpu`, `cg13-cuda`, and
@@ -2368,53 +2426,78 @@ launch latency rather than the continuum operator. Evidence §6.5.
 
 ## 12. Cross-task review checklists
 
+Completed by RCG-10 on 2026-08-15 from current evidence. A box is checked only
+where a citable, currently-passing artifact supports it. Thirty-three of the
+thirty-five boxes are checked; the two that are not name their reason rather
+than being reworded to fit. The finite-temperature question is checked against
+the boundary as amended on 2026-08-15 (see §14.1), not against its original
+wording. Per-item evidence is
+tabulated in
+[`docs/RCG-10_RELEASE_RECONCILIATION.md`](RCG-10_RELEASE_RECONCILIATION.md) §8.
+
 ### Physics review
 
-- [ ] Is there a written energy for every field?
-- [ ] Do signs and factors match UppASD Hamiltonian conventions?
-- [ ] Is the block-size dependence physically correct?
-- [ ] Are DMI spin and spatial tensor indices unambiguous?
-- [ ] Are compensated systems represented by channels rather than a net
-      macrospin?
-- [ ] Are gyromagnetic ratio and damping reductions justified?
-- [ ] Is the FFT dipole approximation stated correctly?
-- [ ] Are high-frequency/interface limitations acknowledged?
-- [ ] Is finite temperature explicitly outside the initial claim?
+- [x] Is there a written energy for every field?
+- [x] Do signs and factors match UppASD Hamiltonian conventions?
+- [x] Is the block-size dependence physically correct?
+- [x] Are DMI spin and spatial tensor indices unambiguous?
+- [x] Are compensated systems represented by channels rather than a net
+      macrospin? (For the accepted single-channel scope: the polarization gate
+      forces such blocks atomistic; general multi-channel dynamics is CG-11 and
+      remains unaccepted.)
+- [x] Are gyromagnetic ratio and damping reductions justified?
+- [x] Is the FFT dipole approximation stated correctly?
+- [x] Are high-frequency/interface limitations acknowledged?
+- [x] Is finite temperature explicitly outside the initial claim? **Amended,
+      and now explicit in both directions (Human capability decision, Anders
+      Bergman, 2026-08-15).** Finite temperature is *inside* the claim at the
+      atomistic level: fine atoms use the production Depondt thermal path, and
+      RCG-09A.4 validates it to bitwise thermal-field identity. It remains
+      *outside* the claim for coarse blocks, which have no stochastic model and
+      stay at T=0. The boundary is stated in CG-13 and held by the
+      `finite_temperature_mixed` e2e fixture, which exercises it with coarse
+      blocks present and carries an executed negative control.
 
 ### Numerical review
 
-- [ ] Does every operator pass tangent energy derivatives?
-- [ ] Does the metric support nonorthogonal cells?
-- [ ] Are boundaries and halos correct?
-- [ ] Is energy ownership non-overlapping?
-- [ ] Are transitions synchronized with the integrator?
-- [ ] Are RNG results reproducible?
-- [ ] Are error thresholds and precision budgets stated?
-- [ ] Does error decrease under spatial refinement?
+- [x] Does every operator pass tangent energy derivatives?
+- [ ] Does the metric support nonorthogonal cells? **Unit level only.** No skew
+      fixture has run through the real executable: `neighbourmap.f90` rejects
+      the declared exchange bond with "no basis match" at setup. Pre-existing
+      and unrelated to coarse graining; tracked as RCG-05-FU3.
+- [x] Are boundaries and halos correct?
+- [x] Is energy ownership non-overlapping?
+- [x] Are transitions synchronized with the integrator?
+- [x] Are RNG results reproducible?
+- [x] Are error thresholds and precision budgets stated?
+- [x] Does error decrease under spatial refinement?
 
 ### Software review
 
-- [ ] Is the feature-off path unchanged?
-- [ ] Are immutable topology and mutable state separate?
-- [ ] Are spatial, basis, FFT, and dynamical channel counts separate?
-- [ ] Are unsupported geometries rejected early?
-- [ ] Are public interfaces narrow and testable?
-- [ ] Are CPU and GPU descriptors identical in meaning?
-- [ ] Are all allocations tracked and released?
-- [ ] Are compact GPU work lists rebuilt safely?
-- [ ] Are unrelated workflows untouched?
-- [ ] Is μASD separation preserved except for approved constellation cleanup?
+- [x] Is the feature-off path unchanged?
+- [x] Are immutable topology and mutable state separate?
+- [x] Are spatial, basis, FFT, and dynamical channel counts separate?
+- [x] Are unsupported geometries rejected early?
+- [x] Are public interfaces narrow and testable?
+- [ ] Are CPU and GPU descriptors identical in meaning? **Not fully.** The GPU
+      `hardAtomisticBlockMask` is sourced only from the polarization gate, not
+      from `cg_static_mask_file` as CPU does; 44/90 blocks still differ on
+      `ownership_aniso_buffer`. Tracked as RCG-05-FU2.
+- [x] Are all allocations tracked and released?
+- [x] Are compact GPU work lists rebuilt safely?
+- [x] Are unrelated workflows untouched?
+- [x] Is μASD separation preserved except for approved constellation cleanup?
 
 ### Pull-request review
 
-- [ ] The PR implements one blueprint task or a clearly declared subset.
-- [ ] The prompt, dependencies, and acceptance evidence are linked.
-- [ ] New tests fail without the change and pass with it.
-- [ ] Baseline failures are distinguished from introduced failures.
-- [ ] No unrelated formatting hides physics changes.
-- [ ] Sign/unit changes receive explicit physics review.
-- [ ] Performance claims include methodology and raw measurements.
-- [ ] Follow-up limitations are recorded rather than hidden in TODO comments.
+- [x] The PR implements one blueprint task or a clearly declared subset.
+- [x] The prompt, dependencies, and acceptance evidence are linked.
+- [x] New tests fail without the change and pass with it.
+- [x] Baseline failures are distinguished from introduced failures.
+- [x] No unrelated formatting hides physics changes.
+- [x] Sign/unit changes receive explicit physics review.
+- [x] Performance claims include methodology and raw measurements.
+- [x] Follow-up limitations are recorded rather than hidden in TODO comments.
 
 ---
 
@@ -2468,6 +2551,50 @@ would preserve UppASD's atomistic strengths, reuse the new FFT block
 infrastructure, and leave a credible path to ferrimagnetic,
 antiferromagnetic, explicit-device, and thermal extensions without entangling
 the new package with μASD.
+
+### 14.1 Reconciled outcome (RCG-10, 2026-08-15)
+
+Assessed against current evidence in
+[`docs/RCG-10_RELEASE_RECONCILIATION.md`](RCG-10_RELEASE_RECONCILIATION.md).
+
+| Item | Outcome |
+|---|---|
+| 1. Constellation implementation removed cleanly | **Met** (CG-00) |
+| 2. Regular FFT block grid is the single spatial topology | **Met** (CG-02) |
+| 3. Topology supports multiple channels | **Met** (operator level; runtime material is FM) |
+| 4. Stiffness/spiralization refactored and independently validated | **Met** (CG-03, re-evidenced by RCG-02 and RCG-04-FU4) |
+| 5. All-fine runs reproduce normal ASD | **Met** — RCG-09A.4 staged parity: bitwise-identical thermal fields and Depondt predictor/corrector states against `heisge` + `GpuDepondtIntegrator`, all five negative controls executed |
+| 6. All-coarse smooth textures reproduce long-wavelength energies and dynamics | **Met** — RCG-04-FU4's `q·h` collapse onto the exact lattice symbols, residuals ~1e-15, across four block sizes |
+| 7. Static atomistic region coexists with a coarse host | **Met** (CG-06, re-evidenced by RCG-05's ownership and buffer work) |
+| 8. Angular criterion moves that region preserving a wall or skyrmion | **Met** — RCG-04's moving fixtures with recorded torque, displacement and trajectory distance |
+| 9. GPU matches CPU **and shows a measured speedup** | **AMENDED.** The parity half is met. The speedup half is **not met and is withdrawn**: measured against the real production path the adaptive step is ~1.12x _slower_ at 16 384 blocks (276.6 µs vs 310.2 µs) after RCG-09B/09C, having started ~3.4 × 10⁴ times slower. See §14.2. |
+| 10. Unsupported finite-temperature, explicit-device, multi-channel cases reject cleanly | **Met, with item 10's finite-temperature clause amended.** Explicit-device and multi-channel reject cleanly. Finite temperature is no longer an unsupported case to be rejected: the Human capability decision of 2026-08-15 admits it at the atomistic level while coarse blocks stay at T=0. What remains unsupported — a stochastic *coarse* model — is rejected (the coarse operator refuses any nonzero temperature or stochastic field; `do_qhb`/`do_3tm` are rejected at setup). The accepted boundary is fixtured by `finite_temperature_mixed`. |
+
+### 14.2 Amendment to item 9
+
+Item 9 is amended, with the amendment recorded here rather than applied
+silently. The remediation blueprint's §13 anticipates this outcome exactly: if
+its items 1–7 and 10–12 pass but item 9 (a speedup claim that survives
+comparison with the real UppASD atomistic production path) fails, "the result
+may be accepted only as a correctness/reference implementation. The parent
+blueprint must then leave GPU production-performance gates open and remove
+speedup wording. That is an honest partial outcome, not a production release."
+
+**Amended item 9:** the GPU implementation matches the CPU reference and
+reproduces production atomistic dynamics exactly where the model is all-fine.
+Its performance is characterized, not claimed: no crossover against UppASD's
+atomistic GPU path exists at any measured system size or active fraction. The
+coarse-graining mechanism reduces its own atomistic phase by a measured 11.37x
+between the all-fine and all-coarse limits; the whole-step gap to production is
+now ~1.12x and is dominated by the continuum operator itself, which is the
+method rather than avoidable work.
+
+**Human approval recorded: Anders Bergman, 2026-08-15.** The amendment to item
+9 and the release wording of this blueprint and of
+`docs/CG-13_RELEASE_VALIDATION.md` are approved as written. The branch is
+accepted as a correctness/reference implementation. It must not be described as
+a production-performance backend, and no speedup against UppASD's atomistic GPU
+path may be claimed.
 
 ---
 

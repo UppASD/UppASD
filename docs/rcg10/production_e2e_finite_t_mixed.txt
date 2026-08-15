@@ -1,0 +1,45 @@
+Internal ctest changing into directory: /tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/build_cpu2
+UpdateCTestConfiguration  from :/tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/build_cpu2/DartConfiguration.tcl
+Parse Config file:/tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/build_cpu2/DartConfiguration.tcl
+UpdateCTestConfiguration  from :/tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/build_cpu2/DartConfiguration.tcl
+Parse Config file:/tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/build_cpu2/DartConfiguration.tcl
+Test project /tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/build_cpu2
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 25
+    Start 25: adaptive-cg-production-e2e
+
+25: Test command: /home/andersb/envs/pypitest/bin/python3 "/tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/clone2/tests/coarse_graining/run_production_e2e.py" "--binary" "/tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/build_cpu2/bin/sd.f95"
+25: Working Directory: /tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/build_cpu2
+25: Environment variables: 
+25:  OMP_NUM_THREADS=1
+25: Test timeout computed to be: 1500
+25: CG-10.5 finite-temperature adaptive fine-region execution passed
+25: CG-10.5 finite-temperature mixed-resolution execution passed (1 coarse block(s), trajectory separated from T=0)
+25: CG-10.5 mixed DMI/anisotropy production path and SI alat guard passed
+25: CG-10.5 uniaxial mRy-to-J and atomistic/coarse ownership passed
+25: RCG-03 polarization gate blocks coarsening of a low-polarization block
+25: CG-10.5 Initmag=2 atomistic SD initial-phase handoff passed
+25: CG-10.5 M/H/Q/Y/Z/G validated atomistic handoffs passed
+25: CG-10.5 Initmag=8 inhomogeneous spin-spiral seed passed
+25: CG-10.5 Initmag=4 restart capability passed
+25: CG-10.5 user-facing input examples passed
+25: CG-10.5 production executable tests passed
+1/1 Test #25: adaptive-cg-production-e2e .......   Passed    0.50 sec
+
+The following tests passed:
+	adaptive-cg-production-e2e
+
+100% tests passed, 0 tests failed out of 1
+
+Label Time Summary:
+cg13               =   0.50 sec*proc (1 test)
+cg13-cpu           =   0.50 sec*proc (1 test)
+coarse-graining    =   0.50 sec*proc (1 test)
+production         =   0.50 sec*proc (1 test)
+
+Total Test time (real) =   0.50 sec

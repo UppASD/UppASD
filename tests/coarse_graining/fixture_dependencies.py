@@ -8,6 +8,14 @@ ADAPTIVE_MIXED_CASE = "adaptive_mixed"
 POLARIZATION_GATE_CASE = "polarization_gate_cpu"
 POLARIZATION_GATE_GPU_CASE = "polarization_gate_gpu"
 FINITE_TEMPERATURE_CASE = "finite_temperature"
+# RCG-10-F1: the accepted temperature boundary is "production Depondt fine
+# spins; deterministic coarse blocks", so finite temperature must be exercised
+# with coarse blocks actually present, not only in the all-fine
+# FINITE_TEMPERATURE_CASE above.  This is STATIC_MIXED_CASE at temp 10.0 and a
+# fixed tseed; it holds the mixed combination open as a supported capability
+# and detects a thermal field that stops reaching fine atoms once any block is
+# coarse.  Human capability decision, Anders Bergman, 2026-08-15.
+FINITE_TEMPERATURE_MIXED_CASE = "finite_temperature_mixed"
 
 CPU_REJECTION_CASES = (
     "invalid_partial_block",
@@ -135,7 +143,12 @@ def all_e2e_cases() -> tuple[str, ...]:
     names = {
         FEATURE_OFF_CASE, STATIC_ALL_FINE_CASE, STATIC_ALL_COARSE_CASE,
         STATIC_MIXED_CASE, ADAPTIVE_MIXED_CASE, POLARIZATION_GATE_CASE,
-        POLARIZATION_GATE_GPU_CASE, *CPU_REJECTION_CASES,
+        POLARIZATION_GATE_GPU_CASE,
+        # RCG-10: both finite-temperature cases are referenced by
+        # run_production_e2e.py.  FINITE_TEMPERATURE_CASE was missing from this
+        # audit set, so its inputs were never covered by PKG-TRACKED-E2E.
+        FINITE_TEMPERATURE_CASE, FINITE_TEMPERATURE_MIXED_CASE,
+        *CPU_REJECTION_CASES,
         *CPU_ANISOTROPY_CASES, CLUSTER_ANISOTROPY_REJECTION_CASE, *CPU_PARITY_CASES.values(),
         CPU_INITIAL_PHASE_SD_CASE, *[case for case, _ in CPU_INITIAL_PHASE_CASES.values()],
         SPIN_SPIRAL_CASE, RESTART_INITMAG_CASE, *GPU_EXECUTABLE_CASES, *GPU_INITIAL_PHASE_CASES,

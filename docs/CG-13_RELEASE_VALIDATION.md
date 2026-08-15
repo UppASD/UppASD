@@ -5,6 +5,15 @@ suite runs the ordinary test executables and, for production cases, the normal
 UppASD executable with an ordinary `inpsd.dat`. It does not use test-only
 staged moments or bypass the production capability preflight.
 
+> **Release state (RCG-10, closed 2026-08-15).** The adaptive coarse-graining
+> path is accepted as a **correctness/reference implementation**, not a
+> production-performance backend. No speedup against UppASD's atomistic GPU
+> path has been demonstrated at any measured system size or active fraction;
+> see "Performance reporting" below. Release wording approved by the Human
+> owner (Anders Bergman, 2026-08-15). HIP remains unevidenced for want of
+> hardware and is never inferred from CUDA. The reconciliation record is
+> [`RCG-10_RELEASE_RECONCILIATION.md`](RCG-10_RELEASE_RECONCILIATION.md).
+
 ## Running the suites
 
 Configure a CPU, CUDA, or HIP build with `BUILD_TESTING=ON`, then build the
@@ -21,6 +30,22 @@ always available. The CUDA and HIP labels are added only by the matching
 backend build, so a CUDA build cannot accidentally report HIP validation (or
 vice versa). Hardware-dependent benchmark binaries are built by the backend
 build but are not CTest pass/fail tests; record their stdout as an artifact.
+
+### Last validated backend matrix
+
+Commit `abda6534` (`v6.0.2-488-gabda`), from a clean clone with an empty
+`git status`, in fresh out-of-tree build directories. Raw logs: `docs/rcg10/`.
+
+| Backend / precision | Result |
+|---|---|
+| CPU fp64 | `cg13-cpu` **29/29 passed**; full `ctest` 37/38 with one proven pre-existing, out-of-package failure (`dipole-open-fft-oracle`); `regression-test` and `asd-tests` pass |
+| CUDA fp64 | `cg13-cuda` **32/32 passed** (NVIDIA RTX A4000, driver 610.57.04, nvcc 13.3) |
+| CUDA fp32 | `cg13-cuda` **31/32 passed**; the one failure is the tracked RCG-04-FU5 `coarse_dipole != 0` harness assertion, not a demonstrated precision floor |
+| HIP fp64/fp32 | **UNAVAILABLE** — no toolchain and no device in any environment used so far. No HIP result is claimed or inferred from CUDA. |
+| Legacy GNU `make gfortran` | **Not a supported build** for current GPU builds (Human decision, 2026-08-15). Use the CMake build. The path does currently fail, for a pre-existing GPU-branch tooling reason unrelated to coarse graining. |
+
+Unavailable is not a pass. A backend with no execution evidence is reported as
+unavailable and never inferred from another backend's result.
 
 The production executable suite includes feature-off, all-fine, all-coarse,
 static mixed, adaptive transitions, DMI plus uniaxial anisotropy, initial
@@ -43,6 +68,7 @@ named diagnostic.
 | Adaptive transition | adaptive solver and production `adaptive_mixed` | Complete-step publication, hysteresis/dwell, rollback, and compact-list rebuild |
 | Multi-channel | `coarse-graining-multichannel-tensor-operator` and channel restriction tests | Two-sublattice compensated AFM/Ferri reference; production single-channel gate remains explicit |
 | Dipole | GPU `gpu_fft_static_mixed` when enabled | Periodic EWALD3D FFT field/energy coupling; short-range mask is independent |
+| Finite temperature | `finite_temperature` (all-fine) and `finite_temperature_mixed` (fine + interface + coarse) | Production Depondt thermal path for fine atoms, validated bitwise by the RCG-09A.4 parity harness; the mixed case requires its trajectory to separate from the T=0 `static_mixed` reference |
 
 The analytic fixtures live in `tests/coarse_graining/test_*.f90` and are
 versioned with the operator implementation. Production fixtures live under
@@ -71,9 +97,12 @@ physics model.
 
 The production path is an optional low-temperature, fixed-length, two-scale
 spin-dynamics model. It accepts a regular replicated periodic cell with exact
-positive block divisibility, deterministic fixed-length Heun LLG at `T=0`,
-one ferromagnetic dynamical channel, uniform Landé factor and damping, scalar
-exchange, DMI, and deterministic cell-periodic type-1 uniaxial anisotropy.
+positive block divisibility, fixed-length Depondt LLG, one ferromagnetic
+dynamical channel, uniform Landé factor and damping, scalar exchange, DMI, and
+deterministic cell-periodic type-1 uniaxial anisotropy. Temperature enters at
+the atomistic level only: fine atoms may run warm, coarse blocks are always
+deterministic and have no stochastic model. The boundary is stated precisely
+under "Temperature" below.
 The accepted initial phase can be ordinary spin dynamics, Metropolis, heat
 bath, single-Q, two-Q/cube, three-Q, or VPO preparation; those stages finish
 atomistically before adaptive ownership is constructed. GPU periodic dipole
@@ -90,12 +119,52 @@ not arbitrary atom indices, and every repetition count must divide exactly.
 
 Tensor exchange, higher-order pair/multisite interactions, random or
 unsupported anisotropy, legacy dipoles, nonperiodic boundaries, explicit
-device geometry, heterogeneous channel/damping data, finite-temperature
-measurement dynamics, external/time-dependent fields, sparse/reduced/fixed
-moment paths, legacy samplers, and unsupported runner combinations are
-rejected during setup. `Initmag 4` restart input is rejected because adaptive
-ownership, selector age/epoch, and reconstruction state are not serialized.
-There is no implicit fallback to an atomistic run under the adaptive flag.
+device geometry, heterogeneous channel/damping data, external/time-dependent
+fields, sparse/reduced/fixed moment paths, legacy samplers, and unsupported
+runner combinations are rejected during setup. `Initmag 4` restart input is
+rejected because adaptive ownership, selector age/epoch, and reconstruction
+state are not serialized. There is no implicit fallback to an atomistic run
+under the adaptive flag.
+
+### Temperature
+
+The capability boundary is the one the runtime prints at setup:
+`production Depondt fine spins; deterministic coarse blocks`.
+
+**Supported.** Finite temperature in the fine atomistic region. Fine atoms are
+advanced by the ordinary production Depondt path with the ordinary thermal
+field. This is validated end to end by `tests/coarse_graining/e2e/
+finite_temperature` and, at stage resolution, by the RCG-09A.4 parity harness,
+which shows bitwise-identical thermal fields, predictor, second-draw reuse, and
+corrector against production ASD.
+
+**Not supported.** Coarse blocks have no stochastic model. The coarse continuum
+operator is strictly T=0 and rejects any nonzero temperature or stochastic
+field.
+
+**Mixed resolution at finite temperature is supported** (Human capability
+decision, Anders Bergman, 2026-08-15). A run with `Temp > 0` and coarse blocks
+present is accepted: fine atoms are thermal, coarse blocks are deterministic.
+The coarse operator is given `temperature_k = 0` by construction, which is the
+intent rather than a bypass — the continuum blocks are meant to stay cold while
+the atomistic region is warm. `tests/coarse_graining/e2e/
+finite_temperature_mixed` holds this boundary open: it runs `fine=1
+interface=4 coarse=1` at `temp 10.0` with a fixed `tseed` and requires its
+trajectory to separate from the T=0 `static_mixed` reference, so a thermal
+field that stopped reaching fine atoms once a block coarsened would fail it.
+
+An earlier revision of this document listed "finite-temperature measurement
+dynamics" among the combinations rejected during setup. That was inaccurate in
+both directions and is withdrawn.
+
+**Error budget.** The hybrid is a two-temperature-resolution model, not a
+thermodynamically equilibrated one. The coarse blocks carry no thermal
+fluctuations, so magnon populations, thermal line broadening and any
+temperature-driven quantity are represented only in the atomistic region, and
+the interface between a warm fine region and a cold coarse host is not a
+detailed-balance-preserving boundary. No finite-temperature *coarse* physics
+claim is made, and low-temperature cone reconstruction remains a geometric
+reconstruction rather than thermal equilibration.
 
 Low-temperature cone reconstruction is a deterministic geometric
 reconstruction that preserves a requested coarse resultant. It is not
@@ -120,6 +189,27 @@ Dipole diagnostics must therefore be reported separately from short-range
 interface error.
 
 ## Performance reporting
+
+**Current result: no production speedup, and none is claimed.** Measured
+against `GpuHamiltonianCalculations` plus `GpuDepondtIntegrator` — the objects
+the feature-off timestep loop calls — and end to end through the ordinary `sd`
+binary, there is **no crossover at any measured system size or active
+fraction**. At 16 384 blocks on a clean, ABBA-interleaved device the production
+step is 276.6 µs against a best adaptive step of 310.2 µs. The gap closed by
+four orders of magnitude across RCG-09 → RCG-09B → RCG-09C, and the remaining
+cost is dominated by the continuum operator itself, which is the method rather
+than avoidable work.
+
+The one citable mechanism figure is an **11.37x** reduction of the adaptive
+atomistic phase between its all-fine and all-coarse limits (292.8 µs → 25.8 µs
+at 16 384 blocks / 65 536 atoms / 114 688 bonds). That is not a whole-step
+speedup and not a comparison with production.
+
+Withdrawn — do not cite: the `1.30x` / `1.3016x` / `1.3017x` "active-DOF
+crossover" (it compared two modes of the adaptive runtime against a synthetic
+control, never against UppASD), and the superseded `6.0x` atomistic-phase
+ceiling. Evidence: `RCG-09_PRODUCTION_PERFORMANCE_EVIDENCE.md`,
+`RCG-09B_REDUCTION_EVIDENCE.md`, `rcg09/rcg09c_live_bond_compaction.txt`.
 
 Run the backend benchmark with several repetitions and retain raw stdout, for
 example:

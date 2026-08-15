@@ -19,6 +19,7 @@ from fixture_dependencies import (
     EXAMPLE_CASES,
     FEATURE_OFF_CASE,
     FINITE_TEMPERATURE_CASE,
+    FINITE_TEMPERATURE_MIXED_CASE,
     GPU_DMI_CASE,
     GPU_EXECUTABLE_CASES,
     GPU_FFT_CASE,
@@ -179,6 +180,30 @@ def main() -> None:
     assert finite_temperature.returncode == 0, finite_temperature.stdout
     assert "AdaptiveCG: capability accepted" in finite_temperature.stdout
     print("CG-10.5 finite-temperature adaptive fine-region execution passed")
+
+    # RCG-10-F1: the accepted boundary is finite-temperature fine atoms beside
+    # deterministic T=0 coarse blocks, so exercise it with coarse blocks
+    # actually present.  This case is STATIC_MIXED_CASE at temp 10.0 with a
+    # fixed tseed; comparing its trajectory against that T=0 reference is what
+    # makes the check discriminating.  A thermal field that silently stopped
+    # reaching fine atoms once a block coarsened would reproduce the T=0
+    # trajectory exactly and fail here.
+    finite_temperature_mixed = run_case(binary, root / FINITE_TEMPERATURE_MIXED_CASE)
+    assert finite_temperature_mixed.returncode == 0, finite_temperature_mixed.stdout
+    assert "AdaptiveCG: capability accepted" in finite_temperature_mixed.stdout
+    mixed_coarse_blocks = metric(finite_temperature_mixed.stdout, "initial_coarse")
+    assert mixed_coarse_blocks >= 1, finite_temperature_mixed.stdout
+    assert metric(finite_temperature_mixed.stdout, "active_atoms") > 0
+    warm_trajectory = float_metric(finite_temperature_mixed.stdout, "direction_sum")
+    cold_trajectory = float_metric(outputs[STATIC_MIXED_CASE], "direction_sum")
+    assert abs(warm_trajectory - cold_trajectory) > 1.0e-6, (
+        f"mixed-resolution thermal field did not move the fine atoms: "
+        f"warm={warm_trajectory!r} cold={cold_trajectory!r}"
+    )
+    print(
+        "CG-10.5 finite-temperature mixed-resolution execution passed "
+        f"({mixed_coarse_blocks} coarse block(s), trajectory separated from T=0)"
+    )
 
     fine_updates = metric(outputs[STATIC_ALL_FINE_CASE], "active_atom_updates")
     coarse_updates = metric(outputs[STATIC_ALL_COARSE_CASE], "active_atom_updates")

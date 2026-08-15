@@ -1,0 +1,226 @@
+Note: Performance is better if the number of atoms is a multiple of 32.
+Note: Performance is better if the number of atoms is a multiple of 32.
+Note: Performance is better if the number of atoms is a multiple of 32.
+hamiltonian-oracle fixture=8x2 reciprocal-directed-DMI D=(0.370,-0.290,0.610) exchange_energy_adaptive=-2.14250853461587409e+00 production=-2.14250853461587365e+00 dmi_energy_adaptive=6.45635050280112033e-01 production=6.45635050280111922e-01 total_energy_adaptive=-1.49687348433576206e+00 production=-1.49687348433576162e+00 uniaxial_energy_adaptive=-1.31668151511199882e+00 production=-1.31668151511199882e+00 total_with_uniaxial_adaptive=-2.81355499944776088e+00 production=-2.81355499944776044e+00 exchange_field_max_abs=5.55111512312578270e-17 exchange_field_max_rel=1.87325218057106195e-16 dmi_field_max_abs=2.22044604925031308e-16 dmi_field_max_rel=1.89987199232413705e-16 uniaxial_field_max_abs=1.11022302462515654e-16 uniaxial_field_max_rel=4.27942472688887573e-16 total_field_max_abs=2.49800180540660222e-16 total_field_max_rel=2.11180000688015182e-16 total_with_uniaxial_field_max_abs=2.49800180540660222e-16 total_with_uniaxial_field_max_rel=2.20415714914710008e-16 nonzero_endpoint_DMI=true negative_control=off result=PASS
+Note: Performance is better if the number of atoms is a multiple of 32.
+Note: Performance is better if the number of atoms is a multiple of 32.
+adaptive-asd-parity case=T0-exchange temperature=0 ensembles=1 steps=3
+adaptive-asd-parity stage=initial-hamiltonian-field bitwise=false max_abs=5.551115e-17 max_rel=1.873252e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=term-energy-0 adaptive=-2.14250853461587409e+00 production=-2.14250853461587365e+00 rel=2.072754e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=term-energy-1 adaptive=0.00000000000000000e+00 production=0.00000000000000000e+00 rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=term-energy-2 adaptive=-2.14250853461587409e+00 production=-2.14250853461587365e+00 rel=2.072754e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity fixture=nonzero-torque max_torque=1.710192e-01 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=5.551115e-17 max_rel=1.873252e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-predictor bitwise=true max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=2.775558e-17 max_rel=9.366261e-17 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=true max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity step=0 nonzero-displacement=2.538822e-07 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=5.551115e-17 max_rel=1.873252e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-predictor bitwise=true max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=2.775558e-17 max_rel=9.366261e-17 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=true max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity step=1 nonzero-displacement=2.538822e-07 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=5.551115e-17 max_rel=1.873252e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-predictor bitwise=true max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=5.551115e-17 max_rel=1.873252e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=true max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity step=2 nonzero-displacement=2.538822e-07 result=PASS
+adaptive-asd-parity case=T0-exchange result=PASS
+Note: Performance is better if the number of atoms is a multiple of 32.
+Note: Performance is better if the number of atoms is a multiple of 32.
+adaptive-asd-parity case=T0-DMI temperature=0 ensembles=1 steps=3
+adaptive-asd-parity stage=initial-hamiltonian-field bitwise=false max_abs=2.498002e-16 max_rel=2.111800e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=term-energy-0 adaptive=-1.49687348433576206e+00 production=-1.49687348433576162e+00 rel=2.966779e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=term-energy-1 adaptive=0.00000000000000000e+00 production=0.00000000000000000e+00 rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=term-energy-2 adaptive=-1.49687348433576206e+00 production=-1.49687348433576162e+00 rel=2.966779e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity fixture=nonzero-torque max_torque=1.581292e+00 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=2.498002e-16 max_rel=2.111800e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-predictor bitwise=true max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=2.220446e-16 max_rel=1.877156e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=false max_abs=1.058791e-22 max_rel=1.059736e-22 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity step=0 nonzero-displacement=2.567808e-06 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=2.220446e-16 max_rel=1.877156e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-predictor bitwise=true max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=3.330669e-16 max_rel=2.815733e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=true max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity step=1 nonzero-displacement=2.567807e-06 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=3.330669e-16 max_rel=2.815733e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-predictor bitwise=true max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=2.775558e-16 max_rel=2.346444e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=true max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity step=2 nonzero-displacement=2.567806e-06 result=PASS
+adaptive-asd-parity case=T0-DMI result=PASS
+Note: Performance is better if the number of atoms is a multiple of 32.
+Note: Performance is better if the number of atoms is a multiple of 32.
+adaptive-asd-parity case=T0-anisotropy temperature=0 ensembles=1 steps=3
+adaptive-asd-parity stage=initial-hamiltonian-field bitwise=false max_abs=1.110223e-16 max_rel=2.120070e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=term-energy-0 adaptive=-2.14250853461587409e+00 production=-2.14250853461587365e+00 rel=2.072754e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=term-energy-1 adaptive=-1.31668151511199882e+00 production=-1.31668151511199882e+00 rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=term-energy-2 adaptive=-3.45919004972787292e+00 production=-3.45919004972787247e+00 rel=1.283795e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity fixture=nonzero-torque max_torque=2.158180e-01 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=1.110223e-16 max_rel=2.120070e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-predictor bitwise=true max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=1.110223e-16 max_rel=2.120070e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=false max_abs=6.617445e-24 max_rel=6.623350e-24 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity step=0 nonzero-displacement=3.558164e-07 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=1.110223e-16 max_rel=2.120070e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-predictor bitwise=false max_abs=1.323489e-23 max_rel=1.324670e-23 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=1.110223e-16 max_rel=2.120070e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=false max_abs=1.323489e-23 max_rel=1.324670e-23 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity step=1 nonzero-displacement=3.558164e-07 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=5.551115e-17 max_rel=1.060035e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-predictor bitwise=true max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=1.110223e-16 max_rel=2.120070e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=true max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity step=2 nonzero-displacement=3.558164e-07 result=PASS
+adaptive-asd-parity case=T0-anisotropy result=PASS
+Note: Performance is better if the number of atoms is a multiple of 32.
+Note: Performance is better if the number of atoms is a multiple of 32.
+adaptive-asd-parity case=T0-combined temperature=0 ensembles=1 steps=3
+adaptive-asd-parity stage=initial-hamiltonian-field bitwise=false max_abs=2.498002e-16 max_rel=2.204157e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=term-energy-0 adaptive=-1.49687348433576206e+00 production=-1.49687348433576162e+00 rel=2.966779e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=term-energy-1 adaptive=-1.31668151511199882e+00 production=-1.31668151511199882e+00 rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=term-energy-2 adaptive=-2.81355499944776088e+00 production=-2.81355499944776044e+00 rel=1.578392e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity fixture=nonzero-torque max_torque=1.552581e+00 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=2.498002e-16 max_rel=2.204157e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-predictor bitwise=true max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=2.220446e-16 max_rel=1.959251e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=true max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity step=0 nonzero-displacement=2.481004e-06 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=2.220446e-16 max_rel=1.959251e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-predictor bitwise=true max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=2.220446e-16 max_rel=1.959251e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=true max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity step=1 nonzero-displacement=2.481003e-06 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=3.330669e-16 max_rel=2.938877e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-predictor bitwise=false max_abs=2.117582e-22 max_rel=2.119472e-22 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=4.440892e-16 max_rel=3.918504e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=0.000000e+00 max_rel=0.000000e+00 tolerance=0.000e+00 result=PASS
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=false max_abs=2.117582e-22 max_rel=2.119472e-22 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity step=2 nonzero-displacement=2.481002e-06 result=PASS
+adaptive-asd-parity case=T0-combined result=PASS
+Note: Performance is better if the number of atoms is a multiple of 32.
+Note: Performance is better if the number of atoms is a multiple of 32.
+adaptive-asd-parity case=finite-T-combined temperature=0.75 ensembles=1 steps=6
+adaptive-asd-parity stage=initial-hamiltonian-field bitwise=false max_abs=2.498002e-16 max_rel=2.204157e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=term-energy-0 adaptive=-1.49687348433576206e+00 production=-1.49687348433576162e+00 rel=2.966779e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=term-energy-1 adaptive=-1.31668151511199882e+00 production=-1.31668151511199882e+00 rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=term-energy-2 adaptive=-2.81355499944776088e+00 production=-2.81355499944776044e+00 rel=1.578392e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity fixture=nonzero-torque max_torque=1.552581e+00 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=2.498002e-16 max_rel=2.204157e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=1.270133e+03 max_rel=1.462537e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-predictor bitwise=false max_abs=1.172012e-03 max_rel=1.173050e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=8.020284e-04 max_rel=7.076316e-04 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=1.270133e+03 max_rel=1.462537e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=false max_abs=1.172032e-03 max_rel=1.173070e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity step=0 nonzero-displacement=1.197368e-03 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=2.220446e-16 max_rel=1.959105e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=1.335176e+03 max_rel=1.537434e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-predictor bitwise=false max_abs=1.401748e-03 max_rel=1.402981e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=1.046716e-03 max_rel=9.234520e-04 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=1.335176e+03 max_rel=1.537434e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=false max_abs=1.401737e-03 max_rel=1.402970e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity step=1 nonzero-displacement=1.196676e-03 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=2.220446e-16 max_rel=1.958960e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=1.386327e+03 max_rel=1.528951e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-predictor bitwise=false max_abs=1.316781e-03 max_rel=1.317938e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=1.041708e-03 max_rel=9.190138e-04 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=1.386327e+03 max_rel=1.528951e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=false max_abs=1.316780e-03 max_rel=1.317938e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity step=2 nonzero-displacement=1.853981e-03 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=1.110223e-16 max_rel=9.794591e-17 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=1.054600e+03 max_rel=1.465272e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-predictor bitwise=false max_abs=1.033676e-03 max_rel=1.034562e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=1.007529e-03 max_rel=8.893334e-04 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=1.054600e+03 max_rel=1.465272e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=false max_abs=1.033698e-03 max_rel=1.034583e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity step=3 nonzero-displacement=1.363107e-03 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=3.330669e-16 max_rel=2.939941e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=1.170212e+03 max_rel=1.275437e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-predictor bitwise=false max_abs=1.128007e-03 max_rel=1.128995e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=1.173239e-03 max_rel=1.035863e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=1.170212e+03 max_rel=1.275437e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=false max_abs=1.128019e-03 max_rel=1.129007e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity step=4 nonzero-displacement=1.182334e-03 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=2.775558e-16 max_rel=2.450565e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=1.342506e+03 max_rel=1.497890e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-predictor bitwise=false max_abs=1.263809e-03 max_rel=1.264924e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=1.640263e-03 max_rel=1.448373e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=1.342506e+03 max_rel=1.497890e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=false max_abs=1.263785e-03 max_rel=1.264901e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity step=5 nonzero-displacement=1.674778e-03 result=PASS
+adaptive-asd-parity case=finite-T-combined result=FAIL
+Note: Performance is better if the number of atoms is a multiple of 32.
+Note: Performance is better if the number of atoms is a multiple of 32.
+adaptive-asd-parity case=finite-T-combined-M2 temperature=0.75 ensembles=2 steps=6
+adaptive-asd-parity stage=initial-hamiltonian-field bitwise=false max_abs=2.498002e-16 max_rel=2.175235e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=term-energy-0 adaptive=-2.99169245690069729e+00 production=-2.99169245690069729e+00 rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=term-energy-1 adaptive=-2.65632486196404338e+00 production=-2.65632486196404338e+00 rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=term-energy-2 adaptive=-5.64801731886474023e+00 production=-5.64801731886474023e+00 rel=0.000000e+00 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity fixture=nonzero-torque max_torque=1.561154e+00 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=2.498002e-16 max_rel=2.175235e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=1.116707e+03 max_rel=1.116707e+03 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-predictor bitwise=false max_abs=1.088710e-03 max_rel=1.089061e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=1.123341e-03 max_rel=9.781945e-04 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=1.116707e+03 max_rel=1.116707e+03 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=false max_abs=1.088699e-03 max_rel=1.089050e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity step=0 nonzero-displacement=2.489475e-06 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=2.220446e-16 max_rel=1.933542e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=1.513265e+03 max_rel=1.649337e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-predictor bitwise=false max_abs=1.537794e-03 max_rel=1.538308e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=1.334070e-03 max_rel=1.161991e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=1.513265e+03 max_rel=1.649337e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=false max_abs=1.537816e-03 max_rel=1.538330e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity step=1 nonzero-displacement=1.363585e-03 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=3.330669e-16 max_rel=2.901051e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=1.591845e+03 max_rel=1.734983e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-predictor bitwise=false max_abs=1.239891e-03 max_rel=1.240321e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=1.357615e-03 max_rel=1.182800e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=1.591845e+03 max_rel=1.734983e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=false max_abs=1.239890e-03 max_rel=1.240320e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity step=2 nonzero-displacement=1.363280e-03 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=4.440892e-16 max_rel=3.869054e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=1.386733e+03 max_rel=1.325216e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-predictor bitwise=false max_abs=1.234896e-03 max_rel=1.235300e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=2.042154e-03 max_rel=1.779579e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=1.386733e+03 max_rel=1.325216e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=false max_abs=1.234918e-03 max_rel=1.235322e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity step=3 nonzero-displacement=1.673937e-03 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=3.330669e-16 max_rel=2.902421e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=1.595670e+03 max_rel=1.568638e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-predictor bitwise=false max_abs=1.481887e-03 max_rel=1.482356e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=1.192027e-03 max_rel=1.039083e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=1.595670e+03 max_rel=1.568638e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=false max_abs=1.481908e-03 max_rel=1.482378e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity step=4 nonzero-displacement=1.510786e-03 result=PASS
+adaptive-asd-parity stage=hamiltonian-before-predictor bitwise=false max_abs=4.440892e-16 max_rel=3.871097e-16 tolerance=1.000e-12 result=PASS
+adaptive-asd-parity stage=thermal-field bitwise=false max_abs=1.477120e+03 max_rel=1.498578e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-predictor bitwise=false max_abs=1.512344e-03 max_rel=1.512830e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=hamiltonian-at-predicted-state bitwise=false max_abs=1.094256e-03 max_rel=9.540577e-04 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity stage=second-thermal-state bitwise=false max_abs=1.477120e+03 max_rel=1.498578e+00 tolerance=0.000e+00 result=FAIL
+adaptive-asd-parity stage=depondt-corrector-final-spin bitwise=false max_abs=1.512324e-03 max_rel=1.512809e-03 tolerance=1.000e-12 result=FAIL
+adaptive-asd-parity step=5 nonzero-displacement=1.823448e-03 result=PASS
+adaptive-asd-parity case=finite-T-combined-M2 result=FAIL

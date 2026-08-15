@@ -1,0 +1,74 @@
+Internal ctest changing into directory: /tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/build_cpu2
+Test project /tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/build_cpu2
+      Start  3: coarse-graining-block-topology
+ 1/29 Test  #3: coarse-graining-block-topology ...................   Passed    0.00 sec
+      Start  4: coarse-graining-stiffness-material
+ 2/29 Test  #4: coarse-graining-stiffness-material ...............   Passed    0.00 sec
+      Start  5: coarse-graining-dmi-dimer-energy
+ 3/29 Test  #5: coarse-graining-dmi-dimer-energy .................   Passed    0.00 sec
+      Start  7: coarse-graining-tensor-operator
+ 4/29 Test  #7: coarse-graining-tensor-operator ..................   Passed    0.01 sec
+      Start  9: coarse-graining-multichannel-tensor-operator
+ 5/29 Test  #9: coarse-graining-multichannel-tensor-operator .....   Passed    0.00 sec
+      Start 10: coarse-graining-smooth-projected-operator
+ 6/29 Test #10: coarse-graining-smooth-projected-operator ........   Passed    0.01 sec
+      Start 11: coarse-graining-static-hybrid-operator
+ 7/29 Test #11: coarse-graining-static-hybrid-operator ...........   Passed    0.01 sec
+      Start 12: coarse-graining-static-hybrid-dilation-scaling
+ 8/29 Test #12: coarse-graining-static-hybrid-dilation-scaling ...   Passed    0.07 sec
+      Start 13: coarse-graining-adaptive-setup-scaling
+ 9/29 Test #13: coarse-graining-adaptive-setup-scaling ...........   Passed    0.13 sec
+      Start 14: coarse-graining-block-selector
+10/29 Test #14: coarse-graining-block-selector ...................   Passed    0.00 sec
+      Start 15: coarse-graining-adaptive-hybrid-solver
+11/29 Test #15: coarse-graining-adaptive-hybrid-solver ...........   Passed    0.00 sec
+      Start 16: coarse-graining-polarization-gate
+12/29 Test #16: coarse-graining-polarization-gate ................   Passed    0.00 sec
+      Start 17: coarse-graining-moving-state-generator
+13/29 Test #17: coarse-graining-moving-state-generator ...........   Passed    0.05 sec
+      Start 18: coarse-graining-trajectory-evidence
+14/29 Test #18: coarse-graining-trajectory-evidence ..............   Passed    0.05 sec
+      Start 19: coarse-graining-torque-oracle
+15/29 Test #19: coarse-graining-torque-oracle ....................   Passed    0.11 sec
+      Start 20: coarse-graining-coarse-torque-oracle
+16/29 Test #20: coarse-graining-coarse-torque-oracle .............   Passed    0.11 sec
+      Start 21: coarse-graining-static-topology-oracle
+17/29 Test #21: coarse-graining-static-topology-oracle ...........   Passed    1.89 sec
+      Start 22: coarse-graining-ownership-map-comparator
+18/29 Test #22: coarse-graining-ownership-map-comparator .........   Passed    6.10 sec
+      Start 23: adaptive-cg-mem-large-host
+19/29 Test #23: adaptive-cg-mem-large-host .......................   Passed    1.15 sec
+      Start 24: adaptive-cg-reconstruction-rng-spatial-stats
+20/29 Test #24: adaptive-cg-reconstruction-rng-spatial-stats .....   Passed    0.47 sec
+      Start 25: adaptive-cg-production-e2e
+21/29 Test #25: adaptive-cg-production-e2e .......................   Passed    0.50 sec
+      Start 26: adaptive-cg-setup-rejection-matrix
+22/29 Test #26: adaptive-cg-setup-rejection-matrix ...............   Passed    2.20 sec
+      Start 27: adaptive-cg-moving-off-fine
+23/29 Test #27: adaptive-cg-moving-off-fine ......................   Passed    0.19 sec
+      Start 28: adaptive-cg-moving-all-coarse
+24/29 Test #28: adaptive-cg-moving-all-coarse ....................   Passed    6.80 sec
+      Start 29: adaptive-cg-moving-static-mixed
+25/29 Test #29: adaptive-cg-moving-static-mixed ..................   Passed    5.25 sec
+      Start 30: adaptive-cg-moving-adaptive-wall
+26/29 Test #30: adaptive-cg-moving-adaptive-wall .................   Passed    5.92 sec
+      Start 31: adaptive-cg-moving-dmi-chiral
+27/29 Test #31: adaptive-cg-moving-dmi-chiral ....................   Passed    6.72 sec
+      Start 32: adaptive-cg-timing-reconciliation
+28/29 Test #32: adaptive-cg-timing-reconciliation ................   Passed    0.43 sec
+      Start 34: adaptive-cg-transition-ownership-invariants
+29/29 Test #34: adaptive-cg-transition-ownership-invariants ......   Passed    0.09 sec
+
+100% tests passed, 0 tests failed out of 29
+
+Label Time Summary:
+cg13               =  38.27 sec*proc (29 tests)
+cg13-cpu           =  38.27 sec*proc (29 tests)
+coarse-graining    =  38.27 sec*proc (29 tests)
+moving-parity      =  25.31 sec*proc (6 tests)
+ownership          =   0.09 sec*proc (1 test)
+production         =   0.50 sec*proc (1 test)
+reference          =   8.55 sec*proc (18 tests)
+rejection          =   2.20 sec*proc (1 test)
+
+Total Test time (real) =  38.28 sec

@@ -1,0 +1,106 @@
+Internal ctest changing into directory: /tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/build_cuda_fp32
+Test project /tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/build_cuda_fp32
+      Start  4: coarse-graining-block-topology
+ 1/32 Test  #4: coarse-graining-block-topology ...................   Passed    0.00 sec
+      Start  5: coarse-graining-stiffness-material
+ 2/32 Test  #5: coarse-graining-stiffness-material ...............   Passed    0.00 sec
+      Start  8: coarse-graining-tensor-operator
+ 3/32 Test  #8: coarse-graining-tensor-operator ..................   Passed    0.01 sec
+      Start 10: coarse-graining-multichannel-tensor-operator
+ 4/32 Test #10: coarse-graining-multichannel-tensor-operator .....   Passed    0.00 sec
+      Start 11: coarse-graining-smooth-projected-operator
+ 5/32 Test #11: coarse-graining-smooth-projected-operator ........   Passed    0.00 sec
+      Start 12: coarse-graining-static-hybrid-operator
+ 6/32 Test #12: coarse-graining-static-hybrid-operator ...........   Passed    0.01 sec
+      Start 13: coarse-graining-static-hybrid-dilation-scaling
+ 7/32 Test #13: coarse-graining-static-hybrid-dilation-scaling ...   Passed    0.07 sec
+      Start 14: coarse-graining-adaptive-setup-scaling
+ 8/32 Test #14: coarse-graining-adaptive-setup-scaling ...........   Passed    0.13 sec
+      Start 15: coarse-graining-block-selector
+ 9/32 Test #15: coarse-graining-block-selector ...................   Passed    0.00 sec
+      Start 16: coarse-graining-adaptive-hybrid-solver
+10/32 Test #16: coarse-graining-adaptive-hybrid-solver ...........   Passed    0.00 sec
+      Start 17: coarse-graining-polarization-gate
+11/32 Test #17: coarse-graining-polarization-gate ................   Passed    0.00 sec
+      Start 18: coarse-graining-moving-state-generator
+12/32 Test #18: coarse-graining-moving-state-generator ...........   Passed    0.05 sec
+      Start 19: coarse-graining-trajectory-evidence
+13/32 Test #19: coarse-graining-trajectory-evidence ..............   Passed    0.05 sec
+      Start 20: coarse-graining-torque-oracle
+14/32 Test #20: coarse-graining-torque-oracle ....................   Passed    0.10 sec
+      Start 21: coarse-graining-coarse-torque-oracle
+15/32 Test #21: coarse-graining-coarse-torque-oracle .............   Passed    0.11 sec
+      Start 22: coarse-graining-static-topology-oracle
+16/32 Test #22: coarse-graining-static-topology-oracle ...........   Passed    1.86 sec
+      Start 23: coarse-graining-ownership-map-comparator
+17/32 Test #23: coarse-graining-ownership-map-comparator .........   Passed    6.15 sec
+      Start 25: adaptive-cg-reconstruction-rng-spatial-stats
+18/32 Test #25: adaptive-cg-reconstruction-rng-spatial-stats .....   Passed    1.22 sec
+      Start 26: adaptive-cg-production-e2e
+19/32 Test #26: adaptive-cg-production-e2e .......................***Failed    4.42 sec
+CG-10.5 finite-temperature adaptive fine-region execution passed
+CG-10.5 mixed DMI/anisotropy production path and SI alat guard passed
+CG-10.5 uniaxial mRy-to-J and atomistic/coarse ownership passed
+RCG-03 polarization gate blocks coarsening of a low-polarization block
+CG-10.5 Initmag=2 atomistic SD initial-phase handoff passed
+CG-10.5 M/H/Q/Y/Z/G validated atomistic handoffs passed
+CG-10.5 Initmag=8 inhomogeneous spin-spiral seed passed
+CG-10.5 Initmag=4 restart capability passed
+CG-10.5 user-facing input examples passed
+RCG-03 GPU polarization gate blocks coarsening of a low-polarization block
+CG-10.5 DMI/anisotropy CPU/GPU production parity passed
+Traceback (most recent call last):
+  File "/tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/clone/tests/coarse_graining/run_production_e2e.py", line 517, in <module>
+    main()
+  File "/tmp/claude-1000/-home-andersb-SD-UppASD-gpu-hip-cu/a283d2af-a57a-4d83-8542-67510be0249c/scratchpad/rcg10/clone/tests/coarse_graining/run_production_e2e.py", line 507, in main
+    assert abs(float_metric(fft.stdout, "coarse_dipole")) > 0.0
+AssertionError
+
+      Start 27: adaptive-cg-setup-rejection-matrix
+20/32 Test #27: adaptive-cg-setup-rejection-matrix ...............   Passed    2.34 sec
+      Start 33: adaptive-cg-moving-backend-parity
+21/32 Test #33: adaptive-cg-moving-backend-parity ................   Passed    9.06 sec
+      Start 34: adaptive-cg-timing-reconciliation
+22/32 Test #34: adaptive-cg-timing-reconciliation ................   Passed    1.18 sec
+      Start 35: adaptive-cg-ownership-map-comparator
+23/32 Test #35: adaptive-cg-ownership-map-comparator .............   Passed    9.40 sec
+      Start 36: adaptive-cg-dipole-ownership-check
+24/32 Test #36: adaptive-cg-dipole-ownership-check ...............   Passed    1.92 sec
+      Start 38: adaptive-cg-transition-ownership-invariants
+25/32 Test #38: adaptive-cg-transition-ownership-invariants ......   Passed    0.10 sec
+      Start 43: coarse-graining-gpu-dmi-dimer
+26/32 Test #43: coarse-graining-gpu-dmi-dimer ....................   Passed    0.32 sec
+      Start 44: adaptive-cg-energy-fp32-accum
+27/32 Test #44: adaptive-cg-energy-fp32-accum ....................   Passed  111.68 sec
+      Start 45: coarse-graining-gpu-adaptive-runtime
+28/32 Test #45: coarse-graining-gpu-adaptive-runtime .............   Passed    0.32 sec
+      Start 46: gpu-depondt-active-atoms
+29/32 Test #46: gpu-depondt-active-atoms .........................   Passed    0.32 sec
+      Start 48: coarse-graining-adaptive-asd-parity
+30/32 Test #48: coarse-graining-adaptive-asd-parity ..............   Passed    0.33 sec
+      Start 49: dipole-gpu-fft-convolution
+31/32 Test #49: dipole-gpu-fft-convolution .......................   Passed    0.68 sec
+      Start 50: dipole-open-fft-layout
+32/32 Test #50: dipole-open-fft-layout ...........................   Passed    1.17 sec
+
+97% tests passed, 1 tests failed out of 32
+
+Label Time Summary:
+backend-parity     =  20.39 sec*proc (3 tests)
+cg13               = 153.03 sec*proc (32 tests)
+cg13-cpu           =  10.96 sec*proc (19 tests)
+cg13-cuda          = 153.03 sec*proc (32 tests)
+coarse-graining    = 153.03 sec*proc (32 tests)
+dipole             =   1.85 sec*proc (2 tests)
+moving-parity      =  19.64 sec*proc (3 tests)
+ownership          =  11.43 sec*proc (3 tests)
+production         =   4.42 sec*proc (1 test)
+rcg09a4            =   0.33 sec*proc (1 test)
+reference          =   9.84 sec*proc (21 tests)
+rejection          =   2.34 sec*proc (1 test)
+
+Total Test time (real) = 153.04 sec
+
+The following tests FAILED:
+	 26 - adaptive-cg-production-e2e (Failed)
+Errors while running CTest

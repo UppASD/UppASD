@@ -1,0 +1,23 @@
+RCG-10-F1 reproduction: mixed resolution at finite temperature is ungated
+======================================================================
+
+Case: tests/coarse_graining/e2e/static_mixed with 'temp 0.0' changed to
+      'temp 10.0'.  Nothing else altered.  Run with the clean-clone CPU
+      Release binary (build_cpu/bin/sd.f95).
+
+Result: exit status 0.  Accepted, executed, no rejection, no warning.
+
+AdaptiveCG: capability accepted: production Depondt fine spins; deterministic coarse blocks
+AdaptiveCG: operator=PROJECTED mask_mode=STATIC
+AdaptiveCG: initial_coarse=1 active_atoms=40 active_blocks=1
+AdaptiveCG: resolution_counts fine=1 interface=4 coarse=1
+AdaptiveCG: last_total_energy_j= -1.2127607356955218E-18
+AdaptiveCG: resolution_counts fine=1 interface=4 coarse=1
+
+For contrast, the tracked e2e case tests/coarse_graining/e2e/finite_temperature
+(temp 10.0) is all-fine by construction:
+
+AdaptiveCG: capability accepted: production Depondt fine spins; deterministic coarse blocks
+AdaptiveCG: initial_coarse=0 active_atoms=48 active_blocks=0
+AdaptiveCG: resolution_counts fine=6 interface=0 coarse=0
+AdaptiveCG: resolution_counts fine=6 interface=0 coarse=0
