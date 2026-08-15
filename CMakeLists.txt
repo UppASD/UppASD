@@ -958,6 +958,19 @@ if(BUILD_TESTING)
    add_test(NAME coarse-graining-static-hybrid-dilation-scaling
       COMMAND static_hybrid_dilation_scaling_tests)
 
+   # RCG-09D: adaptive setup constructions that were sparse in storage but
+   # quadratic in work.  Bitwise equivalence against transcribed brute-force
+   # references for the unique-bond fold and the macro-block connectivity,
+   # plus wall-clock scaling negative controls discriminating the linearized
+   # constructions from the previous discovered-list and dense-scan ones.
+   add_executable(adaptive_setup_scaling_tests
+      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_adaptive_setup_scaling.f90)
+   set_target_properties(adaptive_setup_scaling_tests PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/adaptive_setup_scaling_tests)
+   target_link_libraries(adaptive_setup_scaling_tests PRIVATE ${UppASD_LIB})
+   add_test(NAME coarse-graining-adaptive-setup-scaling
+      COMMAND adaptive_setup_scaling_tests)
+
    # CG-07 is deliberately independent of field operators and reconstruction:
    # criteria only produce requests, while the explicit state-machine sync
    # point is solely responsible for changing block resolution.
@@ -1118,6 +1131,7 @@ if(BUILD_TESTING)
       coarse-graining-smooth-projected-operator
       coarse-graining-static-hybrid-operator
       coarse-graining-static-hybrid-dilation-scaling
+      coarse-graining-adaptive-setup-scaling
       coarse-graining-block-selector
       coarse-graining-adaptive-hybrid-solver
       coarse-graining-polarization-gate
@@ -1137,6 +1151,7 @@ if(BUILD_TESTING)
          coarse-graining-smooth-projected-operator
          coarse-graining-static-hybrid-operator
          coarse-graining-static-hybrid-dilation-scaling
+         coarse-graining-adaptive-setup-scaling
          coarse-graining-block-selector
          coarse-graining-adaptive-hybrid-solver
          coarse-graining-polarization-gate
@@ -1156,6 +1171,7 @@ if(BUILD_TESTING)
          coarse-graining-smooth-projected-operator
          coarse-graining-static-hybrid-operator
          coarse-graining-static-hybrid-dilation-scaling
+         coarse-graining-adaptive-setup-scaling
          coarse-graining-block-selector
          coarse-graining-adaptive-hybrid-solver
          coarse-graining-polarization-gate

@@ -1973,6 +1973,61 @@ policy), and `clearAdaptiveAtomistic` (25.8 us, which zeroes the published
 - [x] New measured -- not projected -- speedup ceiling reported.
 - [ ] CUDA and HIP reported separately (HIP unmeasured; RCG-09-FU4 stands).
 
+### Task RCG-09D: Remove quadratic adaptive coarse-graining setup algorithms
+
+**Dependencies:** RCG-09C.
+**Status:** implemented, equivalence-proven and benchmarked; evidence in
+`docs/RCG-09D_SETUP_SCALING_EVIDENCE.md`.
+
+Two setup constructions were sparse in storage but not in work. `build_unique_bonds`
+scanned the already-discovered canonical-pair list once per directed
+contribution (`O(E^2)`), and `build_macroblock_layout` cleared or scanned an
+`nblocks`-length array once per source block in five separate passes (`O(B^2)`
+even for sparse physical block connectivity). Both are setup costs, not
+steady-state physics costs, which is why they were deferred until after
+RCG-09A..C.
+
+The unique-bond fold is now record emission plus grouping: one record per
+accepted directed contribution carrying its canonical key, two stable counting
+sorts, group numbering by first appearance in the emission sequence, and a
+segmented fold in emission order. Because the sorts are stable this replays the
+previous accumulation sequence exactly, so bond numbering, canonical pairs,
+folded matrices and displacements are reproduced bitwise. The RCG-09A.1
+periodic-image key semantics and reciprocal `J_ji=J_ij` / `D_ji=-D_ij` contract
+are unchanged and still enforced by `validate_adaptive_folded_pair_contract`.
+Macro-block adjacency now uses a generation-stamped marker array — nothing is
+cleared per source block — plus one counting sort on the destination block to
+restore the ascending-destination CSR ordering globally rather than per source.
+
+Equivalence was demonstrated before deletion, binary against binary: two
+executables built with identical flags from the pre- and post-change sources
+dumped every field of both structures over all 50 e2e fixtures plus five
+purpose-built macrocell probes, and all 54 dumps compare byte-identical.
+Neither quadratic implementation is retained in `source/`; both survive only as
+brute-force references inside the new fixture, per the RCG-07 pattern.
+
+Setup cost per directed entry is now flat at 39–53 ns across a 128x range
+(8 192 to 1 048 576 entries) where the previous implementation's per-entry cost
+doubled with every doubling of the system (242 → 4 530 ns). Cost per block is
+flat at 125–151 ns across a 128x range (256 to 32 768 blocks) against the
+previous 195 → 2 041 ns. Both negative controls — the transcribed previous
+algorithms substituted for the production calls — fail their scaling
+assertions clearly (172.5x and 274.6x growth against a 48x threshold).
+
+#### Checklist
+
+- [x] Unique-bond construction no longer performs pairwise discovered-list scans.
+- [x] Periodic-image key semantics match RCG-09A.1.
+- [x] DMI folding convention unchanged.
+- [x] Macroblock construction no longer performs avoidable `O(B^2)` scans.
+- [x] Output is deterministic.
+- [x] Old/new structure equivalence demonstrated before deletion.
+- [x] Old quadratic code deleted afterward.
+- [x] Setup scaling benchmark recorded.
+- [x] Runtime physics tests unchanged (`ctest -L cg13-cpu` 29/29,
+      `ctest -R '^asd-tests$'` 1/1, no tolerance changed).
+- [ ] Independent reviewer sign-off (none yet, as for the preceding RCG tasks).
+
 ### Task RCG-10: Reconcile release evidence with the parent blueprint
 
 **Dependencies:** RCG-00 through RCG-09 and RCG-09A. RCG-09B is **not** a

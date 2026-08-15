@@ -107,9 +107,11 @@ contains
 
       integer :: bi, bj, iat, jat, ih, slot, group, entry, atom_pos, local
       integer :: nblocks, n_pairs, n_entries, n_pair_src_atoms
+      integer :: generation, key, running, moved, cursor
       integer, allocatable :: pair_entry_count(:)
       integer, allocatable :: local_entry_count(:), local_entry_cursor(:), target_group(:)
-      logical, allocatable :: seen_target(:)
+      integer, allocatable :: target_stamp(:), pair_cursor(:)
+      integer, allocatable :: discovered_source(:), discovered_target(:), order(:), bucket(:)
 
       call destroy_macroblock_layout(layout)
       if (Natom <= 0 .or. size(aHam) < Natom) return
@@ -163,14 +165,19 @@ contains
          end do
       end do
 
-      ! Discover block pairs with O(number of blocks) temporary storage rather
-      ! than a dense nblocks-by-nblocks table.  This keeps the setup usable for
-      ! fine macrocell decompositions intended for later FFT work.
-      allocate(layout%source_block_pair_offset(nblocks + 1), seen_target(nblocks))
+      ! RCG-09D: block-pair discovery is driven by a generation-stamped marker
+      ! array.  A source block's cost is proportional to the number of directed
+      ! neighbour entries it owns plus the number of target blocks it actually
+      ! touches; no pass clears or scans an nblocks-length array per source
+      ! block, so sparse block connectivity no longer costs O(nblocks^2).
+      allocate(layout%source_block_pair_offset(nblocks + 1), target_stamp(nblocks), &
+         target_group(nblocks))
+      target_stamp = 0
+      generation = 0
       layout%source_block_pair_offset(1) = 0
       n_pairs = 0
       do bi = 1, nblocks
-         seen_target = .false.
+         generation = generation + 1
          do atom_pos = layout%block_atom_offset(bi) + 1, layout%block_atom_offset(bi + 1)
             iat = layout%block_atoms(atom_pos)
             ih = aHam(iat)
@@ -179,20 +186,24 @@ contains
                jat = nlist(slot, iat)
                if (jat < 1 .or. jat > Natom) cycle
                bj = layout%atom_to_block(jat)
-               if (bj >= 1 .and. bj <= nblocks) seen_target(bj) = .true.
+               if (bj < 1 .or. bj > nblocks) cycle
+               if (target_stamp(bj) == generation) cycle
+               target_stamp(bj) = generation
+               n_pairs = n_pairs + 1
             end do
          end do
-         n_pairs = n_pairs + count(seen_target)
          layout%source_block_pair_offset(bi + 1) = n_pairs
       end do
 
       allocate(layout%destination_block_for_pair(n_pairs), layout%pair_source_block(n_pairs), &
          layout%pair_destination_block(n_pairs), layout%block_pair_hamiltonian_entry_offset(n_pairs + 1), &
          layout%block_pair_source_atom_offset(n_pairs + 1), pair_entry_count(n_pairs))
+      allocate(discovered_source(max(1, n_pairs)), discovered_target(max(1, n_pairs)), &
+         order(max(1, n_pairs)), bucket(nblocks), pair_cursor(nblocks))
       pair_entry_count = 0
-      group = 0
+      cursor = 0
       do bi = 1, nblocks
-         seen_target = .false.
+         generation = generation + 1
          do atom_pos = layout%block_atom_offset(bi) + 1, layout%block_atom_offset(bi + 1)
             iat = layout%block_atoms(atom_pos)
             ih = aHam(iat)
@@ -201,23 +212,52 @@ contains
                jat = nlist(slot, iat)
                if (jat < 1 .or. jat > Natom) cycle
                bj = layout%atom_to_block(jat)
-               if (bj >= 1 .and. bj <= nblocks) seen_target(bj) = .true.
+               if (bj < 1 .or. bj > nblocks) cycle
+               if (target_stamp(bj) == generation) cycle
+               target_stamp(bj) = generation
+               cursor = cursor + 1
+               discovered_source(cursor) = bi
+               discovered_target(cursor) = bj
             end do
-         end do
-         do bj = 1, nblocks
-            if (.not. seen_target(bj)) cycle
-            group = group + 1
-            layout%pair_source_block(group) = bi
-            layout%pair_destination_block(group) = bj
-            layout%destination_block_for_pair(group) = bj
          end do
       end do
 
-      allocate(target_group(nblocks))
+      ! Pairs are discovered in neighbour-entry order, but the CSR contract
+      ! orders every source block's destinations ascending.  One counting sort
+      ! by destination block, replayed into the per-source CSR cursors, restores
+      ! that order in O(n_pairs + nblocks) instead of an nblocks scan per source.
+      bucket = 0
+      do cursor = 1, n_pairs
+         bucket(discovered_target(cursor)) = bucket(discovered_target(cursor)) + 1
+      end do
+      running = 1
+      do key = 1, nblocks
+         moved = bucket(key)
+         bucket(key) = running
+         running = running + moved
+      end do
+      do cursor = 1, n_pairs
+         key = discovered_target(cursor)
+         order(bucket(key)) = cursor
+         bucket(key) = bucket(key) + 1
+      end do
+      pair_cursor(1:nblocks) = layout%source_block_pair_offset(1:nblocks)
+      do cursor = 1, n_pairs
+         entry = order(cursor)
+         bi = discovered_source(entry)
+         pair_cursor(bi) = pair_cursor(bi) + 1
+         group = pair_cursor(bi)
+         layout%pair_source_block(group) = bi
+         layout%pair_destination_block(group) = discovered_target(entry)
+         layout%destination_block_for_pair(group) = discovered_target(entry)
+      end do
+
       do bi = 1, nblocks
-         target_group = 0
+         generation = generation + 1
          do group = layout%source_block_pair_offset(bi) + 1, layout%source_block_pair_offset(bi + 1)
-            target_group(layout%pair_destination_block(group)) = group
+            bj = layout%pair_destination_block(group)
+            target_stamp(bj) = generation
+            target_group(bj) = group
          end do
          do atom_pos = layout%block_atom_offset(bi) + 1, layout%block_atom_offset(bi + 1)
             iat = layout%block_atoms(atom_pos)
@@ -227,7 +267,9 @@ contains
                jat = nlist(slot, iat)
                if (jat < 1 .or. jat > Natom) cycle
                bj = layout%atom_to_block(jat)
-               if (bj >= 1 .and. bj <= nblocks) pair_entry_count(target_group(bj)) = pair_entry_count(target_group(bj)) + 1
+               if (bj < 1 .or. bj > nblocks) cycle
+               if (target_stamp(bj) /= generation) cycle
+               pair_entry_count(target_group(bj)) = pair_entry_count(target_group(bj)) + 1
             end do
          end do
       end do
@@ -249,9 +291,11 @@ contains
          local_entry_count(n_pair_src_atoms), local_entry_cursor(n_pair_src_atoms))
       local_entry_count = 0
       do bi = 1, nblocks
-         target_group = 0
+         generation = generation + 1
          do group = layout%source_block_pair_offset(bi) + 1, layout%source_block_pair_offset(bi + 1)
-            target_group(layout%pair_destination_block(group)) = group
+            bj = layout%pair_destination_block(group)
+            target_stamp(bj) = generation
+            target_group(bj) = group
          end do
          do atom_pos = layout%block_atom_offset(bi) + 1, layout%block_atom_offset(bi + 1)
             iat = layout%block_atoms(atom_pos)
@@ -261,11 +305,11 @@ contains
                jat = nlist(slot, iat)
                if (jat < 1 .or. jat > Natom) cycle
                bj = layout%atom_to_block(jat)
-               if (bj >= 1 .and. bj <= nblocks) then
-                  group = target_group(bj)
-                  local = layout%block_pair_source_atom_offset(group) + layout%atom_to_local(iat) + 1
-                  local_entry_count(local) = local_entry_count(local) + 1
-               end if
+               if (bj < 1 .or. bj > nblocks) cycle
+               if (target_stamp(bj) /= generation) cycle
+               group = target_group(bj)
+               local = layout%block_pair_source_atom_offset(group) + layout%atom_to_local(iat) + 1
+               local_entry_count(local) = local_entry_count(local) + 1
             end do
          end do
       end do
@@ -285,9 +329,11 @@ contains
          layout%hamiltonian_entry_reduced_index(n_entries), layout%hamiltonian_entry_neighbour_slot(n_entries), &
          layout%hamiltonian_entry_source_local_atom(n_entries), layout%hamiltonian_entry_destination_local_atom(n_entries))
       do bi = 1, nblocks
-         target_group = 0
+         generation = generation + 1
          do group = layout%source_block_pair_offset(bi) + 1, layout%source_block_pair_offset(bi + 1)
-            target_group(layout%pair_destination_block(group)) = group
+            bj = layout%pair_destination_block(group)
+            target_stamp(bj) = generation
+            target_group(bj) = group
          end do
          do atom_pos = layout%block_atom_offset(bi) + 1, layout%block_atom_offset(bi + 1)
             iat = layout%block_atoms(atom_pos)
@@ -298,6 +344,7 @@ contains
                if (jat < 1 .or. jat > Natom) cycle
                bj = layout%atom_to_block(jat)
                if (bj < 1 .or. bj > nblocks) cycle
+               if (target_stamp(bj) /= generation) cycle
                group = target_group(bj)
                local = layout%block_pair_source_atom_offset(group) + layout%atom_to_local(iat) + 1
                entry = local_entry_cursor(local)
@@ -318,7 +365,8 @@ contains
       layout%max_block_atoms = maxval(layout%block_atom_count)
       layout%ready = .true.
 
-      deallocate(seen_target, target_group, pair_entry_count, local_entry_count, local_entry_cursor)
+      deallocate(target_stamp, target_group, pair_entry_count, local_entry_count, local_entry_cursor)
+      deallocate(discovered_source, discovered_target, order, bucket, pair_cursor)
    end subroutine build_macroblock_layout
 
 end module HamiltonianMacroBlocks

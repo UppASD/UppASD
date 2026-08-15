@@ -186,6 +186,9 @@ module AdaptiveCGProduction
    ! exercise the exact setup predicates without constructing global ASD state.
    public :: validate_adaptive_ensemble_moments
    public :: validate_adaptive_folded_pair_contract
+   !> RCG-09D: exposed so the setup-scaling fixture can drive the real
+   !> unique-bond fold on synthetic directed lists without a full input deck.
+   public :: fold_directed_bonds
 
 contains
 
@@ -1422,26 +1425,189 @@ contains
    subroutine build_unique_bonds(status,diagnostic)
       integer, intent(out) :: status
       character(len=*), intent(out) :: diagnostic
-      integer :: directed, atom, neighbour, target, iham, bond, found
-      integer, allocatable :: pair_i(:), pair_j(:)
+      integer :: bond, pair
+      real(dblprec) :: displacement(3)
+
+      if (ham_inp%do_dm == 1) then
+         call fold_directed_bonds(Natom,ham%aham,ham%nlistsize,ham%nlist,ham%ncoup(:,:,1), &
+            mmom(:,1),bond,adaptive_cg_state%bond_atom,adaptive_cg_state%bond_matrix_j, &
+            status,diagnostic,dmlistsize=ham%dmlistsize,dmlist=ham%dmlist,dm_vect=ham%dm_vect)
+      else
+         call fold_directed_bonds(Natom,ham%aham,ham%nlistsize,ham%nlist,ham%ncoup(:,:,1), &
+            mmom(:,1),bond,adaptive_cg_state%bond_atom,adaptive_cg_state%bond_matrix_j, &
+            status,diagnostic)
+      end if
+      if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
+      allocate(adaptive_cg_state%bond_displacement_m(3,bond))
+      do pair = 1, bond
+         call wrapped_displacement(adaptive_cg_state%bond_atom(1,pair), &
+            adaptive_cg_state%bond_atom(2,pair),displacement)
+         adaptive_cg_state%bond_displacement_m(:,pair) = displacement
+      end do
+      status = ADAPTIVE_CG_PRODUCTION_OK
+      diagnostic = ''
+   end subroutine build_unique_bonds
+
+   !> RCG-09D: fold the directed sparse exchange/DMI lists onto canonical
+   !> physical bonds without ever scanning the already-discovered pair list.
+   !>
+   !> Every directed contribution is emitted once as a record carrying its
+   !> canonical key `(min(i,j),max(i,j))` and the sparse-list slot it came
+   !> from.  Exchange records are emitted before DMI records, both in the
+   !> production `atom`-major/`neighbour`-minor traversal order, so a record's
+   !> emission index is its position in the original discovery sequence.  Two
+   !> stable counting sorts (by the high atom index, then by the low one) group
+   !> the records by canonical key in `O(nrec+natom)`; the sorts are stable, so
+   !> a group's records stay in emission order and its first record carries the
+   !> group's first-appearance index.  Numbering the groups by ascending
+   !> first-appearance index and folding each group in emission order therefore
+   !> reproduces both the bond numbering and the exact floating-point
+   !> accumulation sequence of the previous discovered-list scan, bitwise.
+   !>
+   !> The atom index pair is the whole key: RCG-09A.1 established that the
+   !> production sparse lists carry no periodic-image translation, so a
+   !> canonical pair that appears more than once per direction is a
+   !> periodic-image alias that adaptive setup must reject rather than merge.
+   !> That rejection is `validate_adaptive_folded_pair_contract`, which also
+   !> holds the reciprocal `J_ji=J_ij` / `D_ji=-D_ij` folding convention.
+   subroutine fold_directed_bonds(natom,aham,nlistsize,nlist,ncoup,moment,bond_count, &
+      bond_atom,bond_matrix_j,status,diagnostic,dmlistsize,dmlist,dm_vect)
+      integer, intent(in) :: natom
+      integer, intent(in) :: aham(:), nlistsize(:), nlist(:,:)
+      real(dblprec), intent(in) :: ncoup(:,:), moment(:)
+      integer, intent(out) :: bond_count
+      integer, allocatable, intent(out) :: bond_atom(:,:)
+      real(dblprec), allocatable, intent(out) :: bond_matrix_j(:,:,:)
+      integer, intent(out) :: status
+      character(len=*), intent(out) :: diagnostic
+      integer, intent(in), optional :: dmlistsize(:), dmlist(:,:)
+      real(dblprec), intent(in), optional :: dm_vect(:,:,:)
+      logical :: use_dm
+      integer :: directed, exchange_records, records, atom, neighbour, target, iham
+      integer :: record, slot, group, groups, key, running, moved, low, high
+      integer, allocatable :: record_source(:), record_slot(:), record_low(:), record_high(:)
+      integer, allocatable :: bucket(:), order(:), scratch(:)
+      integer, allocatable :: group_start(:), group_stop(:), group_first(:)
+      integer, allocatable :: group_for_first(:), group_for_bond(:)
       integer, allocatable :: exchange_forward_count(:), exchange_reverse_count(:), &
          dmi_forward_count(:), dmi_reverse_count(:)
-      real(dblprec), allocatable :: pair_matrix(:,:,:), pair_disp(:,:)
       real(dblprec), allocatable :: exchange_forward(:), exchange_reverse(:), &
          dmi_forward(:,:), dmi_reverse(:,:)
-      real(dblprec) :: displacement(3), coefficient, orientation
+      real(dblprec) :: matrix(3,3), coefficient, orientation
       real(dblprec) :: dmi_energy_j(3), dmi_matrix(3,3)
 
-      directed = sum(ham%nlistsize(ham%aham))
-      if (ham_inp%do_dm == 1) directed = directed+sum(ham%dmlistsize(ham%aham))
-      allocate(pair_i(max(1,directed)),pair_j(max(1,directed)), &
-         pair_matrix(3,3,max(1,directed)),pair_disp(3,max(1,directed)), &
-         exchange_forward_count(max(1,directed)),exchange_reverse_count(max(1,directed)), &
-         dmi_forward_count(max(1,directed)),dmi_reverse_count(max(1,directed)), &
-         exchange_forward(max(1,directed)),exchange_reverse(max(1,directed)), &
-         dmi_forward(3,max(1,directed)),dmi_reverse(3,max(1,directed)))
-      pair_matrix = 0.0_dblprec
-      pair_disp = 0.0_dblprec
+      bond_count = 0
+      use_dm = present(dmlistsize) .and. present(dmlist) .and. present(dm_vect)
+      directed = sum(nlistsize(aham(1:natom)))
+      if (use_dm) directed = directed+sum(dmlistsize(aham(1:natom)))
+      allocate(record_source(max(1,directed)),record_slot(max(1,directed)), &
+         record_low(max(1,directed)),record_high(max(1,directed)))
+
+      ! Emission: one record per accepted directed contribution, exchange first.
+      records = 0
+      do atom = 1, natom
+         iham = aham(atom)
+         do neighbour = 1, nlistsize(iham)
+            target = nlist(neighbour,atom)
+            if (target < 1 .or. target > natom .or. target == atom) cycle
+            records = records+1
+            record_source(records) = atom
+            record_slot(records) = neighbour
+            record_low(records) = min(atom,target)
+            record_high(records) = max(atom,target)
+         end do
+      end do
+      exchange_records = records
+      if (use_dm) then
+         do atom = 1, natom
+            iham = aham(atom)
+            do neighbour = 1, dmlistsize(iham)
+               target = dmlist(neighbour,atom)
+               if (target < 1 .or. target > natom .or. target == atom) cycle
+               records = records+1
+               record_source(records) = atom
+               record_slot(records) = neighbour
+               record_low(records) = min(atom,target)
+               record_high(records) = max(atom,target)
+            end do
+         end do
+      end if
+      if (records == 0) then
+         call setup_failed('Hamiltonian contains no usable scalar exchange or DMI bonds',status,diagnostic)
+         return
+      end if
+
+      ! Stable counting sort by the high atom index, then by the low one.
+      allocate(bucket(natom),order(records),scratch(records))
+      bucket = 0
+      do record = 1, records
+         bucket(record_high(record)) = bucket(record_high(record))+1
+      end do
+      running = 1
+      do key = 1, natom
+         moved = bucket(key)
+         bucket(key) = running
+         running = running+moved
+      end do
+      do record = 1, records
+         key = record_high(record)
+         scratch(bucket(key)) = record
+         bucket(key) = bucket(key)+1
+      end do
+      bucket = 0
+      do record = 1, records
+         bucket(record_low(record)) = bucket(record_low(record))+1
+      end do
+      running = 1
+      do key = 1, natom
+         moved = bucket(key)
+         bucket(key) = running
+         running = running+moved
+      end do
+      do slot = 1, records
+         record = scratch(slot)
+         key = record_low(record)
+         order(bucket(key)) = record
+         bucket(key) = bucket(key)+1
+      end do
+
+      ! Segment the key-sorted order into canonical-pair groups.
+      allocate(group_start(records),group_stop(records),group_first(records))
+      groups = 0
+      slot = 1
+      do while (slot <= records)
+         groups = groups+1
+         group_start(groups) = slot
+         group_first(groups) = order(slot)
+         low = record_low(order(slot))
+         high = record_high(order(slot))
+         do while (slot < records)
+            record = order(slot+1)
+            if (record_low(record) /= low .or. record_high(record) /= high) exit
+            slot = slot+1
+         end do
+         group_stop(groups) = slot
+         slot = slot+1
+      end do
+
+      ! Number the groups by first appearance in the emission sequence.
+      allocate(group_for_first(records),group_for_bond(groups))
+      group_for_first = 0
+      do group = 1, groups
+         group_for_first(group_first(group)) = group
+      end do
+      do record = 1, records
+         if (group_for_first(record) == 0) cycle
+         bond_count = bond_count+1
+         group_for_bond(bond_count) = group_for_first(record)
+      end do
+
+      ! Segmented fold, in emission order inside every group.
+      allocate(bond_atom(2,bond_count),bond_matrix_j(3,3,bond_count), &
+         exchange_forward_count(bond_count),exchange_reverse_count(bond_count), &
+         dmi_forward_count(bond_count),dmi_reverse_count(bond_count), &
+         exchange_forward(bond_count),exchange_reverse(bond_count), &
+         dmi_forward(3,bond_count),dmi_reverse(3,bond_count))
       exchange_forward_count = 0
       exchange_reverse_count = 0
       dmi_forward_count = 0
@@ -1450,96 +1616,58 @@ contains
       exchange_reverse = 0.0_dblprec
       dmi_forward = 0.0_dblprec
       dmi_reverse = 0.0_dblprec
-      bond = 0
-      do atom = 1, Natom
-         iham = ham%aham(atom)
-         do neighbour = 1, ham%nlistsize(iham)
-            target = ham%nlist(neighbour,atom)
-            if (target < 1 .or. target > Natom .or. target == atom) cycle
-            found = 0
-            if (bond > 0) then
-               do found = 1, bond
-                  if (pair_i(found) == min(atom,target) .and. pair_j(found) == max(atom,target)) exit
-               end do
-               if (found > bond) found = 0
-            end if
-            if (found == 0) then
-               bond = bond+1
-               found = bond
-               pair_i(found) = min(atom,target)
-               pair_j(found) = max(atom,target)
-               call wrapped_displacement(pair_i(found),pair_j(found),displacement)
-               pair_disp(:,found) = displacement
-            end if
-            coefficient = 0.5_dblprec*mub*mmom(atom,1)*mmom(target,1) * &
-               ham%ncoup(neighbour,iham,1)
-            if (atom < target) then
-               exchange_forward_count(found) = exchange_forward_count(found)+1
-               exchange_forward(found) = exchange_forward(found)+ham%ncoup(neighbour,iham,1)
+      do key = 1, bond_count
+         group = group_for_bond(key)
+         bond_atom(1,key) = record_low(order(group_start(group)))
+         bond_atom(2,key) = record_high(order(group_start(group)))
+         matrix = 0.0_dblprec
+         do slot = group_start(group), group_stop(group)
+            record = order(slot)
+            atom = record_source(record)
+            neighbour = record_slot(record)
+            iham = aham(atom)
+            if (record <= exchange_records) then
+               target = nlist(neighbour,atom)
+               coefficient = 0.5_dblprec*mub*moment(atom)*moment(target)*ncoup(neighbour,iham)
+               if (atom < target) then
+                  exchange_forward_count(key) = exchange_forward_count(key)+1
+                  exchange_forward(key) = exchange_forward(key)+ncoup(neighbour,iham)
+               else
+                  exchange_reverse_count(key) = exchange_reverse_count(key)+1
+                  exchange_reverse(key) = exchange_reverse(key)+ncoup(neighbour,iham)
+               end if
+               matrix(1,1) = matrix(1,1)+coefficient
+               matrix(2,2) = matrix(2,2)+coefficient
+               matrix(3,3) = matrix(3,3)+coefficient
             else
-               exchange_reverse_count(found) = exchange_reverse_count(found)+1
-               exchange_reverse(found) = exchange_reverse(found)+ham%ncoup(neighbour,iham,1)
-            end if
-            pair_matrix(1,1,found) = pair_matrix(1,1,found)+coefficient
-            pair_matrix(2,2,found) = pair_matrix(2,2,found)+coefficient
-            pair_matrix(3,3,found) = pair_matrix(3,3,found)+coefficient
-         end do
-      end do
-      if (ham_inp%do_dm == 1) then
-         do atom = 1, Natom
-            iham = ham%aham(atom)
-            do neighbour = 1, ham%dmlistsize(iham)
-               target = ham%dmlist(neighbour,atom)
-               if (target < 1 .or. target > Natom .or. target == atom) cycle
-               found = 0
-               if (bond > 0) then
-                  do found = 1, bond
-                     if (pair_i(found) == min(atom,target) .and. &
-                         pair_j(found) == max(atom,target)) exit
-                  end do
-                  if (found > bond) found = 0
-               end if
-               if (found == 0) then
-                  bond = bond+1
-                  found = bond
-                  pair_i(found) = min(atom,target)
-                  pair_j(found) = max(atom,target)
-                  call wrapped_displacement(pair_i(found),pair_j(found),displacement)
-                  pair_disp(:,found) = displacement
-               end if
-               dmi_energy_j = mub*mmom(atom,1)*mmom(target,1)*ham%dm_vect(:,neighbour,iham)
+               target = dmlist(neighbour,atom)
+               dmi_energy_j = mub*moment(atom)*moment(target)*dm_vect(:,neighbour,iham)
                dmi_matrix = cross_product_matrix(dmi_energy_j)
                orientation = merge(1.0_dblprec,-1.0_dblprec,atom < target)
                if (atom < target) then
-                  dmi_forward_count(found) = dmi_forward_count(found)+1
-                  dmi_forward(:,found) = dmi_forward(:,found)+ham%dm_vect(:,neighbour,iham)
+                  dmi_forward_count(key) = dmi_forward_count(key)+1
+                  dmi_forward(:,key) = dmi_forward(:,key)+dm_vect(:,neighbour,iham)
                else
-                  dmi_reverse_count(found) = dmi_reverse_count(found)+1
-                  dmi_reverse(:,found) = dmi_reverse(:,found)-ham%dm_vect(:,neighbour,iham)
+                  dmi_reverse_count(key) = dmi_reverse_count(key)+1
+                  dmi_reverse(:,key) = dmi_reverse(:,key)-dm_vect(:,neighbour,iham)
                end if
-               pair_matrix(:,:,found) = pair_matrix(:,:,found) + &
-                  0.5_dblprec*orientation*dmi_matrix
-            end do
+               matrix = matrix+0.5_dblprec*orientation*dmi_matrix
+            end if
          end do
-      end if
-      if (bond == 0) then
-         call setup_failed('Hamiltonian contains no usable scalar exchange or DMI bonds',status,diagnostic)
+         bond_matrix_j(:,:,key) = matrix
+      end do
+
+      call validate_adaptive_folded_pair_contract(bond_count,bond_atom(1,:),bond_atom(2,:), &
+         exchange_forward_count,exchange_reverse_count,dmi_forward_count,dmi_reverse_count, &
+         exchange_forward,exchange_reverse,dmi_forward,dmi_reverse,status,diagnostic)
+      if (status /= ADAPTIVE_CG_PRODUCTION_OK) then
+         deallocate(bond_atom,bond_matrix_j)
+         bond_count = 0
          return
       end if
-      call validate_adaptive_folded_pair_contract(bond,pair_i,pair_j,exchange_forward_count, &
-         exchange_reverse_count,dmi_forward_count,dmi_reverse_count,exchange_forward, &
-         exchange_reverse,dmi_forward,dmi_reverse,status,diagnostic)
-      if (status /= ADAPTIVE_CG_PRODUCTION_OK) return
-      allocate(adaptive_cg_state%bond_atom(2,bond), &
-         adaptive_cg_state%bond_matrix_j(3,3,bond), &
-         adaptive_cg_state%bond_displacement_m(3,bond))
-      adaptive_cg_state%bond_atom(1,:) = pair_i(1:bond)
-      adaptive_cg_state%bond_atom(2,:) = pair_j(1:bond)
-      adaptive_cg_state%bond_matrix_j = pair_matrix(:,:,1:bond)
-      adaptive_cg_state%bond_displacement_m = pair_disp(:,1:bond)
       status = ADAPTIVE_CG_PRODUCTION_OK
       diagnostic = ''
-   end subroutine build_unique_bonds
+   end subroutine fold_directed_bonds
 
    !> The production sparse Hamiltonian is directed.  The adaptive kernel is
    !> allowed to fold it only when each canonical pair is represented once in
