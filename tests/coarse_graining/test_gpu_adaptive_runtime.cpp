@@ -382,6 +382,42 @@ void testLiveBondCompaction() {
    require(coarse.activeBonds.empty() && coarse.ghostAtoms.empty() &&
            runtime.liveBondCount() == 0 && runtime.activeAtomCount() == 0,
            "all-coarse state left atomistic work in the live lists");
+
+   // CGP-02: an empty ghost shell must issue no prolongation kernel at all,
+   // at either call site -- not merely a cheap one-block no-op launch.
+   const std::size_t atomVectors = 3 * KernelFixture::atoms;
+   const std::size_t coarseVectors = 3 * KernelFixture::blocks;
+   GpuTensor<real, 1> atomDirection, atomField, coarseField;
+   atomDirection.Allocate(static_cast<index_t>(atomVectors));
+   atomField.Allocate(static_cast<index_t>(atomVectors));
+   coarseField.Allocate(static_cast<index_t>(coarseVectors));
+   std::vector<double> hostAtom(atomVectors, 0.0);
+   for(std::size_t atom = 0; atom < KernelFixture::atoms; ++atom)
+      hostAtom[2 + 3 * atom] = 1.0;
+   upload(atomDirection.data(), deviceVector(hostAtom));
+
+   const auto beforeHybrid = runtime.phaseMetrics();
+   (void)runtime.evaluateHybrid(atomDirection.data(), nullptr, nullptr,
+                                atomField.data(), coarseField.data());
+   const auto afterHybrid = runtime.phaseMetrics();
+   // clearAdaptiveInterface always launches (it zeroes coarseFieldScratch
+   // unconditionally); the ghost-shell-gated launches -- the compact
+   // prolongation here, and restrictAdaptiveInterface further down the same
+   // call -- must contribute nothing on top of it.
+   require(afterHybrid.interfaceLaunches == beforeHybrid.interfaceLaunches + 1,
+           "an empty ghost shell issued more than the unconditional "
+           "clearAdaptiveInterface launch from evaluateHybrid");
+
+   const auto beforeSync = runtime.phaseMetrics();
+   runtime.synchronizeAtomicState(atomDirection.data(), {});
+   const auto afterSync = runtime.phaseMetrics();
+   require(afterSync.integrationLaunches == beforeSync.integrationLaunches + 1,
+           "an empty ghost shell issued more than the required commit launch "
+           "from synchronizeAtomicState under the Aligned policy");
+
+   coarseField.Free();
+   atomField.Free();
+   atomDirection.Free();
    runtime.release();
 }
 
@@ -1446,6 +1482,451 @@ void testContinuumOperatorAgainstHostReference() {
    runtime.release();
 }
 
+// CGP-02: synchronizeAtomicState() was previously exercised only through the
+// Fortran GPU e2e fixtures, never this unit-test binary, so the new
+// policy-dependent branch (Aligned launches the compact
+// prolongateAdaptiveGhostsCompact; ConstrainedCone keeps the untouched
+// full-range prolongateAdaptiveGhosts, since commitAdaptiveGhosts reads
+// ghostDirection for every non-atomistic atom under that policy -- see
+// docs/rcg09/rcg09c_live_bond_compaction.txt section 6) is exercised here
+// directly. KernelFixture's projection is degenerate (every corner maps to
+// the atom's own block with corner-0 weight 1, see its constructor above),
+// so prolongation reduces to an exact copy of the owning block's
+// coarseDirection for every non-atomistic atom -- meaning Aligned (which
+// overwrites with coarseDirection directly) and ConstrainedCone (which
+// commits the prolongated ghostDirection unchanged) must agree exactly.
+// That equality cross-checks the new compact kernel's math against the
+// unmodified full-range kernel it replaces at this call site.
+void testSynchronizeAtomicStatePolicies() {
+   KernelFixture fixture;
+   const auto topology = fixture.topology();
+   const auto input = fixture.runtime();
+   GpuAdaptiveRuntime runtime;
+   runtime.initialize(topology, input, KernelFixture::atoms,
+                      KernelFixture::ensembles);
+   require(runtime.ghostAtomCount() == 2,
+           "fixture ghost shell drifted from the documented {2,7}");
+
+   const std::size_t atomVectors = 3 * KernelFixture::atoms;
+   GpuTensor<real, 1> atomDirection;
+   atomDirection.Allocate(static_cast<index_t>(atomVectors));
+   std::vector<double> hostAtom(atomVectors, 0.0);
+   // Sentinel x-direction so an atomistic atom the commit is not supposed to
+   // touch, or a non-atomistic atom the commit forgets to touch, is
+   // detectable.
+   for(std::size_t atom = 0; atom < KernelFixture::atoms; ++atom)
+      hostAtom[0 + 3 * atom] = 1.0;
+   upload(atomDirection.data(), deviceVector(hostAtom));
+
+   const double tolerance = sizeof(real) == sizeof(double) ? 1.0e-12 : 1.0e-5;
+   const auto beforeAligned = runtime.phaseMetrics();
+   runtime.synchronizeAtomicState(atomDirection.data(), {});
+   const auto afterAligned = runtime.phaseMetrics();
+   require(afterAligned.integrationLaunches ==
+              beforeAligned.integrationLaunches + 2,
+           "Aligned synchronizeAtomicState with a nonempty ghost shell "
+           "issued an unexpected launch count (expected exactly the compact "
+           "prolongation plus the commit)");
+   const auto aligned = download(atomDirection.data(), atomVectors);
+   // Non-atomistic atoms 1,2,7,8 (0-indexed 0,1,6,7) must align to their
+   // block's +z direction; atomistic atoms 3-6 (0-indexed 2-5) must be
+   // untouched (still the +x sentinel).
+   for(const std::size_t atom : {std::size_t(0), std::size_t(1),
+                                  std::size_t(6), std::size_t(7)})
+      require(std::abs(static_cast<double>(aligned[2 + 3 * atom]) - 1.0) <
+                 tolerance &&
+              std::abs(static_cast<double>(aligned[0 + 3 * atom])) <
+                 tolerance,
+              "Aligned reconstruction did not align a non-atomistic atom to "
+              "its block direction");
+   for(const std::size_t atom : {std::size_t(2), std::size_t(3),
+                                  std::size_t(4), std::size_t(5)})
+      require(std::abs(static_cast<double>(aligned[0 + 3 * atom]) - 1.0) <
+                 tolerance,
+              "Aligned reconstruction touched an atomistic atom's direction");
+
+   upload(atomDirection.data(), deviceVector(hostAtom));
+   GpuAdaptiveReconstructionPolicy cone;
+   cone.scheme = GpuAdaptiveReconstruction::ConstrainedCone;
+   const auto beforeCone = runtime.phaseMetrics();
+   runtime.synchronizeAtomicState(atomDirection.data(), cone);
+   const auto afterCone = runtime.phaseMetrics();
+   require(afterCone.integrationLaunches == beforeCone.integrationLaunches + 2,
+           "ConstrainedCone synchronizeAtomicState issued an unexpected "
+           "launch count (expected exactly the full-range prolongation plus "
+           "the commit)");
+   const auto cone_result = download(atomDirection.data(), atomVectors);
+   for(std::size_t atom = 0; atom < KernelFixture::atoms; ++atom)
+      for(int xyz = 0; xyz < 3; ++xyz)
+         require(std::abs(static_cast<double>(cone_result[xyz + 3 * atom]) -
+                          static_cast<double>(aligned[xyz + 3 * atom])) <
+                    tolerance,
+                 "ConstrainedCone and Aligned reconstruction disagree under "
+                 "a degenerate single-corner projection, where they must "
+                 "match exactly");
+
+   atomDirection.Free();
+   runtime.release();
+}
+
+// CGP-02: no existing GPU adaptive-runtime test exercises ghost
+// prolongation's ensemble indexing (`work / ghostAtoms` in
+// prolongateAdaptiveGhostsCompact, and the analogous division in
+// synchronizeAtomicState's full-range fallback) because every fixture above
+// hardcodes ensembles=1, so every atom happens to occupy ensemble 0 and a
+// swapped or aliased ensemble index would be invisible. This fixture is
+// KernelFixture's exact eight-atom/four-block mixed chain (ghost shell
+// {2,7}, documented above testLiveBondCompaction()) at a configurable
+// ensemble count, with a different uniform coarse direction/moment in each
+// ensemble so a cross-ensemble mixup produces a detectably wrong
+// reconstructed direction rather than silently reusing another ensemble's
+// answer.
+struct GhostEnsembleFixture {
+   static constexpr std::size_t atoms = 8;
+   static constexpr std::size_t blocks = 4;
+   static constexpr std::size_t basis = 2;
+   static constexpr std::size_t channels = 1;
+   static constexpr std::size_t bonds = 8;
+   std::size_t ensembles;
+   int repetitionShape[3] = {4, 1, 1};
+   int blockShape[3] = {1, 1, 1};
+   int blockGrid[3] = {4, 1, 1};
+   double cellVectors[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+   double blockVectors[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+   int atomToBlock[atoms] = {1, 1, 2, 2, 3, 3, 4, 4};
+   int atomToBasis[atoms] = {1, 2, 1, 2, 1, 2, 1, 2};
+   int atomToDynamic[atoms] = {1, 1, 1, 1, 1, 1, 1, 1};
+   int atomToFft[atoms] = {1, 2, 1, 2, 1, 2, 1, 2};
+   int atomToFftGrid[atoms] = {1, 2, 3, 4, 5, 6, 7, 8};
+   int basisToDynamic[basis] = {1, 1};
+   int basisToFft[basis] = {1, 2};
+   int blockCount[blocks] = {2, 2, 2, 2};
+   int blockOffset[blocks + 1] = {0, 2, 4, 6, 8};
+   int blockAtoms[atoms] = {1, 2, 3, 4, 5, 6, 7, 8};
+   int blockCoordinate[3 * blocks] = {0, 0, 0, 1, 0, 0, 2, 0, 0, 3, 0, 0};
+   int basisPopulation[basis * blocks] = {1, 1, 1, 1, 1, 1, 1, 1};
+   int fftPopulation[basis * blocks] = {1, 1, 1, 1, 1, 1, 1, 1};
+   int dynamicPopulation[channels * blocks] = {2, 2, 2, 2};
+   double center[3 * blocks] = {0.5, 0, 0, 1.5, 0, 0, 2.5, 0, 0, 3.5, 0, 0};
+   double volume[blocks] = {1, 1, 1, 1};
+   int state[blocks] = {0, 1, 2, 0};
+   double scores[blocks] = {};
+   double atomMoment[atoms] = {1, 1, 1, 1, 1, 1, 1, 1};
+   int atomAxisCount[atoms] = {};
+   double atomAxis[6 * atoms] = {};
+   double atomK1[2 * atoms] = {};
+   double atomK2[2 * atoms] = {};
+   int projectionBlock[8 * atoms] = {};
+   double projectionWeight[8 * atoms] = {};
+   int bondAtom[2 * bonds] = {
+      1, 2, 3, 4, 5, 6, 7, 8,
+      2, 3, 4, 5, 6, 7, 8, 1
+   };
+   double bondMatrix[9 * bonds] = {};
+   int selectorEdge[2 * bonds] = {
+      1, 2, 3, 4, 5, 6, 7, 8,
+      2, 3, 4, 5, 6, 7, 8, 1
+   };
+   double inverseBlockTranspose[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+   double exchange[9] = {};
+   double spiralization[9] = {};
+   int axisCount[blocks] = {};
+   double axis[6 * blocks] = {};
+   double k1[2 * blocks] = {};
+   double k2[2 * blocks] = {};
+   std::vector<double> coarseMoment;
+   std::vector<double> coarseDirection;
+   std::vector<double> coarseField;
+   std::vector<double> momentSum;
+   // Field-evaluation input: a distinct uniform direction per ensemble,
+   // matching coarseDirection below.
+   std::vector<double> atomDirectionHost;
+
+   explicit GhostEnsembleFixture(std::size_t ensembleCount)
+      : ensembles(ensembleCount),
+        coarseMoment(3 * channels * blocks * ensembles, 0.0),
+        coarseDirection(3 * channels * blocks * ensembles, 0.0),
+        coarseField(3 * channels * blocks * ensembles, 0.0),
+        momentSum(channels * blocks * ensembles, 2.0),
+        atomDirectionHost(3 * atoms * ensembles, 0.0) {
+      for(std::size_t atom = 0; atom < atoms; ++atom) {
+         projectionBlock[8 * atom] = atomToBlock[atom];
+         projectionWeight[8 * atom] = 1.0;
+         for(int corner = 1; corner < 8; ++corner)
+            projectionBlock[corner + 8 * atom] = atomToBlock[atom];
+      }
+      for(std::size_t bond = 0; bond < bonds; ++bond)
+         for(int xyz = 0; xyz < 3; ++xyz)
+            bondMatrix[xyz + 3 * xyz + 9 * bond] = 0.4;
+      // Ensemble e gets a uniform direction along axis (e % 3) with moment
+      // (2.0 + e) -- e=0 reproduces KernelFixture's own +z/2.0 exactly, e=1
+      // is +x/3.0, so a two-ensemble run has two axis-disjoint references.
+      for(std::size_t ensemble = 0; ensemble < ensembles; ++ensemble) {
+         const int component = static_cast<int>(ensemble % 3);
+         const double moment = 2.0 + static_cast<double>(ensemble);
+         for(std::size_t block = 0; block < blocks; ++block) {
+            coarseMoment[component + 3 * (block + blocks * ensemble)] = moment;
+            coarseDirection[component + 3 * (block + blocks * ensemble)] = 1.0;
+         }
+         for(std::size_t atom = 0; atom < atoms; ++atom)
+            atomDirectionHost[component + 3 * (atom + atoms * ensemble)] = 1.0;
+      }
+   }
+
+   GpuAdaptiveTopologyInput topology() const {
+      GpuAdaptiveTopologyInput t;
+      t.geometryMode = 1;
+      t.atoms = atoms;
+      t.blocks = blocks;
+      t.basis = basis;
+      t.fftChannelsPerBlock = basis;
+      t.fftGridChannels = basis * blocks;
+      t.dynamicChannels = channels;
+      t.ensembles = ensembles;
+      t.repetitionShape = repetitionShape;
+      t.blockShape = blockShape;
+      t.blockGrid = blockGrid;
+      t.cellVectors = cellVectors;
+      t.blockVectors = blockVectors;
+      t.atomToBlock = atomToBlock;
+      t.atomToBasis = atomToBasis;
+      t.atomToDynamicChannel = atomToDynamic;
+      t.atomToFftChannel = atomToFft;
+      t.atomToFftGridIndex = atomToFftGrid;
+      t.basisToDynamicChannel = basisToDynamic;
+      t.basisToFftChannel = basisToFft;
+      t.blockAtomCount = blockCount;
+      t.blockAtomOffset = blockOffset;
+      t.blockAtoms = blockAtoms;
+      t.blockGridCoordinate = blockCoordinate;
+      t.blockBasisPopulation = basisPopulation;
+      t.blockFftChannelPopulation = fftPopulation;
+      t.blockDynamicChannelPopulation = dynamicPopulation;
+      t.blockCenter = center;
+      t.blockVolume = volume;
+      return t;
+   }
+
+   GpuAdaptiveRuntimeInput runtime() const {
+      GpuAdaptiveRuntimeInput r;
+      r.blockState = state;
+      r.selectorCriteria = 1;
+      r.selectorScores = scores;
+      r.coarseMoment = coarseMoment.data();
+      r.coarseDirection = coarseDirection.data();
+      r.coarseField = coarseField.data();
+      r.channelMomentSum = momentSum.data();
+      r.kernels.atomMoment = atomMoment;
+      r.kernels.atomAnisotropyAxisCount = atomAxisCount;
+      r.kernels.atomAnisotropyAxis = atomAxis;
+      r.kernels.atomAnisotropyK1 = atomK1;
+      r.kernels.atomAnisotropyK2 = atomK2;
+      r.kernels.projectionBlock = projectionBlock;
+      r.kernels.projectionWeight = projectionWeight;
+      r.kernels.bonds = bonds;
+      r.kernels.bondAtom = bondAtom;
+      r.kernels.bondMatrix = bondMatrix;
+      r.kernels.selectorEdges = bonds;
+      r.kernels.selectorEdge = selectorEdge;
+      r.kernels.inverseBlockTranspose = inverseBlockTranspose;
+      r.kernels.exchangeStiffness = exchange;
+      r.kernels.spiralization = spiralization;
+      r.kernels.anisotropyAxisCount = axisCount;
+      r.kernels.anisotropyAxis = axis;
+      r.kernels.anisotropyK1 = k1;
+      r.kernels.anisotropyK2 = k2;
+      r.kernels.magneticMomentSi = 1.0;
+      r.kernels.gammaPerTs = 2.0;
+      r.kernels.damping = 0.1;
+      return r;
+   }
+};
+
+void testMultiEnsembleGhostProlongation() {
+   GhostEnsembleFixture combined(2);
+   const auto topology = combined.topology();
+   const auto input = combined.runtime();
+   GpuAdaptiveRuntime runtime;
+   runtime.initialize(topology, input, GhostEnsembleFixture::atoms,
+                      combined.ensembles);
+   const auto snapshot = runtime.downloadWorkSnapshot();
+   expectEqual(snapshot.ghostAtoms, {2, 7},
+               "multi-ensemble ghost shell differs from the single-ensemble "
+               "reference -- the ghost list is supposed to be a physical-atom "
+               "set shared across ensembles");
+
+   const std::size_t atomVectors = 3 * GhostEnsembleFixture::atoms * combined.ensembles;
+   const std::size_t coarseVectors = 3 * GhostEnsembleFixture::blocks * combined.ensembles;
+   GpuTensor<real, 1> atomDirection, atomField, coarseField;
+   atomDirection.Allocate(static_cast<index_t>(atomVectors));
+   atomField.Allocate(static_cast<index_t>(atomVectors));
+   coarseField.Allocate(static_cast<index_t>(coarseVectors));
+   upload(atomDirection.data(), deviceVector(combined.atomDirectionHost));
+
+   const auto combinedEnergy = runtime.evaluateHybrid(
+      atomDirection.data(), nullptr, nullptr, atomField.data(), coarseField.data());
+   const auto combinedField = download(atomField.data(), atomVectors);
+   const auto combinedCoarse = download(coarseField.data(), coarseVectors);
+   runtime.synchronizeAtomicState(atomDirection.data(), {});
+   const auto combinedReconstructed = download(atomDirection.data(), atomVectors);
+   runtime.release();
+
+   const double tolerance = sizeof(real) == sizeof(double) ? 1.0e-11 : 5.0e-5;
+   double soloEnergySum = 0.0;
+   double combinedEnergySum = combinedEnergy.totalJ;
+   for(std::size_t ensemble = 0; ensemble < combined.ensembles; ++ensemble) {
+      GhostEnsembleFixture solo(1);
+      // Overwrite the solo fixture's single-ensemble slice with this
+      // ensemble's slice from the combined fixture, so the solo run is an
+      // independent ensembles=1 oracle for exactly the data the combined
+      // run assigned to this ensemble.
+      for(std::size_t block = 0; block < GhostEnsembleFixture::blocks; ++block)
+         for(int xyz = 0; xyz < 3; ++xyz) {
+            solo.coarseMoment[xyz + 3 * block] =
+               combined.coarseMoment[xyz + 3 * (block + GhostEnsembleFixture::blocks * ensemble)];
+            solo.coarseDirection[xyz + 3 * block] =
+               combined.coarseDirection[xyz + 3 * (block + GhostEnsembleFixture::blocks * ensemble)];
+         }
+      for(std::size_t atom = 0; atom < GhostEnsembleFixture::atoms; ++atom)
+         for(int xyz = 0; xyz < 3; ++xyz)
+            solo.atomDirectionHost[xyz + 3 * atom] =
+               combined.atomDirectionHost[xyz + 3 * (atom + GhostEnsembleFixture::atoms * ensemble)];
+
+      const auto soloTopology = solo.topology();
+      const auto soloInput = solo.runtime();
+      GpuAdaptiveRuntime soloRuntime;
+      soloRuntime.initialize(soloTopology, soloInput, GhostEnsembleFixture::atoms, 1);
+      GpuTensor<real, 1> soloDirection, soloField, soloCoarse;
+      soloDirection.Allocate(static_cast<index_t>(3 * GhostEnsembleFixture::atoms));
+      soloField.Allocate(static_cast<index_t>(3 * GhostEnsembleFixture::atoms));
+      soloCoarse.Allocate(static_cast<index_t>(3 * GhostEnsembleFixture::blocks));
+      upload(soloDirection.data(), deviceVector(solo.atomDirectionHost));
+      const auto soloEnergy = soloRuntime.evaluateHybrid(
+         soloDirection.data(), nullptr, nullptr, soloField.data(), soloCoarse.data());
+      const auto soloField_ = download(soloField.data(), 3 * GhostEnsembleFixture::atoms);
+      const auto soloCoarse_ = download(soloCoarse.data(), 3 * GhostEnsembleFixture::blocks);
+      soloRuntime.synchronizeAtomicState(soloDirection.data(), {});
+      const auto soloReconstructed = download(soloDirection.data(), 3 * GhostEnsembleFixture::atoms);
+      soloEnergySum += soloEnergy.totalJ;
+
+      for(std::size_t atom = 0; atom < GhostEnsembleFixture::atoms; ++atom)
+         for(int xyz = 0; xyz < 3; ++xyz) {
+            const std::size_t combinedIndex =
+               xyz + 3 * (atom + GhostEnsembleFixture::atoms * ensemble);
+            require(std::abs(static_cast<double>(combinedField[combinedIndex]) -
+                             static_cast<double>(soloField_[xyz + 3 * atom])) < tolerance,
+                    "combined multi-ensemble field does not match the solo "
+                    "single-ensemble oracle -- ensemble indexing in the "
+                    "compact prolongation launch is suspect");
+            require(std::abs(static_cast<double>(combinedReconstructed[combinedIndex]) -
+                             static_cast<double>(soloReconstructed[xyz + 3 * atom])) < tolerance,
+                    "combined multi-ensemble synchronizeAtomicState does not "
+                    "match the solo single-ensemble oracle");
+         }
+      for(std::size_t block = 0; block < GhostEnsembleFixture::blocks; ++block)
+         for(int xyz = 0; xyz < 3; ++xyz) {
+            const std::size_t combinedIndex =
+               xyz + 3 * (block + GhostEnsembleFixture::blocks * ensemble);
+            require(std::abs(static_cast<double>(combinedCoarse[combinedIndex]) -
+                             static_cast<double>(soloCoarse_[xyz + 3 * block])) < tolerance,
+                    "combined multi-ensemble coarse field does not match the "
+                    "solo single-ensemble oracle");
+         }
+      soloCoarse.Free();
+      soloField.Free();
+      soloDirection.Free();
+      soloRuntime.release();
+   }
+   require(std::abs(combinedEnergySum - soloEnergySum) <
+              tolerance * std::max(1.0, std::abs(soloEnergySum)),
+           "combined multi-ensemble total energy is not the sum of the "
+           "independent per-ensemble energies");
+
+   atomDirection.Free();
+   atomField.Free();
+   coarseField.Free();
+}
+
+// CGP-02 negative control: drop a required ghost atom from the compact list
+// -- without changing ghostAtomCount(), i.e. only the *set* of processed
+// atoms is wrong, not the launch geometry -- and show that the field the
+// atomistic reaction reaches at the interface is now wrong. This proves the
+// interface-restriction/prolongation pair genuinely depends on
+// ghostAtomList's contents, not merely its length.
+void testGhostListNegativeControl() {
+   KernelFixture fixture;
+   const auto topology = fixture.topology();
+   const auto input = fixture.runtime();
+   GpuAdaptiveRuntime runtime;
+   runtime.initialize(topology, input, KernelFixture::atoms,
+                      KernelFixture::ensembles);
+   const auto snapshot = runtime.downloadWorkSnapshot();
+   expectEqual(snapshot.ghostAtoms, {2, 7},
+               "fixture ghost shell drifted from the documented {2,7}");
+
+   const std::size_t atomVectors = 3 * KernelFixture::atoms;
+   const std::size_t coarseVectors = 3 * KernelFixture::blocks;
+   GpuTensor<real, 1> atomDirection, atomField, coarseField;
+   atomDirection.Allocate(static_cast<index_t>(atomVectors));
+   atomField.Allocate(static_cast<index_t>(atomVectors));
+   coarseField.Allocate(static_cast<index_t>(coarseVectors));
+   // The fixture's coarseDirection is uniformly +z (see KernelFixture's
+   // constructor above); an atom direction that is also +z would make the
+   // ghost-shell restriction's tangential component (field minus its
+   // projection onto ghostDirection) identically zero regardless of which
+   // atom is processed, which would make this negative control vacuous. +x
+   // is orthogonal to that, so the restricted tangential field is the whole
+   // field and genuinely depends on which atom contributed it.
+   std::vector<double> hostAtom(atomVectors, 0.0);
+   for(std::size_t atom = 0; atom < KernelFixture::atoms; ++atom)
+      hostAtom[0 + 3 * atom] = 1.0;
+   upload(atomDirection.data(), deviceVector(hostAtom));
+
+   (void)runtime.evaluateHybrid(atomDirection.data(), nullptr, nullptr,
+                                atomField.data(), coarseField.data());
+   const auto goodCoarse = download(coarseField.data(), coarseVectors);
+
+   // Overwrite ghost atom 7's compact slot (1-based index 7, 0-indexed
+   // block 3) with a duplicate of ghost atom 2's slot; ghostAtomCount() is
+   // unchanged so the launch still issues exactly the same number of
+   // threads, but atom 7 is no longer among the atoms those threads visit.
+   const std::vector<int> corrupted = {2, 2};
+   ASSERT_GPU(GPU_MEMCPY(runtime.deviceRuntime().ghostAtomList, corrupted.data(),
+                         corrupted.size() * sizeof(int), GPU_MEMCPY_HOST_TO_DEVICE));
+
+   (void)runtime.evaluateHybrid(atomDirection.data(), nullptr, nullptr,
+                                atomField.data(), coarseField.data());
+   const auto corruptedCoarse = download(coarseField.data(), coarseVectors);
+
+   const double tolerance = sizeof(real) == sizeof(double) ? 1.0e-12 : 1.0e-5;
+   // Block 3 (0-indexed, owned by the now-dropped ghost atom 7) must lose
+   // its interface restriction and revert toward the unrestricted value;
+   // block 0 (owned by ghost atom 2, now double-scattered) must change too.
+   bool block3Differs = false;
+   bool block0Differs = false;
+   for(int xyz = 0; xyz < 3; ++xyz) {
+      if(std::abs(static_cast<double>(goodCoarse[xyz + 3 * 3]) -
+                  static_cast<double>(corruptedCoarse[xyz + 3 * 3])) > tolerance)
+         block3Differs = true;
+      if(std::abs(static_cast<double>(goodCoarse[xyz + 3 * 0]) -
+                  static_cast<double>(corruptedCoarse[xyz + 3 * 0])) > tolerance)
+         block0Differs = true;
+   }
+   require(block3Differs,
+           "dropping ghost atom 7 from the compact list did not change its "
+           "block's coarse field -- the negative control is not "
+           "discriminating");
+   require(block0Differs,
+           "duplicating ghost atom 2 into atom 7's compact slot did not "
+           "change atom 2's block's coarse field -- the negative control is "
+           "not discriminating");
+
+   coarseField.Free();
+   atomField.Free();
+   atomDirection.Free();
+   runtime.release();
+}
+
 } // namespace
 
 int main() {
@@ -1551,6 +2032,9 @@ int main() {
    testContinuumOperatorAgainstHostReference();
    testPolarizationGate();
    testHierarchicalCompaction();
+   testSynchronizeAtomicStatePolicies();
+   testMultiEnsembleGhostProlongation();
+   testGhostListNegativeControl();
    std::cout << "CG-09/CG-10 GPU adaptive runtime tests passed\n";
    return 0;
 }

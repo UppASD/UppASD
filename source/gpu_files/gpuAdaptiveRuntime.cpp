@@ -717,15 +717,18 @@ __global__ void publishAdaptiveState(GpuAdaptiveDeviceTopology topology,
    }
 }
 
-__global__ void prolongateAdaptiveGhosts(GpuAdaptiveDeviceTopology topology,
-                                         GpuAdaptiveDeviceRuntime runtime,
-                                         AdaptiveKernelDevice kernels) {
-   const std::size_t work = adaptiveThreadIndex();
-   const std::size_t count = topology.atoms * topology.ensembles;
-   if(work >= count) return;
-   const std::size_t atom = work % topology.atoms;
-   if(runtime.atomisticAtomMask[atom]) return;
-   const std::size_t ensemble = work / topology.atoms;
+// CGP-02: the per-ghost-atom reconstruction shared by both prolongation
+// launches below, so the full-range fallback (still needed when
+// ConstrainedCone reconstruction is about to commit it for every
+// non-atomistic atom, not only the ghost shell -- see
+// docs/rcg09/rcg09c_live_bond_compaction.txt section 6) and the compact
+// ghost-shell launch cannot drift into two different reconstruction
+// formulas.  Caller has already resolved `atom` to a non-atomistic index.
+__device__ inline void prolongateGhostAtomDirection(
+   const GpuAdaptiveDeviceTopology& topology,
+   const GpuAdaptiveDeviceRuntime& runtime,
+   const AdaptiveKernelDevice& kernels,
+   std::size_t atom, std::size_t ensemble) {
    const int rawChannel = topology.atomToDynamicChannel[atom];
    if(rawChannel <= 0) return;
    const std::size_t channel = static_cast<std::size_t>(rawChannel - 1);
@@ -745,6 +748,48 @@ __global__ void prolongateAdaptiveGhosts(GpuAdaptiveDeviceTopology topology,
    for(int xyz = 0; xyz < 3; ++xyz)
       kernels.ghostDirection[atomVectorIndex(xyz, atom, ensemble, topology.atoms)] =
          length > kernels.normalizationFloor ? interpolated[xyz] / length : real(0);
+}
+
+// Full-range fallback: every non-atomistic atom, every ensemble.  Only the
+// ConstrainedCone reconstruction path (via synchronizeAtomicState) still
+// needs this -- commitAdaptiveGhosts (below) commits a genuine interpolated
+// direction for every non-atomistic atom under that policy, not only the
+// ghost shell, so that path cannot use the compact launch.
+__global__ void prolongateAdaptiveGhosts(GpuAdaptiveDeviceTopology topology,
+                                         GpuAdaptiveDeviceRuntime runtime,
+                                         AdaptiveKernelDevice kernels) {
+   const std::size_t work = adaptiveThreadIndex();
+   const std::size_t count = topology.atoms * topology.ensembles;
+   if(work >= count) return;
+   const std::size_t atom = work % topology.atoms;
+   if(runtime.atomisticAtomMask[atom]) return;
+   const std::size_t ensemble = work / topology.atoms;
+   prolongateGhostAtomDirection(topology, runtime, kernels, atom, ensemble);
+}
+
+// CGP-02: driven by the compact ghost-shell list RCG-09C already builds
+// (runtime.ghostAtomList -- non-atomistic atoms that are an endpoint of at
+// least one live bond) rather than every atom of every ensemble.  Both
+// consumers of this launch's output that are reachable from it --
+// restrictAdaptiveInterface, and commitAdaptiveGhosts under the Aligned
+// reconstruction policy -- read ghostDirection/projectionNorm only for
+// ghost-shell atoms (Aligned discards ghostDirection's contents entirely;
+// see commitAdaptiveGhosts below), so this launch need not touch interior
+// coarse atoms at all.  `work % ghostAtoms` selects the compact slot,
+// `ghostAtomList[slot] - 1` resolves it to a physical atom, and
+// `work / ghostAtoms` gives the ensemble -- the same idiom
+// restrictAdaptiveInterface already uses.
+__global__ void prolongateAdaptiveGhostsCompact(
+   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
+   AdaptiveKernelDevice kernels, std::size_t ghostAtoms) {
+   if(ghostAtoms == 0) return;
+   const std::size_t work = adaptiveThreadIndex();
+   const std::size_t count = ghostAtoms * topology.ensembles;
+   if(work >= count) return;
+   const std::size_t atom = static_cast<std::size_t>(
+      runtime.ghostAtomList[work % ghostAtoms] - 1);
+   const std::size_t ensemble = work / ghostAtoms;
+   prolongateGhostAtomDirection(topology, runtime, kernels, atom, ensemble);
 }
 
 __global__ void commitAdaptiveGhosts(
@@ -3019,19 +3064,22 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybridImpl(
       kernels.energyPartialBlocks = energyPartialBlocks_;
    }
    beginPhase();
-#if defined(CUDA_V)
-   prolongateAdaptiveGhosts<<<
-      adaptiveGrid(atoms_ * ensembles_), adaptiveThreads, 0, stream_>>>(
-      deviceTopology_, deviceRuntime_, kernels);
-#else
-   hipLaunchKernelGGL(
-      prolongateAdaptiveGhosts, dim3(adaptiveGrid(atoms_ * ensembles_)),
-      dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
-      kernels);
-#endif
-   // RCG-09C: the clear and restriction launches below now count themselves,
-   // so this site records only the ghost prolongation it issues.
-   ++phaseMetrics_.interfaceLaunches;
+   // CGP-02: restrictAdaptiveInterface (below, and in the clear+restrict
+   // phase further down) is the only consumer of this launch's output
+   // reachable from here, and it already walks only the ghost shell, so this
+   // launches over the compact ghostAtomList instead of every atom of every
+   // ensemble.  An empty shell issues no kernel at all.
+   const std::size_t ghostProlongationWork = ghostAtomCount() * ensembles_;
+   if(ghostProlongationWork > 0) {
+      ADAPTIVE_LAUNCH(prolongateAdaptiveGhostsCompact,
+                      adaptiveGrid(ghostProlongationWork), stream_,
+                      deviceTopology_, deviceRuntime_, kernels,
+                      ghostAtomCount());
+      // RCG-09C: the clear and restriction launches below now count
+      // themselves, so this site records only the ghost prolongation it
+      // issues.
+      ++phaseMetrics_.interfaceLaunches;
+   }
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.interfaceMilliseconds);
 
@@ -3342,24 +3390,47 @@ void GpuAdaptiveRuntime::synchronizeAtomicState(
       coarseFieldScratch_.data(), energyTerms_.data(), transitionBackup_.data()
    };
    beginPhase();
+   // CGP-02: commitAdaptiveGhosts (below) only reads ghostDirection when
+   // policy.scheme == ConstrainedCone; under Aligned it unconditionally
+   // overwrites every non-atomistic atom's direction with its owning
+   // block's coarseDirection and never dereferences ghostDirection at all
+   // (see the kernel below), so prolongation only has to stay fresh for the
+   // ghost shell in that case.  Under ConstrainedCone every non-atomistic
+   // atom genuinely needs its own interpolated direction, not only the
+   // ghost shell (docs/rcg09/rcg09c_live_bond_compaction.txt section 6), so
+   // that policy keeps the full-range launch.
+   if(policy.scheme == GpuAdaptiveReconstruction::Aligned) {
+      const std::size_t ghostWork = ghostAtomCount() * ensembles_;
+      if(ghostWork > 0) {
+         ADAPTIVE_LAUNCH(prolongateAdaptiveGhostsCompact,
+                         adaptiveGrid(ghostWork), stream_, deviceTopology_,
+                         deviceRuntime_, kernels, ghostAtomCount());
+         ++phaseMetrics_.integrationLaunches;
+      }
+   } else {
 #if defined(CUDA_V)
-   prolongateAdaptiveGhosts<<<
-      adaptiveGrid(atoms_ * ensembles_), adaptiveThreads, 0, stream_>>>(
-      deviceTopology_, deviceRuntime_, kernels);
+      prolongateAdaptiveGhosts<<<
+         adaptiveGrid(atoms_ * ensembles_), adaptiveThreads, 0, stream_>>>(
+         deviceTopology_, deviceRuntime_, kernels);
+#else
+      hipLaunchKernelGGL(
+         prolongateAdaptiveGhosts, dim3(adaptiveGrid(atoms_ * ensembles_)),
+         dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
+         kernels);
+#endif
+      ++phaseMetrics_.integrationLaunches;
+   }
+#if defined(CUDA_V)
    commitAdaptiveGhosts<<<
       adaptiveGrid(atoms_ * ensembles_), adaptiveThreads, 0, stream_>>>(
       deviceTopology_, deviceRuntime_, kernels, atomDirection, policy);
 #else
    hipLaunchKernelGGL(
-      prolongateAdaptiveGhosts, dim3(adaptiveGrid(atoms_ * ensembles_)),
-      dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
-      kernels);
-   hipLaunchKernelGGL(
       commitAdaptiveGhosts, dim3(adaptiveGrid(atoms_ * ensembles_)),
       dim3(adaptiveThreads), 0, stream_, deviceTopology_, deviceRuntime_,
       kernels, atomDirection, policy);
 #endif
-   phaseMetrics_.integrationLaunches += 2;
+   ++phaseMetrics_.integrationLaunches;
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.integrationMilliseconds);
 }
