@@ -161,6 +161,11 @@ struct GpuAdaptiveDeviceRuntime {
    real* coarseDirection = nullptr;
    real* coarseField = nullptr;
    real* channelMomentSum = nullptr;
+   // CGP-03: one-element device counter, atomicAdd'd by publishAdaptiveState
+   // for every block whose blockState actually changes (not merely
+   // proposed/rolled-back). Cleared before each publishAdaptiveState launch;
+   // read back by GpuAdaptiveRuntime::transitionsPublishedLastCall().
+   unsigned int* transitionsPublished = nullptr;
 };
 
 struct GpuAdaptiveWorkSnapshot {
@@ -325,6 +330,20 @@ struct GpuAdaptiveReconstructionPolicy {
    std::uint64_t globalSeed = 1;
 };
 
+// CGP-03: named reasons for calling materializeCoarseAtoms(), so every
+// full-lattice atom-direction commit in production code is explicit and
+// countable rather than an unnamed call to synchronizeAtomicState() buried
+// among several call sites (see docs/CGP-03_LAZY_MATERIALIZATION_EVIDENCE.md
+// Part 3). This task keeps the OrdinaryStep commit unconditional -- the
+// evidence doc explains the GpuMomentUpdater/measurement-schedule coupling
+// that makes skipping it unsafe without further, larger changes -- and makes
+// only the Transition commit conditional on a transition having actually
+// been published.
+enum class GpuAdaptiveMaterializationReason {
+   OrdinaryStep,
+   Transition
+};
+
 // Owns immutable topology and mutable adaptive state for one GPU simulation
 // lifetime.  It deliberately contains no operator polymorphism: CG-10
 // kernels consume compact POD descriptors and this owner's tracked storage.
@@ -428,6 +447,27 @@ public:
    void synchronizeAtomicState(
       real* atomDirection,
       const GpuAdaptiveReconstructionPolicy& policy);
+   // CGP-03 Part 3: the one named entry point production code should call to
+   // commit coarse-block state into atomDirection, instead of calling
+   // synchronizeAtomicState() directly from scattered call sites. Internally
+   // still synchronizeAtomicState() -- no reconstruction formula changes --
+   // but every call now carries an explicit reason and is countable via
+   // materializationCount().
+   void materializeCoarseAtoms(
+      GpuAdaptiveMaterializationReason reason, real* atomDirection,
+      const GpuAdaptiveReconstructionPolicy& policy);
+   std::size_t materializationCount(
+      GpuAdaptiveMaterializationReason reason) const {
+      return materializationCounts_[static_cast<std::size_t>(reason)];
+   }
+   // CGP-03: exact count of blocks whose blockState actually changed in the
+   // most recent publishProposedState() call (0 if none did, e.g. a
+   // selector-update step where every score stayed within its dwell/
+   // threshold band). Read back as part of publishProposedState()'s existing
+   // refreshHostWorkCounts() synchronization -- no extra host wait.
+   std::size_t transitionsPublishedLastCall() const {
+      return transitionsPublishedLastCall_;
+   }
    void recordFftMilliseconds(double elapsed);
    // RCG-06C (F-18): called once per complete adaptive step with an
    // independent host wall-clock measurement of the whole step (not derived
@@ -516,6 +556,12 @@ private:
    GpuAdaptiveEnergy lastEnergy_{};
    // CGP-01 negative control; see energyEvaluationCount() above.
    std::size_t energyEvaluationCount_ = 0;
+   // CGP-03: indexed by GpuAdaptiveMaterializationReason; see
+   // materializationCount() above.
+   std::size_t materializationCounts_[2] = {};
+   // CGP-03: host mirror of transitionsPublished_, refreshed inside
+   // publishProposedState()'s existing refreshHostWorkCounts() call.
+   std::size_t transitionsPublishedLastCall_ = 0;
    std::vector<std::vector<real>> convertedStaging_;
 
    Tensor<int, 1> stagedBlockState_;
@@ -598,6 +644,9 @@ private:
    GpuTensor<unsigned char, 1> acceptedBlockMask_;
    GpuTensor<unsigned char, 1> polarizationUnsafeBlockMask_;
    GpuTensor<real, 1> polarizationRatioBlock_;
+   // CGP-03: one-element device counter backing
+   // GpuAdaptiveDeviceRuntime::transitionsPublished.
+   GpuTensor<unsigned int, 1> transitionsPublished_;
 
    GpuAdaptiveDeviceTopology deviceTopology_{};
    GpuAdaptiveDeviceRuntime deviceRuntime_{};

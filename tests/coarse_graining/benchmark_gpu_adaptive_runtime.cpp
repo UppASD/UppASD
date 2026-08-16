@@ -69,6 +69,13 @@ struct Options {
    bool requireAcceptance = false;
    bool requireCrossover = false;
    bool parityOnly = false;
+   // CGP-03: measure the cost of one materializeCoarseAtoms()/
+   // synchronizeAtomicState() full-lattice commit on an all-coarse fixture --
+   // the exact call CGP-03 removes on a selector-update step that publishes
+   // no transition. A separate, early-exit mode so it cannot perturb the
+   // existing PERF-ATOMISTIC-PROD/PERF-CG-SWEEP numbers other evidence docs
+   // depend on.
+   bool materializationOverhead = false;
 };
 
 std::size_t parseSize(const char* value, const char* option) {
@@ -136,19 +143,25 @@ Options parse(int argc, char** argv) {
          result.requireCrossover = true;
       else if(option == "--parity-only")
          result.parityOnly = true;
+      else if(option == "--materialization-overhead")
+         result.materializationOverhead = true;
       else if(option == "--help") {
          std::puts(
             "usage: gpu_adaptive_runtime_benchmark [--blocks N] "
             "[--atoms-per-block N] [--warmup N] [--iterations N] "
             "[--repetitions N] [--crossover-margin-percent P] "
             "[--parity-tolerance T] [--texture spiral|domain-wall|uniform] "
-            "[--require-acceptance] [--require-crossover] [--parity-only]\n"
+            "[--require-acceptance] [--require-crossover] [--parity-only] "
+            "[--materialization-overhead]\n"
             "\n"
             "Measures adaptive coarse graining against UppASD's production\n"
             "atomistic GPU Hamiltonian and integrator on one shared geometry.\n"
             "--require-acceptance fails on a parity violation; "
             "--require-crossover additionally fails when no crossover exists; "
-            "--parity-only runs the staged RCG-09A.4 hierarchy.");
+            "--parity-only runs the staged RCG-09A.4 hierarchy; "
+            "--materialization-overhead measures one CGP-03 "
+            "materializeCoarseAtoms() commit on an all-coarse fixture and "
+            "exits, independent of every other mode.");
          std::exit(0);
       } else {
          throw std::runtime_error("unknown or incomplete benchmark option: " + option);
@@ -1489,6 +1502,42 @@ int main(int argc, char** argv) {
                           fixture.atomDirection.size() * sizeof(real),
                           GPU_MEMCPY_HOST_TO_DEVICE),
                "benchmark direction upload");
+
+      if(options.materializationOverhead) {
+         // CGP-03: force every block coarse (the default fixture is all-fine)
+         // so materializeCoarseAtoms() actually has atoms to commit -- an
+         // all-fine call would be a same-day no-op via the atomisticAtomMask
+         // early return in commitAdaptiveGhosts.
+         std::vector<int> allCoarse(fixture.blocks, coarseState);
+         runtime.updateBlockState(allCoarse.data(), fixture.blocks);
+         gpuCheck(GPU_DEVICE_SYNCHRONIZE(), "materialization-overhead state sync");
+         const GpuAdaptiveReconstructionPolicy policy{};
+         const auto sampleOnce = [&]() {
+            const auto started = std::chrono::steady_clock::now();
+            runtime.materializeCoarseAtoms(
+               GpuAdaptiveMaterializationReason::OrdinaryStep,
+               atomDirection.data(), policy);
+            gpuCheck(GPU_DEVICE_SYNCHRONIZE(), "materialization-overhead sample sync");
+            return 1.0e6 * std::chrono::duration<double>(
+               std::chrono::steady_clock::now() - started).count();
+         };
+         for(unsigned int warm = 0; warm < options.warmup; ++warm) sampleOnce();
+         std::vector<double> samples;
+         samples.reserve(options.iterations);
+         for(unsigned int iteration = 0; iteration < options.iterations; ++iteration)
+            samples.push_back(sampleOnce());
+         printSamples("materialization-overhead-sample", samples);
+         std::printf(
+            "materialization-overhead atoms=%zu blocks=%zu ensembles=1 "
+            "warmup=%u iterations=%u median_us=%.6f mad_us=%.6f "
+            "materialization_count=%zu\n",
+            fixture.atoms, fixture.blocks, options.warmup, options.iterations,
+            median(samples), medianAbsoluteDeviation(samples),
+            runtime.materializationCount(
+               GpuAdaptiveMaterializationReason::OrdinaryStep));
+         return 0;
+      }
+
       // CGP-01: this is the exact production-mimicking predictor/corrector
       // pair (see gpuSimulation.cpp's evaluateAdaptiveFields), so it must use
       // the field-only path for the headline benchmark numbers below to

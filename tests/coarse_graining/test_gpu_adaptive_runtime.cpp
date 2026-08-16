@@ -1927,6 +1927,197 @@ void testGhostListNegativeControl() {
    runtime.release();
 }
 
+// CGP-03: transitionsPublishedLastCall() must be an exact count of blocks
+// whose blockState actually changed -- zero when every proposal is rejected,
+// and equal to an independently-computed before/after blockState diff when
+// some are accepted. materializeCoarseAtoms() must reproduce
+// synchronizeAtomicState() bitwise and credit only the reason it was called
+// with.
+void testTransitionCounterAndMaterialization() {
+   KernelFixture fixture;
+   const auto topology = fixture.topology();
+   const auto input = fixture.runtime();
+   GpuAdaptiveRuntime runtime;
+   runtime.initialize(topology, input, KernelFixture::atoms,
+                      KernelFixture::ensembles);
+
+   const std::size_t atomVectors = 3 * KernelFixture::atoms;
+   GpuTensor<real, 1> atomDirection;
+   atomDirection.Allocate(static_cast<index_t>(atomVectors));
+   std::vector<double> hostAtom(atomVectors, 0.0);
+   for(std::size_t atom = 0; atom < KernelFixture::atoms; ++atom)
+      hostAtom[0 + 3 * atom] = 1.0;
+   upload(atomDirection.data(), deviceVector(hostAtom));
+
+   auto downloadBlockState = [&]() {
+      std::vector<int> state(KernelFixture::blocks);
+      ASSERT_GPU(GPU_MEMCPY(state.data(), runtime.deviceRuntime().blockState,
+                            state.size() * sizeof(int), GPU_MEMCPY_DEVICE_TO_HOST));
+      return state;
+   };
+   const auto blockStateBefore = downloadBlockState();
+   require(blockStateBefore == std::vector<int>({0, 1, 2, 0}),
+           "fixture initial block state drifted from the documented {0,1,2,0}");
+
+   require(runtime.transitionsPublishedLastCall() == 0,
+           "transitionsPublishedLastCall() must start at zero, before any publish");
+
+   // Rejecting every proposal must publish exactly zero transitions and
+   // leave blockState untouched.
+   runtime.evaluateSelectorScores(atomDirection.data());
+   GpuAdaptiveSelectorPolicy policy;
+   policy.refineThreshold = real(0.5);
+   policy.coarsenThreshold = real(0.1);
+   runtime.proposeSelectorState(policy);
+   GpuTensor<unsigned char, 1> none;
+   none.Allocate(KernelFixture::blocks);
+   const std::vector<unsigned char> hostNone(KernelFixture::blocks, 0);
+   ASSERT_GPU(GPU_MEMCPY(none.data(), hostNone.data(), hostNone.size(),
+                         GPU_MEMCPY_HOST_TO_DEVICE));
+   runtime.publishProposedState(atomDirection.data(), {}, true, none.data());
+   require(runtime.transitionsPublishedLastCall() == 0,
+           "rejecting every proposed transition must publish exactly zero transitions");
+   require(downloadBlockState() == blockStateBefore,
+           "rejected proposals must not change blockState");
+
+   // Accepting every proposal must publish exactly as many transitions as an
+   // independent before/after blockState diff shows, and that diff must be
+   // nonzero or this scenario is not exercising the counter at all.
+   runtime.proposeSelectorState(policy);
+   GpuTensor<unsigned char, 1> all;
+   all.Allocate(KernelFixture::blocks);
+   const std::vector<unsigned char> hostAll(KernelFixture::blocks, 1);
+   ASSERT_GPU(GPU_MEMCPY(all.data(), hostAll.data(), hostAll.size(),
+                         GPU_MEMCPY_HOST_TO_DEVICE));
+   runtime.publishProposedState(atomDirection.data(), {}, true, all.data());
+   const auto blockStateAfterAccept = downloadBlockState();
+   std::size_t actualDiffs = 0;
+   for(std::size_t block = 0; block < KernelFixture::blocks; ++block)
+      if(blockStateAfterAccept[block] != blockStateBefore[block]) ++actualDiffs;
+   require(actualDiffs > 0,
+           "test scenario must exercise at least one real transition");
+   require(runtime.transitionsPublishedLastCall() == actualDiffs,
+           "transitionsPublishedLastCall() must exactly match the number of "
+           "blocks whose state actually changed");
+
+   // materializeCoarseAtoms() must reproduce synchronizeAtomicState()
+   // bitwise, and credit only the reason it was called with.
+   require(runtime.materializationCount(GpuAdaptiveMaterializationReason::OrdinaryStep) == 0 &&
+           runtime.materializationCount(GpuAdaptiveMaterializationReason::Transition) == 0,
+           "materialization counters must start at zero");
+   GpuTensor<real, 1> viaHelper, viaDirect;
+   viaHelper.Allocate(static_cast<index_t>(atomVectors));
+   viaDirect.Allocate(static_cast<index_t>(atomVectors));
+   viaHelper.copy_async(atomDirection, runtime.stream());
+   viaDirect.copy_async(atomDirection, runtime.stream());
+   ASSERT_GPU(GPU_STREAM_SYNC(runtime.stream()));
+   runtime.materializeCoarseAtoms(GpuAdaptiveMaterializationReason::OrdinaryStep,
+                                  viaHelper.data(), {});
+   runtime.synchronizeAtomicState(viaDirect.data(), {});
+   const auto helperResult = download(viaHelper.data(), atomVectors);
+   const auto directResult = download(viaDirect.data(), atomVectors);
+   for(std::size_t i = 0; i < atomVectors; ++i)
+      require(helperResult[i] == directResult[i],
+              "materializeCoarseAtoms must reproduce synchronizeAtomicState bitwise");
+   require(runtime.materializationCount(GpuAdaptiveMaterializationReason::OrdinaryStep) == 1 &&
+           runtime.materializationCount(GpuAdaptiveMaterializationReason::Transition) == 0,
+           "materializeCoarseAtoms(OrdinaryStep, ...) must credit only OrdinaryStep");
+   runtime.materializeCoarseAtoms(GpuAdaptiveMaterializationReason::Transition,
+                                  viaHelper.data(), {});
+   require(runtime.materializationCount(GpuAdaptiveMaterializationReason::Transition) == 1,
+           "materializeCoarseAtoms(Transition, ...) must credit Transition");
+
+   viaDirect.Free();
+   viaHelper.Free();
+   all.Free();
+   none.Free();
+   atomDirection.Free();
+   runtime.release();
+}
+
+// CGP-03 Negative control (Part 6): a fine/buffer -> coarse transition is
+// reclassified by publishAdaptiveState (blockState flips, transitionsPublished
+// is incremented) but that kernel never touches atomDirection in this
+// direction -- only the coarse -> fine branch writes atoms directly (see
+// gpuAdaptiveRuntime.cpp, the `oldState == coarseState` guard around the
+// reconstruction block). This proves gpuSimulation.cpp's
+// `if(transitionsPublishedLastCall() > 0)` guard around the post-selector
+// materializeCoarseAtoms(Transition, ...) call is load-bearing, not merely an
+// optimization: skipping it after a real fine->coarse transition leaves
+// stale, unaligned atom directions for the newly-coarse block, exactly the
+// parity failure CGP-03's own Part 6 negative control asks to demonstrate.
+void testTransitionMaterializationNegativeControl() {
+   KernelFixture fixture;
+   const auto topology = fixture.topology();
+   const auto input = fixture.runtime();
+   GpuAdaptiveRuntime runtime;
+   runtime.initialize(topology, input, KernelFixture::atoms,
+                      KernelFixture::ensembles);
+
+   const std::size_t atomVectors = 3 * KernelFixture::atoms;
+   GpuTensor<real, 1> atomDirection;
+   atomDirection.Allocate(static_cast<index_t>(atomVectors));
+   // +x, orthogonal to the fixture's uniformly +z coarseDirection (see
+   // KernelFixture's constructor), so "still at its pre-transition value"
+   // and "aligned to coarseDirection" are numerically distinguishable.
+   std::vector<double> hostAtom(atomVectors, 0.0);
+   for(std::size_t atom = 0; atom < KernelFixture::atoms; ++atom)
+      hostAtom[0 + 3 * atom] = 1.0;
+   upload(atomDirection.data(), deviceVector(hostAtom));
+
+   // coarsenThreshold above every attainable score and refineThreshold
+   // likewise unreachable: every already-atomistic block (1: buffer, 2: fine)
+   // proposes coarseState unconditionally; every already-coarse block (0, 3)
+   // proposes to stay coarse. Accepting only block 2 (0-indexed, the fine
+   // block) isolates a single fine->coarse transition.
+   runtime.evaluateSelectorScores(atomDirection.data());
+   GpuAdaptiveSelectorPolicy policy;
+   policy.refineThreshold = real(2.0);
+   policy.coarsenThreshold = real(2.0);
+   runtime.proposeSelectorState(policy);
+   GpuTensor<unsigned char, 1> onlyBlock2;
+   onlyBlock2.Allocate(KernelFixture::blocks);
+   const std::vector<unsigned char> hostMask = {0, 0, 1, 0};
+   ASSERT_GPU(GPU_MEMCPY(onlyBlock2.data(), hostMask.data(), hostMask.size(),
+                         GPU_MEMCPY_HOST_TO_DEVICE));
+   runtime.publishProposedState(atomDirection.data(), {}, true, onlyBlock2.data());
+   require(runtime.transitionsPublishedLastCall() == 1,
+           "isolated single-block acceptance must publish exactly one transition");
+
+   // Block 2 (0-indexed) owns atoms 5,6 (1-based) = indices 4,5 (0-based).
+   const auto afterPublish = download(atomDirection.data(), atomVectors);
+   const double tolerance = sizeof(real) == sizeof(double) ? 1.0e-12 : 1.0e-5;
+   for(const std::size_t atom : {std::size_t(4), std::size_t(5)}) {
+      require(std::abs(static_cast<double>(afterPublish[0 + 3 * atom]) - 1.0) < tolerance &&
+              std::abs(static_cast<double>(afterPublish[2 + 3 * atom])) < tolerance,
+              "publishAdaptiveState must NOT reconstruct a fine->coarse "
+              "block's atoms directly -- if this fails, the follow-up "
+              "materializeCoarseAtoms(Transition, ...) call in "
+              "gpuSimulation.cpp would be provably redundant instead of "
+              "load-bearing, and this negative control would need "
+              "rewriting");
+   }
+
+   // Skipping materialization here is exactly what gpuSimulation.cpp's
+   // transitionsPublishedLastCall()==0 fast path would (correctly) never do
+   // when a real transition occurred; this control proves why: without it,
+   // the newly-coarse block's atoms stay at their stale pre-transition
+   // value, not aligned to coarseDirection ((0,0,1) per the fixture).
+   runtime.materializeCoarseAtoms(GpuAdaptiveMaterializationReason::Transition,
+                                  atomDirection.data(), {});
+   const auto afterMaterialize = download(atomDirection.data(), atomVectors);
+   for(const std::size_t atom : {std::size_t(4), std::size_t(5)}) {
+      require(std::abs(static_cast<double>(afterMaterialize[0 + 3 * atom])) < tolerance &&
+              std::abs(static_cast<double>(afterMaterialize[2 + 3 * atom]) - 1.0) < tolerance,
+              "materializeCoarseAtoms(Transition, ...) must align the "
+              "newly-coarse block's atoms to coarseDirection");
+   }
+
+   onlyBlock2.Free();
+   atomDirection.Free();
+   runtime.release();
+}
+
 } // namespace
 
 int main() {
@@ -2035,6 +2226,8 @@ int main() {
    testSynchronizeAtomicStatePolicies();
    testMultiEnsembleGhostProlongation();
    testGhostListNegativeControl();
+   testTransitionCounterAndMaterialization();
+   testTransitionMaterializationNegativeControl();
    std::cout << "CG-09/CG-10 GPU adaptive runtime tests passed\n";
    return 0;
 }

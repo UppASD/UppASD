@@ -711,6 +711,15 @@ __global__ void publishAdaptiveState(GpuAdaptiveDeviceTopology topology,
          runtime.blockState[block] = newState;
          runtime.stateAge[block] = 0;
          ++runtime.transitionEpoch[block];
+         // CGP-03: exact count of genuine state changes this call, so the
+         // host can tell "selector update ran but nothing transitioned"
+         // (materializeCoarseAtoms(Transition, ...) is then a provable no-op
+         // and can be skipped) from "a transition really happened" (where it
+         // is required). The early-return rollback/reject paths above never
+         // reach here, so a rolled-back or rejected proposal is correctly
+         // never counted.
+         if(runtime.transitionsPublished)
+            atomicAdd(runtime.transitionsPublished, 1u);
       } else if(runtime.stateAge[block] != UINT_MAX) {
          ++runtime.stateAge[block];
       }
@@ -2330,7 +2339,9 @@ std::size_t GpuAdaptiveRuntime::estimateBytes(const GpuAdaptiveTopologyInput& t,
          // part of the sizeof(real) bucket above.
          checkedAdd(total, 8, sizeof(double)) &&
          checkedAdd(total, energyPartialSlots, sizeof(double)) &&
-         checkedAdd(total, 2 * t.blocks, sizeof(unsigned char));
+         checkedAdd(total, 2 * t.blocks, sizeof(unsigned char)) &&
+         // CGP-03: transitionsPublished_, the one-element publish counter.
+         checkedAdd(total, 1, sizeof(unsigned int));
       if(!kernelOk)
          throw std::overflow_error("GPU adaptive kernel memory estimate overflow");
    }
@@ -2509,12 +2520,14 @@ void GpuAdaptiveRuntime::allocate(const GpuAdaptiveTopologyInput& t,
       acceptedBlockMask_.Allocate(b);
       polarizationUnsafeBlockMask_.Allocate(b);
       polarizationRatioBlock_.Allocate(b);
+      transitionsPublished_.Allocate(1);
       // Make zero-step diagnostics deterministic before the first field
       // evaluation; normal kernels overwrite these buffers thereafter.
       atomFieldScratch_.zeros_async(stream_);
       predictorCoarseField_.zeros_async(stream_);
       energyTerms_.zeros_async(stream_);
       energyPartials_.zeros_async(stream_);
+      transitionsPublished_.zeros_async(stream_);
    }
    stagedBlockState_.AllocateHost(b);
    refreshDeviceDescriptors();
@@ -2652,6 +2665,7 @@ void GpuAdaptiveRuntime::refreshDeviceDescriptors() {
    deviceRuntime_.coarseDirection = coarseDirection_.data();
    deviceRuntime_.coarseField = coarseField_.data();
    deviceRuntime_.channelMomentSum = channelMomentSum_.data();
+   deviceRuntime_.transitionsPublished = transitionsPublished_.data();
 }
 
 // RCG-08 (F-12): linear-work hierarchical compaction.  See the comment above
@@ -2760,6 +2774,16 @@ void GpuAdaptiveRuntime::refreshHostWorkCounts() {
    TensorDataMovementTracker::add_d2h(sizeof(hostWorkCounts_));
    ASSERT_GPU(GPU_MEMCPY(hostWorkCounts_, workCounts_.data(),
                          sizeof(hostWorkCounts_), GPU_MEMCPY_DEVICE_TO_HOST));
+   // CGP-03: piggybacks on the stream sync above -- no extra host wait.
+   // Only meaningful immediately after publishProposedState(); see
+   // transitionsPublishedLastCall()'s contract comment.
+   if(!transitionsPublished_.empty()) {
+      unsigned int transitions = 0;
+      TensorDataMovementTracker::add_d2h(sizeof(transitions));
+      ASSERT_GPU(GPU_MEMCPY(&transitions, transitionsPublished_.data(),
+                            sizeof(transitions), GPU_MEMCPY_DEVICE_TO_HOST));
+      transitionsPublishedLastCall_ = static_cast<std::size_t>(transitions);
+   }
    const auto stopped = std::chrono::steady_clock::now();
    ++metrics_.workCountReadbacks;
    metrics_.workCountReadbackMilliseconds +=
@@ -2997,6 +3021,10 @@ void GpuAdaptiveRuntime::publishProposedState(
       coarseFieldScratch_.data(), energyTerms_.data(), transitionBackup_.data()
    };
    beginPhase();
+   // CGP-03: cleared on the same stream immediately before the kernel that
+   // increments it, so the clear-then-launch ordering needs no host wait.
+   ASSERT_GPU(GPU_MEMSET_ASYNC(transitionsPublished_.data(), 0,
+                               sizeof(unsigned int), stream_));
    ADAPTIVE_LAUNCH(publishAdaptiveState, adaptiveGrid(blocks_), stream_,
                    deviceTopology_, deviceRuntime_, kernels, atomDirection,
                    policy, acceptedBlockMask);
@@ -3435,6 +3463,13 @@ void GpuAdaptiveRuntime::synchronizeAtomicState(
    finishPhase(phaseMetrics_.integrationMilliseconds);
 }
 
+void GpuAdaptiveRuntime::materializeCoarseAtoms(
+   GpuAdaptiveMaterializationReason reason, real* atomDirection,
+   const GpuAdaptiveReconstructionPolicy& policy) {
+   synchronizeAtomicState(atomDirection, policy);
+   ++materializationCounts_[static_cast<std::size_t>(reason)];
+}
+
 void GpuAdaptiveRuntime::recordFftMilliseconds(double elapsed) {
    if(!std::isfinite(elapsed) || elapsed < 0.0)
       throw std::invalid_argument("GPU adaptive FFT phase time must be finite and nonnegative");
@@ -3622,6 +3657,7 @@ void GpuAdaptiveRuntime::release() {
    freeIfAllocated(acceptedBlockMask_);
    freeIfAllocated(polarizationUnsafeBlockMask_);
    freeIfAllocated(polarizationRatioBlock_);
+   freeIfAllocated(transitionsPublished_);
    freeIfAllocated(energyPartials_);
    freeIfAllocated(energyTerms_);
    freeIfAllocated(predictorCoarseField_);
