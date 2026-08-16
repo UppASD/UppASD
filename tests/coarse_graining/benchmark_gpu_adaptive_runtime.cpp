@@ -1489,13 +1489,18 @@ int main(int argc, char** argv) {
                           fixture.atomDirection.size() * sizeof(real),
                           GPU_MEMCPY_HOST_TO_DEVICE),
                "benchmark direction upload");
+      // CGP-01: this is the exact production-mimicking predictor/corrector
+      // pair (see gpuSimulation.cpp's evaluateAdaptiveFields), so it must use
+      // the field-only path for the headline benchmark numbers below to
+      // measure what production actually pays, not what evaluateHybrid()'s
+      // discarded energy reduction/D2H readback would additionally cost.
       const auto adaptiveCoarseStep = [&]() {
-         (void)runtime.evaluateHybrid(atomDirection.data(), nullptr, nullptr,
-                                      atomField.data(), coarseField.data());
+         runtime.evaluateField(atomDirection.data(), nullptr, nullptr,
+                               atomField.data(), coarseField.data());
          runtime.prepareCoarsePredictor(timestep, coarseField.data());
          runtime.synchronize();
-         (void)runtime.evaluateHybrid(atomDirection.data(), nullptr, nullptr,
-                                      atomField.data(), coarseField.data());
+         runtime.evaluateField(atomDirection.data(), nullptr, nullptr,
+                               atomField.data(), coarseField.data());
          runtime.correctCoarse(timestep, coarseField.data());
          runtime.synchronize();
       };
@@ -1504,10 +1509,13 @@ int main(int argc, char** argv) {
       // All blocks fine: the adaptive path then owns every atom atomistically
       // and must reproduce the production field on the same state.  Reported
       // before any timing so a failure can never be mistaken for a slow result.
+      // CGP-01: uses the field-only path deliberately, since this is exactly
+      // what adaptiveCoarseStep() above exercises -- a field-only parity
+      // failure must not be masked by a passing evaluateHybrid() field.
       fixture.setFraction(1.0);
       runtime.updateBlockState(fixture.state.data(), fixture.blocks);
-      (void)runtime.evaluateHybrid(atomDirection.data(), nullptr, nullptr,
-                                   atomField.data(), coarseField.data());
+      runtime.evaluateField(atomDirection.data(), nullptr, nullptr,
+                            atomField.data(), coarseField.data());
       gpuCheck(GPU_DEVICE_SYNCHRONIZE(), "parity synchronization");
       std::vector<real> adaptiveFieldHost(3 * fixture.atoms);
       gpuCheck(GPU_MEMCPY(adaptiveFieldHost.data(), atomField.data(),

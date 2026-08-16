@@ -686,6 +686,112 @@ void testKernelParityAndWorkflow() {
            "CG-10 runtime cleanup did not restore tracked device memory");
 }
 
+// CGP-01: evaluateField() must be a genuine field-only sibling of
+// evaluateHybrid() -- same field arithmetic (evaluateHybridImpl<MeasureEnergy>
+// is the single shared implementation), but zero energy contribution
+// arithmetic, zero block reduction, zero finalization launch, and zero D2H
+// energy readback.  This is both the negative control the CGP-01 design
+// requirement asks for (energyEvaluationCount() must stay exactly zero across
+// field-only calls) and the field-parity check (field-only output must equal
+// the field evaluateHybrid() produces for the identical inputs).
+void testFieldOnlyEvaluation() {
+   KernelFixture fixture;
+   const auto topology = fixture.topology();
+   const auto input = fixture.runtime();
+   const auto baseline = TensorMemoryTracker::current_device();
+   GpuAdaptiveRuntime runtime;
+   runtime.initialize(topology, input, KernelFixture::atoms,
+                      KernelFixture::ensembles);
+   require(runtime.kernelsReady(), "CG-10 kernels were not published ready");
+
+   const std::size_t atomVectors = 3 * KernelFixture::atoms;
+   const std::size_t coarseVectors = 3 * KernelFixture::blocks;
+   GpuTensor<real, 1> atomDirection, atomFieldOnly, atomWithEnergy,
+      coarseFieldOnly, coarseWithEnergy, externalField, dipoleField;
+   atomDirection.Allocate(static_cast<index_t>(atomVectors));
+   atomFieldOnly.Allocate(static_cast<index_t>(atomVectors));
+   atomWithEnergy.Allocate(static_cast<index_t>(atomVectors));
+   coarseFieldOnly.Allocate(static_cast<index_t>(coarseVectors));
+   coarseWithEnergy.Allocate(static_cast<index_t>(coarseVectors));
+   externalField.Allocate(static_cast<index_t>(coarseVectors));
+   dipoleField.Allocate(static_cast<index_t>(coarseVectors));
+   std::vector<double> hostAtom(atomVectors, 0.0);
+   std::vector<double> hostExternal(coarseVectors, 0.0);
+   std::vector<double> hostDipole(coarseVectors, 0.0);
+   for(std::size_t atom = 0; atom < KernelFixture::atoms; ++atom)
+      hostAtom[2 + 3 * atom] = 1.0;
+   for(std::size_t block = 0; block < KernelFixture::blocks; ++block) {
+      hostExternal[3 * block] = 0.25;
+      hostDipole[2 + 3 * block] = 0.1;
+   }
+   upload(atomDirection.data(), deviceVector(hostAtom));
+   upload(externalField.data(), deviceVector(hostExternal));
+   upload(dipoleField.data(), deviceVector(hostDipole));
+   runtime.restrictMoments(atomDirection.data());
+
+   require(runtime.energyEvaluationCount() == 0,
+           "a freshly initialized runtime already recorded an energy evaluation");
+   require(runtime.lastEnergy().totalJ == 0.0,
+           "a freshly initialized runtime already has a cached energy");
+
+   // Negative control: repeated field-only calls must never touch the energy
+   // reduction/finalization/D2H readback path.
+   for(int repeat = 0; repeat < 3; ++repeat) {
+      runtime.evaluateField(atomDirection.data(), externalField.data(),
+                            dipoleField.data(), atomFieldOnly.data(),
+                            coarseFieldOnly.data());
+      require(runtime.energyEvaluationCount() == 0,
+              "evaluateField() incremented the CGP-01 energy negative control");
+      require(runtime.lastEnergy().totalJ == 0.0,
+              "evaluateField() updated lastEnergy_ with an invented/stale value");
+   }
+
+   const auto energy = runtime.evaluateHybrid(
+      atomDirection.data(), externalField.data(), dipoleField.data(),
+      atomWithEnergy.data(), coarseWithEnergy.data());
+   require(runtime.energyEvaluationCount() == 1,
+           "evaluateHybrid() did not increment the CGP-01 energy negative control");
+   require(energy.totalJ != 0.0,
+           "evaluateHybrid() produced a trivial energy on a non-uniform fixture");
+   require(runtime.lastEnergy().totalJ == energy.totalJ,
+           "evaluateHybrid() did not update lastEnergy_ with its own result");
+
+   // Field parity: the field-only pass must reproduce exactly what
+   // evaluateHybrid() writes for the identical inputs -- one field
+   // implementation, only the energy path differs.
+   const auto fieldOnlyAtom = download(atomFieldOnly.data(), atomVectors);
+   const auto energyAtom = download(atomWithEnergy.data(), atomVectors);
+   for(std::size_t index = 0; index < atomVectors; ++index)
+      require(fieldOnlyAtom[index] == energyAtom[index],
+              "evaluateField()'s atomistic field differs from evaluateHybrid()'s");
+   const auto fieldOnlyCoarse = download(coarseFieldOnly.data(), coarseVectors);
+   const auto energyCoarse = download(coarseWithEnergy.data(), coarseVectors);
+   for(std::size_t index = 0; index < coarseVectors; ++index)
+      require(fieldOnlyCoarse[index] == energyCoarse[index],
+              "evaluateField()'s coarse field differs from evaluateHybrid()'s");
+
+   // A field-only call issued after an energy call must still leave the
+   // negative control and the cached energy untouched.
+   runtime.evaluateField(atomDirection.data(), externalField.data(),
+                         dipoleField.data(), atomFieldOnly.data(),
+                         coarseFieldOnly.data());
+   require(runtime.energyEvaluationCount() == 1,
+           "evaluateField() incremented the negative control after a prior energy call");
+   require(runtime.lastEnergy().totalJ == energy.totalJ,
+           "evaluateField() overwrote lastEnergy_ after a prior energy call");
+
+   dipoleField.Free();
+   externalField.Free();
+   coarseWithEnergy.Free();
+   coarseFieldOnly.Free();
+   atomWithEnergy.Free();
+   atomFieldOnly.Free();
+   atomDirection.Free();
+   runtime.release();
+   require(TensorMemoryTracker::current_device() == baseline,
+           "field-only test cleanup did not restore tracked device memory");
+}
+
 // RCG-03 (F-14): the GPU polarization gate must mirror the Fortran
 // evaluate_polarization_gate contract -- a block with a well-aligned
 // channel resultant stays eligible to coarsen, while a block whose
@@ -1441,6 +1547,7 @@ int main() {
    // reports itself as a wrong list rather than as a wrong energy.
    testLiveBondCompaction();
    testKernelParityAndWorkflow();
+   testFieldOnlyEvaluation();
    testContinuumOperatorAgainstHostReference();
    testPolarizationGate();
    testHierarchicalCompaction();

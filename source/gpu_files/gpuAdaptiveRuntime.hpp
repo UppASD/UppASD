@@ -390,6 +390,22 @@ public:
                                     real* atomField,
                                     real* coarseField,
                                     const GpuAdaptiveUniformFftField* basisResolvedFftField = nullptr);
+   // CGP-01: the field-only sibling of evaluateHybrid(), sharing the same
+   // kernels (see evaluateHybridImpl<MeasureEnergy>) but compiled without any
+   // energy contribution arithmetic, block/partial reduction, finalization
+   // launch, or energy D2H readback.  lastEnergy_ is left untouched -- callers
+   // that discard evaluateHybrid()'s return value (the ordinary Depondt
+   // predictor/corrector field evaluations) should call this instead.
+   void evaluateField(const real* atomDirection,
+                      const real* externalCoarseField,
+                      const real* uniformFftDipoleField,
+                      real* atomField,
+                      real* coarseField,
+                      const GpuAdaptiveUniformFftField* basisResolvedFftField = nullptr);
+   // CGP-01 negative control: incremented exactly once per evaluateHybrid()
+   // energy reduction/finalization/D2H readback, never by evaluateField().
+   // Tests use this to prove the field-only path performs zero energy work.
+   std::size_t energyEvaluationCount() const { return energyEvaluationCount_; }
    // Adaptive field assembly is separate from spin integration.  The caller
    // evaluates the total field at the initial and predictor states, while the
    // shared production Depondt integrator owns the fine-atom updates.
@@ -456,6 +472,18 @@ public:
       bool dipoleActive) const;
 
 private:
+   // CGP-01: evaluateHybrid()/evaluateField() are thin wrappers selecting the
+   // MeasureEnergy=true/false instantiation of this template, which is the
+   // single field implementation the design requirement asks for -- compile-
+   // time specialized rather than branching inside every thread.  Defined and
+   // instantiated only in gpuAdaptiveRuntime.cpp.
+   template<bool MeasureEnergy>
+   GpuAdaptiveEnergy evaluateHybridImpl(const real* atomDirection,
+                                        const real* externalCoarseField,
+                                        const real* uniformFftDipoleField,
+                                        real* atomField,
+                                        real* coarseField,
+                                        const GpuAdaptiveUniformFftField* basisResolvedFftField);
    void allocate(const GpuAdaptiveTopologyInput&, const GpuAdaptiveRuntimeInput&);
    void uploadTopology(const GpuAdaptiveTopologyInput&);
    void uploadRuntime(const GpuAdaptiveTopologyInput&, const GpuAdaptiveRuntimeInput&);
@@ -486,6 +514,8 @@ private:
    GpuAdaptiveCompactionMetrics metrics_{};
    GpuAdaptivePhaseMetrics phaseMetrics_{};
    GpuAdaptiveEnergy lastEnergy_{};
+   // CGP-01 negative control; see energyEvaluationCount() above.
+   std::size_t energyEvaluationCount_ = 0;
    std::vector<std::vector<real>> convertedStaging_;
 
    Tensor<int, 1> stagedBlockState_;

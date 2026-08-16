@@ -792,6 +792,10 @@ __device__ inline void effectiveAtomDirection(
 // all-fine field-evaluation wall time.  It is now four parallel launches,
 // ordered on the runtime stream so each sees the previous one complete.
 
+// CGP-01: templated on MeasureEnergy so field-only launches (see
+// evaluateHybridImpl<false>) never touch kernels.energyTerms -- an
+// energyPartials_-backed pointer that field-only calls do not populate.
+template<bool MeasureEnergy>
 __global__ void clearAdaptiveAtomistic(
    GpuAdaptiveDeviceTopology topology, AdaptiveKernelDevice kernels,
    real* atomField) {
@@ -801,7 +805,9 @@ __global__ void clearAdaptiveAtomistic(
       kernels.atomFieldScratch[index] = real(0);
       atomField[index] = real(0);
    }
-   if(index < 2) kernels.energyTerms[index] = 0.0;
+   if constexpr (MeasureEnergy) {
+      if(index < 2) kernels.energyTerms[index] = 0.0;
+   }
 }
 
 // One thread per (live-bond slot, ensemble).  The unique-pair ownership
@@ -818,6 +824,7 @@ __global__ void clearAdaptiveAtomistic(
 // the ownership test itself moved verbatim into markAdaptiveLiveBonds.  With
 // every block fine the compact list is the identity permutation of the full
 // list, so the all-fine limit is bit-for-bit what it was.
+template<bool MeasureEnergy>
 __global__ void evaluateAdaptiveAtomisticBonds(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
    AdaptiveKernelDevice kernels, const real* atomDirection,
@@ -847,7 +854,7 @@ __global__ void evaluateAdaptiveAtomisticBonds(
             ktSi[column] += matrix * si[row];
          }
       }
-      energy = -static_cast<double>(dotDevice(si, ksiJ));
+      if constexpr (MeasureEnergy) energy = -static_cast<double>(dotDevice(si, ksiJ));
       for(int xyz = 0; xyz < 3; ++xyz) {
          atomicAdd(&kernels.atomFieldScratch[atomVectorIndex(
                       xyz, atomI, ensemble, topology.atoms)],
@@ -859,8 +866,10 @@ __global__ void evaluateAdaptiveAtomisticBonds(
 #endif
       }
    }
-   extern __shared__ double energyShared[];
-   reduceAdaptiveEnergyBlock(energy, kernels.energyPartials, energyShared);
+   if constexpr (MeasureEnergy) {
+      extern __shared__ double energyShared[];
+      reduceAdaptiveEnergyBlock(energy, kernels.energyPartials, energyShared);
+   }
 }
 
 // One thread per (compact active-atom slot, ensemble).  activeAtomList holds
@@ -870,6 +879,7 @@ __global__ void evaluateAdaptiveAtomisticBonds(
 // RCG-09C: `activeAtoms` is the compacted count the launch was sized from, so
 // the slot/ensemble split now matches the launch instead of striding by total
 // system atoms with most threads retiring on the workCounts[0] bound.
+template<bool MeasureEnergy>
 __global__ void evaluateAdaptiveAtomisticOnsite(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
    AdaptiveKernelDevice kernels, const real* atomDirection,
@@ -892,8 +902,9 @@ __global__ void evaluateAdaptiveAtomisticOnsite(
          const real c = dotDevice(direction, axis);
          const real k1 = kernels.atomAnisotropyK1[axisIndex + 2 * atom];
          const real k2 = kernels.atomAnisotropyK2[axisIndex + 2 * atom];
-         onsite += static_cast<double>(
-            k1 * c * c + k2 * (real(2) * c * c - c * c * c * c));
+         if constexpr (MeasureEnergy)
+            onsite += static_cast<double>(
+               k1 * c * c + k2 * (real(2) * c * c - c * c * c * c));
          const real derivative = real(2) * c *
             (k1 + real(2) * k2 * (real(1) - c * c));
          for(int xyz = 0; xyz < 3; ++xyz)
@@ -903,10 +914,12 @@ __global__ void evaluateAdaptiveAtomisticOnsite(
                (kernels.magneticMomentSi * kernels.atomMoment[atom]);
       }
    }
-   extern __shared__ double energyShared[];
-   reduceAdaptiveEnergyBlock(
-      onsite, kernels.energyPartials + kernels.energyPartialBlocks,
-      energyShared);
+   if constexpr (MeasureEnergy) {
+      extern __shared__ double energyShared[];
+      reduceAdaptiveEnergyBlock(
+         onsite, kernels.energyPartials + kernels.energyPartialBlocks,
+         energyShared);
+   }
 }
 
 // The writeback traverses the compact active-atom list.  Coarse ghosts keep
@@ -1111,6 +1124,7 @@ __device__ inline void commitDerivativeStencil(
    }
 }
 
+template<bool MeasureEnergy>
 __global__ void clearAdaptiveCoarse(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
    AdaptiveKernelDevice kernels, real* coarseField) {
@@ -1121,12 +1135,15 @@ __global__ void clearAdaptiveCoarse(
       runtime.coarseField[index] = real(0);
       coarseField[index] = real(0);
    }
-   if(index < 6) kernels.energyTerms[index + 2] = 0.0;
+   if constexpr (MeasureEnergy) {
+      if(index < 6) kernels.energyTerms[index + 2] = 0.0;
+   }
 }
 
 // RCG-09C: `activeBlocks` is the compacted coarse-block count the launch was
 // sized from.  The gate is the same activeBlockList membership as before; only
 // the thread decomposition follows the compact list instead of total blocks.
+template<bool MeasureEnergy>
 __global__ void evaluateAdaptiveCoarseTensor(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
    AdaptiveKernelDevice kernels, std::size_t activeBlocks) {
@@ -1187,8 +1204,9 @@ __global__ void evaluateAdaptiveCoarseTensor(
                                 p, q)) continue;
             anyOwned = true;
             const real stiffness = kernels.exchangeStiffness[p + 3 * q];
-            exchangeEnergy += static_cast<double>(
-               volume * stiffness * dotDevice(gradient[p], gradient[q]));
+            if constexpr (MeasureEnergy)
+               exchangeEnergy += static_cast<double>(
+                  volume * stiffness * dotDevice(gradient[p], gradient[q]));
             for(int xyz = 0; xyz < 3; ++xyz)
                derivativeSum[xyz] += volume * stiffness * gradient[q][xyz];
          }
@@ -1199,15 +1217,18 @@ __global__ void evaluateAdaptiveCoarseTensor(
 
       // CG-14: the spiralization energy keeps its own (k, p) loop so that its
       // accumulation order, and therefore its value, is unchanged.  Only
-      // component k of (m x grad_p) was ever read from it.
-      for(int k = 0; k < 3; ++k)
-         for(int p = 0; p < 3; ++p) {
-            if(!tensorTermOwned(inverseTranspose, selfCoarse, neighbourCoarse,
-                                p, -1)) continue;
-            spiralEnergy += static_cast<double>(
-               volume * kernels.spiralization[k + 3 * p] *
-               crossComponent(direction, gradient[p], k));
-         }
+      // component k of (m x grad_p) was ever read from it.  CGP-01: this loop
+      // computes nothing else, so it is skipped entirely when field-only.
+      if constexpr (MeasureEnergy) {
+         for(int k = 0; k < 3; ++k)
+            for(int p = 0; p < 3; ++p) {
+               if(!tensorTermOwned(inverseTranspose, selfCoarse, neighbourCoarse,
+                                   p, -1)) continue;
+               spiralEnergy += static_cast<double>(
+                  volume * kernels.spiralization[k + 3 * p] *
+                  crossComponent(direction, gradient[p], k));
+            }
+      }
 
       // CG-14: the spiralization field is evaluated p-major so that the
       // stencil, whose coefficient does not depend on k, runs once per p
@@ -1230,15 +1251,18 @@ __global__ void evaluateAdaptiveCoarseTensor(
       commitDerivativeStencil(topology, runtime.coarseField, block, plus,
                               ensemble, contribution);
    }
-   extern __shared__ double energyShared[];
-   reduceAdaptiveEnergyBlock(
-      exchangeEnergy, kernels.energyPartials + 2 * kernels.energyPartialBlocks,
-      energyShared);
-   reduceAdaptiveEnergyBlock(
-      spiralEnergy, kernels.energyPartials + 3 * kernels.energyPartialBlocks,
-      energyShared + blockDim.x);
+   if constexpr (MeasureEnergy) {
+      extern __shared__ double energyShared[];
+      reduceAdaptiveEnergyBlock(
+         exchangeEnergy, kernels.energyPartials + 2 * kernels.energyPartialBlocks,
+         energyShared);
+      reduceAdaptiveEnergyBlock(
+         spiralEnergy, kernels.energyPartials + 3 * kernels.energyPartialBlocks,
+         energyShared + blockDim.x);
+   }
 }
 
+template<bool MeasureEnergy>
 __global__ void finalizeAdaptiveCoarseLocal(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
    AdaptiveKernelDevice kernels, const real* externalField,
@@ -1264,9 +1288,10 @@ __global__ void finalizeAdaptiveCoarseLocal(
          const real k1 = kernels.anisotropyK1[axisIndex + 2 * block];
          const real k2 = kernels.anisotropyK2[axisIndex + 2 * block];
          const real volume = topology.blockVolume[block];
-         anisotropyEnergy += static_cast<double>(volume *
-            (k1 * c * c + real(2) * k2 * c * c -
-             k2 * c * c * c * c));
+         if constexpr (MeasureEnergy)
+            anisotropyEnergy += static_cast<double>(volume *
+               (k1 * c * c + real(2) * k2 * c * c -
+                k2 * c * c * c * c));
          const real derivative = volume * real(2) * c *
             (k1 + real(2) * k2 * (real(1) - c * c));
          for(int xyz = 0; xyz < 3; ++xyz)
@@ -1283,23 +1308,28 @@ __global__ void finalizeAdaptiveCoarseLocal(
             -real(1) / (kernels.magneticMomentSi * moment);
          if(externalField) runtime.coarseField[vector] += externalField[vector];
       }
-      if(externalField) {
-         real external[3];
-         for(int xyz = 0; xyz < 3; ++xyz)
-            external[xyz] = externalField[3 * scalar + xyz];
-         externalEnergy = -static_cast<double>(
-            kernels.magneticMomentSi * moment * dotDevice(external, direction));
+      if constexpr (MeasureEnergy) {
+         if(externalField) {
+            real external[3];
+            for(int xyz = 0; xyz < 3; ++xyz)
+               external[xyz] = externalField[3 * scalar + xyz];
+            externalEnergy = -static_cast<double>(
+               kernels.magneticMomentSi * moment * dotDevice(external, direction));
+         }
       }
    }
-   extern __shared__ double energyShared[];
-   reduceAdaptiveEnergyBlock(
-      anisotropyEnergy, kernels.energyPartials + 4 * kernels.energyPartialBlocks,
-      energyShared);
-   reduceAdaptiveEnergyBlock(
-      externalEnergy, kernels.energyPartials + 5 * kernels.energyPartialBlocks,
-      energyShared + blockDim.x);
+   if constexpr (MeasureEnergy) {
+      extern __shared__ double energyShared[];
+      reduceAdaptiveEnergyBlock(
+         anisotropyEnergy, kernels.energyPartials + 4 * kernels.energyPartialBlocks,
+         energyShared);
+      reduceAdaptiveEnergyBlock(
+         externalEnergy, kernels.energyPartials + 5 * kernels.energyPartialBlocks,
+         energyShared + blockDim.x);
+   }
 }
 
+template<bool MeasureEnergy>
 __global__ void addAdaptiveDipole(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
    AdaptiveKernelDevice kernels, const real* atomDirection,
@@ -1335,17 +1365,20 @@ __global__ void addAdaptiveDipole(
             }
          }
       }
-      dipoleEnergy = -static_cast<double>(real(0.5) * kernels.magneticMomentSi *
-                       dotDevice(dipole, source));
+      if constexpr (MeasureEnergy)
+         dipoleEnergy = -static_cast<double>(real(0.5) * kernels.magneticMomentSi *
+                          dotDevice(dipole, source));
       if(runtime.coarseBlockMask[block]) {
          for(int xyz = 0; xyz < 3; ++xyz)
             runtime.coarseField[3 * scalar + xyz] += dipole[xyz];
       }
    }
-   extern __shared__ double energyShared[];
-   reduceAdaptiveEnergyBlock(
-      dipoleEnergy, kernels.energyPartials + 6 * kernels.energyPartialBlocks,
-      energyShared);
+   if constexpr (MeasureEnergy) {
+      extern __shared__ double energyShared[];
+      reduceAdaptiveEnergyBlock(
+         dipoleEnergy, kernels.energyPartials + 6 * kernels.energyPartialBlocks,
+         energyShared);
+   }
 }
 
 __device__ inline void loadBasisResolvedFftField(
@@ -1365,6 +1398,7 @@ __device__ inline void loadBasisResolvedFftField(
    }
 }
 
+template<bool MeasureEnergy>
 __global__ void addAdaptiveBasisResolvedDipole(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
    AdaptiveKernelDevice kernels, const real* atomDirection,
@@ -1410,8 +1444,9 @@ __global__ void addAdaptiveBasisResolvedDipole(
                   xyz, atom, ensemble, topology.atoms)] += field[xyz];
          }
          const real moment = kernels.atomMoment[atom];
-         dipoleEnergy -= static_cast<double>(real(0.5) * kernels.magneticMomentSi *
-                         moment * dotDevice(field, sourceDirection));
+         if constexpr (MeasureEnergy)
+            dipoleEnergy -= static_cast<double>(real(0.5) * kernels.magneticMomentSi *
+                            moment * dotDevice(field, sourceDirection));
          for(int xyz = 0; xyz < 3; ++xyz)
             coarseWeightedField[xyz] += moment * field[xyz];
       }
@@ -1422,10 +1457,12 @@ __global__ void addAdaptiveBasisResolvedDipole(
                inverseMoment * coarseWeightedField[xyz];
       }
    }
-   extern __shared__ double energyShared[];
-   reduceAdaptiveEnergyBlock(
-      dipoleEnergy, kernels.energyPartials + 6 * kernels.energyPartialBlocks,
-      energyShared);
+   if constexpr (MeasureEnergy) {
+      extern __shared__ double energyShared[];
+      reduceAdaptiveEnergyBlock(
+         dipoleEnergy, kernels.energyPartials + 6 * kernels.energyPartialBlocks,
+         energyShared);
+   }
 }
 
 __global__ void writeAdaptiveCoarse(
@@ -2929,7 +2966,16 @@ void GpuAdaptiveRuntime::publishProposedState(
    refreshHostWorkCounts();
 }
 
-GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
+// CGP-01: the single field implementation behind both evaluateHybrid() and
+// evaluateField() (see the two thin wrappers below).  MeasureEnergy=false
+// launches the same kernels with the same field arithmetic, but every
+// kernel elides its energy contribution, block reduction, and the
+// term/finalization/D2H readback are skipped outright -- see the
+// `if constexpr (MeasureEnergy)` kernel bodies above and the CGP-01 design
+// requirement (docs/CGP_work.md) for why this is a compile-time
+// specialization rather than a runtime branch inside every thread.
+template<bool MeasureEnergy>
+GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybridImpl(
    const real* atomDirection, const real* externalCoarseField,
    const real* uniformFftDipoleField, real* atomField, real* coarseField,
    const GpuAdaptiveUniformFftField* basisResolvedFftField) {
@@ -2963,8 +3009,15 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
       projectionNorm_.data(), atomFieldScratch_.data(),
       coarseFieldScratch_.data(), energyTerms_.data(), transitionBackup_.data()
    };
-   kernels.energyPartials = energyPartials_.data();
-   kernels.energyPartialBlocks = energyPartialBlocks_;
+   // CGP-01: field-only launches never see a populated energyPartials
+   // pointer or a non-zero block stride -- kernels.energyPartials stays
+   // nullptr (its AdaptiveKernelDevice default), which is never dereferenced
+   // because every energy contribution/reduction is behind
+   // `if constexpr (MeasureEnergy)`.
+   if constexpr (MeasureEnergy) {
+      kernels.energyPartials = energyPartials_.data();
+      kernels.energyPartialBlocks = energyPartialBlocks_;
+   }
    beginPhase();
 #if defined(CUDA_V)
    prolongateAdaptiveGhosts<<<
@@ -3007,29 +3060,33 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
       liveBondWork ? static_cast<std::size_t>(adaptiveGrid(liveBondWork)) : 0;
    const std::size_t atomPartials =
       activeAtomWork ? static_cast<std::size_t>(adaptiveGrid(activeAtomWork)) : 0;
-   ADAPTIVE_LAUNCH(clearAdaptiveAtomistic,
+   ADAPTIVE_LAUNCH(clearAdaptiveAtomistic<MeasureEnergy>,
                    adaptiveGrid(3 * atoms_ * ensembles_), stream_,
                    deviceTopology_, kernels, atomField);
    ++phaseMetrics_.atomisticLaunches;
    if(liveBondWork > 0) {
-      ADAPTIVE_LAUNCH_SHARED(evaluateAdaptiveAtomisticBonds,
+      ADAPTIVE_LAUNCH_SHARED(evaluateAdaptiveAtomisticBonds<MeasureEnergy>,
                       adaptiveGrid(liveBondWork),
-                      adaptiveThreads * sizeof(double), stream_,
+                      MeasureEnergy ? adaptiveThreads * sizeof(double) : std::size_t(0),
+                      stream_,
                       deviceTopology_, deviceRuntime_, kernels, atomDirection,
                       liveBondCount());
       ++phaseMetrics_.atomisticLaunches;
    }
    if(activeAtomWork > 0) {
-      ADAPTIVE_LAUNCH_SHARED(evaluateAdaptiveAtomisticOnsite,
+      ADAPTIVE_LAUNCH_SHARED(evaluateAdaptiveAtomisticOnsite<MeasureEnergy>,
                       adaptiveGrid(activeAtomWork),
-                      adaptiveThreads * sizeof(double), stream_,
+                      MeasureEnergy ? adaptiveThreads * sizeof(double) : std::size_t(0),
+                      stream_,
                       deviceTopology_, deviceRuntime_, kernels, atomDirection,
                       activeAtomCount());
       ++phaseMetrics_.atomisticLaunches;
    }
-   ADAPTIVE_LAUNCH(reduceAdaptiveEnergyPartials, 1, stream_, kernels, 0, 2,
-                   bondPartials, atomPartials, std::size_t(0), std::size_t(0));
-   ++phaseMetrics_.atomisticLaunches;
+   if constexpr (MeasureEnergy) {
+      ADAPTIVE_LAUNCH(reduceAdaptiveEnergyPartials, 1, stream_, kernels, 0, 2,
+                      bondPartials, atomPartials, std::size_t(0), std::size_t(0));
+      ++phaseMetrics_.atomisticLaunches;
+   }
    if(activeAtomWork > 0) {
       ADAPTIVE_LAUNCH(writebackAdaptiveAtomistic,
                       adaptiveGrid(activeAtomWork), stream_,
@@ -3075,78 +3132,118 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
    const bool anyDipole = uniformFftDipoleField || basisResolvedFftField;
    const std::size_t dipolePartials = anyDipole ?
       static_cast<std::size_t>(adaptiveGrid(blocks_ * ensembles_)) : 0;
-   ADAPTIVE_LAUNCH(clearAdaptiveCoarse,
+   ADAPTIVE_LAUNCH(clearAdaptiveCoarse<MeasureEnergy>,
                    adaptiveGrid(3 * dynamicChannels_ * blocks_ * ensembles_),
                    stream_, deviceTopology_, deviceRuntime_, kernels,
                    coarseField);
    ++phaseMetrics_.coarseLaunches;
    if(activeBlockWork > 0) {
-      ADAPTIVE_LAUNCH_SHARED(evaluateAdaptiveCoarseTensor,
+      ADAPTIVE_LAUNCH_SHARED(evaluateAdaptiveCoarseTensor<MeasureEnergy>,
                              adaptiveGrid(activeBlockWork),
-                             2 * adaptiveThreads * sizeof(double), stream_,
+                             MeasureEnergy ?
+                                2 * adaptiveThreads * sizeof(double) :
+                                std::size_t(0),
+                             stream_,
                              deviceTopology_, deviceRuntime_, kernels,
                              activeBlockCount());
-      ADAPTIVE_LAUNCH_SHARED(finalizeAdaptiveCoarseLocal,
+      ADAPTIVE_LAUNCH_SHARED(finalizeAdaptiveCoarseLocal<MeasureEnergy>,
                              adaptiveGrid(activeBlockWork),
-                             2 * adaptiveThreads * sizeof(double), stream_,
+                             MeasureEnergy ?
+                                2 * adaptiveThreads * sizeof(double) :
+                                std::size_t(0),
+                             stream_,
                              deviceTopology_, deviceRuntime_, kernels,
                              externalCoarseField, activeBlockCount());
       phaseMetrics_.coarseLaunches += 2;
    }
    if(uniformFftDipoleField) {
-      ADAPTIVE_LAUNCH_SHARED(addAdaptiveDipole,
+      ADAPTIVE_LAUNCH_SHARED(addAdaptiveDipole<MeasureEnergy>,
                              adaptiveGrid(blocks_ * ensembles_),
-                             adaptiveThreads * sizeof(double), stream_,
+                             MeasureEnergy ? adaptiveThreads * sizeof(double) :
+                                std::size_t(0),
+                             stream_,
                              deviceTopology_, deviceRuntime_, kernels,
                              atomDirection, uniformFftDipoleField, atomField);
       ++phaseMetrics_.coarseLaunches;
    }
    if(basisResolvedFftField) {
-      ADAPTIVE_LAUNCH_SHARED(addAdaptiveBasisResolvedDipole,
+      ADAPTIVE_LAUNCH_SHARED(addAdaptiveBasisResolvedDipole<MeasureEnergy>,
                              adaptiveGrid(blocks_ * ensembles_),
-                             adaptiveThreads * sizeof(double), stream_,
+                             MeasureEnergy ? adaptiveThreads * sizeof(double) :
+                                std::size_t(0),
+                             stream_,
                              deviceTopology_, deviceRuntime_, kernels,
                              atomDirection, *basisResolvedFftField, atomField);
       ++phaseMetrics_.coarseLaunches;
    }
-   ADAPTIVE_LAUNCH(reduceAdaptiveEnergyPartials, 1, stream_, kernels, 2, 5,
-                   std::size_t(0), std::size_t(0), coarsePartials,
-                   dipolePartials);
-   ++phaseMetrics_.coarseLaunches;
+   if constexpr (MeasureEnergy) {
+      ADAPTIVE_LAUNCH(reduceAdaptiveEnergyPartials, 1, stream_, kernels, 2, 5,
+                      std::size_t(0), std::size_t(0), coarsePartials,
+                      dipolePartials);
+      ++phaseMetrics_.coarseLaunches;
+   }
    if(activeBlockWork > 0) {
       ADAPTIVE_LAUNCH(writeAdaptiveCoarse, adaptiveGrid(activeBlockWork),
                       stream_, deviceTopology_, deviceRuntime_, kernels,
                       coarseField, activeBlockCount());
       ++phaseMetrics_.coarseLaunches;
    }
+   if constexpr (MeasureEnergy) {
 #if defined(CUDA_V)
-   finalizeAdaptiveEnergy<<<1, 1, 0, stream_>>>(kernels);
+      finalizeAdaptiveEnergy<<<1, 1, 0, stream_>>>(kernels);
 #else
-   hipLaunchKernelGGL(finalizeAdaptiveEnergy, dim3(1), dim3(1), 0, stream_,
-                      kernels);
+      hipLaunchKernelGGL(finalizeAdaptiveEnergy, dim3(1), dim3(1), 0, stream_,
+                         kernels);
 #endif
-   ++phaseMetrics_.coarseLaunches;
+      ++phaseMetrics_.coarseLaunches;
+   }
    ASSERT_GPU(GPU_GET_LAST_ERROR());
    finishPhase(phaseMetrics_.coarseMilliseconds);
 
-   // RCG-06B (F-11): energyTerms_ is FP64 device storage now, so this
-   // readback is a plain double copy -- no per-term precision loss remains
-   // between the device reduction and this struct.
-   double terms[8] = {};
-   TensorDataMovementTracker::add_d2h(sizeof(terms));
-   ASSERT_GPU(GPU_MEMCPY(terms, energyTerms_.data(), sizeof(terms),
-                         GPU_MEMCPY_DEVICE_TO_HOST));
-   GpuAdaptiveEnergy result;
-   result.atomisticBilinearJ = terms[0];
-   result.atomisticOnsiteJ = terms[1];
-   result.coarseExchangeJ = terms[2];
-   result.coarseSpiralizationJ = terms[3];
-   result.coarseAnisotropyJ = terms[4];
-   result.coarseExternalJ = terms[5];
-   result.dipoleJ = terms[6];
-   result.totalJ = terms[7];
-   lastEnergy_ = result;
-   return result;
+   if constexpr (MeasureEnergy) {
+      // RCG-06B (F-11): energyTerms_ is FP64 device storage now, so this
+      // readback is a plain double copy -- no per-term precision loss remains
+      // between the device reduction and this struct.
+      double terms[8] = {};
+      TensorDataMovementTracker::add_d2h(sizeof(terms));
+      ASSERT_GPU(GPU_MEMCPY(terms, energyTerms_.data(), sizeof(terms),
+                            GPU_MEMCPY_DEVICE_TO_HOST));
+      GpuAdaptiveEnergy result;
+      result.atomisticBilinearJ = terms[0];
+      result.atomisticOnsiteJ = terms[1];
+      result.coarseExchangeJ = terms[2];
+      result.coarseSpiralizationJ = terms[3];
+      result.coarseAnisotropyJ = terms[4];
+      result.coarseExternalJ = terms[5];
+      result.dipoleJ = terms[6];
+      result.totalJ = terms[7];
+      lastEnergy_ = result;
+      // CGP-01 negative control: incremented exactly once per energy
+      // reduction/finalization/D2H readback, never by the MeasureEnergy=false
+      // instantiation below.
+      ++energyEvaluationCount_;
+      return result;
+   } else {
+      return GpuAdaptiveEnergy{};
+   }
+}
+
+GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
+   const real* atomDirection, const real* externalCoarseField,
+   const real* uniformFftDipoleField, real* atomField, real* coarseField,
+   const GpuAdaptiveUniformFftField* basisResolvedFftField) {
+   return evaluateHybridImpl<true>(atomDirection, externalCoarseField,
+                                   uniformFftDipoleField, atomField,
+                                   coarseField, basisResolvedFftField);
+}
+
+void GpuAdaptiveRuntime::evaluateField(
+   const real* atomDirection, const real* externalCoarseField,
+   const real* uniformFftDipoleField, real* atomField, real* coarseField,
+   const GpuAdaptiveUniformFftField* basisResolvedFftField) {
+   (void)evaluateHybridImpl<false>(atomDirection, externalCoarseField,
+                                   uniformFftDipoleField, atomField,
+                                   coarseField, basisResolvedFftField);
 }
 
 void GpuAdaptiveRuntime::prepareCoarsePredictor(

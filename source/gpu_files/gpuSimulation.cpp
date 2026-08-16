@@ -1141,7 +1141,8 @@ void GpuSimulation::advanceAdaptiveStep(
    // reconciled against it and any unaccounted time reported rather than
    // assumed to be ~0.
    const auto adaptiveStepWallStarted = std::chrono::steady_clock::now();
-   auto evaluateAdaptiveFields = [this, hamiltonian](const real* direction) {
+   auto evaluateAdaptiveFields = [this, hamiltonian](const real* direction,
+                                                       bool measureEnergy) {
       gpuAdaptiveRuntime.synchronize();
       GpuAdaptiveFftEvaluator fftEvaluator{};
       if(hamiltonian && hamiltonian->hasAdaptiveFftDipole()) {
@@ -1166,9 +1167,22 @@ void GpuSimulation::advanceAdaptiveStep(
          fftField = fftEvaluator(direction);
          fftFieldPtr = &fftField;
       }
-      (void)gpuAdaptiveRuntime.evaluateHybrid(
-         direction, nullptr, nullptr, gpuLattice.beff.data(),
-         gpuAdaptiveRuntime.coarseFieldData(), fftFieldPtr);
+      // CGP-01: the ordinary predictor/corrector field evaluations below
+      // discard the energy return value, so they perform no energy
+      // accumulation, reduction, finalization, or D2H readback -- energy is
+      // fetched only for a caller that genuinely consumes it (diagnostics>=3
+      // stage traces, or diagnostics>0's teardown last_energy_j print, which
+      // depends on the predictor call below leaving a fresh lastEnergy_; see
+      // the measureEnergy argument at each call site).
+      if(measureEnergy) {
+         (void)gpuAdaptiveRuntime.evaluateHybrid(
+            direction, nullptr, nullptr, gpuLattice.beff.data(),
+            gpuAdaptiveRuntime.coarseFieldData(), fftFieldPtr);
+      } else {
+         gpuAdaptiveRuntime.evaluateField(
+            direction, nullptr, nullptr, gpuLattice.beff.data(),
+            gpuAdaptiveRuntime.coarseFieldData(), fftFieldPtr);
+      }
       gpuAdaptiveRuntime.synchronize();
    };
    // Diagnostics level 3 is already used by the CPU/GPU static-parity
@@ -1199,26 +1213,36 @@ void GpuSimulation::advanceAdaptiveStep(
    const std::size_t activeAtomCount = gpuAdaptiveRuntime.activeAtomCount();
    const int* activeAtomList = gpuAdaptiveRuntime.activeAtomList();
 
+   // CGP-01: energy is genuinely needed here in two cases -- the diagnostics
+   // >=3 stage trace (every stage, gated identically to
+   // printStaticStageTrace()'s own internal gate), and, for the predictor
+   // stage only, whenever diagnostics>0 at all, because it is normally the
+   // last evaluateAdaptiveFields() call of a diagnostics<3 step and its
+   // lastEnergy_ is what release()'s teardown last_energy_j print reports
+   // (RCG-04C "final step only"). Preserving that existing, test-verified
+   // last_energy_j contract at diagnostics 1-2 takes priority over an exact
+   // literal reading of "diagnostics>=3 requests energy" for this one call.
+   const bool traceEnergy = adaptiveDiagnostics >= 3 && !adaptiveMaskEnabled;
    // Initial total field -> production Depondt predictor -> predictor total
    // field -> production Depondt corrector.  The adaptive runtime owns only
    // field assembly and coarse-block integration; fine atoms use the same
    // shared integrator and thermal field as feature-off ASD.
-   evaluateAdaptiveFields(gpuLattice.emom.data());
+   evaluateAdaptiveFields(gpuLattice.emom.data(), traceEnergy);
    printStaticStageTrace("initial", gpuLattice.emom.data());
    gpuAdaptiveRuntime.prepareCoarsePredictor(
       static_cast<real>(SimParam.delta_t), gpuAdaptiveRuntime.coarseFieldData());
    gpuAdaptiveRuntime.synchronize();
    integrator->evolveFirst(gpuLattice, activeAtomList, activeAtomCount);
    ASSERT_GPU(GPU_STREAM_SYNC(ParallelizationHelperInstance.getWorkStream()));
-   evaluateAdaptiveFields(gpuLattice.emom.data());
+   evaluateAdaptiveFields(gpuLattice.emom.data(), adaptiveDiagnostics > 0);
    printStaticStageTrace("predictor", gpuLattice.emom.data());
    integrator->evolveSecond(gpuLattice, activeAtomList, activeAtomCount);
    ASSERT_GPU(GPU_STREAM_SYNC(ParallelizationHelperInstance.getWorkStream()));
    gpuAdaptiveRuntime.correctCoarse(
       static_cast<real>(SimParam.delta_t), gpuAdaptiveRuntime.coarseFieldData());
    gpuAdaptiveRuntime.synchronize();
-   if(adaptiveDiagnostics >= 3 && !adaptiveMaskEnabled)
-      evaluateAdaptiveFields(gpuLattice.emom2.data());
+   if(traceEnergy)
+      evaluateAdaptiveFields(gpuLattice.emom2.data(), true);
    printStaticStageTrace("corrector", gpuLattice.emom2.data());
    // The active-subset Depondt corrector leaves the accepted fine-atom
    // vectors in emom2, matching the full-range integrator's buffer contract.
@@ -1227,8 +1251,8 @@ void GpuSimulation::advanceAdaptiveStep(
    // would make its unconditional swap publish the stale pre-step buffer.
    gpuAdaptiveRuntime.synchronizeAtomicState(
       gpuLattice.emom2.data(), adaptiveReconstructionPolicy);
-   if(adaptiveDiagnostics >= 3 && !adaptiveMaskEnabled)
-      evaluateAdaptiveFields(gpuLattice.emom2.data());
+   if(traceEnergy)
+      evaluateAdaptiveFields(gpuLattice.emom2.data(), true);
    printStaticStageTrace("reconstructed", gpuLattice.emom2.data());
    if(adaptiveMaskEnabled && adaptiveUpdateInterval > 0 &&
       step % adaptiveUpdateInterval == 0) {
