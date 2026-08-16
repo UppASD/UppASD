@@ -69,16 +69,16 @@ public:
    GpuAdaptiveMomentUpdater(deviceLattice& gpuLattice, int mompar, char initexc);
 
    // Full-lattice update. Every kernel launch geometry, formula, and buffer
-   // touched is identical to GpuMomentUpdater::update() -- this is the
-   // variant wired into production for adaptive runs today (see the
-   // call-site comment in gpuSDSimulation.cpp), because the correlation
-   // sampling schedule (source/gpu_files/correlations/gpuCorrelations.cpp)
-   // mutates its own firing-time bookkeeping (t_cur, curstep-derived state)
-   // as a side effect of measure(), so its firing predicate cannot safely be
-   // "peeked" one step ahead without editing GpuCorrelations -- exactly the
-   // kind of shared-infrastructure change this task declines, matching the
-   // CGP-00B/CGP-03 precedent. See the evidence doc Part D for the full
-   // argument.
+   // touched is identical to GpuMomentUpdater::update(). CGP-03B could not
+   // safely wire updateActiveOnly() into production because
+   // GpuCorrelations::measure()'s firing predicate (source/gpu_files/
+   // correlations/gpuCorrelations.cpp) mutates its own bookkeeping
+   // (t_cur, curstep-derived state) as a side effect, so it cannot be
+   // "peeked" one step ahead without editing shared, non-adaptive code.
+   // CGP-03C's production wiring (gpuSDSimulation.cpp, via
+   // adaptiveMomentUpdateNeedsFullLattice() below) still calls this
+   // wherever that look-ahead determines a full update is needed -- see
+   // docs/CGP-03C_MOMENT_UPDATE_LOOKAHEAD_EVIDENCE.md.
    void updateFull();
 
    // Touched-atom-only update: the Mompar1/Mompar2 (mmom2 rebuild) and
@@ -99,7 +99,38 @@ public:
    // held before this call -- by construction, not by omission: neither
    // buffer slot for that atom is ever written, so the same numeric value
    // simply keeps changing which tensor (mmom vs mmom2) currently names it.
-   // This is intentionally not yet called from any production site; see the
-   // evidence doc for why (Part D) and what would need to change first.
+   //
+   // CGP-03C: this is now the production default for adaptive runs on
+   // steps where adaptiveMomentUpdateNeedsFullLattice() below returns
+   // false; the caller must pass a *freshly re-fetched*
+   // GpuAdaptiveRuntime::activeAtomList()/activeAtomCount() (not a snapshot
+   // taken before a transition may have been published this same step).
    void updateActiveOnly(const int* activeAtoms, std::size_t activeCount);
 };
+
+// Forward-declared rather than #include "gpuMeasurement.hpp" here, to keep
+// this header's dependency footprint the same as before CGP-03C for every
+// consumer that does not need the look-ahead.
+class GpuMeasurement;
+
+// CGP-03C: pure, side-effect-free query for whether the *next* loop
+// iteration's measurement/output traffic will need gpuLattice.mmom/mmomi/
+// emomM fully fresh for every atom -- i.e. whether the current step's
+// adaptive moment update must be GpuAdaptiveMomentUpdater::updateFull()
+// rather than updateActiveOnly(). Deliberately does not consider
+// GpuCorrelations/do_sc at all -- see
+// docs/CGP-03C_MOMENT_UPDATE_LOOKAHEAD_EVIDENCE.md for why that is an
+// accepted, deliberate scope decision (Anders: correlations are not
+// guaranteed correct under adaptive CG), not an oversight.
+//
+// gpuMeasurement may be null (MeasurementFactory chose FortranMeasurement,
+// i.e. do_cuda_measurements != 'Y'); the Fortran do_measurements oracle
+// alone then matches that backend's own existing freshness guarantee, so no
+// special-casing is needed for it.
+//
+// nstep/rstep/currentStep/lastStep are plain values (not a GpuSimulation&)
+// so this function has no dependency on GpuSimulation's internals and can
+// be unit-tested standalone.
+bool adaptiveMomentUpdateNeedsFullLattice(GpuMeasurement* gpuMeasurement,
+                                          std::size_t currentStep, std::size_t lastStep,
+                                          std::size_t nstep, std::size_t rstep);

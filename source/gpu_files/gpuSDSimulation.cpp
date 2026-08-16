@@ -232,6 +232,12 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    MeasurementQueue mqueue;
    // Measurement
    const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, gpuSim.gpuEnergies, mqueue, gpuSim.Flags.do_jtensor);
+   // CGP-03C: non-owning; null when MeasurementFactory chose FortranMeasurement
+   // (do_cuda_measurements != 'Y'), in which case adaptiveMomentUpdateNeedsFullLattice
+   // relies solely on the Fortran do_measurements oracle for that backend's own
+   // existing freshness guarantee -- see docs/CGP-03C_MOMENT_UPDATE_LOOKAHEAD_EVIDENCE.md.
+   GpuMeasurement* const gpuMeasurementForLookahead =
+      dynamic_cast<GpuMeasurement*>(measurement.get());
    //CPU residing measurements
    //CpuRestMeasurement cpuMeas(gpuSim.gpuLattice.emomM, gpuSim.gpuLattice.emom, gpuSim.gpuLattice.mmom, 
    //                gpuSim.gpuLattice.beff, gpuSim.cpuLattice.emomM, gpuSim.cpuLattice.emom,
@@ -315,13 +321,24 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
          stopwatch.add("evolution");
       }
       // Update magnetic moments after time evolution step.
-      // CGP-03B: adaptive runs use their own updater (still a full-lattice
-      // update today -- see adaptiveMomUpdater's declaration comment above
-      // and docs/CGP-03B_ADAPTIVE_MOMENT_UPDATER_EVIDENCE.md Part D for why
-      // updateActiveOnly() is not yet safe to enable here), so
-      // GpuMomentUpdater::update() is never called for an adaptive step.
+      // CGP-03B/CGP-03C: adaptive runs use their own updater, never
+      // GpuMomentUpdater::update(). CGP-03C wires in the touched-only
+      // updateActiveOnly() (scoped to the freshly-refreshed, post-transition
+      // active list -- see docs/CGP-03C_MOMENT_UPDATE_LOOKAHEAD_EVIDENCE.md
+      // for why re-fetching activeAtomList()/activeAtomCount() here, rather
+      // than reusing advanceAdaptiveStep's pre-transition snapshot, is
+      // required and sufficient for both transition directions), falling
+      // back to a full updateFull() whenever adaptiveMomentUpdateNeedsFullLattice
+      // determines the next step's measurement/output traffic needs every
+      // atom's mmom/mmomi/emomM fresh.
       if(gpuSim.adaptiveEnabled()) {
-         adaptiveMomUpdater.updateFull();
+         if(adaptiveMomentUpdateNeedsFullLattice(gpuMeasurementForLookahead, mstep, rstep + nstep,
+                                                 nstep, rstep)) {
+            adaptiveMomUpdater.updateFull();
+         } else {
+            adaptiveMomUpdater.updateActiveOnly(gpuSim.gpuAdaptiveRuntime.activeAtomList(),
+                                                gpuSim.gpuAdaptiveRuntime.activeAtomCount());
+         }
       } else {
          momUpdater.update();
       }

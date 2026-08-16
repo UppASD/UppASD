@@ -41,6 +41,18 @@ public:
     // It is used by the run-wide preflight before this object is constructed.
     static std::size_t estimateBytes(std::size_t N, std::size_t M);
 
+    // CGP-03C: pure, side-effect-free query for whether a future
+    // measure(mstep) call would need gpuLattice.emomM/mmom to be fully
+    // fresh -- i.e. would touch AverageMagnetization, BinderCumulant, or
+    // SkyrmionNumber (the three types that read emomM, directly or via
+    // calculateEmomMSum()). Energy reads gpuEnergies only and
+    // Autocorrelation reads emom, not emomM/mmom, so neither is included --
+    // see docs/CGP-03C_MOMENT_UPDATE_LOOKAHEAD_EVIDENCE.md. Applies the same
+    // Fortran-index (--mstep) convention measure() itself applies, so a
+    // caller queries with the same raw mstep it would pass to measure().
+    // Does not mutate any member; safe to call ahead of the real step.
+    bool needsFreshMoments(size_t mstep) const;
+
 private:
     bool timeToMeasure(MeasurementType mtype, size_t mstep) const;
     template<typename T> inline void fill_index(Vector<real>& iter, T step, size_t& count);

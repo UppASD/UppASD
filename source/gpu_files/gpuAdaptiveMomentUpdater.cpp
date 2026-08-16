@@ -23,6 +23,10 @@
 #include <cuda.h>
 #endif
 
+// CGP-03C: needed only by adaptiveMomentUpdateNeedsFullLattice() below.
+#include "gpuMeasurement.hpp"
+#include "c_helper.h"
+
 using ParallelizationHelper = GpuParallelizationHelper;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -219,4 +223,38 @@ void GpuAdaptiveMomentUpdater::updateActiveOnly(const int* activeAtoms, std::siz
                                  static_cast<unsigned int>(activeCount));
    }
    stopwatch.add("copy - B");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// CGP-03C: production look-ahead
+////////////////////////////////////////////////////////////////////////////////
+
+bool adaptiveMomentUpdateNeedsFullLattice(GpuMeasurement* gpuMeasurement,
+                                          std::size_t currentStep, std::size_t lastStep,
+                                          std::size_t nstep, std::size_t rstep) {
+   // The post-loop tail of GpuSDSimulation::SDmphase reads whatever the last
+   // iteration left behind (a final measurement->measure() call and an
+   // unconditional copyToFortran() for restart correctness) -- neither is
+   // gated by a modulo condition, so the simplest correct answer is to force
+   // a full update on the last iteration rather than replicate their
+   // internals here.
+   if(currentStep >= lastStep) return true;
+   const std::size_t nextStep = currentStep + 1;
+   // avrg/cumu/tottraj/traj -- the same pure Fortran oracle
+   // CpuRestMeasurement/FortranMeasurement already gate their own
+   // emomM/emom/mmom copy-out on (source/Measurement/measurements.f90:32-97,
+   // do_measurements: a plain function of nextStep and already-known
+   // sampling parameters, no side effects).
+   if(call_fortran_do_measurements(static_cast<int>(nextStep))) return true;
+   // skyno reads gpuLattice.emomM directly, bypassing the Fortran copy gate
+   // above; only relevant when GpuMeasurement (not FortranMeasurement) is in
+   // use. avrg/cumu are already covered by the oracle above --
+   // needsFreshMoments() re-checking them too is harmless redundancy, not a
+   // correctness gap.
+   if(gpuMeasurement && gpuMeasurement->needsFreshMoments(nextStep)) return true;
+   // GpuSDSimulation::printMdStatus's own copyToFortran() cadence
+   // (gpuSDSimulation.cpp): every step when nstep<=20, else every
+   // (rstep+nstep)/20-th step.
+   if(nstep <= 20) return true;
+   return (nextStep % ((rstep + nstep) / 20)) == 0;
 }

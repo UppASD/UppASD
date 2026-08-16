@@ -1043,6 +1043,18 @@ bool GpuMeasurement::timeToMeasure(MeasurementType mtype, size_t mstep) const
     }
 }
 
+// CGP-03C: see the declaration comment in gpuMeasurement.hpp. Mirrors
+// measure()'s own "--mstep; then timeToMeasure(...)" sequence exactly, so a
+// caller passing the same raw mstep it would pass to measure() gets the
+// same answer measure() would compute for those three types.
+bool GpuMeasurement::needsFreshMoments(size_t mstep) const
+{
+    --mstep;
+    return timeToMeasure(MeasurementType::AverageMagnetization, mstep) ||
+           timeToMeasure(MeasurementType::BinderCumulant, mstep) ||
+           timeToMeasure(MeasurementType::SkyrmionNumber, mstep);
+}
+
 
 dim3 GpuMeasurement::skyrmionKernelNumBlocks(SkyrmionMethod method, uint N, uint M, uint nsimp, uint kernel_threads)
 {
