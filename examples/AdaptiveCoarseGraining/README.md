@@ -46,8 +46,20 @@ The important physics/diagnostic keywords are:
   always included.
 - `cg_reconstruction ALIGNED`: reconstructs each coarse atom along its block
   magnetization while retaining its atomic moment magnitude.
+- `cg_energy_jump_gate Y|N` (default `N`): explicit, off-by-default switch for
+  the optional transition-energy safeguard (CGP-00B). When `N`, adaptive
+  resolution changes are governed exclusively by the selector/dwell/hard-mask
+  rules above -- no transition energy is ever evaluated. When `Y`, a
+  candidate transition the selector has already proposed is additionally
+  vetoed if its energy jump exceeds `cg_energy_jump_limit`. It is not a
+  resolution criterion by itself and cannot trigger a refine/coarsen
+  decision. Any `inpsd.dat` that sets `cg_energy_jump_limit` without also
+  setting `cg_energy_jump_gate` is treated as an explicit request for the
+  gate (its historical, always-applied meaning) and prints a migration
+  notice recommending the explicit keyword; this is a CPU-only capability
+  -- see docs/CGP_work.md CGP-00B.
 - `cg_energy_jump_limit`: maximum accepted resolution-change energy jump in
-  joules.
+  joules; only consulted when `cg_energy_jump_gate Y`.
 - `cg_diagnostics 3`: resolved topology, ownership states, transitions,
   per-term energies, field/trajectory checksums, timings, and memory.
 

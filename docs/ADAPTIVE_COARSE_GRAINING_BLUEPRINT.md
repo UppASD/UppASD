@@ -951,7 +951,8 @@ input is read.
 | `cg_reconstruction` | enum | `ALIGNED` | `ALIGNED`, `CONE` |
 | `cg_cone_angle` | degrees | `0` | finite, 0 through 90 |
 | `cg_static_mask_file` | path | empty | optional |
-| `cg_energy_jump_limit` | joules | unlimited | finite and nonnegative, or the default |
+| `cg_energy_jump_gate` | enum | `N` | `Y`, `N` (CGP-00B; CPU-only, see below) |
+| `cg_energy_jump_limit` | joules | `huge()` (meaningless unless the gate is enabled) | finite and nonnegative; required if `cg_energy_jump_gate Y` |
 | `cg_diagnostics` | integer level | `1` | 0 through 3 |
 
 `block_size_x`, `block_size_y`, and `block_size_z` remain the sole spatial
@@ -974,6 +975,44 @@ the same rules as the mask file; omitted entries retain the moment-derived
 `cg_channel_file` is ignored. An explicit static-mask file takes precedence
 over the all-fine default. Auxiliary files are not opened at all when
 `do_adaptive_cg=N`.
+
+### 7.7.1 Transition-energy safeguard (`cg_energy_jump_gate`, CGP-00B)
+
+The adaptive resolution decision itself is made by the selector/dwell/
+hard-mask machinery in section 7.3-7.6: local misalignment, polarization,
+minimum-dwell hysteresis, and static/hard-fine masks. Energy is never part of
+that decision, and it is never evaluated merely to advance an LLG timestep.
+
+`cg_energy_jump_gate` adds an _optional, off-by-default_ safeguard on top of
+an already-proposed transition: with `cg_energy_jump_gate Y`, a block the
+selector has decided to refine or coarsen is additionally accepted only if
+the hybrid energy jump between its pre- and post-transition state does not
+exceed `cg_energy_jump_limit`; otherwise the transition is rolled back and
+the block keeps its prior resolution. The gate cannot itself request a
+transition -- with no selector-proposed change, no energy is evaluated,
+regardless of how tight or loose the configured limit is.
+
+With `cg_energy_jump_gate N` (the default), `apply_adaptive_transitions`
+performs no transition-energy evaluation at all: no `energy_before`, no
+`energy_after`, no comparison, and (on GPU) no device work of any kind. This
+replaced an earlier implicit contract where a `huge()`-valued
+`cg_energy_jump_limit` was used as a de-facto "disabled" sentinel while the
+energy was still evaluated and compared on every proposed transition; that
+sentinel is no longer the disable mechanism.
+
+The safeguard is CPU-only. The GPU adaptive-CG runtime
+(`source/gpu_files/gpuAdaptiveRuntime.cpp`) proposes and publishes
+transitions from selector/polarization criteria alone and has no full-FP64
+candidate-energy evaluation; `cg_energy_jump_gate Y` together with
+`do_gpu Y`/`do_gpu_llg Y` is rejected at startup rather than silently
+evaluated with insufficient precision or silently ignored. See
+`docs/CGP_work.md` CGP-00B for the full audit and the reasoning for stopping
+at that boundary rather than duplicating the accepted Hamiltonian kernels.
+
+A legacy `inpsd.dat` that sets `cg_energy_jump_limit` without also setting
+`cg_energy_jump_gate` is interpreted as an explicit request for the gate
+(preserving that keyword's historical, always-applied meaning) and prints a
+migration notice recommending the explicit keyword.
 
 ### 7.8 Restart and output
 

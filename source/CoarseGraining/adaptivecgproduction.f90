@@ -60,6 +60,14 @@ module AdaptiveCGProduction
       logical :: ready = .false.
       logical :: gpu_requested = .false.
       logical :: adaptive_mask = .false.
+      !> CGP-00B: resolved transition-energy-gate state (explicit
+      !> cg_energy_jump_gate, or the documented backward-compatibility
+      !> inference from a legacy-supplied cg_energy_jump_limit). Computed
+      !> once in validate_configuration and mirrored into
+      !> reconstruction%energy_jump_gate for AdaptiveHybridSolver; kept here
+      !> too so diagnostics/printing do not need to reach into reconstruction
+      !> for it.
+      logical :: energy_jump_gate = .false.
       integer :: completed_steps = 0
       integer(int64) :: field_evaluations = 0_int64
       integer(int64) :: active_atom_updates = 0_int64
@@ -475,6 +483,7 @@ contains
          RECONSTRUCTION_ALIGNED,same_word(adaptive_cg%reconstruction,'CONE'))
       adaptive_cg_state%reconstruction%cone_angle_rad = adaptive_cg%cone_angle_deg*pi/180.0_dblprec
       adaptive_cg_state%reconstruction%energy_jump_limit_j = adaptive_cg%energy_jump_limit_j
+      adaptive_cg_state%reconstruction%energy_jump_gate = adaptive_cg_state%energy_jump_gate
       if (adaptive_cg_state%adaptive_mask) then
          call register_max_neighbour_misalignment(adaptive_cg_state%selector_registry, &
             selector_status,message)
@@ -799,9 +808,61 @@ contains
           adaptive_cg%cone_angle_deg < 0.0_dblprec .or. adaptive_cg%cone_angle_deg > 90.0_dblprec) then
          call reject('cg_cone_angle is in degrees and must lie in [0,90]',status,diagnostic); return
       end if
-      if (.not. ieee_is_finite(adaptive_cg%energy_jump_limit_j) .or. &
-          adaptive_cg%energy_jump_limit_j < 0.0_dblprec) then
-         call reject('cg_energy_jump_limit is in joules and must be nonnegative',status,diagnostic); return
+      ! CGP-00B: resolve the optional transition-energy safeguard.
+      ! cg_energy_jump_gate is the explicit, off-by-default switch. A
+      ! legacy input that supplies cg_energy_jump_limit without the new
+      ! keyword is treated as an explicit request for the gate (its
+      ! historical, always-applied meaning), with a migration diagnostic --
+      ! not silently reinterpreted, and not left permanently disabled by a
+      ! forgotten huge() sentinel. See docs/CGP_work.md CGP-00B Part C.
+      if (adaptive_cg%energy_jump_gate_set .and. &
+          .not. same_word(adaptive_cg%energy_jump_gate,'Y') .and. &
+          .not. same_word(adaptive_cg%energy_jump_gate,'N')) then
+         call reject('cg_energy_jump_gate must be Y or N',status,diagnostic); return
+      end if
+      if (adaptive_cg%energy_jump_gate_set) then
+         adaptive_cg_state%energy_jump_gate = affirmative(adaptive_cg%energy_jump_gate)
+      else if (adaptive_cg%energy_jump_limit_j_set) then
+         ! CGP-00B Part C: on CPU, a legacy cg_energy_jump_limit was always
+         ! applied, so inferring the gate preserves that historical meaning.
+         ! On GPU, cg_energy_jump_limit was already dead input (read only to
+         ! print it -- see gpuSimulation.cpp) with no effect on any
+         ! transition, so inferring an enabled gate there would not preserve
+         ! prior behaviour, it would newly reject an input that previously
+         ! ran (and ran identically to the gate being off). The least
+         ! surprising rule keeps the GPU path's actual historical behaviour:
+         ! the legacy value is reported as ignored, not silently reinterpreted
+         ! and not turned into a new hard failure.
+         if (affirmative(do_gpu) .and. affirmative(do_gpu_llg)) then
+            adaptive_cg_state%energy_jump_gate = .false.
+            write(*,'(a)') 'AdaptiveCG: cg_energy_jump_limit was supplied but the GPU adaptive-CG '// &
+               'path has no transition-energy gate (CGP-00B Part G is not implemented); the value '// &
+               'is ignored, exactly as before this input became explicit. Transitions remain '// &
+               'selector-driven only.'
+         else
+            adaptive_cg_state%energy_jump_gate = .true.
+            write(*,'(a)') 'AdaptiveCG: cg_energy_jump_limit was supplied without cg_energy_jump_gate; '// &
+               'enabling the transition-energy safeguard for backward compatibility. '// &
+               'Set cg_energy_jump_gate Y explicitly to silence this notice (docs/CGP_work.md CGP-00B).'
+         end if
+      else
+         adaptive_cg_state%energy_jump_gate = .false.
+      end if
+      if (adaptive_cg_state%energy_jump_gate) then
+         if (.not. adaptive_cg%energy_jump_limit_j_set) then
+            call reject('cg_energy_jump_gate is enabled but cg_energy_jump_limit was not supplied; '// &
+               'give a finite nonnegative joule threshold',status,diagnostic); return
+         end if
+         if (.not. ieee_is_finite(adaptive_cg%energy_jump_limit_j) .or. &
+             adaptive_cg%energy_jump_limit_j < 0.0_dblprec) then
+            call reject('cg_energy_jump_limit is in joules and must be nonnegative',status,diagnostic); return
+         end if
+         if (affirmative(do_gpu) .and. affirmative(do_gpu_llg)) then
+            call reject('cg_energy_jump_gate: the GPU adaptive-CG path has no full-FP64 '// &
+               'transition-energy evaluation yet (CGP-00B Part G is not implemented; flagged '// &
+               'for Terra review). Run this configuration on the CPU path, or disable the gate.', &
+               status,diagnostic); return
+         end if
       end if
       if (adaptive_cg%diagnostics < 0 .or. adaptive_cg%diagnostics > 3) then
          call reject('cg_diagnostics must be 0, 1, 2, or 3',status,diagnostic); return
@@ -1839,6 +1900,17 @@ contains
          ' buffer_blocks=',adaptive_cg%buffer_blocks
       write(*,'(a,a,a,a)') 'AdaptiveCG: channel_mode=',trim(adaptive_cg%channel_mode), &
          ' fft_source_mapping=basis-resolved-to-single-dynamical-channel'
+      ! CGP-00B: state the transition-energy safeguard explicitly at every
+      ! diagnostics level, not merely when something goes wrong -- there is
+      ! no huge()-sentinel disabled state left to accidentally rely on.
+      if (adaptive_cg_state%energy_jump_gate) then
+         write(*,'(a,es24.16,a)') &
+            'AdaptiveCG: energy_jump_gate=enabled limit_j=',adaptive_cg%energy_jump_limit_j, &
+            ' (optional safeguard on selector-proposed transitions; not a resolution criterion)'
+      else
+         write(*,'(a)') 'AdaptiveCG: energy_jump_gate=disabled '// &
+            '(adaptive transitions are selector/dwell/hard-mask-driven only; no transition energy is evaluated)'
+      end if
       write(*,'(a,es24.16)') 'AdaptiveCG: physical_alat_m=',alat
       write(*,'(a,a)') 'AdaptiveCG: gpu_dipole_mode=',trim(gpu_dipole_mode)
       if (ipmode == 'N') then
@@ -1865,6 +1937,7 @@ contains
 
    subroutine print_adaptive_cg_summary()
       integer(int64) :: baseline
+      character(len=8) :: gate_label
       if (.not. adaptive_cg_state%ready .or. adaptive_cg%diagnostics == 0) return
       if (adaptive_cg_state%gpu_requested) then
          write(*,'(a)') 'AdaptiveCG: GPU lifecycle complete; device work and timing summary reported above'
@@ -1878,6 +1951,17 @@ contains
          adaptive_cg_state%active_block_updates,' accepted_transitions=', &
          adaptive_cg_state%accepted_transitions,' rejected_transitions=', &
          adaptive_cg_state%rejected_transitions
+      ! CGP-00B: transition_energy_evaluations is the count of
+      ! energy_evaluator calls apply_adaptive_transitions actually made for
+      ! transition acceptance (Test 1/H). It must read exactly 0 whenever
+      ! energy_jump_gate=disabled, for every synchronization step, regardless
+      ! of transition count -- printed explicitly here rather than left to be
+      ! inferred from rejected_transitions, which counts every non-accepted
+      ! outcome (reconstruction/ownership-rebuild failures included), not
+      ! only energy-jump vetoes.
+      gate_label = merge('enabled ','disabled',adaptive_cg_state%energy_jump_gate)
+      write(*,'(a,a,a,i0)') 'AdaptiveCG: energy_jump_gate=',trim(gate_label), &
+         ' transition_energy_evaluations=',adaptive_cg_state%runtime%transition_energy_evaluations
       write(*,'(a,i0,a,i0)') 'AdaptiveCG: baseline_atom_updates=',baseline, &
          ' reduced_atom_updates=',max(0_int64,baseline-adaptive_cg_state%active_atom_updates)
       write(*,'(a,es24.16,a,es24.16,a,es24.16,a,es24.16)') &
@@ -1927,7 +2011,7 @@ contains
       integer :: event
 
       do event = first, last
-         write(*,'(a,i0,a,i0,a,i0,a,i0,a,l1,a,a,a,a,a,3(es24.16,1x),a,es24.16)') &
+         write(*,'(a,i0,a,i0,a,i0,a,i0,a,l1,a,a,a,a,a,3(es24.16,1x),a,es24.16,a,l1)') &
             'AdaptiveCG: transition step=', &
             adaptive_cg_state%runtime%transition_log%event(event)%synchronization_step, &
             ' block=',adaptive_cg_state%runtime%transition_log%event(event)%block, &
@@ -1936,10 +2020,15 @@ contains
             ' accepted=',adaptive_cg_state%runtime%transition_log%event(event)%accepted, &
             ' reason=',trim(adaptive_cg_state%runtime%transition_log%event(event)%selector_reason), &
             ' outcome=',trim(adaptive_cg_state%runtime%transition_log%event(event)%outcome), &
+            ! CGP-00B: energies_j stays 0/0/0 whenever energy_gate_applied is
+            ! F -- that is "not evaluated", not "a zero jump was measured and
+            ! accepted". Appended at the end (not spliced in) so the existing
+            ! TRANSITION_RE-based parsers keep matching unchanged.
             ' energies_j=',adaptive_cg_state%runtime%transition_log%event(event)%energy_before_j, &
             adaptive_cg_state%runtime%transition_log%event(event)%energy_after_j, &
             adaptive_cg_state%runtime%transition_log%event(event)%energy_jump_j, &
-            ' polarization_ratio=',adaptive_cg_state%runtime%transition_log%event(event)%polarization_ratio
+            ' polarization_ratio=',adaptive_cg_state%runtime%transition_log%event(event)%polarization_ratio, &
+            ' energy_gate_applied=',adaptive_cg_state%runtime%transition_log%event(event)%energy_gate_applied
       end do
    end subroutine print_transition_events
 

@@ -29,7 +29,18 @@ module InputDataType
       character(len=16) :: reconstruction = 'ALIGNED'
       real(dblprec) :: cone_angle_deg = 0.0_dblprec
       character(len=256) :: static_mask_file = ''
+      !> CGP-00B: explicit, off-by-default switch for the optional
+      !> transition-energy safeguard. The historical contract used
+      !> energy_jump_limit_j=huge(1.0_dblprec) as an implicit "disabled"
+      !> sentinel while always evaluating and comparing the energy anyway;
+      !> that sentinel is no longer the disable mechanism (see
+      !> docs/CGP_work.md CGP-00B). energy_jump_gate/energy_jump_limit_j_set
+      !> record which keywords the user actually supplied so setup can apply
+      !> the documented backward-compatibility inference without guessing.
+      character(len=1) :: energy_jump_gate = 'N'
+      logical :: energy_jump_gate_set = .false.
       real(dblprec) :: energy_jump_limit_j = huge(1.0_dblprec)
+      logical :: energy_jump_limit_j_set = .false.
       integer :: diagnostics = 1
    end type adaptive_cg_config_t
    

@@ -50,6 +50,13 @@ module AdaptiveHybridSolver
       integer :: scheme = RECONSTRUCTION_ALIGNED
       real(dblprec) :: cone_angle_rad = 0.0_dblprec
       real(dblprec) :: resultant_tolerance = 1.0d-12
+      !> CGP-00B: explicit, off-by-default switch for the optional
+      !> transition-energy safeguard described in docs/CGP_work.md CGP-00B.
+      !> When .false. (the default) apply_adaptive_transitions performs no
+      !> transition-energy evaluation whatsoever: a candidate that passes the
+      !> ordinary selector/dwell/hard-mask rules is published unconditionally.
+      !> energy_jump_limit_j is only consulted when this is .true.
+      logical :: energy_jump_gate = .false.
       real(dblprec) :: energy_jump_limit_j = huge(1.0_dblprec)
       integer(int64) :: global_seed = 1_int64
    end type adaptive_reconstruction_configuration_type
@@ -69,6 +76,12 @@ module AdaptiveHybridSolver
       real(dblprec) :: polarization_ratio = -1.0_dblprec
       character(len=48) :: outcome = ''
       integer :: reconstruction_scheme = RECONSTRUCTION_ALIGNED
+      !> CGP-00B: .true. only when the transition-energy safeguard was
+      !> actually evaluated for this event. When .false., energy_before_j/
+      !> energy_after_j/energy_jump_j below are not measurements -- they are
+      !> left at their zero default -- and must not be read as "a zero
+      !> jump was observed and accepted".
+      logical :: energy_gate_applied = .false.
       real(dblprec) :: energy_before_j = 0.0_dblprec
       real(dblprec) :: energy_after_j = 0.0_dblprec
       real(dblprec) :: energy_jump_j = 0.0_dblprec
@@ -90,6 +103,15 @@ module AdaptiveHybridSolver
       integer, allocatable :: active_coarse_list(:)
       integer, allocatable :: interface_atom_list(:)
       type(adaptive_transition_log_type) :: transition_log
+      !> CGP-00B: count of energy_evaluator invocations made for transition
+      !> acceptance (as opposed to ordinary measurement energy, which this
+      !> module never evaluates). Monotonically increasing for the runtime's
+      !> lifetime, matching accepted_transitions/rejected_transitions'
+      !> bookkeeping convention one layer up in AdaptiveCGProduction. Must
+      !> stay exactly zero for the whole run whenever every
+      !> reconstruction_configuration%energy_jump_gate passed to
+      !> apply_adaptive_transitions is .false. -- see CGP-00B Test 1/H.
+      integer(int64) :: transition_energy_evaluations = 0_int64
       ! RCG-06A (F-17): persistent per-candidate-transition workspace, sized
       ! once in setup_adaptive_hybrid_runtime and reused by every
       ! apply_adaptive_transitions call/event instead of being freshly
@@ -698,12 +720,23 @@ contains
          return
       end if
 
-      call energy_evaluator(runtime%hybrid,atom_direction,coarse_direction, &
-         energy_before,dependency_status,dependency_diagnostic)
-      if (dependency_status /= 0 .or. .not. ieee_is_finite(energy_before)) then
-         status = ADAPTIVE_HYBRID_ENERGY_FAILED
-         diagnostic = 'Current hybrid energy evaluation failed: '//trim(dependency_diagnostic)
-         return
+      ! CGP-00B: the transition-energy safeguard is optional and off by
+      ! default. With the gate disabled, apply_adaptive_transitions performs
+      ! no energy evaluation at all for this synchronization point -- not
+      ! even the "before" call -- so a proposed transition is published
+      ! whenever the ordinary selector/dwell/hard-mask rules and
+      ! reconstruction/ownership-rebuild machinery accept it below. This is
+      ! the zero-cost disabled path required by CGP-00B Part D/H.
+      energy_before = 0.0_dblprec
+      if (reconstruction_configuration%energy_jump_gate) then
+         call energy_evaluator(runtime%hybrid,atom_direction,coarse_direction, &
+            energy_before,dependency_status,dependency_diagnostic)
+         runtime%transition_energy_evaluations = runtime%transition_energy_evaluations+1_int64
+         if (dependency_status /= 0 .or. .not. ieee_is_finite(energy_before)) then
+            status = ADAPTIVE_HYBRID_ENERGY_FAILED
+            diagnostic = 'Current hybrid energy evaluation failed: '//trim(dependency_diagnostic)
+            return
+         end if
       end if
 
       working = runtime%selector
@@ -769,21 +802,31 @@ contains
          energy_after = energy_before
          energy_jump = 0.0_dblprec
          if (status == ADAPTIVE_HYBRID_OK) then
-            call energy_evaluator(runtime%candidate_hybrid,runtime%candidate_atom, &
-               runtime%candidate_coarse,energy_after,dependency_status,dependency_diagnostic)
-            if (dependency_status /= 0 .or. .not. ieee_is_finite(energy_after)) then
-               working%resolution_state(block) = decisions%event(event)%old_state
-               status = ADAPTIVE_HYBRID_ENERGY_FAILED
-               outcome = 'energy-evaluation-failed'
-            else
-               energy_jump = energy_after-energy_before
-               accepted = abs(energy_jump) <= reconstruction_configuration%energy_jump_limit_j
-               if (accepted) then
-                  outcome = 'accepted'
-               else
+            if (reconstruction_configuration%energy_jump_gate) then
+               call energy_evaluator(runtime%candidate_hybrid,runtime%candidate_atom, &
+                  runtime%candidate_coarse,energy_after,dependency_status,dependency_diagnostic)
+               runtime%transition_energy_evaluations = runtime%transition_energy_evaluations+1_int64
+               if (dependency_status /= 0 .or. .not. ieee_is_finite(energy_after)) then
                   working%resolution_state(block) = decisions%event(event)%old_state
-                  outcome = 'energy-jump-rejected'
+                  status = ADAPTIVE_HYBRID_ENERGY_FAILED
+                  outcome = 'energy-evaluation-failed'
+               else
+                  energy_jump = energy_after-energy_before
+                  accepted = abs(energy_jump) <= reconstruction_configuration%energy_jump_limit_j
+                  if (accepted) then
+                     outcome = 'accepted'
+                  else
+                     working%resolution_state(block) = decisions%event(event)%old_state
+                     outcome = 'energy-jump-rejected'
+                  end if
                end if
+            else
+               ! CGP-00B gate-off: the ordinary selector/dwell/hard-mask
+               ! proposal, having already survived reconstruction and
+               ! ownership rebuild above, is accepted unconditionally. No
+               ! energy is evaluated and no veto can occur.
+               accepted = .true.
+               outcome = 'accepted'
             end if
          end if
          if (accepted) then
@@ -799,7 +842,8 @@ contains
 
          call append_adaptive_event(runtime%transition_log,decisions%event(event), &
             old_age(block),decision%transition_epoch(block),accepted,trim(outcome), &
-            reconstruction_configuration%scheme,energy_before,energy_after,energy_jump, &
+            reconstruction_configuration%scheme,reconstruction_configuration%energy_jump_gate, &
+            energy_before,energy_after,energy_jump, &
             runtime%candidate_seeds)
 
          if (accepted) then
@@ -1004,13 +1048,14 @@ contains
    end function valid_reconstruction_configuration
 
    subroutine append_adaptive_event(log,decision,previous_age,epoch,accepted,outcome, &
-         scheme,energy_before,energy_after,energy_jump,seeds)
+         scheme,energy_gate_applied,energy_before,energy_after,energy_jump,seeds)
       type(adaptive_transition_log_type), intent(inout) :: log
       type(selector_transition_event_type), intent(in) :: decision
       integer(c_int), intent(in) :: previous_age, epoch
       logical, intent(in) :: accepted
       character(len=*), intent(in) :: outcome
       integer, intent(in) :: scheme
+      logical, intent(in) :: energy_gate_applied
       real(dblprec), intent(in) :: energy_before, energy_after, energy_jump
       integer(int64), intent(in) :: seeds(:,:)
       type(adaptive_transition_event_type), allocatable :: expanded(:)
@@ -1031,6 +1076,7 @@ contains
       expanded(old_count+1)%polarization_ratio = decision%polarization_ratio
       expanded(old_count+1)%outcome = outcome
       expanded(old_count+1)%reconstruction_scheme = scheme
+      expanded(old_count+1)%energy_gate_applied = energy_gate_applied
       expanded(old_count+1)%energy_before_j = energy_before
       expanded(old_count+1)%energy_after_j = energy_after
       expanded(old_count+1)%energy_jump_j = energy_jump

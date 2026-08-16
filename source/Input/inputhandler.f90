@@ -278,8 +278,14 @@ contains
                adaptive_cg%static_mask_file=trim(adjustl(cache))
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('cg_energy_jump_gate')
+               read(ifile,*,iostat=i_err) adaptive_cg%energy_jump_gate
+               adaptive_cg%energy_jump_gate_set = .true.
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             case('cg_energy_jump_limit')
                read(ifile,*,iostat=i_err) adaptive_cg%energy_jump_limit_j
+               adaptive_cg%energy_jump_limit_j_set = .true.
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             case('cg_diagnostics')

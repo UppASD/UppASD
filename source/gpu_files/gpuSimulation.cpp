@@ -954,7 +954,20 @@ void GpuSimulation::release() {
       if(adaptiveDiagnostics > 0) {
          const auto diagnostic =
             gpuAdaptiveRuntime.diagnosticSnapshot(gpuLattice.emom.data());
-         std::printf("Gpu: AdaptiveCG resolved diagnostics=%d energy_jump_limit_j=%.16e "
+         // CGP-00B: the GPU path has no full-FP64 transition-energy
+         // evaluation (Part G was flagged for Terra review rather than
+         // implemented as an FP32-widened approximation), and
+         // validate_configuration on the Fortran side refuses
+         // cg_energy_jump_gate=Y together with do_gpu/do_gpu_llg=Y before a
+         // run ever reaches here. This diagnostic states that plainly
+         // instead of printing a configured-but-inert limit next to
+         // "resolved" as though it were in effect. adaptiveEnergyJumpLimitJ
+         // is still shown for reference: it is whatever value the input
+         // requested, kept purely informational.
+         std::printf("Gpu: AdaptiveCG resolved diagnostics=%d energy_jump_gate=disabled "
+                     "(GPU transition-energy safeguard is not implemented; transitions are "
+                     "selector/dwell/polarization-driven only -- see docs/CGP_work.md CGP-00B) "
+                     "configured_limit_j=%.16e "
                      "fft_source_mapping=basis-resolved-to-single-dynamical-channel\n",
                      adaptiveDiagnostics, adaptiveEnergyJumpLimitJ);
          std::printf("Gpu: AdaptiveCG final_state values=");
@@ -979,8 +992,15 @@ void GpuSimulation::release() {
          };
          unsigned long long accepted = 0;
          for(const auto epoch : diagnostic.transitionEpoch) accepted += epoch;
+         // rejected_transitions is truthfully 0: with the energy gate
+         // disabled (the only state reachable here, see above) no candidate
+         // is ever evaluated against an energy criterion, so none can be
+         // energy-rejected. transition_energy_evaluations=0 makes explicit
+         // that this 0 is "not applicable/no criterion run", not "a
+         // criterion ran and found nothing to reject" (CGP-00B Test 1).
          std::printf("Gpu: AdaptiveCG resolution_counts fine=%llu interface=%llu "
-                     "coarse=%llu accepted_transitions=%llu rejected_transitions=0\n",
+                     "coarse=%llu accepted_transitions=%llu rejected_transitions=0 "
+                     "transition_energy_evaluations=0\n",
                      countState(2), countState(1), countState(0), accepted);
          std::printf("Gpu: AdaptiveCG last_energy_j atomistic_bilinear=%.16e "
                      "atomistic_onsite=%.16e "

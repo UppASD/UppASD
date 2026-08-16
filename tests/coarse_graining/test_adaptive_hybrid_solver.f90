@@ -181,6 +181,27 @@ contains
       call check(status == ADAPTIVE_HYBRID_OK,'adaptive chain runtime initializes')
       call synthetic_selector(n,evaluation,requests)
       hard = .false.
+
+      ! CGP-00B Test 5 ("selector remains authoritative"): with the gate
+      ! enabled and a deliberately tight limit but no selector-proposed
+      ! transition (requests%refine/coarsen are still all .false. here),
+      ! apply_adaptive_transitions must not evaluate any transition energy
+      ! and must not change any block's resolution -- the gate can only veto
+      ! an already-proposed transition, never originate one.
+      reconstruction%energy_jump_gate = .true.
+      reconstruction%energy_jump_limit_j = 0.0_dblprec
+      state_before = runtime%selector%resolution_state
+      call apply_adaptive_transitions(runtime,topology,requests,hard,evaluation, &
+         selector_configuration,reconstruction,0_c_int,ADAPTIVE_STAGE_COMPLETE_STEP, &
+         moment,atom_direction,coarse_direction,hybrid_energy,status,message)
+      call check(status == ADAPTIVE_HYBRID_OK .and. &
+         all(runtime%selector%resolution_state == state_before) .and. &
+         runtime%transition_energy_evaluations == 0_int64 .and. &
+         .not. allocated(runtime%transition_log%event), &
+         'CGP-00B: enabled gate with no selector proposal evaluates zero transition energy '// &
+         'and cannot originate a transition')
+      reconstruction%energy_jump_gate = .false.
+
       block = 12
       requests%refine(block) = .true.
       reconstruction%energy_jump_limit_j = huge(1.0_dblprec)
@@ -196,6 +217,7 @@ contains
       ! A deterministic synthetic energy jump forces rejection.  Every live
       ! state component and ownership list must retain its prior value.
       evaluator_mask_penalty = 1.0d-18
+      reconstruction%energy_jump_gate = .true.
       reconstruction%energy_jump_limit_j = 0.5d-18
       atom_before = atom_direction
       hybrid_before = runtime%hybrid
@@ -214,8 +236,16 @@ contains
          abs(runtime%transition_log%event(1)%energy_jump_j) > &
          reconstruction%energy_jump_limit_j, &
          'rejected transition logs its measured energy jump')
+      ! CGP-00B: the logged event must record that the gate actually ran
+      ! (not a spuriously-zero jump from a disabled gate), and exactly two
+      ! energy_evaluator calls (before + after) must have been made for this
+      ! one proposed transition.
+      call check(runtime%transition_log%event(1)%energy_gate_applied .and. &
+         runtime%transition_energy_evaluations == 2_int64, &
+         'CGP-00B: enabled gate records energy_gate_applied and evaluates exactly once per candidate')
 
       evaluator_mask_penalty = 0.0_dblprec
+      reconstruction%energy_jump_gate = .false.
       reconstruction%energy_jump_limit_j = huge(1.0_dblprec)
       do cycle = 1, 3
          requests%refine = .false.
@@ -245,6 +275,14 @@ contains
       call check(count([(runtime%transition_log%event(cycle)%accepted, &
          cycle=1,size(runtime%transition_log%event))]) == 6, &
          'repeated domain-wall transitions are accepted and logged')
+      ! CGP-00B Test 1/H: six further proposed-and-accepted transitions ran
+      ! with the gate disabled and must not have evaluated any transition
+      ! energy -- the counter must still read exactly the 2 calls made by
+      ! the single gate-enabled candidate above, not 2+6 or 2+12.
+      call check(runtime%transition_energy_evaluations == 2_int64 .and. &
+         .not. any([(runtime%transition_log%event(cycle)%energy_gate_applied, &
+            cycle=2,size(runtime%transition_log%event))]), &
+         'CGP-00B: gate-disabled transitions evaluate zero transition energy regardless of count')
    end subroutine test_transactional_chain_transitions
 
    !> RCG-06A (F-17) allocation lifecycle negative control: the persistent
