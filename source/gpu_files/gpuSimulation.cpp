@@ -1151,8 +1151,22 @@ void GpuSimulation::advanceAdaptiveStep(
    // reconciled against it and any unaccounted time reported rather than
    // assumed to be ~0.
    const auto adaptiveStepWallStarted = std::chrono::steady_clock::now();
+   // CGP-04: fullFieldClear selects between GpuAdaptiveRuntime's full-system
+   // and compact atomistic/coarse field clears (see gpuAdaptiveRuntime.cpp
+   // and docs/CGP-04_COMPACT_FIELD_CLEAR_EVIDENCE.md). It must be true
+   // whenever this call's output could be read as a "every atom valid"
+   // snapshot -- diagnostics>=3 tracing (every stage), or, for the predictor
+   // stage specifically, whenever gpuLattice.beff as this call leaves it will
+   // still be current the next time copyToFortran() runs (printMdStatus's own
+   // cadence or the post-loop tail), which is exactly what
+   // nextStepNeedsFullMaterialization already answers for CGP-03D's
+   // atom-direction commit and CGP-03C's moment update.  The initial-stage
+   // field is fully overwritten by the predictor-stage call before anything
+   // else can read it, so it only needs a full clear for its own diagnostic
+   // trace, never for beff persistence.
    auto evaluateAdaptiveFields = [this, hamiltonian](const real* direction,
-                                                       bool measureEnergy) {
+                                                       bool measureEnergy,
+                                                       bool fullFieldClear) {
       gpuAdaptiveRuntime.synchronize();
       GpuAdaptiveFftEvaluator fftEvaluator{};
       if(hamiltonian && hamiltonian->hasAdaptiveFftDipole()) {
@@ -1187,11 +1201,11 @@ void GpuSimulation::advanceAdaptiveStep(
       if(measureEnergy) {
          (void)gpuAdaptiveRuntime.evaluateHybrid(
             direction, nullptr, nullptr, gpuLattice.beff.data(),
-            gpuAdaptiveRuntime.coarseFieldData(), fftFieldPtr);
+            gpuAdaptiveRuntime.coarseFieldData(), fftFieldPtr, fullFieldClear);
       } else {
          gpuAdaptiveRuntime.evaluateField(
             direction, nullptr, nullptr, gpuLattice.beff.data(),
-            gpuAdaptiveRuntime.coarseFieldData(), fftFieldPtr);
+            gpuAdaptiveRuntime.coarseFieldData(), fftFieldPtr, fullFieldClear);
       }
       gpuAdaptiveRuntime.synchronize();
    };
@@ -1237,14 +1251,15 @@ void GpuSimulation::advanceAdaptiveStep(
    // field -> production Depondt corrector.  The adaptive runtime owns only
    // field assembly and coarse-block integration; fine atoms use the same
    // shared integrator and thermal field as feature-off ASD.
-   evaluateAdaptiveFields(gpuLattice.emom.data(), traceEnergy);
+   evaluateAdaptiveFields(gpuLattice.emom.data(), traceEnergy, traceEnergy);
    printStaticStageTrace("initial", gpuLattice.emom.data());
    gpuAdaptiveRuntime.prepareCoarsePredictor(
       static_cast<real>(SimParam.delta_t), gpuAdaptiveRuntime.coarseFieldData());
    gpuAdaptiveRuntime.synchronize();
    integrator->evolveFirst(gpuLattice, activeAtomList, activeAtomCount);
    ASSERT_GPU(GPU_STREAM_SYNC(ParallelizationHelperInstance.getWorkStream()));
-   evaluateAdaptiveFields(gpuLattice.emom.data(), adaptiveDiagnostics > 0);
+   evaluateAdaptiveFields(gpuLattice.emom.data(), adaptiveDiagnostics > 0,
+                          nextStepNeedsFullMaterialization || traceEnergy);
    printStaticStageTrace("predictor", gpuLattice.emom.data());
    integrator->evolveSecond(gpuLattice, activeAtomList, activeAtomCount);
    ASSERT_GPU(GPU_STREAM_SYNC(ParallelizationHelperInstance.getWorkStream()));
@@ -1252,7 +1267,7 @@ void GpuSimulation::advanceAdaptiveStep(
       static_cast<real>(SimParam.delta_t), gpuAdaptiveRuntime.coarseFieldData());
    gpuAdaptiveRuntime.synchronize();
    if(traceEnergy)
-      evaluateAdaptiveFields(gpuLattice.emom2.data(), true);
+      evaluateAdaptiveFields(gpuLattice.emom2.data(), true, true);
    printStaticStageTrace("corrector", gpuLattice.emom2.data());
    // The active-subset Depondt corrector leaves the accepted fine-atom
    // vectors in emom2, matching the full-range integrator's buffer contract.
@@ -1284,7 +1299,7 @@ void GpuSimulation::advanceAdaptiveStep(
          adaptiveReconstructionPolicy);
    }
    if(traceEnergy)
-      evaluateAdaptiveFields(gpuLattice.emom2.data(), true);
+      evaluateAdaptiveFields(gpuLattice.emom2.data(), true, true);
    printStaticStageTrace("reconstructed", gpuLattice.emom2.data());
    if(selectorUpdateStep) {
       // Part 4: selectorAdaptiveScores/restrictAdaptiveMoments need current

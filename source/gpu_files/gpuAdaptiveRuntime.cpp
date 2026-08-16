@@ -864,6 +864,65 @@ __global__ void clearAdaptiveAtomistic(
    }
 }
 
+// CGP-04: compact companion to clearAdaptiveAtomistic() for ordinary steps
+// that do not need every atom's public field valid (see the fullFieldClear
+// argument at the evaluateHybridImpl() call site and
+// docs/CGP-04_COMPACT_FIELD_CLEAR_EVIDENCE.md for the validity contract).
+// Two small launches replace the one full-system pass, matching CGP-02's own
+// precedent of leaving disjoint compact lists unfused absent evidence that
+// launch overhead dominates:
+//
+//  * clearAdaptiveAtomisticActive zeroes atomFieldScratch AND the public
+//    atomField at every activeAtomList (fine) atom -- writebackAdaptiveAtomistic
+//    and both dipole kernels never publish atomField outside this set.
+//  * clearAdaptiveAtomisticGhost zeroes atomFieldScratch only at every
+//    ghostAtomList atom -- the live-bond scatter's other endpoint, read back
+//    only by restrictAdaptiveInterface, which never publishes atomField for a
+//    ghost atom.
+//
+// Energy accumulators are still zeroed unconditionally when MeasureEnergy, at
+// negligible (2-thread) cost, so the launch always covers at least 2 threads
+// in that instantiation even when activeAtoms is 0 (an all-coarse system with
+// diagnostics enabled).
+template<bool MeasureEnergy>
+__global__ void clearAdaptiveAtomisticActive(
+   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
+   AdaptiveKernelDevice kernels, real* atomField, std::size_t activeAtoms) {
+   const std::size_t index = adaptiveThreadIndex();
+   if(activeAtoms > 0) {
+      const std::size_t work = index % activeAtoms;
+      const std::size_t ensemble = index / activeAtoms;
+      if(ensemble < topology.ensembles && work < activeAtoms) {
+         const std::size_t atom =
+            static_cast<std::size_t>(runtime.activeAtomList[work] - 1);
+         for(int xyz = 0; xyz < 3; ++xyz) {
+            const std::size_t vector =
+               atomVectorIndex(xyz, atom, ensemble, topology.atoms);
+            kernels.atomFieldScratch[vector] = real(0);
+            atomField[vector] = real(0);
+         }
+      }
+   }
+   if constexpr (MeasureEnergy) {
+      if(index < 2) kernels.energyTerms[index] = 0.0;
+   }
+}
+
+__global__ void clearAdaptiveAtomisticGhost(
+   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
+   AdaptiveKernelDevice kernels, std::size_t ghostAtoms) {
+   if(ghostAtoms == 0) return;
+   const std::size_t index = adaptiveThreadIndex();
+   const std::size_t work = index % ghostAtoms;
+   const std::size_t ensemble = index / ghostAtoms;
+   if(ensemble >= topology.ensembles || work >= ghostAtoms) return;
+   const std::size_t atom =
+      static_cast<std::size_t>(runtime.ghostAtomList[work] - 1);
+   for(int xyz = 0; xyz < 3; ++xyz)
+      kernels.atomFieldScratch[atomVectorIndex(xyz, atom, ensemble, topology.atoms)] =
+         real(0);
+}
+
 // One thread per (live-bond slot, ensemble).  The unique-pair ownership
 // contract is unchanged -- every atomistically owned bond is still visited
 // exactly once and still scatters the reaction field onto both of its
@@ -1001,6 +1060,31 @@ __global__ void clearAdaptiveInterface(
       3 * topology.dynamicChannels * topology.blocks * topology.ensembles;
    const std::size_t index = adaptiveThreadIndex();
    if(index < coarseVectors) kernels.coarseFieldScratch[index] = real(0);
+}
+
+// CGP-04: coarseFieldScratch is scratch private to this function call --
+// restrictAdaptiveInterface (below) only ever scatters into a live ghost
+// atom's projected corner blocks, which are by construction coarse blocks
+// (a ghost atom's normalizationFloor/coarseMoment guard skips any corner
+// that is not), and writeAdaptiveCoarse (the only reader) walks exactly
+// activeBlockList. No other consumer, this step or any later one, ever
+// reads coarseFieldScratch outside activeBlockList's scalar range, so unlike
+// the atomistic and coarse-field clears below this one needs no
+// fullFieldClear fallback: it is unconditionally safe to make compact.
+__global__ void clearAdaptiveInterfaceActive(
+   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
+   AdaptiveKernelDevice kernels, std::size_t activeBlocks) {
+   if(activeBlocks == 0) return;
+   const std::size_t index = adaptiveThreadIndex();
+   const std::size_t work = index % activeBlocks;
+   const std::size_t ensemble = index / activeBlocks;
+   if(ensemble >= topology.ensembles || work >= activeBlocks) return;
+   const std::size_t block =
+      static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
+   const std::size_t scalar = coarseScalarIndex(
+      0, block, ensemble, topology.dynamicChannels, topology.blocks);
+   for(int xyz = 0; xyz < 3; ++xyz)
+      kernels.coarseFieldScratch[3 * scalar + xyz] = real(0);
 }
 
 // RCG-09C: this used to sweep every atom of every ensemble and skip the
@@ -1188,6 +1272,39 @@ __global__ void clearAdaptiveCoarse(
    if(index < vectorCount) {
       runtime.coarseField[index] = real(0);
       coarseField[index] = real(0);
+   }
+   if constexpr (MeasureEnergy) {
+      if(index < 6) kernels.energyTerms[index + 2] = 0.0;
+   }
+}
+
+// CGP-04: compact companion to clearAdaptiveCoarse().  predictorAdaptiveCoarse/
+// correctorAdaptiveCoarse and writeAdaptiveCoarse already read `coarseField`/
+// `runtime.coarseField` only at activeBlockList (coarse) blocks, so an
+// atomistic block's entry is never consumed by production dynamics -- only
+// diagnosticSnapshot()'s unmasked full-array checksum reads every block,
+// which is why (unlike the interface clear above) this one keeps a
+// fullFieldClear fallback to clearAdaptiveCoarse(), selected at the call site
+// whenever diagnostics>=3 traces the stage. Energy accumulators keep the same
+// unconditional-when-MeasureEnergy treatment as the active atomistic clear.
+template<bool MeasureEnergy>
+__global__ void clearAdaptiveCoarseActive(
+   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
+   AdaptiveKernelDevice kernels, real* coarseField, std::size_t activeBlocks) {
+   const std::size_t index = adaptiveThreadIndex();
+   if(activeBlocks > 0) {
+      const std::size_t work = index % activeBlocks;
+      const std::size_t ensemble = index / activeBlocks;
+      if(ensemble < topology.ensembles && work < activeBlocks) {
+         const std::size_t block =
+            static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
+         const std::size_t scalar = coarseScalarIndex(
+            0, block, ensemble, topology.dynamicChannels, topology.blocks);
+         for(int xyz = 0; xyz < 3; ++xyz) {
+            runtime.coarseField[3 * scalar + xyz] = real(0);
+            coarseField[3 * scalar + xyz] = real(0);
+         }
+      }
    }
    if constexpr (MeasureEnergy) {
       if(index < 6) kernels.energyTerms[index + 2] = 0.0;
@@ -3051,7 +3168,8 @@ template<bool MeasureEnergy>
 GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybridImpl(
    const real* atomDirection, const real* externalCoarseField,
    const real* uniformFftDipoleField, real* atomField, real* coarseField,
-   const GpuAdaptiveUniformFftField* basisResolvedFftField) {
+   const GpuAdaptiveUniformFftField* basisResolvedFftField,
+   bool fullFieldClear) {
    if(!ready_ || !kernelsReady_)
       throw std::logic_error("GPU adaptive evaluation requires initialized CG-10 kernels");
    if(!atomDirection || !atomField || !coarseField)
@@ -3124,22 +3242,46 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybridImpl(
    // is passed as zero to the reduction below -- the reduction never reads a
    // partial the current step did not write.
    //
-   // clearAdaptiveAtomistic deliberately stays full-system.  It zeroes the
-   // caller's atomField for every atom, which is the published beff buffer,
-   // and it zeroes the atomFieldScratch that the ghost-shell restriction
-   // relies on being zero outside the shell.  Restricting it would change
-   // observable output, so it is left as a pure streaming write; it is
-   // reported in the sweep as the remaining O(N) atomistic pass.
+   // CGP-04: clearAdaptiveAtomistic (full-system) publishes a valid zero for
+   // every atom's atomField -- the published beff buffer copyToFortran()
+   // eventually exports -- and zeroes atomFieldScratch everywhere the
+   // ghost-shell restriction could read it.  fullFieldClear selects that path
+   // only when this call's caller needs it (see gpuSimulation.cpp: the next
+   // iteration's measurement/print cadence, or diagnostics>=3 tracing).
+   // Otherwise clearAdaptiveAtomisticActive/Ghost below zero exactly the
+   // atoms this step's bond/onsite/writeback/dipole passes can read or
+   // publish -- see docs/CGP-04_COMPACT_FIELD_CLEAR_EVIDENCE.md for the full
+   // validity contract and why that is sufficient for ordinary dynamics.
    const std::size_t liveBondWork = liveBondCount() * ensembles_;
    const std::size_t activeAtomWork = activeAtomCount() * ensembles_;
+   const std::size_t ghostClearWork = ghostAtomCount() * ensembles_;
    const std::size_t bondPartials =
       liveBondWork ? static_cast<std::size_t>(adaptiveGrid(liveBondWork)) : 0;
    const std::size_t atomPartials =
       activeAtomWork ? static_cast<std::size_t>(adaptiveGrid(activeAtomWork)) : 0;
-   ADAPTIVE_LAUNCH(clearAdaptiveAtomistic<MeasureEnergy>,
-                   adaptiveGrid(3 * atoms_ * ensembles_), stream_,
-                   deviceTopology_, kernels, atomField);
-   ++phaseMetrics_.atomisticLaunches;
+   if(fullFieldClear) {
+      ADAPTIVE_LAUNCH(clearAdaptiveAtomistic<MeasureEnergy>,
+                      adaptiveGrid(3 * atoms_ * ensembles_), stream_,
+                      deviceTopology_, kernels, atomField);
+      ++phaseMetrics_.atomisticLaunches;
+   } else {
+      const std::size_t activeClearWork =
+         MeasureEnergy ? std::max<std::size_t>(activeAtomWork, 2) : activeAtomWork;
+      if(activeClearWork > 0) {
+         ADAPTIVE_LAUNCH(clearAdaptiveAtomisticActive<MeasureEnergy>,
+                         adaptiveGrid(activeClearWork), stream_,
+                         deviceTopology_, deviceRuntime_, kernels, atomField,
+                         activeAtomCount());
+         ++phaseMetrics_.atomisticLaunches;
+      }
+      if(ghostClearWork > 0) {
+         ADAPTIVE_LAUNCH(clearAdaptiveAtomisticGhost,
+                         adaptiveGrid(ghostClearWork), stream_,
+                         deviceTopology_, deviceRuntime_, kernels,
+                         ghostAtomCount());
+         ++phaseMetrics_.atomisticLaunches;
+      }
+   }
    if(liveBondWork > 0) {
       ADAPTIVE_LAUNCH_SHARED(evaluateAdaptiveAtomisticBonds<MeasureEnergy>,
                       adaptiveGrid(liveBondWork),
@@ -3177,11 +3319,19 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybridImpl(
    // RCG-09C: the restriction walks the ghost shell, so its launch is
    // proportional to the coarse atoms the atomistic field can actually reach
    // rather than to every atom in the system.
+   // CGP-04: coarseFieldScratch has no consumer outside activeBlockList (see
+   // clearAdaptiveInterfaceActive's header comment), so this compaction is
+   // unconditional -- unlike the atomistic and coarse-field clears, it needs
+   // no fullFieldClear fallback.
    const std::size_t ghostWork = ghostAtomCount() * ensembles_;
-   ADAPTIVE_LAUNCH(clearAdaptiveInterface,
-                   adaptiveGrid(3 * dynamicChannels_ * blocks_ * ensembles_),
-                   stream_, deviceTopology_, deviceRuntime_, kernels);
-   ++phaseMetrics_.interfaceLaunches;
+   const std::size_t interfaceClearWork = activeBlockCount() * ensembles_;
+   if(interfaceClearWork > 0) {
+      ADAPTIVE_LAUNCH(clearAdaptiveInterfaceActive,
+                      adaptiveGrid(interfaceClearWork), stream_,
+                      deviceTopology_, deviceRuntime_, kernels,
+                      activeBlockCount());
+      ++phaseMetrics_.interfaceLaunches;
+   }
    if(ghostWork > 0) {
       ADAPTIVE_LAUNCH(restrictAdaptiveInterface, adaptiveGrid(ghostWork),
                       stream_, deviceTopology_, deviceRuntime_, kernels,
@@ -3200,19 +3350,37 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybridImpl(
    // whole grid rather than the coarse subset -- hence the separate partial
    // count handed to the reduction.
    //
-   // clearAdaptiveCoarse also stays full-system: it zeroes the caller's
-   // coarseField output for every block, not only the owned ones.
+   // CGP-04: clearAdaptiveCoarse (full-system) is required only when
+   // diagnosticSnapshot()'s unmasked coarseField checksum might read this
+   // call's output (fullFieldClear, true exactly when the caller traces
+   // diagnostics>=3); production dynamics only ever reads coarseField/
+   // runtime.coarseField at activeBlockList blocks (predictorAdaptiveCoarse,
+   // correctorAdaptiveCoarse, writeAdaptiveCoarse), so clearAdaptiveCoarseActive
+   // is otherwise sufficient -- see
+   // docs/CGP-04_COMPACT_FIELD_CLEAR_EVIDENCE.md.
    const std::size_t activeBlockWork = activeBlockCount() * ensembles_;
    const std::size_t coarsePartials =
       activeBlockWork ? static_cast<std::size_t>(adaptiveGrid(activeBlockWork)) : 0;
    const bool anyDipole = uniformFftDipoleField || basisResolvedFftField;
    const std::size_t dipolePartials = anyDipole ?
       static_cast<std::size_t>(adaptiveGrid(blocks_ * ensembles_)) : 0;
-   ADAPTIVE_LAUNCH(clearAdaptiveCoarse<MeasureEnergy>,
-                   adaptiveGrid(3 * dynamicChannels_ * blocks_ * ensembles_),
-                   stream_, deviceTopology_, deviceRuntime_, kernels,
-                   coarseField);
-   ++phaseMetrics_.coarseLaunches;
+   if(fullFieldClear) {
+      ADAPTIVE_LAUNCH(clearAdaptiveCoarse<MeasureEnergy>,
+                      adaptiveGrid(3 * dynamicChannels_ * blocks_ * ensembles_),
+                      stream_, deviceTopology_, deviceRuntime_, kernels,
+                      coarseField);
+      ++phaseMetrics_.coarseLaunches;
+   } else {
+      const std::size_t coarseClearWork =
+         MeasureEnergy ? std::max<std::size_t>(activeBlockWork, 6) : activeBlockWork;
+      if(coarseClearWork > 0) {
+         ADAPTIVE_LAUNCH(clearAdaptiveCoarseActive<MeasureEnergy>,
+                         adaptiveGrid(coarseClearWork), stream_,
+                         deviceTopology_, deviceRuntime_, kernels, coarseField,
+                         activeBlockCount());
+         ++phaseMetrics_.coarseLaunches;
+      }
+   }
    if(activeBlockWork > 0) {
       ADAPTIVE_LAUNCH_SHARED(evaluateAdaptiveCoarseTensor<MeasureEnergy>,
                              adaptiveGrid(activeBlockWork),
@@ -3307,19 +3475,23 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybridImpl(
 GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybrid(
    const real* atomDirection, const real* externalCoarseField,
    const real* uniformFftDipoleField, real* atomField, real* coarseField,
-   const GpuAdaptiveUniformFftField* basisResolvedFftField) {
+   const GpuAdaptiveUniformFftField* basisResolvedFftField,
+   bool fullFieldClear) {
    return evaluateHybridImpl<true>(atomDirection, externalCoarseField,
                                    uniformFftDipoleField, atomField,
-                                   coarseField, basisResolvedFftField);
+                                   coarseField, basisResolvedFftField,
+                                   fullFieldClear);
 }
 
 void GpuAdaptiveRuntime::evaluateField(
    const real* atomDirection, const real* externalCoarseField,
    const real* uniformFftDipoleField, real* atomField, real* coarseField,
-   const GpuAdaptiveUniformFftField* basisResolvedFftField) {
+   const GpuAdaptiveUniformFftField* basisResolvedFftField,
+   bool fullFieldClear) {
    (void)evaluateHybridImpl<false>(atomDirection, externalCoarseField,
                                    uniformFftDipoleField, atomField,
-                                   coarseField, basisResolvedFftField);
+                                   coarseField, basisResolvedFftField,
+                                   fullFieldClear);
 }
 
 void GpuAdaptiveRuntime::prepareCoarsePredictor(

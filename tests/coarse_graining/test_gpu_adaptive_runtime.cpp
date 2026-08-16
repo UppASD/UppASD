@@ -1927,6 +1927,142 @@ void testGhostListNegativeControl() {
    runtime.release();
 }
 
+// CGP-04: evaluateHybrid()/evaluateField()'s fullFieldClear=false path must
+// zero the public atomField only at activeAtomList, and the public
+// coarseField only at activeBlockList -- see
+// docs/CGP-04_COMPACT_FIELD_CLEAR_EVIDENCE.md for the full validity
+// contract. This proves three things: (1) parity -- the compact path
+// reproduces the full-system path bitwise everywhere it actually clears;
+// (2) the Part E negative control -- a sentinel planted at an atom/block the
+// compact clear is documented not to touch survives untouched, proving the
+// compaction is real rather than a slower way to clear everything; (3)
+// fullFieldClear=true (the path production forces before diagnostics>=3
+// might call diagnosticSnapshot()) always erases every sentinel and is the
+// reason diagnosticSnapshot()'s unmasked coarseField checksum stays correct.
+void testCompactFieldClear() {
+   KernelFixture fixture;
+   const auto topology = fixture.topology();
+   const auto input = fixture.runtime();
+   GpuAdaptiveRuntime runtime;
+   runtime.initialize(topology, input, KernelFixture::atoms,
+                      KernelFixture::ensembles);
+   const auto snapshot = runtime.downloadWorkSnapshot();
+   expectEqual(snapshot.activeAtoms, {3, 4, 5, 6},
+               "fixture active atom list drifted from the documented {3,4,5,6}");
+   expectEqual(snapshot.activeBlocks, {1, 4},
+               "fixture active block list drifted from the documented {1,4}");
+   expectEqual(snapshot.ghostAtoms, {2, 7},
+               "fixture ghost shell drifted from the documented {2,7}");
+
+   const std::size_t atomVectors = 3 * KernelFixture::atoms;
+   const std::size_t coarseVectors = 3 * KernelFixture::blocks;
+   GpuTensor<real, 1> atomDirection, atomFieldFull, atomFieldCompact;
+   atomDirection.Allocate(static_cast<index_t>(atomVectors));
+   atomFieldFull.Allocate(static_cast<index_t>(atomVectors));
+   atomFieldCompact.Allocate(static_cast<index_t>(atomVectors));
+   std::vector<double> hostAtom(atomVectors, 0.0);
+   for(std::size_t atom = 0; atom < KernelFixture::atoms; ++atom)
+      hostAtom[0 + 3 * atom] = 1.0;  // +x, orthogonal to the fixture's +z coarseDirection.
+   upload(atomDirection.data(), deviceVector(hostAtom));
+
+   // Reference: the existing full-system clear (fullFieldClear defaults to
+   // true), unconditionally correct.
+   (void)runtime.evaluateHybrid(atomDirection.data(), nullptr, nullptr,
+                                atomFieldFull.data(), runtime.coarseFieldData());
+   const auto fullAtomField = download(atomFieldFull.data(), atomVectors);
+   const auto fullCoarseField = download(runtime.coarseFieldData(), coarseVectors);
+
+   // Plant a sentinel nothing in this fixture's physics can ever produce, in
+   // both public buffers, then run the compact path.
+   const real poison = static_cast<real>(-999.0);
+   const std::vector<real> poisonedAtom(atomVectors, poison);
+   const std::vector<real> poisonedCoarse(coarseVectors, poison);
+   upload(atomFieldCompact.data(), poisonedAtom);
+   upload(runtime.coarseFieldData(), poisonedCoarse);
+   runtime.evaluateField(atomDirection.data(), nullptr, nullptr,
+                         atomFieldCompact.data(), runtime.coarseFieldData(),
+                         nullptr, /*fullFieldClear=*/false);
+   const auto compactAtomField = download(atomFieldCompact.data(), atomVectors);
+   const auto compactCoarseField = download(runtime.coarseFieldData(), coarseVectors);
+
+   const auto isMember = [](const std::vector<int>& oneBasedList, int zeroBasedIndex) {
+      return std::find(oneBasedList.begin(), oneBasedList.end(), zeroBasedIndex + 1) !=
+             oneBasedList.end();
+   };
+   for(std::size_t atom = 0; atom < KernelFixture::atoms; ++atom) {
+      const bool active = isMember(snapshot.activeAtoms, static_cast<int>(atom));
+      for(int xyz = 0; xyz < 3; ++xyz) {
+         const std::size_t index = xyz + 3 * atom;
+         if(active) {
+            require(compactAtomField[index] == fullAtomField[index],
+                    "compact field clear diverged from the full clear at an active atom");
+         } else {
+            require(compactAtomField[index] == poison,
+                    "compact field clear touched an inactive atom's public field -- "
+                    "the compaction is not real");
+         }
+      }
+   }
+   for(std::size_t block = 0; block < KernelFixture::blocks; ++block) {
+      const bool active = isMember(snapshot.activeBlocks, static_cast<int>(block));
+      for(int xyz = 0; xyz < 3; ++xyz) {
+         const std::size_t index = xyz + 3 * block;
+         if(active) {
+            require(compactCoarseField[index] == fullCoarseField[index],
+                    "compact coarse clear diverged from the full clear at an active block");
+         } else {
+            require(compactCoarseField[index] == poison,
+                    "compact coarse clear touched an inactive block's public field -- "
+                    "the compaction is not real");
+         }
+      }
+   }
+
+   // Part E's own negative control: a full-field diagnostic must detect and
+   // materialize the poison rather than publish it. Re-run on the SAME
+   // still-partially-poisoned buffers with fullFieldClear=true and confirm no
+   // poison survives anywhere, and that the result matches the original
+   // full-clear reference exactly.
+   (void)runtime.evaluateHybrid(atomDirection.data(), nullptr, nullptr,
+                                atomFieldCompact.data(), runtime.coarseFieldData(),
+                                nullptr, /*fullFieldClear=*/true);
+   const auto materializedAtom = download(atomFieldCompact.data(), atomVectors);
+   const auto materializedCoarse = download(runtime.coarseFieldData(), coarseVectors);
+   for(real value : materializedAtom)
+      require(value != poison,
+              "fullFieldClear=true left a poisoned atom field entry unmaterialized");
+   for(real value : materializedCoarse)
+      require(value != poison,
+              "fullFieldClear=true left a poisoned coarse field entry unmaterialized");
+   require(materializedAtom == fullAtomField,
+           "materialized atom field differs from the original full-clear reference");
+   require(materializedCoarse == fullCoarseField,
+           "materialized coarse field differs from the original full-clear reference");
+
+   // Ties the negative control to the actual production consumer:
+   // diagnosticSnapshot()'s unmasked coarseField checksum must detect
+   // surviving poison left by a compact clear -- which is exactly why
+   // gpuSimulation.cpp forces fullFieldClear=true at every call site
+   // printStaticStageTrace() can follow (diagnostics>=3).
+   upload(runtime.coarseFieldData(), poisonedCoarse);
+   runtime.evaluateField(atomDirection.data(), nullptr, nullptr,
+                         atomFieldCompact.data(), runtime.coarseFieldData(),
+                         nullptr, /*fullFieldClear=*/false);
+   const auto poisonedSnapshot = runtime.diagnosticSnapshot(atomDirection.data());
+   (void)runtime.evaluateHybrid(atomDirection.data(), nullptr, nullptr,
+                                atomFieldCompact.data(), runtime.coarseFieldData(),
+                                nullptr, /*fullFieldClear=*/true);
+   const auto cleanSnapshot = runtime.diagnosticSnapshot(atomDirection.data());
+   require(poisonedSnapshot.coarseFieldSumT != cleanSnapshot.coarseFieldSumT,
+           "diagnosticSnapshot()'s coarse checksum did not detect the compact clear's "
+           "surviving poison -- the coarse fullFieldClear gate is not load-bearing");
+
+   atomFieldCompact.Free();
+   atomFieldFull.Free();
+   atomDirection.Free();
+   runtime.release();
+}
+
 // CGP-03: transitionsPublishedLastCall() must be an exact count of blocks
 // whose blockState actually changed -- zero when every proposal is rejected,
 // and equal to an independently-computed before/after blockState diff when
@@ -2226,6 +2362,7 @@ int main() {
    testSynchronizeAtomicStatePolicies();
    testMultiEnsembleGhostProlongation();
    testGhostListNegativeControl();
+   testCompactFieldClear();
    testTransitionCounterAndMaterialization();
    testTransitionMaterializationNegativeControl();
    std::cout << "CG-09/CG-10 GPU adaptive runtime tests passed\n";

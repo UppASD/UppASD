@@ -403,12 +403,22 @@ public:
                              const GpuAdaptiveReconstructionPolicy& policy,
                              bool completeIntegrationStep,
                              const unsigned char* acceptedBlockMask = nullptr);
+   // CGP-04: fullFieldClear selects which clear kernels evaluateHybridImpl()
+   // launches (see gpuAdaptiveRuntime.cpp and
+   // docs/CGP-04_COMPACT_FIELD_CLEAR_EVIDENCE.md for the validity contract).
+   // Default true preserves the exact pre-CGP-04 full-system clear for every
+   // existing caller (tests, benchmarks, and any call site that does not
+   // explicitly opt in); production's ordinary-step call sites in
+   // gpuSimulation.cpp pass false except when a full materialization is
+   // already required for another reason (diagnostics>=3, or the next
+   // iteration's measurement/print cadence).
    GpuAdaptiveEnergy evaluateHybrid(const real* atomDirection,
                                     const real* externalCoarseField,
                                     const real* uniformFftDipoleField,
                                     real* atomField,
                                     real* coarseField,
-                                    const GpuAdaptiveUniformFftField* basisResolvedFftField = nullptr);
+                                    const GpuAdaptiveUniformFftField* basisResolvedFftField = nullptr,
+                                    bool fullFieldClear = true);
    // CGP-01: the field-only sibling of evaluateHybrid(), sharing the same
    // kernels (see evaluateHybridImpl<MeasureEnergy>) but compiled without any
    // energy contribution arithmetic, block/partial reduction, finalization
@@ -420,7 +430,8 @@ public:
                       const real* uniformFftDipoleField,
                       real* atomField,
                       real* coarseField,
-                      const GpuAdaptiveUniformFftField* basisResolvedFftField = nullptr);
+                      const GpuAdaptiveUniformFftField* basisResolvedFftField = nullptr,
+                      bool fullFieldClear = true);
    // CGP-01 negative control: incremented exactly once per evaluateHybrid()
    // energy reduction/finalization/D2H readback, never by evaluateField().
    // Tests use this to prove the field-only path performs zero energy work.
@@ -523,7 +534,8 @@ private:
                                         const real* uniformFftDipoleField,
                                         real* atomField,
                                         real* coarseField,
-                                        const GpuAdaptiveUniformFftField* basisResolvedFftField);
+                                        const GpuAdaptiveUniformFftField* basisResolvedFftField,
+                                        bool fullFieldClear);
    void allocate(const GpuAdaptiveTopologyInput&, const GpuAdaptiveRuntimeInput&);
    void uploadTopology(const GpuAdaptiveTopologyInput&);
    void uploadRuntime(const GpuAdaptiveTopologyInput&, const GpuAdaptiveRuntimeInput&);

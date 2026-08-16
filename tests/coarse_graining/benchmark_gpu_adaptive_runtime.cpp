@@ -1543,13 +1543,21 @@ int main(int argc, char** argv) {
       // the field-only path for the headline benchmark numbers below to
       // measure what production actually pays, not what evaluateHybrid()'s
       // discarded energy reduction/D2H readback would additionally cost.
+      // CGP-04: production's steady-state predictor/corrector calls pass
+      // fullFieldClear=false (see gpuSimulation.cpp's evaluateAdaptiveFields
+      // -- the compact clear is the default path outside a
+      // nextStepNeedsFullMaterialization/diagnostics>=3 step), so this must
+      // too, or the benchmark would keep measuring the pre-CGP-04 full clear
+      // regardless of source changes.
       const auto adaptiveCoarseStep = [&]() {
          runtime.evaluateField(atomDirection.data(), nullptr, nullptr,
-                               atomField.data(), coarseField.data());
+                               atomField.data(), coarseField.data(), nullptr,
+                               /*fullFieldClear=*/false);
          runtime.prepareCoarsePredictor(timestep, coarseField.data());
          runtime.synchronize();
          runtime.evaluateField(atomDirection.data(), nullptr, nullptr,
-                               atomField.data(), coarseField.data());
+                               atomField.data(), coarseField.data(), nullptr,
+                               /*fullFieldClear=*/false);
          runtime.correctCoarse(timestep, coarseField.data());
          runtime.synchronize();
       };
