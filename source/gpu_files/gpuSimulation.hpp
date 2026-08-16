@@ -97,7 +97,8 @@ public:
     bool adaptiveEnabled() const { return gpuAdaptiveRuntime.ready(); }
     void advanceAdaptiveStep(std::size_t step,
                              GpuHamiltonianCalculations* hamiltonian,
-                             GpuDepondtIntegrator* integrator);
+                             GpuDepondtIntegrator* integrator,
+                             bool nextStepNeedsFullMaterialization);
 
     void gpuRunSimulation(const int whichsim, const int whichphase, const char bf);
 

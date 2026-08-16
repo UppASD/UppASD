@@ -304,8 +304,17 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
       // Print simulation status for each 5% of the simulation length
       printMdStatus(mstep, gpuSim);
 
+      // CGP-03D: computed once, before advanceAdaptiveStep, and reused both
+      // to gate its own OrdinaryStep atom-direction commit and, below, the
+      // moment update -- one decision, not two independently-derived ones
+      // that could silently drift apart. See
+      // docs/CGP-03D_ORDINARY_STEP_GATING_EVIDENCE.md.
+      const bool adaptiveNeedsFullMaterialization = gpuSim.adaptiveEnabled() &&
+         adaptiveMomentUpdateNeedsFullLattice(gpuMeasurementForLookahead, mstep,
+                                              rstep + nstep, nstep, rstep);
       if(gpuSim.adaptiveEnabled()) {
-         gpuSim.advanceAdaptiveStep(mstep, &hamCalc, &integrator);
+         gpuSim.advanceAdaptiveStep(mstep, &hamCalc, &integrator,
+                                    adaptiveNeedsFullMaterialization);
          stopwatch.add("adaptive coarse graining");
       } else {
          // Perform first step of SDE solver
@@ -332,8 +341,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
       // determines the next step's measurement/output traffic needs every
       // atom's mmom/mmomi/emomM fresh.
       if(gpuSim.adaptiveEnabled()) {
-         if(adaptiveMomentUpdateNeedsFullLattice(gpuMeasurementForLookahead, mstep, rstep + nstep,
-                                                 nstep, rstep)) {
+         if(adaptiveNeedsFullMaterialization) {
             adaptiveMomUpdater.updateFull();
          } else {
             adaptiveMomUpdater.updateActiveOnly(gpuSim.gpuAdaptiveRuntime.activeAtomList(),

@@ -951,6 +951,16 @@ void GpuSimulation::release() {
                   phase.selectorMilliseconds, phase.polarizationMilliseconds,
                   phase.compactionMilliseconds, phase.integrationMilliseconds,
                   phase.stepWallMilliseconds, phaseSumMs, unaccountedMs);
+      // CGP-03D: makes the per-run OrdinaryStep/Transition materialization
+      // counts directly observable from production stdout, matching how
+      // CGP-02/CGP-03 already surface their own steady-state-cost claims --
+      // see docs/CGP-03D_ORDINARY_STEP_GATING_EVIDENCE.md.
+      std::printf("Gpu: AdaptiveCG materialization_counts ordinary_step=%zu "
+                  "transition=%zu\n",
+                  gpuAdaptiveRuntime.materializationCount(
+                     GpuAdaptiveMaterializationReason::OrdinaryStep),
+                  gpuAdaptiveRuntime.materializationCount(
+                     GpuAdaptiveMaterializationReason::Transition));
       if(adaptiveDiagnostics > 0) {
          const auto diagnostic =
             gpuAdaptiveRuntime.diagnosticSnapshot(gpuLattice.emom.data());
@@ -1131,7 +1141,7 @@ void GpuSimulation::updateAdaptiveBlockState(const int* blockState, std::size_t 
 
 void GpuSimulation::advanceAdaptiveStep(
    std::size_t step, GpuHamiltonianCalculations* hamiltonian,
-   GpuDepondtIntegrator* integrator) {
+   GpuDepondtIntegrator* integrator, bool nextStepNeedsFullMaterialization) {
    if(!gpuAdaptiveRuntime.ready() || !gpuAdaptiveRuntime.kernelsReady())
       throw std::logic_error("GPU adaptive production step requires a ready CG-10 runtime");
    if(!integrator)
@@ -1249,28 +1259,40 @@ void GpuSimulation::advanceAdaptiveStep(
    // Assemble coarse atoms into that same buffer. GpuMomentUpdater owns the
    // one post-step emom/emom2 swap for every SD path; promoting here as well
    // would make its unconditional swap publish the stale pre-step buffer.
-   // CGP-03: this commit stays unconditional -- GpuMomentUpdater::update()
-   // (called every step, unconditionally, for every atom, regardless of
-   // adaptive state) derives that step's mmom from emom2.z whenever
-   // mompar is 1 or 2, and measurement/correlation read the emomM it builds
-   // on a sampling-firing step. Skipping this call on an ordinary step would
-   // require GpuMomentUpdater itself to become adaptive-aware and the
-   // measurement/correlation sampling schedule to be visible here as a
-   // look-ahead gate; see docs/CGP-03_LAZY_MATERIALIZATION_EVIDENCE.md
-   // section 2 for why that is out of this task's bounded scope.
-   gpuAdaptiveRuntime.materializeCoarseAtoms(
-      GpuAdaptiveMaterializationReason::OrdinaryStep, gpuLattice.emom2.data(),
-      adaptiveReconstructionPolicy);
+   // CGP-03D: CGP-03B/C already decoupled the moment/emomM side from this
+   // commit (GpuAdaptiveMomentUpdater::updateActiveOnly() is production
+   // default, gated by adaptiveMomentUpdateNeedsFullLattice()), and the
+   // remaining direction-only consumer -- do_ac autocorrelation, which reads
+   // gpuLattice.emom over the full lattice -- is accepted as approximate
+   // under adaptive CG, the same scoping decision already made for do_sc in
+   // CGP-03C (see docs/CGP-03D_ORDINARY_STEP_GATING_EVIDENCE.md and project
+   // memory "adaptive-cg-correlations-not-guaranteed"). This commit is now
+   // conditional on exactly the three remaining genuine consumers: (1) the
+   // caller-supplied look-ahead already computed for the moment update, so a
+   // full commit lands whenever mstep+1's measurement/output cadence needs
+   // it; (2) this step being a selector-update step, since
+   // restrictAdaptiveMoments/evaluateSelectorScores below need current
+   // atomDirection for every selector-edge/channel atom; (3) diagnostics>=3
+   // stage traces (traceEnergy), which must see an exact reconstructed state.
+   const bool selectorUpdateStep = adaptiveMaskEnabled &&
+      adaptiveUpdateInterval > 0 && step % adaptiveUpdateInterval == 0;
+   const bool needsFullDirectionCommit =
+      nextStepNeedsFullMaterialization || selectorUpdateStep || traceEnergy;
+   if(needsFullDirectionCommit) {
+      gpuAdaptiveRuntime.materializeCoarseAtoms(
+         GpuAdaptiveMaterializationReason::OrdinaryStep, gpuLattice.emom2.data(),
+         adaptiveReconstructionPolicy);
+   }
    if(traceEnergy)
       evaluateAdaptiveFields(gpuLattice.emom2.data(), true);
    printStaticStageTrace("reconstructed", gpuLattice.emom2.data());
-   if(adaptiveMaskEnabled && adaptiveUpdateInterval > 0 &&
-      step % adaptiveUpdateInterval == 0) {
+   if(selectorUpdateStep) {
       // Part 4: selectorAdaptiveScores/restrictAdaptiveMoments need current
-      // atomDirection for every selector-edge/channel atom they touch; the
-      // unconditional OrdinaryStep commit just above already refreshed the
-      // whole lattice earlier this same step, so no extra materialization is
-      // needed here for the selector to see fresh state.
+      // atomDirection for every selector-edge/channel atom they touch;
+      // selectorUpdateStep forces the OrdinaryStep commit above
+      // unconditionally, so the whole lattice is already refreshed earlier
+      // this same step -- no extra materialization is needed here for the
+      // selector to see fresh state.
       gpuAdaptiveRuntime.restrictMoments(gpuLattice.emom2.data());
       gpuAdaptiveRuntime.evaluateSelectorScores(gpuLattice.emom2.data());
       gpuAdaptiveRuntime.evaluatePolarizationGate(adaptivePolarizationThreshold);
