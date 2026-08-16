@@ -8,6 +8,7 @@ gpuHamiltonianCalculations.cpp
 gpuDipoleConvolution.cpp
 gpuLatticeConvolutionHamiltonian.cpp
 gpuMomentUpdater.cpp
+gpuAdaptiveMomentUpdater.cpp
 gpuSDSimulation.cpp
 gpuMCSimulation.cpp
 gpuSimulation.cpp
@@ -40,6 +41,7 @@ gpuSimulation.hpp
 gpuMetropolis.hpp
 gpuMetropolis_bruteforce.hpp
 gpuMomentUpdater.hpp
+gpuAdaptiveMomentUpdater.hpp
 gpuMultiscaleField.cpp
 gpuMultiscaleField.hpp
 gpuParallelizationHelper.hpp

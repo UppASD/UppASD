@@ -6,6 +6,7 @@
 #include "gpuHamiltonianCalculations.hpp"
 #include "gpuMeasurement.hpp"
 #include "gpuMomentUpdater.hpp"
+#include "gpuAdaptiveMomentUpdater.hpp"
 #include "gpuSimulation.hpp"
 #include "gpuStructures.hpp"
 #include "gpuStructures.hpp"
@@ -218,6 +219,15 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
 
    // Moment updater
    GpuMomentUpdater momUpdater(gpuSim.gpuLattice, gpuSim.SimParam.mompar, gpuSim.SimParam.initexc);
+   // CGP-03B: adaptive runs own their moment update end to end through a
+   // dedicated updater instead of GpuMomentUpdater, so GpuMomentUpdater's
+   // non-adaptive contract (used by momUpdater above whenever
+   // !gpuSim.adaptiveEnabled()) stays completely untouched. Constructed
+   // unconditionally, matching every other object in this scope, but its
+   // update method is only invoked in the adaptiveEnabled() branch below.
+   // See docs/CGP-03B_ADAPTIVE_MOMENT_UPDATER_EVIDENCE.md.
+   GpuAdaptiveMomentUpdater adaptiveMomUpdater(gpuSim.gpuLattice, gpuSim.SimParam.mompar,
+                                               gpuSim.SimParam.initexc);
    //Queue
    MeasurementQueue mqueue;
    // Measurement
@@ -304,8 +314,17 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
          integrator.evolveSecond(gpuSim.gpuLattice);
          stopwatch.add("evolution");
       }
-      // Update magnetic moments after time evolution step
-      momUpdater.update();
+      // Update magnetic moments after time evolution step.
+      // CGP-03B: adaptive runs use their own updater (still a full-lattice
+      // update today -- see adaptiveMomUpdater's declaration comment above
+      // and docs/CGP-03B_ADAPTIVE_MOMENT_UPDATER_EVIDENCE.md Part D for why
+      // updateActiveOnly() is not yet safe to enable here), so
+      // GpuMomentUpdater::update() is never called for an adaptive step.
+      if(gpuSim.adaptiveEnabled()) {
+         adaptiveMomUpdater.updateFull();
+      } else {
+         momUpdater.update();
+      }
       stopwatch.add("moments");
 
       measurement->updateAC(mstep);

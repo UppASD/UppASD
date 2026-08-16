@@ -1657,6 +1657,36 @@ if(BUILD_TESTING)
       set_tests_properties(gpu-depondt-active-atoms PROPERTIES SKIP_RETURN_CODE 77
          LABELS "coarse-graining;cg13;${CG13_GPU_LABEL};reference")
 
+      # CGP-03B: GpuAdaptiveMomentUpdater must reproduce GpuMomentUpdater
+      # bitwise (updateFull(), and updateActiveOnly() given every atom), and
+      # must leave every atom outside a genuine active subset pinned at its
+      # pre-call value (negative control) -- see
+      # docs/CGP-03B_ADAPTIVE_MOMENT_UPDATER_EVIDENCE.md.
+      add_executable(gpu_adaptive_moment_updater_tests
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_adaptive_moment_updater.cpp)
+      target_include_directories(gpu_adaptive_moment_updater_tests PRIVATE
+         ${CMAKE_SOURCE_DIR}/source/gpu_files
+         ${CMAKE_SOURCE_DIR}/source/gpu_files/measurement)
+      target_link_libraries(gpu_adaptive_moment_updater_tests PRIVATE ${UppASD_LIB})
+      if(USE_CUDA)
+         set_source_files_properties(
+            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_adaptive_moment_updater.cpp
+            PROPERTIES LANGUAGE CUDA)
+         target_compile_definitions(gpu_adaptive_moment_updater_tests PRIVATE CUDA_V)
+         target_link_libraries(gpu_adaptive_moment_updater_tests PRIVATE CUDA::cudart)
+      else()
+         set_source_files_properties(
+            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_adaptive_moment_updater.cpp
+            PROPERTIES LANGUAGE HIP)
+         target_compile_definitions(gpu_adaptive_moment_updater_tests PRIVATE HIP_V)
+      endif()
+      if(UPPASD_PRECISION STREQUAL "SINGLE")
+         target_compile_definitions(gpu_adaptive_moment_updater_tests PRIVATE SINGLE_PREC)
+      endif()
+      add_test(NAME gpu-adaptive-moment-updater COMMAND gpu_adaptive_moment_updater_tests)
+      set_tests_properties(gpu-adaptive-moment-updater PROPERTIES SKIP_RETURN_CODE 77
+         LABELS "coarse-graining;cg13;${CG13_GPU_LABEL};reference")
+
       # RCG-05E: compute-sanitizer racecheck/memcheck/synccheck/initcheck
       # against dilateAdaptiveState specifically (--kernel-name), run through
       # gpu_adaptive_runtime_tests above, which already launches it with a
