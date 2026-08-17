@@ -1635,8 +1635,13 @@ int main(int argc, char** argv) {
          printSamples("production-atomistic-field-sample", productionField.wallUs);
 
          // ---- PERF-CG-SWEEP ------------------------------------------------
+         // CGP-07: added the 0.01 point (the block-quantized fraction nearest
+         // 1%) to the pre-existing sweep so the re-baseline matrix covers the
+         // required "~1% fine" case in addition to the 6.25/12.5/25/50/75/100%
+         // points every prior CGP task's evidence already depends on; those
+         // existing points are unchanged.
          const std::vector<double> fractions = {
-            1.0, 0.75, 0.5, 0.25, 0.125, 0.0625, 0.0
+            1.0, 0.75, 0.5, 0.25, 0.125, 0.0625, 0.01, 0.0
          };
          for(const double fraction : fractions) {
             SweepPoint point;
