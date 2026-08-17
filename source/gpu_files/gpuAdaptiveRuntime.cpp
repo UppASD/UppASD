@@ -1287,10 +1287,21 @@ __global__ void clearAdaptiveCoarse(
 // fullFieldClear fallback to clearAdaptiveCoarse(), selected at the call site
 // whenever diagnostics>=3 traces the stage. Energy accumulators keep the same
 // unconditional-when-MeasureEnergy treatment as the active atomistic clear.
+//
+// CGP-08: the public `coarseField` buffer is no longer zeroed here. Every
+// active-block entry this loop would have zeroed is unconditionally
+// overwritten (not accumulated into) later this same call, by either
+// writeAdaptiveCoarse or the fused finalizeAndWriteAdaptiveCoarse -- both
+// gated by the identical activeBlockList/activeBlockCount() set this kernel
+// uses, so the zero was dead work in every configuration (MeasureEnergy or
+// not, dipole or not; neither dipole kernel touches the public `coarseField`
+// parameter at all). `runtime.coarseField` (the internal scratch
+// evaluateAdaptiveCoarseTensor atomically accumulates into) still needs its
+// zero -- that part is unchanged.
 template<bool MeasureEnergy>
 __global__ void clearAdaptiveCoarseActive(
    GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
-   AdaptiveKernelDevice kernels, real* coarseField, std::size_t activeBlocks) {
+   AdaptiveKernelDevice kernels, std::size_t activeBlocks) {
    const std::size_t index = adaptiveThreadIndex();
    if(activeBlocks > 0) {
       const std::size_t work = index % activeBlocks;
@@ -1300,10 +1311,8 @@ __global__ void clearAdaptiveCoarseActive(
             static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
          const std::size_t scalar = coarseScalarIndex(
             0, block, ensemble, topology.dynamicChannels, topology.blocks);
-         for(int xyz = 0; xyz < 3; ++xyz) {
+         for(int xyz = 0; xyz < 3; ++xyz)
             runtime.coarseField[3 * scalar + xyz] = real(0);
-            coarseField[3 * scalar + xyz] = real(0);
-         }
       }
    }
    if constexpr (MeasureEnergy) {
@@ -1488,6 +1497,93 @@ __global__ void finalizeAdaptiveCoarseLocal(
                kernels.magneticMomentSi * moment * dotDevice(external, direction));
          }
       }
+   }
+   if constexpr (MeasureEnergy) {
+      extern __shared__ double energyShared[];
+      reduceAdaptiveEnergyBlock(
+         anisotropyEnergy, kernels.energyPartials + 4 * kernels.energyPartialBlocks,
+         energyShared);
+      reduceAdaptiveEnergyBlock(
+         externalEnergy, kernels.energyPartials + 5 * kernels.energyPartialBlocks,
+         energyShared + blockDim.x);
+   }
+}
+
+// CGP-08: finalizeAdaptiveCoarseLocal + writeAdaptiveCoarse fused into one
+// kernel. This is safe ONLY when neither dipole kernel runs between them:
+// finalizeAdaptiveCoarseLocal touches only its own thread's block of
+// runtime.coarseField (no atomics, no neighbour indexing, unlike
+// evaluateAdaptiveCoarseTensor's scatter), so there is no cross-thread-block
+// ordering hazard between what used to be finalize's write and write's read
+// of the same address -- but addAdaptiveDipole/addAdaptiveBasisResolvedDipole
+// (when active) also accumulate into runtime.coarseField for coarse blocks,
+// and must run strictly between finalize and write for their contribution to
+// reach the output. The caller (evaluateHybridImpl) therefore only selects
+// this fused kernel when uniformFftDipoleField and basisResolvedFftField are
+// both null; the dipole-enabled path keeps calling the two kernels separately
+// with the dipole kernel(s) still sequenced between them, byte-for-byte as
+// before this task. Math is copied verbatim from finalizeAdaptiveCoarseLocal
+// (same accumulation order) followed by writeAdaptiveCoarse's own read+store,
+// just held in a register across the two instead of round-tripping through
+// runtime.coarseField.
+template<bool MeasureEnergy>
+__global__ void finalizeAndWriteAdaptiveCoarse(
+   GpuAdaptiveDeviceTopology topology, GpuAdaptiveDeviceRuntime runtime,
+   AdaptiveKernelDevice kernels, const real* externalField, real* coarseField,
+   std::size_t activeBlocks) {
+   const std::size_t index = adaptiveThreadIndex();
+   const std::size_t work = activeBlocks > 0 ? index % activeBlocks : 0;
+   const std::size_t ensemble = activeBlocks > 0 ? index / activeBlocks : 0;
+   double anisotropyEnergy = 0.0;
+   double externalEnergy = 0.0;
+   if(ensemble < topology.ensembles && work < activeBlocks) {
+      const std::size_t block =
+         static_cast<std::size_t>(runtime.activeBlockList[work] - 1);
+      real direction[3];
+      loadCoarseVector(runtime.coarseDirection, topology, 0, block,
+                       ensemble, direction);
+      real accumulator[3];
+      const std::size_t scalar = coarseScalarIndex(
+         0, block, ensemble, topology.dynamicChannels, topology.blocks);
+      for(int xyz = 0; xyz < 3; ++xyz)
+         accumulator[xyz] = runtime.coarseField[3 * scalar + xyz];
+      for(int axisIndex = 0;
+          axisIndex < kernels.anisotropyAxisCount[block]; ++axisIndex) {
+         real axis[3];
+         for(int xyz = 0; xyz < 3; ++xyz)
+            axis[xyz] = kernels.anisotropyAxis[
+               xyz + 3 * (axisIndex + 2 * block)];
+         const real c = dotDevice(direction, axis);
+         const real k1 = kernels.anisotropyK1[axisIndex + 2 * block];
+         const real k2 = kernels.anisotropyK2[axisIndex + 2 * block];
+         const real volume = topology.blockVolume[block];
+         if constexpr (MeasureEnergy)
+            anisotropyEnergy += static_cast<double>(volume *
+               (k1 * c * c + real(2) * k2 * c * c -
+                k2 * c * c * c * c));
+         const real derivative = volume * real(2) * c *
+            (k1 + real(2) * k2 * (real(1) - c * c));
+         for(int xyz = 0; xyz < 3; ++xyz)
+            accumulator[xyz] += derivative * axis[xyz];
+      }
+      const real moment = runtime.channelMomentSum[scalar];
+      for(int xyz = 0; xyz < 3; ++xyz) {
+         accumulator[xyz] *= -real(1) / (kernels.magneticMomentSi * moment);
+         if(externalField)
+            accumulator[xyz] += externalField[3 * scalar + xyz];
+      }
+      if constexpr (MeasureEnergy) {
+         if(externalField) {
+            real external[3];
+            for(int xyz = 0; xyz < 3; ++xyz)
+               external[xyz] = externalField[3 * scalar + xyz];
+            externalEnergy = -static_cast<double>(
+               kernels.magneticMomentSi * moment * dotDevice(external, direction));
+         }
+      }
+      for(int xyz = 0; xyz < 3; ++xyz)
+         coarseField[3 * scalar + xyz] =
+            accumulator[xyz] + kernels.coarseFieldScratch[3 * scalar + xyz];
    }
    if constexpr (MeasureEnergy) {
       extern __shared__ double energyShared[];
@@ -3376,11 +3472,18 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybridImpl(
       if(coarseClearWork > 0) {
          ADAPTIVE_LAUNCH(clearAdaptiveCoarseActive<MeasureEnergy>,
                          adaptiveGrid(coarseClearWork), stream_,
-                         deviceTopology_, deviceRuntime_, kernels, coarseField,
+                         deviceTopology_, deviceRuntime_, kernels,
                          activeBlockCount());
          ++phaseMetrics_.coarseLaunches;
       }
    }
+   // CGP-08: finalizeAdaptiveCoarseLocal and writeAdaptiveCoarse fuse into one
+   // launch (finalizeAndWriteAdaptiveCoarse) when neither dipole kernel needs
+   // to run between them -- see that kernel's own comment for why the fusion
+   // is unsafe whenever a dipole kernel's runtime.coarseField contribution
+   // must land between finalize and write. The dipole-enabled path is
+   // completely untouched: same two kernels, same order, same arguments as
+   // before this task.
    if(activeBlockWork > 0) {
       ADAPTIVE_LAUNCH_SHARED(evaluateAdaptiveCoarseTensor<MeasureEnergy>,
                              adaptiveGrid(activeBlockWork),
@@ -3390,15 +3493,29 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybridImpl(
                              stream_,
                              deviceTopology_, deviceRuntime_, kernels,
                              activeBlockCount());
-      ADAPTIVE_LAUNCH_SHARED(finalizeAdaptiveCoarseLocal<MeasureEnergy>,
-                             adaptiveGrid(activeBlockWork),
-                             MeasureEnergy ?
-                                2 * adaptiveThreads * sizeof(double) :
-                                std::size_t(0),
-                             stream_,
-                             deviceTopology_, deviceRuntime_, kernels,
-                             externalCoarseField, activeBlockCount());
-      phaseMetrics_.coarseLaunches += 2;
+      ++phaseMetrics_.coarseLaunches;
+      if(!uniformFftDipoleField && !basisResolvedFftField) {
+         ADAPTIVE_LAUNCH_SHARED(finalizeAndWriteAdaptiveCoarse<MeasureEnergy>,
+                                adaptiveGrid(activeBlockWork),
+                                MeasureEnergy ?
+                                   2 * adaptiveThreads * sizeof(double) :
+                                   std::size_t(0),
+                                stream_,
+                                deviceTopology_, deviceRuntime_, kernels,
+                                externalCoarseField, coarseField,
+                                activeBlockCount());
+         ++phaseMetrics_.coarseLaunches;
+      } else {
+         ADAPTIVE_LAUNCH_SHARED(finalizeAdaptiveCoarseLocal<MeasureEnergy>,
+                                adaptiveGrid(activeBlockWork),
+                                MeasureEnergy ?
+                                   2 * adaptiveThreads * sizeof(double) :
+                                   std::size_t(0),
+                                stream_,
+                                deviceTopology_, deviceRuntime_, kernels,
+                                externalCoarseField, activeBlockCount());
+         ++phaseMetrics_.coarseLaunches;
+      }
    }
    if(uniformFftDipoleField) {
       ADAPTIVE_LAUNCH_SHARED(addAdaptiveDipole<MeasureEnergy>,
@@ -3426,7 +3543,10 @@ GpuAdaptiveEnergy GpuAdaptiveRuntime::evaluateHybridImpl(
                       dipolePartials);
       ++phaseMetrics_.coarseLaunches;
    }
-   if(activeBlockWork > 0) {
+   // CGP-08: only the dipole-enabled path still needs this separate write --
+   // the no-dipole path already wrote `coarseField` from
+   // finalizeAndWriteAdaptiveCoarse above.
+   if(activeBlockWork > 0 && (uniformFftDipoleField || basisResolvedFftField)) {
       ADAPTIVE_LAUNCH(writeAdaptiveCoarse, adaptiveGrid(activeBlockWork),
                       stream_, deviceTopology_, deviceRuntime_, kernels,
                       coarseField, activeBlockCount());
