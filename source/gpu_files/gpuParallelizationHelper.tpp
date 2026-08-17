@@ -33,6 +33,21 @@ void GpuParallelizationHelper::gpuActiveAtomCall(O op, const int* oneBasedAtoms,
 }
 
 template <typename O>
+void GpuParallelizationHelper::gpuActiveAtomSiteCall(O op, const int* oneBasedAtoms,
+                                                     unsigned int activeCount) {
+   // Assert that O is derived from AtomSite.
+   (void)static_cast<AtomSite*>((O*)0);
+   if(activeCount == 0) return;
+
+   op.N = N;
+   op.M = M;
+   dim3 block, grid;
+   gridHelper.dim1d(&block, &grid, activeCount * M);
+   active_atom_site_kernel<THREAD_COUNT, USE_BIG_GRID><<<grid, block, 0, workStream>>>(
+      op, oneBasedAtoms, activeCount, N, M);
+}
+
+template <typename O>
 void GpuParallelizationHelper::gpuSiteCall(O op) {
    // Assert that O is derived from Site
    (void)static_cast<Site*>((O*)0);

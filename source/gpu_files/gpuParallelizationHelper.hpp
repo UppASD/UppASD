@@ -41,6 +41,25 @@ __global__ void active_atom_kernel(O op, const int* oneBasedAtoms,
    }
 }
 
+// Same compact-list geometry as active_atom_kernel, but hands the operation
+// both the flattened atom index and its site (one-based-atom - 1), for
+// operations derived from AtomSite that need both -- e.g. scoping a
+// per-(site,ensemble) write to only the active list while still deriving the
+// per-site constant that op.each(atom, site) expects.
+template <std::size_t threads, bool big, typename O>
+__global__ void active_atom_site_kernel(O op, const int* oneBasedAtoms,
+                                        unsigned int activeCount, unsigned int N,
+                                        unsigned int M) {
+   unsigned int work;
+   if(GridHelper<threads, big>::index1d(&work, activeCount * M)) {
+      const unsigned int slot = work % activeCount;
+      const unsigned int ensemble = work / activeCount;
+      const int oneBasedAtom = oneBasedAtoms[slot];
+      const unsigned int site = static_cast<unsigned int>(oneBasedAtom - 1);
+      op.each(site + ensemble * N, site);
+   }
+}
+
 template <std::size_t threads, bool big, typename O>
 __global__ void site_kernel(O op) {
    unsigned int site;
@@ -135,6 +154,10 @@ public:
    // its device-resident lists.
    template <typename O> void gpuActiveAtomCall(O op, const int* oneBasedAtoms,
                                                 unsigned int activeCount);
+   // Same list contract as gpuActiveAtomCall, for an AtomSite operation that
+   // needs both the flattened atom index and its site.
+   template <typename O> void gpuActiveAtomSiteCall(O op, const int* oneBasedAtoms,
+                                                    unsigned int activeCount);
    template <typename O> void gpuSiteCall(O op);
    template <typename O> void gpuAtomSiteCall(O op);
    template <typename O> void gpuAtomSiteEnsembleCall(O op);

@@ -25,7 +25,7 @@
 //
 // Usage: gpu_thermfield_rng_benchmark --atoms N [--ensembles M]
 //        [--temperature T] [--seed S] [--warmup W] [--iterations I]
-//        [--repetitions R] [--subphase]
+//        [--repetitions R] [--subphase] [--active-fraction F]
 //
 // Prints one "thermfield-rng" result line with the randomize() wall-clock
 // median/MAD. --subphase additionally reports the GPU-event breakdown of
@@ -33,6 +33,17 @@
 // (SetupField write) categories, read from the same
 // GlobalStopwatchPool("GPU thermfield") production already populates when
 // phase timing is enabled -- not new instrumentation, just read out here.
+//
+// CGP-06B: --active-fraction F (0 <= F <= 1) switches the timed call from
+// randomize(mmom) to the real, production active-scoped overload
+// randomize(mmom, oneBasedAtoms, activeCount), against a compact list of
+// round(F*atoms) one-based ids built once before timing starts. This
+// exercises the actual Strategy 1 kernel geometry (gpuActiveAtomSiteCall),
+// not the CGP-06A "re-run at a smaller full lattice" projection -- the RNG
+// generate sub-phase still draws the full 3*N*M values every call (by
+// design: the generator sequence must stay identical to the unscoped path),
+// only the SetupField write is scoped, so the real active-fraction win is
+// necessarily smaller than that superseded projection implied.
 
 #include "gpuThermfield.hpp"
 #include "gpuParallelizationHelper.hpp"
@@ -44,6 +55,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -93,6 +105,8 @@ struct Options {
    unsigned int iterations = 30;
    unsigned int repetitions = 7;
    bool subphase = false;
+   bool activeScoped = false;
+   double activeFraction = 1.0;
 };
 
 std::size_t parseSize(const char* value, const char* option) {
@@ -131,10 +145,15 @@ Options parse(int argc, char** argv) {
          result.repetitions = static_cast<unsigned int>(parseSize(argv[++index], "--repetitions"));
       else if(option == "--subphase")
          result.subphase = true;
-      else
+      else if(option == "--active-fraction" && index + 1 < argc) {
+         result.activeScoped = true;
+         result.activeFraction = parseDouble(argv[++index], "--active-fraction");
+      } else
          throw std::runtime_error("unknown or incomplete option: " + option);
    }
    if(result.atoms == 0) throw std::runtime_error("--atoms is required and must be > 0");
+   if(result.activeFraction < 0.0 || result.activeFraction > 1.0)
+      throw std::runtime_error("--active-fraction must be in [0,1]");
    return result;
 }
 
@@ -198,22 +217,60 @@ int main(int argc, char** argv) {
                                   real(0.1)))
          throw std::runtime_error("GpuThermfield::initiateConstants failed");
 
-      const auto sample = timeSteadyState(options, [&]() { field.randomize(mmom); });
-      std::printf(
-         "thermfield-rng atoms=%zu ensembles=%zu temperature=%.6f "
-         "randomize_wall_us=%.6f randomize_mad_us=%.6f warmup=%u iterations=%u "
-         "repetitions=%u\n",
-         options.atoms, options.ensembles, static_cast<double>(options.temperature),
-         sample.medianUs, sample.madUs, options.warmup, options.iterations, options.repetitions);
+      // Active list, only built/uploaded when requested: round(F*atoms)
+      // one-based ids 1..activeCount. Cost depends only on count (Part C),
+      // not on which physical sites are selected, so a contiguous prefix is
+      // representative.
+      GpuTensor<int, 1> activeList;
+      unsigned int activeCount = 0;
+      if(options.activeScoped) {
+         activeCount = static_cast<unsigned int>(
+            std::llround(options.activeFraction * static_cast<double>(options.atoms)));
+         if(activeCount > 0) {
+            std::vector<int> oneBasedHost(activeCount);
+            for(unsigned int i = 0; i < activeCount; ++i) oneBasedHost[i] = static_cast<int>(i + 1);
+            activeList.Allocate(static_cast<index_t>(activeCount));
+            Tensor<int, 1> view(oneBasedHost.data(), static_cast<index_t>(activeCount));
+            activeList.copy_sync(view);
+         }
+      }
+      const int* activeData = activeCount > 0 ? activeList.data() : nullptr;
+
+      const auto sample = options.activeScoped
+         ? timeSteadyState(options, [&]() { field.randomize(mmom, activeData, activeCount); })
+         : timeSteadyState(options, [&]() { field.randomize(mmom); });
+      if(options.activeScoped) {
+         std::printf(
+            "thermfield-rng-active atoms=%zu ensembles=%zu temperature=%.6f "
+            "requested_fraction=%.6f active_count=%u "
+            "randomize_wall_us=%.6f randomize_mad_us=%.6f warmup=%u iterations=%u "
+            "repetitions=%u\n",
+            options.atoms, options.ensembles, static_cast<double>(options.temperature),
+            options.activeFraction, activeCount,
+            sample.medianUs, sample.madUs, options.warmup, options.iterations,
+            options.repetitions);
+      } else {
+         std::printf(
+            "thermfield-rng atoms=%zu ensembles=%zu temperature=%.6f "
+            "randomize_wall_us=%.6f randomize_mad_us=%.6f warmup=%u iterations=%u "
+            "repetitions=%u\n",
+            options.atoms, options.ensembles, static_cast<double>(options.temperature),
+            sample.medianUs, sample.madUs, options.warmup, options.iterations,
+            options.repetitions);
+      }
 
       if(options.subphase) {
+         const auto call = [&]() {
+            if(options.activeScoped) field.randomize(mmom, activeData, activeCount);
+            else field.randomize(mmom);
+         };
          Stopwatch::setTimingMode('Y');
-         field.randomize(mmom);
+         call();
          gpuCheck(GPU_DEVICE_SYNCHRONIZE(), "sub-phase warm-up sync");
          Stopwatch& watch = GlobalStopwatchPool::get("GPU thermfield");
          watch.reset();
          const unsigned int phaseIterations = options.iterations;
-         for(unsigned int i = 0; i < phaseIterations; ++i) field.randomize(mmom);
+         for(unsigned int i = 0; i < phaseIterations; ++i) call();
          gpuCheck(GPU_DEVICE_SYNCHRONIZE(), "sub-phase sync");
          for(const auto& phaseSample : watch.samples()) {
             std::printf(
@@ -226,6 +283,7 @@ int main(int argc, char** argv) {
          Stopwatch::setTimingMode('N');
       }
 
+      activeList.Free();
       mmom.Free();
       temperatureHost.FreeHost();
       ParallelizationHelperInstance.free();

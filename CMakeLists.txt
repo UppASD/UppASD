@@ -1632,6 +1632,10 @@ if(BUILD_TESTING)
       # ordinary production Depondt predictor/corrector at T=0 and T>0.  The
       # fixture also reverses a strict subset to prove compact-list position
       # never becomes a physical atom or RNG identity.
+      # CGP-06B: additionally proves the active-scoped GpuThermfield::randomize()
+      # overload writes exactly the active list (poisoned-buffer scoping check)
+      # and carries two negative controls (slot-indexed write, skipped
+      # generator advancement) that must themselves fail to be discriminating.
       add_executable(gpu_depondt_active_atoms_tests
          ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_depondt_active_atoms.cpp)
       target_include_directories(gpu_depondt_active_atoms_tests PRIVATE
@@ -1804,7 +1808,12 @@ if(BUILD_TESTING)
       # the rest of the Depondt predictor, across total atom count, ensemble
       # count, and temperature. A build target, not a CTest: timings are
       # hardware-dependent, same rationale as gpu_adaptive_runtime_benchmark
-      # and dipole_gpu_fft_benchmark above. Changes no production code.
+      # and dipole_gpu_fft_benchmark above.
+      # CGP-06B: --active-fraction F additionally exercises the real
+      # active-scoped randomize(mmom, oneBasedAtoms, activeCount) overload
+      # this task added, superseding CGP-06A's smaller-full-lattice
+      # projection with a real measurement of the same kernel production
+      # uses.
       add_executable(gpu_thermfield_rng_benchmark
          ${CMAKE_SOURCE_DIR}/tests/coarse_graining/benchmark_gpu_thermfield_rng.cpp)
       target_include_directories(gpu_thermfield_rng_benchmark PRIVATE

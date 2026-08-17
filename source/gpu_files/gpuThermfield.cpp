@@ -92,3 +92,23 @@ void GpuThermfield::randomize(const GpuTensor<real, 2>& mmom) {
    parallel.gpuAtomSiteCall(SetupField(field, randomValues, sigmaFactor, mmom));
    stopwatch.add("loop");
 }
+
+void GpuThermfield::randomize(const GpuTensor<real, 2>& mmom, const int* oneBasedAtoms,
+                              unsigned int activeCount) {
+   if(!initiated()) return;
+   stopwatch.skip();
+   // Unconditional, full-N,M draw -- identical call to randomize(mmom) above.
+   // The generator's sequence must advance exactly as it does in the
+   // feature-off/all-fine path (CGP-06A invariants 1-4); only the
+   // downstream write is scoped below.
+   ASSERT_CURAND(GPU_RAND_GENERATE_NORMAL_REAL(gen, randomValues.data(), randomValues.size(),
+                                                static_cast<real>(0.0), static_cast<real>(1.0)));
+   stopwatch.add("RNG");
+   // Active-list write only: every downstream reader of `field` for adaptive
+   // dynamics (GpuDepondtIntegrator's active-list EvolveFirst) is itself
+   // restricted to the same compact list, so entries left unwritten here are
+   // never read. Empty list (all-coarse step) issues no write kernel at all.
+   parallel.gpuActiveAtomSiteCall(SetupField(field, randomValues, sigmaFactor, mmom),
+                                  oneBasedAtoms, activeCount);
+   stopwatch.add("loop");
+}

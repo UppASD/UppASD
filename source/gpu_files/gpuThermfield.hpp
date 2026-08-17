@@ -33,4 +33,12 @@ public:
    static std::size_t estimateBytes(std::size_t N, std::size_t M);
    const GpuTensor<real, 3>& getField() const { return field; }
    void randomize(const GpuTensor<real, 2>& mmom);
+   // Strategy 1 (CGP-06B): identical generator sequence and identical
+   // randomValues draw to randomize(mmom) above -- state advances exactly as
+   // today so invariants 1-5 (CGP-06A Part B) hold unchanged -- but the
+   // field write is scoped to the compact active list instead of every
+   // (site,ensemble) pair. oneBasedAtoms/activeCount use the same one-based
+   // compact-list contract as GpuParallelizationHelper::gpuActiveAtomCall.
+   void randomize(const GpuTensor<real, 2>& mmom, const int* oneBasedAtoms,
+                  unsigned int activeCount);
 };

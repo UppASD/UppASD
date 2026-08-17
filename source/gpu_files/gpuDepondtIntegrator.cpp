@@ -447,11 +447,15 @@ void GpuDepondtIntegrator::evolveFirst(deviceLattice& gpuLattice,
                                                       gpuLattice.emom);
    stopwatch.skip();
 
-   // Keep the production generator and its full (site,ensemble) layout.  It
-   // consumes the same generator sequence per accepted SD step as the
-   // feature-off path; compact-list order therefore cannot change a site's
-   // random draw.
-   thermfield.randomize(gpuLattice.mmom);
+   // Keep the production generator and its full (site,ensemble) draw -- the
+   // curand/hiprand call still consumes exactly 3*N*M values from the shared
+   // stream, every step, so the generator sequence is byte-for-byte
+   // unchanged from the feature-off path and compact-list order still cannot
+   // change a site's random draw (CGP-06A Strategy 1). Only the downstream
+   // field *write* is scoped to the active list: every reader of
+   // thermalField below is itself restricted to the same oneBasedAtoms/count
+   // list, so an unwritten entry is never read.
+   thermfield.randomize(gpuLattice.mmom, oneBasedAtoms, count);
    stopwatch.add("thermfield");
 
    parallel.gpuActiveAtomCall(EvolveFirst(mrod, blocal, bdup, gpuLattice.emomM,
