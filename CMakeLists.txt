@@ -1799,6 +1799,34 @@ if(BUILD_TESTING)
          target_compile_definitions(gpu_adaptive_inactive_overhead_microbenchmark PRIVATE SINGLE_PREC)
       endif()
 
+      # CGP-06A: evidence-only harness isolating GpuThermfield::randomize()'s
+      # real production cost (curand/hiprand generate + SetupField write) from
+      # the rest of the Depondt predictor, across total atom count, ensemble
+      # count, and temperature. A build target, not a CTest: timings are
+      # hardware-dependent, same rationale as gpu_adaptive_runtime_benchmark
+      # and dipole_gpu_fft_benchmark above. Changes no production code.
+      add_executable(gpu_thermfield_rng_benchmark
+         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/benchmark_gpu_thermfield_rng.cpp)
+      target_include_directories(gpu_thermfield_rng_benchmark PRIVATE
+         ${CMAKE_SOURCE_DIR}/source/gpu_files
+         ${CMAKE_SOURCE_DIR}/source/gpu_files/measurement)
+      target_link_libraries(gpu_thermfield_rng_benchmark PRIVATE ${UppASD_LIB})
+      if(USE_CUDA)
+         set_source_files_properties(
+            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/benchmark_gpu_thermfield_rng.cpp
+            PROPERTIES LANGUAGE CUDA)
+         target_compile_definitions(gpu_thermfield_rng_benchmark PRIVATE CUDA_V)
+         target_link_libraries(gpu_thermfield_rng_benchmark PRIVATE CUDA::cudart)
+      else()
+         set_source_files_properties(
+            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/benchmark_gpu_thermfield_rng.cpp
+            PROPERTIES LANGUAGE HIP)
+         target_compile_definitions(gpu_thermfield_rng_benchmark PRIVATE HIP_V)
+      endif()
+      if(UPPASD_PRECISION STREQUAL "SINGLE")
+         target_compile_definitions(gpu_thermfield_rng_benchmark PRIVATE SINGLE_PREC)
+      endif()
+
       add_executable(dipole_gpu_fft_tests
          ${CMAKE_SOURCE_DIR}/tests/dipole_validation/test_gpu_dipole_fft.cpp)
       target_include_directories(dipole_gpu_fft_tests PRIVATE
