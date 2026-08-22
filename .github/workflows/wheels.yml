@@ -102,8 +102,7 @@ jobs:
           output-dir: wheelhouse
         env:
           CIBW_ENVIRONMENT_MACOS: CC=gcc-14 CXX=g++-14 FC=gfortran-14
-          CIBW_BUILD: cp39-* cp310-* cp311-* cp312-*
-          # CIBW_BUILD: cp38-* cp39-* cp310-* cp311-* cp312-* cp313-*
+          CIBW_BUILD: cp39-* cp310-* cp311-* cp312-* cp313-*
         
 
       ### - name: Build wheels on Linux and macOS ${{ matrix.icon}}
