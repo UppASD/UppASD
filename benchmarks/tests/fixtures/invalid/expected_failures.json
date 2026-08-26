@@ -1,0 +1,130 @@
+{
+  "aggregate_authoritative_with_flags.json": {
+    "message_contains": "all_samples_environment_valid",
+    "reason": "an aggregate over environmentally unsuitable samples is not authoritative"
+  },
+  "aggregate_fit_without_fit_metadata.json": {
+    "message_contains": "nstep_fit_points",
+    "reason": "a fitted per-step metric must record the step counts and fit method used"
+  },
+  "aggregate_sample_count_mismatch.json": {
+    "message_contains": "sample_count",
+    "reason": "sample_count must match the number of contributing run_ids"
+  },
+  "aggregate_statistics_unordered.json": {
+    "message_contains": "statistics are not ordered",
+    "reason": "minimum <= median <= maximum must hold"
+  },
+  "aggregate_without_run_ids.json": {
+    "message_contains": "run_ids",
+    "reason": "an aggregate must name the raw samples it was computed from"
+  },
+  "completed_gpu_record_without_device_metadata.json": {
+    "message_contains": "gpu_driver",
+    "reason": "a GPU run that executed must identify its driver stack"
+  },
+  "completed_run_without_timing.json": {
+    "message_contains": "process_wall_seconds",
+    "reason": "a completed run must carry a measured process wall time"
+  },
+  "cpu_record_with_gpu_identity.json": {
+    "message_contains": "gpu_backend",
+    "reason": "a CPU run must not carry GPU identity"
+  },
+  "directed_interactions_inconsistent.json": {
+    "message_contains": "directed_interactions",
+    "reason": "directed_interactions must equal natom * mean_neighbors"
+  },
+  "dirty_tree_without_flag.json": {
+    "message_contains": "quality_flags",
+    "reason": "a dirty source tree must raise the dirty_tree quality flag"
+  },
+  "environment_valid_with_quality_flag.json": {
+    "message_contains": "quality_flags",
+    "reason": "a raised quality flag clears environment validity even when the run is numerically valid"
+  },
+  "failed_run_claimed_valid.json": {
+    "message_contains": "numerical_valid",
+    "reason": "a run that did not complete cannot be numerically or environmentally valid"
+  },
+  "fft_grid_points_inconsistent.json": {
+    "message_contains": "fft_grid_points",
+    "reason": "fft_grid_points must be the point count of the grid actually transformed"
+  },
+  "fft_workload_without_grid.json": {
+    "message_contains": "fft_grid",
+    "reason": "an FFT/dipole workload must record its grid explicitly"
+  },
+  "gpu_record_without_effective_gpu_precision.json": {
+    "message_contains": "effective_gpu_precision",
+    "reason": "effective GPU precision must be stated for a GPU run and is not inferred from CMake option names"
+  },
+  "gpu_record_without_gpu_backend.json": {
+    "message_contains": "gpu_backend",
+    "reason": "a GPU run must name its programming model"
+  },
+  "malformed_timestamp.json": {
+    "message_contains": "timestamp_utc",
+    "reason": "timestamps must be ISO 8601 UTC"
+  },
+  "mean_exceeds_max_neighbors.json": {
+    "message_contains": "mean_neighbors",
+    "reason": "mean neighbour count cannot exceed the maximum neighbour count"
+  },
+  "missing_required_natom.json": {
+    "message_contains": "'natom' is a required property",
+    "reason": "a required identity/workload field is absent"
+  },
+  "mixed_precision_marked_supported.json": {
+    "message_contains": "precision_support_state",
+    "reason": "MIXED is not a supported production mode and must be recorded as unsupported"
+  },
+  "mpi_ranks_field_present.json": {
+    "message_contains": "mpi_ranks",
+    "reason": "MPI is explicitly out of scope: mpi_ranks is not part of the contract and unknown fields are rejected"
+  },
+  "neighbour_workload_with_fft_grid.json": {
+    "message_contains": "fft_grid",
+    "reason": "a pure neighbour-list workload must not claim an FFT grid"
+  },
+  "neighbour_workload_without_neighbour_metadata.json": {
+    "message_contains": "directed_interactions",
+    "reason": "neighbour-list workloads must carry neighbour-workload metadata; atom count alone is not enough"
+  },
+  "raw_record_with_derived_timing.json": {
+    "message_contains": "steady_step_seconds",
+    "reason": "derived/fitted timing fields stay empty in raw sample records"
+  },
+  "raw_record_with_statistics.json": {
+    "message_contains": "sample_count",
+    "reason": "raw sample records remain individual; statistics belong in aggregate records"
+  },
+  "short_git_commit.json": {
+    "message_contains": "git_commit",
+    "reason": "provenance requires the full commit hash"
+  },
+  "unknown_measurement_profile.json": {
+    "message_contains": "measurement_profile",
+    "reason": "measurement profiles are a closed set: DYNAMICS_ONLY or PRODUCTION_LIGHT"
+  },
+  "unknown_record_kind.json": {
+    "message_contains": "unknown record_kind",
+    "reason": "the record kind discriminator selects the schema and must be known"
+  },
+  "unmatched_precision_claimed_matched.json": {
+    "message_contains": "effective_",
+    "reason": "CPU double against GPU single is a production-configuration comparison, not a precision-matched one"
+  },
+  "wrong_major_schema_version.json": {
+    "message_contains": "schema_version",
+    "reason": "a v2 record is not validated by the v1 contract"
+  },
+  "zero_natom.json": {
+    "message_contains": "natom",
+    "reason": "a benchmark run simulates at least one atom"
+  },
+  "zero_omp_threads.json": {
+    "message_contains": "omp_threads",
+    "reason": "the OpenMP thread count in force is at least one"
+  }
+}

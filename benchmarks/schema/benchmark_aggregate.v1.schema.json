@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/UppASD/UppASD/benchmarks/schema/benchmark_aggregate.v1.schema.json",
+  "title": "UppASD benchmark aggregate record (v1)",
+  "description": "Statistics over a set of raw sample records that share one (campaign, case, variant, size, build, run configuration) cell. Raw sample records always remain individual: aggregation never overwrites or replaces them, and every aggregate names the run_ids it was computed from.",
+  "type": "object",
+  "additionalProperties": false,
+
+  "$defs": {
+    "id_slug": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"
+    }
+  },
+
+  "required": [
+    "schema_version",
+    "record_kind",
+    "aggregate_id",
+    "campaign_id",
+    "case_id",
+    "variant_id",
+    "size_id",
+    "machine_id",
+    "backend",
+    "gpu_backend",
+    "omp_threads",
+    "requested_precision",
+    "measurement_profile",
+    "build_id",
+    "metric",
+    "unit",
+    "sample_count",
+    "median",
+    "mad",
+    "minimum",
+    "maximum",
+    "run_ids",
+    "all_samples_numerical_valid",
+    "all_samples_environment_valid",
+    "quality_flags_union"
+  ],
+
+  "properties": {
+    "schema_version": { "type": "string", "pattern": "^1\\.[0-9]+\\.[0-9]+$" },
+    "record_kind": { "const": "aggregate" },
+
+    "aggregate_id": { "$ref": "#/$defs/id_slug" },
+    "campaign_id": { "$ref": "#/$defs/id_slug" },
+    "case_id": { "$ref": "#/$defs/id_slug" },
+    "variant_id": { "$ref": "#/$defs/id_slug" },
+    "size_id": { "$ref": "#/$defs/id_slug" },
+    "machine_id": { "$ref": "#/$defs/id_slug" },
+    "build_id": { "$ref": "#/$defs/id_slug" },
+
+    "backend": { "enum": ["CPU", "GPU"] },
+    "gpu_backend": { "enum": ["CUDA", "HIP", null] },
+    "omp_threads": { "type": "integer", "minimum": 1 },
+    "requested_precision": { "enum": ["SINGLE", "DOUBLE", "MIXED"] },
+    "measurement_profile": { "enum": ["DYNAMICS_ONLY", "PRODUCTION_LIGHT"] },
+
+    "metric": {
+      "description": "Which quantity the statistics describe. steady_step_seconds and setup_seconds are fitted from several step counts; nstep_fit_points then records the step counts used.",
+      "enum": ["process_wall_seconds", "steady_step_seconds", "setup_seconds"]
+    },
+    "unit": { "const": "s" },
+    "nstep": {
+      "description": "Step count the samples were run at. Required for process_wall_seconds; null for fitted metrics.",
+      "type": ["integer", "null"],
+      "minimum": 1
+    },
+    "nstep_fit_points": {
+      "description": "Step counts entering the T(n) = T_fixed + n*t_step fit. Authoritative campaigns use at least three sufficiently separated step counts.",
+      "type": ["array", "null"],
+      "items": { "type": "integer", "minimum": 1 },
+      "uniqueItems": true
+    },
+    "fit_method": {
+      "enum": ["MULTI_NSTEP_LEAST_SQUARES", "TWO_POINT_SUBTRACTION", null]
+    },
+
+    "sample_count": { "type": "integer", "minimum": 1 },
+    "median": { "type": "number", "exclusiveMinimum": 0 },
+    "mad": {
+      "description": "Median absolute deviation of the samples.",
+      "type": "number",
+      "minimum": 0
+    },
+    "minimum": { "type": "number", "exclusiveMinimum": 0 },
+    "maximum": { "type": "number", "exclusiveMinimum": 0 },
+    "run_ids": {
+      "description": "run_id of every raw sample record entering this aggregate. Never report only the fastest sample.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/id_slug" },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+
+    "all_samples_numerical_valid": { "type": "boolean" },
+    "all_samples_environment_valid": { "type": "boolean" },
+    "quality_flags_union": {
+      "description": "Union of the quality flags raised by the contributing samples.",
+      "type": "array",
+      "items": {
+        "enum": [
+          "dirty_tree",
+          "gpu_busy",
+          "gpu_thermal_throttle",
+          "gpu_clock_unstable",
+          "cpu_affinity_unknown",
+          "cpu_frequency_unstable",
+          "background_load_high",
+          "metadata_incomplete"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "authoritative": {
+      "description": "Whether this aggregate may back a headline claim. Requires a FULL-tier campaign, all samples numerically and environmentally valid, and complete provenance.",
+      "type": ["boolean", "null"]
+    },
+    "notes": { "type": ["string", "null"] }
+  },
+
+  "allOf": [
+    {
+      "$comment": "Per-step and fixed-cost metrics are fitted, and must say how.",
+      "if": {
+        "properties": { "metric": { "enum": ["steady_step_seconds", "setup_seconds"] } },
+        "required": ["metric"]
+      },
+      "then": {
+        "required": ["nstep_fit_points", "fit_method"],
+        "properties": {
+          "nstep_fit_points": { "type": "array", "minItems": 2 },
+          "fit_method": { "enum": ["MULTI_NSTEP_LEAST_SQUARES", "TWO_POINT_SUBTRACTION"] },
+          "nstep": { "type": "null" }
+        }
+      }
+    },
+    {
+      "$comment": "Whole-process timing is measured at one step count.",
+      "if": {
+        "properties": { "metric": { "const": "process_wall_seconds" } },
+        "required": ["metric"]
+      },
+      "then": {
+        "required": ["nstep"],
+        "properties": { "nstep": { "type": "integer" } }
+      }
+    },
+    {
+      "$comment": "setup_seconds is an intercept and may legitimately be negative or zero; the other metrics may not.",
+      "if": {
+        "properties": { "metric": { "const": "setup_seconds" } },
+        "required": ["metric"]
+      },
+      "then": {
+        "properties": {
+          "median": { "type": "number" },
+          "minimum": { "type": "number" },
+          "maximum": { "type": "number" }
+        }
+      }
+    },
+    {
+      "$comment": "An authoritative aggregate needs both validity classes and a clean flag set.",
+      "if": {
+        "properties": { "authoritative": { "const": true } },
+        "required": ["authoritative"]
+      },
+      "then": {
+        "properties": {
+          "all_samples_numerical_valid": { "const": true },
+          "all_samples_environment_valid": { "const": true },
+          "quality_flags_union": { "maxItems": 0 }
+        }
+      }
+    },
+    {
+      "$comment": "CPU aggregates carry no GPU programming model.",
+      "if": { "properties": { "backend": { "const": "CPU" } }, "required": ["backend"] },
+      "then": { "properties": { "gpu_backend": { "type": "null" } } }
+    },
+    {
+      "$comment": "GPU aggregates must name the GPU programming model.",
+      "if": { "properties": { "backend": { "const": "GPU" } }, "required": ["backend"] },
+      "then": { "properties": { "gpu_backend": { "enum": ["CUDA", "HIP"] } } }
+    }
+  ]
+}

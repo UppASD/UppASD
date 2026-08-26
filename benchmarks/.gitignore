@@ -1,0 +1,26 @@
+# Generated benchmark runtime data. Nothing produced by a benchmark run is
+# tracked: every executable run gets its own generated work directory, and
+# result records are written to gitignored result directories (see README.md,
+# "Result-data policy").
+
+# Per-run generated work directories (copies of case templates + UppASD output)
+work/
+runs/
+
+# Raw and aggregated result records produced by the harness
+results/
+
+# Generated analysis products (plots, tables, rendered reports)
+analysis/out/
+
+# Local, machine-specific harness overrides
+*.local.json
+*.local.yaml
+
+# Python bytecode from the harness/tests
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Keep placeholder files for tracked-but-empty directories
+!.gitkeep

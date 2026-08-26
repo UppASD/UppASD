@@ -1,0 +1,580 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/UppASD/UppASD/benchmarks/schema/benchmark_record.v1.schema.json",
+  "title": "UppASD benchmark raw sample record (v1)",
+  "description": "One executable measurement of one UppASD production run. A raw sample record is never aggregated in place: statistics over several samples live in benchmark_aggregate.v1.schema.json. See benchmarks/README.md and benchmarks/TERMINOLOGY.md for the meaning of case/variant/size/build/run configuration/sample/campaign.",
+  "type": "object",
+  "additionalProperties": false,
+
+  "$defs": {
+    "id_slug": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"
+    },
+    "precision_value": {
+      "description": "SINGLE/DOUBLE/MIXED where established by audit; UNKNOWN where not yet audited; null where not applicable (e.g. GPU precision of a CPU-only run).",
+      "enum": ["SINGLE", "DOUBLE", "MIXED", "UNKNOWN", null]
+    },
+    "quality_flag": {
+      "enum": [
+        "dirty_tree",
+        "gpu_busy",
+        "gpu_thermal_throttle",
+        "gpu_clock_unstable",
+        "cpu_affinity_unknown",
+        "cpu_frequency_unstable",
+        "background_load_high",
+        "metadata_incomplete"
+      ]
+    }
+  },
+
+  "required": [
+    "schema_version",
+    "record_kind",
+    "run_id",
+    "campaign_id",
+    "case_id",
+    "variant_id",
+    "size_id",
+    "sample_index",
+    "machine_id",
+    "timestamp_utc",
+    "workflow",
+    "workload_class",
+    "natom",
+    "directed_interactions",
+    "mean_neighbors",
+    "median_neighbors",
+    "max_neighbors",
+    "fft_grid",
+    "fft_grid_padded",
+    "fft_grid_points",
+    "dipole_backend",
+    "backend",
+    "gpu_backend",
+    "omp_threads",
+    "omp_places",
+    "omp_proc_bind",
+    "omp_dynamic",
+    "process_affinity",
+    "requested_precision",
+    "effective_cpu_precision",
+    "effective_gpu_precision",
+    "precision_support_state",
+    "comparison_precision_class",
+    "git_commit",
+    "git_dirty",
+    "git_dirty_files",
+    "compiler",
+    "compiler_version",
+    "compile_flags",
+    "cmake_options",
+    "binary_checksum",
+    "build_id",
+    "cpu_model",
+    "cpu_sockets",
+    "cpu_physical_cores",
+    "cpu_threads",
+    "numa_nodes",
+    "gpu_model",
+    "gpu_id",
+    "gpu_driver",
+    "gpu_runtime",
+    "temperature",
+    "timestep",
+    "nstep",
+    "measurement_profile",
+    "run_status",
+    "timing_method",
+    "process_wall_seconds",
+    "setup_seconds",
+    "steady_step_seconds",
+    "numerical_valid",
+    "environment_valid",
+    "quality_flags"
+  ],
+
+  "properties": {
+    "schema_version": {
+      "description": "Semantic version of this result contract. The v1 schema accepts any 1.x record; a breaking change bumps the major version and adds a new schema file.",
+      "type": "string",
+      "pattern": "^1\\.[0-9]+\\.[0-9]+$"
+    },
+    "record_kind": {
+      "description": "Discriminator. Raw sample records are always individual; aggregation happens in a separate record kind.",
+      "const": "raw_sample"
+    },
+
+    "run_id": {
+      "description": "Globally unique identifier of this single executable measurement.",
+      "$ref": "#/$defs/id_slug"
+    },
+    "campaign_id": { "$ref": "#/$defs/id_slug" },
+    "case_id": {
+      "description": "Physical input/model family, e.g. B01_bccFe.",
+      "$ref": "#/$defs/id_slug"
+    },
+    "variant_id": {
+      "description": "Alternative physics/runtime configuration of the same case, e.g. T0 or finiteT.",
+      "$ref": "#/$defs/id_slug"
+    },
+    "size_id": {
+      "description": "Legal geometric replication of the case, e.g. 32x32x32.",
+      "$ref": "#/$defs/id_slug"
+    },
+    "sample_index": {
+      "description": "0-based index of this sample within its (campaign, case, variant, size, build, run configuration) cell.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "machine_id": {
+      "description": "Stable identifier of the physical machine. Results from different machines must never be pooled silently.",
+      "$ref": "#/$defs/id_slug"
+    },
+    "timestamp_utc": {
+      "description": "UTC start time of the measured process, ISO 8601.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "workflow": {
+      "description": "Production workflow under test. ADAPTIVE_CG is reserved and obeys exactly the same headline timing contract as ORDINARY_ASD.",
+      "enum": ["ORDINARY_ASD", "ADAPTIVE_CG"]
+    },
+
+    "workload_class": {
+      "description": "Which workload-size normalization applies. Neighbour-interaction throughput must not be applied blindly to FFT workloads.",
+      "enum": ["NEIGHBOR_LIST", "FFT_DIPOLE", "NEIGHBOR_LIST_PLUS_FFT_DIPOLE"]
+    },
+    "natom": {
+      "description": "Total number of atoms/spins actually simulated.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "directed_interactions": {
+      "description": "Total number of directed neighbour interactions (each i->j counted once). null only for pure FFT/dipole workloads.",
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "mean_neighbors": {
+      "type": ["number", "null"],
+      "minimum": 0
+    },
+    "median_neighbors": {
+      "description": "Optional; recorded where inexpensive to obtain.",
+      "type": ["number", "null"],
+      "minimum": 0
+    },
+    "max_neighbors": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "fft_grid": {
+      "description": "Physical dipole/FFT grid dimensions [nx, ny, nz]. null for non-FFT workloads.",
+      "type": ["array", "null"],
+      "items": { "type": "integer", "minimum": 1 },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "fft_grid_padded": {
+      "description": "Grid dimensions actually transformed after padding/grid expansion, when they differ from fft_grid; otherwise null.",
+      "type": ["array", "null"],
+      "items": { "type": "integer", "minimum": 1 },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "fft_grid_points": {
+      "description": "Total number of points of the grid actually transformed (product of fft_grid_padded when padded, else of fft_grid).",
+      "type": ["integer", "null"],
+      "minimum": 1
+    },
+    "dipole_backend": {
+      "description": "Dipole implementation actually used, e.g. FFT_FFTW, FFT_CUFFT, MACROCELL, BRUTE_FORCE. null when the case has no dipole term.",
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+
+    "backend": {
+      "description": "Execution backend of the production run. CPU means shared-memory CPU/OpenMP.",
+      "enum": ["CPU", "GPU"]
+    },
+    "gpu_backend": {
+      "description": "GPU programming model. HIP is representable here whether or not it has been measured; no HIP performance claim may be made without real hardware execution.",
+      "enum": ["CUDA", "HIP", null]
+    },
+    "omp_threads": {
+      "description": "Value of OMP_NUM_THREADS actually in force.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "omp_places": {
+      "description": "Raw OMP_PLACES value, or null when unset in the environment.",
+      "type": ["string", "null"]
+    },
+    "omp_proc_bind": {
+      "description": "Raw OMP_PROC_BIND value, or null when unset in the environment.",
+      "type": ["string", "null"]
+    },
+    "omp_dynamic": {
+      "description": "Effective OMP_DYNAMIC state, or null when it could not be determined.",
+      "type": ["boolean", "null"]
+    },
+    "process_affinity": {
+      "description": "Observed CPU affinity mask/list of the benchmark process. null sets the cpu_affinity_unknown quality flag.",
+      "type": ["string", "null"]
+    },
+
+    "requested_precision": {
+      "description": "Precision requested by the build configuration. MIXED is deliberately not implemented in production and must be recorded with precision_support_state = unsupported.",
+      "enum": ["SINGLE", "DOUBLE", "MIXED"]
+    },
+    "effective_cpu_precision": {
+      "description": "Precision the CPU numerical path actually uses, as established by source/build audit -- not inferred from CMake option names.",
+      "$ref": "#/$defs/precision_value"
+    },
+    "effective_gpu_precision": {
+      "description": "Precision the GPU numerical path actually uses, as established by source/build audit. May legitimately differ from effective_cpu_precision for the same requested_precision.",
+      "$ref": "#/$defs/precision_value"
+    },
+    "precision_support_state": {
+      "description": "Whether the requested precision is a supported production mode. 'unsupported' is a first-class state (used for MIXED) and is not a generic failed build.",
+      "enum": ["supported", "unsupported", "unaudited"]
+    },
+    "comparison_precision_class": {
+      "description": "How this record may be used in a cross-backend comparison. PRECISION_MATCHED requires audited, genuinely corresponding CPU and GPU precision; PRODUCTION_CONFIGURATION covers real supported modes that are not precision-matched (e.g. CPU double vs CUDA single).",
+      "enum": ["PRECISION_MATCHED", "PRODUCTION_CONFIGURATION", "UNAUDITED", null]
+    },
+
+    "git_commit": {
+      "description": "Full 40-character commit hash of the source the binary was built from.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "git_dirty": { "type": "boolean" },
+    "git_dirty_files": {
+      "description": "Tracked files modified at build time. Empty array when git_dirty is false.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "compiler": { "type": "string", "minLength": 1 },
+    "compiler_version": { "type": "string", "minLength": 1 },
+    "compile_flags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "cmake_options": {
+      "description": "CMake cache options relevant to the build, as a name -> value map.",
+      "type": "object",
+      "additionalProperties": { "type": ["string", "number", "boolean", "null"] }
+    },
+    "binary_checksum": {
+      "description": "SHA-256 of the executable actually run.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "build_id": {
+      "description": "Identifier of the immutable build record this run used.",
+      "$ref": "#/$defs/id_slug"
+    },
+
+    "cpu_model": { "type": "string", "minLength": 1 },
+    "cpu_sockets": { "type": "integer", "minimum": 1 },
+    "cpu_physical_cores": {
+      "description": "Total physical cores in the machine.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "cpu_threads": {
+      "description": "Total hardware threads in the machine. Greater than cpu_physical_cores indicates SMT.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "numa_nodes": { "type": "integer", "minimum": 1 },
+    "gpu_model": { "type": ["string", "null"], "minLength": 1 },
+    "gpu_id": {
+      "description": "Device UUID where available, otherwise the device index as a string.",
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "gpu_driver": { "type": ["string", "null"], "minLength": 1 },
+    "gpu_runtime": {
+      "description": "CUDA/HIP runtime or toolkit version.",
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+
+    "temperature": {
+      "description": "Simulation temperature in K.",
+      "type": "number",
+      "minimum": 0
+    },
+    "timestep": {
+      "description": "Integration timestep in seconds.",
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "nstep": {
+      "description": "Number of measurement-phase timesteps requested for this sample.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "measurement_profile": {
+      "description": "DYNAMICS_ONLY and PRODUCTION_LIGHT results must not be mixed in one crossover curve without explicit labelling.",
+      "enum": ["DYNAMICS_ONLY", "PRODUCTION_LIGHT"]
+    },
+
+    "run_status": {
+      "enum": ["COMPLETED", "FAILED", "TIMEOUT", "SKIPPED"]
+    },
+    "timing_method": {
+      "description": "How process_wall_seconds was obtained. EXTERNAL_PROCESS_WALL_CLOCK is the harness measuring the complete executable; INTERNAL_REPORTED is a timer reported by UppASD itself.",
+      "enum": ["EXTERNAL_PROCESS_WALL_CLOCK", "INTERNAL_REPORTED", "NOT_MEASURED"]
+    },
+    "process_wall_seconds": {
+      "description": "Complete process wall time: startup, input parsing, allocation, Hamiltonian/neighbour setup, GPU init, FFT planning, simulation, requested measurements and finalization. null only when the run produced no valid timing.",
+      "type": ["number", "null"],
+      "exclusiveMinimum": 0
+    },
+    "setup_seconds": {
+      "description": "Reserved derived field. Fitted fixed-cost intercept of T(n) = T_fixed + n*t_step; it is an intercept, not a directly measured pure setup cost. Always null in a raw sample record -- it is filled in by aggregate/fit records.",
+      "type": ["number", "null"]
+    },
+    "steady_step_seconds": {
+      "description": "Reserved derived field. Fitted steady-state production timestep. Always null in a raw sample record -- it is filled in by aggregate/fit records.",
+      "type": ["number", "null"],
+      "exclusiveMinimum": 0
+    },
+
+    "numerical_valid": {
+      "description": "The run completed and produced physically/numerically acceptable output. Independent of environment quality.",
+      "type": "boolean"
+    },
+    "environment_valid": {
+      "description": "The measurement environment was suitable for authoritative timing evidence. A run that completes correctly on a busy GPU is numerically valid but not environment valid.",
+      "type": "boolean"
+    },
+    "quality_flags": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/quality_flag" },
+      "uniqueItems": true
+    },
+    "notes": {
+      "description": "Free-form human note. Never machine-interpreted.",
+      "type": ["string", "null"]
+    }
+  },
+
+  "allOf": [
+    {
+      "$comment": "CPU runs carry no GPU identity or GPU precision.",
+      "if": { "properties": { "backend": { "const": "CPU" } }, "required": ["backend"] },
+      "then": {
+        "properties": {
+          "gpu_backend": { "type": "null" },
+          "gpu_model": { "type": "null" },
+          "gpu_id": { "type": "null" },
+          "gpu_driver": { "type": "null" },
+          "gpu_runtime": { "type": "null" },
+          "effective_gpu_precision": { "type": "null" }
+        }
+      }
+    },
+    {
+      "$comment": "Every GPU run names its programming model, whether or not it executed. HIP is representable here even where no HIP hardware exists.",
+      "if": { "properties": { "backend": { "const": "GPU" } }, "required": ["backend"] },
+      "then": {
+        "properties": { "gpu_backend": { "enum": ["CUDA", "HIP"] } }
+      }
+    },
+    {
+      "$comment": "A GPU run that actually executed must identify the device and its software stack. A skipped or failed GPU run legitimately has no device metadata.",
+      "if": {
+        "properties": {
+          "backend": { "const": "GPU" },
+          "run_status": { "const": "COMPLETED" }
+        },
+        "required": ["backend", "run_status"]
+      },
+      "then": {
+        "properties": {
+          "gpu_model": { "type": "string" },
+          "gpu_id": { "type": "string" },
+          "gpu_driver": { "type": "string" },
+          "gpu_runtime": { "type": "string" },
+          "effective_gpu_precision": { "enum": ["SINGLE", "DOUBLE", "MIXED", "UNKNOWN"] }
+        }
+      }
+    },
+    {
+      "$comment": "Neighbour-list workloads must carry neighbour-workload metadata.",
+      "if": {
+        "properties": { "workload_class": { "enum": ["NEIGHBOR_LIST", "NEIGHBOR_LIST_PLUS_FFT_DIPOLE"] } },
+        "required": ["workload_class"]
+      },
+      "then": {
+        "properties": {
+          "directed_interactions": { "type": "integer" },
+          "mean_neighbors": { "type": "number" },
+          "max_neighbors": { "type": "integer" }
+        }
+      }
+    },
+    {
+      "$comment": "FFT/dipole workloads must carry explicit grid metadata.",
+      "if": {
+        "properties": { "workload_class": { "enum": ["FFT_DIPOLE", "NEIGHBOR_LIST_PLUS_FFT_DIPOLE"] } },
+        "required": ["workload_class"]
+      },
+      "then": {
+        "properties": {
+          "fft_grid": { "type": "array" },
+          "fft_grid_points": { "type": "integer" },
+          "dipole_backend": { "type": "string" }
+        }
+      }
+    },
+    {
+      "$comment": "Pure neighbour-list workloads carry no FFT grid.",
+      "if": {
+        "properties": { "workload_class": { "const": "NEIGHBOR_LIST" } },
+        "required": ["workload_class"]
+      },
+      "then": {
+        "properties": {
+          "fft_grid": { "type": "null" },
+          "fft_grid_padded": { "type": "null" },
+          "fft_grid_points": { "type": "null" }
+        }
+      }
+    },
+    {
+      "$comment": "MIXED precision is deliberately not implemented in production; it is representable as an unsupported state rather than as a failed build.",
+      "if": {
+        "properties": { "requested_precision": { "const": "MIXED" } },
+        "required": ["requested_precision"]
+      },
+      "then": {
+        "properties": { "precision_support_state": { "const": "unsupported" } }
+      }
+    },
+    {
+      "$comment": "An unsupported precision mode cannot be claimed numerically valid and cannot enter a precision comparison.",
+      "if": {
+        "properties": { "precision_support_state": { "const": "unsupported" } },
+        "required": ["precision_support_state"]
+      },
+      "then": {
+        "properties": {
+          "numerical_valid": { "const": false },
+          "comparison_precision_class": { "type": "null" }
+        }
+      }
+    },
+    {
+      "$comment": "PRECISION_MATCHED requires an audited, supported precision mode.",
+      "if": {
+        "properties": { "comparison_precision_class": { "const": "PRECISION_MATCHED" } },
+        "required": ["comparison_precision_class"]
+      },
+      "then": {
+        "properties": {
+          "precision_support_state": { "const": "supported" },
+          "effective_cpu_precision": { "enum": ["SINGLE", "DOUBLE"] }
+        }
+      }
+    },
+    {
+      "$comment": "A GPU record may only claim PRECISION_MATCHED when the audited CPU and GPU numerical paths genuinely agree. CPU double against GPU single is PRODUCTION_CONFIGURATION.",
+      "if": {
+        "properties": {
+          "backend": { "const": "GPU" },
+          "comparison_precision_class": { "const": "PRECISION_MATCHED" }
+        },
+        "required": ["backend", "comparison_precision_class"]
+      },
+      "then": {
+        "anyOf": [
+          {
+            "properties": {
+              "effective_cpu_precision": { "const": "SINGLE" },
+              "effective_gpu_precision": { "const": "SINGLE" }
+            }
+          },
+          {
+            "properties": {
+              "effective_cpu_precision": { "const": "DOUBLE" },
+              "effective_gpu_precision": { "const": "DOUBLE" }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "$comment": "Environment validity is the conjunction: any raised quality flag clears it. Flagged samples remain usable as developer evidence, but not as authoritative timing.",
+      "if": {
+        "properties": { "environment_valid": { "const": true } },
+        "required": ["environment_valid"]
+      },
+      "then": {
+        "properties": { "quality_flags": { "maxItems": 0 } }
+      }
+    },
+    {
+      "$comment": "A completed run must carry a real measured process wall time.",
+      "if": {
+        "properties": { "run_status": { "const": "COMPLETED" } },
+        "required": ["run_status"]
+      },
+      "then": {
+        "properties": {
+          "process_wall_seconds": { "type": "number" },
+          "timing_method": { "enum": ["EXTERNAL_PROCESS_WALL_CLOCK", "INTERNAL_REPORTED"] }
+        }
+      }
+    },
+    {
+      "$comment": "A run that did not complete is not numerically valid and is not authoritative timing evidence.",
+      "if": {
+        "properties": { "run_status": { "enum": ["FAILED", "TIMEOUT", "SKIPPED"] } },
+        "required": ["run_status"]
+      },
+      "then": {
+        "properties": {
+          "numerical_valid": { "const": false },
+          "environment_valid": { "const": false }
+        }
+      }
+    },
+    {
+      "$comment": "Derived timing fields are reserved and stay empty in raw sample records.",
+      "properties": {
+        "setup_seconds": { "type": "null" },
+        "steady_step_seconds": { "type": "null" }
+      }
+    },
+    {
+      "$comment": "A clean tree lists no dirty files.",
+      "if": {
+        "properties": { "git_dirty": { "const": false } },
+        "required": ["git_dirty"]
+      },
+      "then": {
+        "properties": { "git_dirty_files": { "maxItems": 0 } }
+      }
+    },
+    {
+      "$comment": "A dirty tree must raise the dirty_tree quality flag, which in turn clears environment_valid.",
+      "if": {
+        "properties": { "git_dirty": { "const": true } },
+        "required": ["git_dirty"]
+      },
+      "then": {
+        "properties": {
+          "quality_flags": { "contains": { "const": "dirty_tree" } }
+        }
+      }
+    }
+  ]
+}
