@@ -9,6 +9,12 @@
   #define GPU_ERROR_T hipError_t
   #define GPU_EVENT_T hipEvent_t
   #define GPU_EVENT_CREATE(event) hipEventCreate(event)
+  // CGP-05: ordering-only events (no GPU_EVENT_ELAPSED_TIME call ever made on
+  // them) should be created without timing capability -- cheaper, and not
+  // competing with the driver's separate, more limited pool of
+  // timing-capable event resources that the existing phase/update timing
+  // events already use.
+  #define GPU_EVENT_CREATE_NO_TIMING(event) hipEventCreateWithFlags(event, hipEventDisableTiming)
   #define GPU_EVENT_DESTROY(event) hipEventDestroy(event)
   #define GPU_EVENT_RECORD(event, stream) hipEventRecord(event, stream)
   #define GPU_EVENT_QUERY(event) hipEventQuery(event)
@@ -76,6 +82,8 @@
   #define GPU_ERROR_T cudaError_t
   #define GPU_EVENT_T cudaEvent_t
   #define GPU_EVENT_CREATE(event) cudaEventCreate(event)//TODO &
+  // CGP-05: see the HIP branch above for why ordering-only events use this.
+  #define GPU_EVENT_CREATE_NO_TIMING(event) cudaEventCreateWithFlags(event, cudaEventDisableTiming)
   #define GPU_EVENT_DESTROY(event) cudaEventDestroy(event)
   #define GPU_EVENT_RECORD(event, stream) cudaEventRecord(event, stream)
   #define GPU_EVENT_QUERY(event) cudaEventQuery(event)

@@ -341,6 +341,16 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
       // determines the next step's measurement/output traffic needs every
       // atom's mmom/mmomi/emomM fresh.
       if(gpuSim.adaptiveEnabled()) {
+         // CGP-05: advanceAdaptiveStep() used to end with a host-blocking
+         // GPU_STREAM_SYNC(gpuAdaptiveRuntime.stream()), which incidentally
+         // also guaranteed this moment update (production work stream)
+         // would see stream()'s coarse-atom commit
+         // (materializeCoarseAtoms()/publishProposedState()) before reading
+         // gpuLattice.emom2. That function now only records an event
+         // (markProgress()); this wait is the explicit replacement -- a
+         // device-side fence, not a host wait. See
+         // docs/CGP-05_HOST_BARRIER_REMOVAL_EVIDENCE.md section 2.
+         gpuSim.gpuAdaptiveRuntime.waitForProgress(ParallelizationHelperInstance.getWorkStream());
          if(adaptiveNeedsFullMaterialization) {
             adaptiveMomUpdater.updateFull();
          } else {

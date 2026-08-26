@@ -1164,24 +1164,54 @@ void GpuSimulation::advanceAdaptiveStep(
    // field is fully overwritten by the predictor-stage call before anything
    // else can read it, so it only needs a full clear for its own diagnostic
    // trace, never for beff persistence.
+   // CGP-05: the two gpuAdaptiveRuntime.synchronize() calls that used to
+   // bracket this lambda were host-blocking GPU_STREAM_SYNC(stream_) calls.
+   // Neither actually fenced the cross-stream hazard it needed to: the real
+   // producer for a workStream reader of `direction`/`beff` is whatever
+   // stream() last wrote, which waitForExternalProgress() below now orders
+   // via a device-side event wait instead of a host wait. The trailing
+   // synchronize() was same-stream-redundant (stream() is FIFO, so ordinary
+   // production work already runs after it without any fence) and is
+   // removed; diagnosticSnapshot() (used by printStaticStageTrace, gated to
+   // adaptiveDiagnostics>=3) still does its own explicit GPU_STREAM_SYNC when
+   // it actually needs host-visible values. See
+   // docs/CGP-05_HOST_BARRIER_REMOVAL_EVIDENCE.md section 3.
    auto evaluateAdaptiveFields = [this, hamiltonian](const real* direction,
                                                        bool measureEnergy,
                                                        bool fullFieldClear) {
-      gpuAdaptiveRuntime.synchronize();
+      gpuAdaptiveRuntime.waitForExternalProgress();
       GpuAdaptiveFftEvaluator fftEvaluator{};
       if(hamiltonian && hamiltonian->hasAdaptiveFftDipole()) {
          fftEvaluator = [this, hamiltonian](const real* fftDirection) {
-         const auto started = std::chrono::steady_clock::now();
+         // The FFT macro-moment reduction below launches on the production
+         // work stream and reads `fftDirection` (== `direction`), which may
+         // have been most recently written by stream()'s own prior work
+         // (the previous step's coarse commit) -- fence that with an event
+         // wait instead of a host sync before the read.
+         GPU_STREAM_T workStream = ParallelizationHelperInstance.getWorkStream();
+         gpuAdaptiveRuntime.waitForProgress(workStream);
+         const bool timed = gpuAdaptiveRuntime.phaseTimingEnabled();
+         const auto started = timed ? std::chrono::steady_clock::now()
+                                     : std::chrono::steady_clock::time_point{};
          auto view = hamiltonian->evaluateAdaptiveFftDipole(
             fftDirection, gpuLattice.mmom,
             gpuAdaptiveRuntime.deviceTopology(),
             gpuAdaptiveRuntime.deviceRuntime());
-         ASSERT_GPU(GPU_STREAM_SYNC(
-            ParallelizationHelperInstance.getWorkStream()));
-         const auto stopped = std::chrono::steady_clock::now();
-         gpuAdaptiveRuntime.recordFftMilliseconds(
-            std::chrono::duration<double, std::milli>(
-               stopped - started).count());
+         // Correctness: mark the FFT's completion on the work stream so the
+         // evaluateHybrid()/evaluateField() call below (stream(), reading
+         // the FFT's padded field) can fence it without a host wait. This
+         // record is unconditional -- it is not instrumentation.
+         gpuAdaptiveRuntime.markExternalProgress(workStream);
+         // Timing only: with phase timing disabled, no host wait is issued
+         // here at all (Part B) -- recordFftMilliseconds simply goes
+         // unmeasured, exactly like finishPhase()'s own gating.
+         if(timed) {
+            ASSERT_GPU(GPU_STREAM_SYNC(workStream));
+            const auto stopped = std::chrono::steady_clock::now();
+            gpuAdaptiveRuntime.recordFftMilliseconds(
+               std::chrono::duration<double, std::milli>(
+                  stopped - started).count());
+         }
          return view;
          };
       }
@@ -1190,6 +1220,13 @@ void GpuSimulation::advanceAdaptiveStep(
       if(fftEvaluator) {
          fftField = fftEvaluator(direction);
          fftFieldPtr = &fftField;
+         // stream()'s evaluateHybrid()/evaluateField() call below reads
+         // fftFieldPtr->paddedField, produced by the FFT above on the work
+         // stream; fence it via the fresh markExternalProgress() just
+         // recorded (cheap even though waitForExternalProgress() was
+         // already called once at the top of this lambda for a different,
+         // earlier generation of the same event).
+         gpuAdaptiveRuntime.waitForExternalProgress();
       }
       // CGP-01: the ordinary predictor/corrector field evaluations below
       // discard the energy return value, so they perform no energy
@@ -1207,7 +1244,6 @@ void GpuSimulation::advanceAdaptiveStep(
             direction, nullptr, nullptr, gpuLattice.beff.data(),
             gpuAdaptiveRuntime.coarseFieldData(), fftFieldPtr, fullFieldClear);
       }
-      gpuAdaptiveRuntime.synchronize();
    };
    // Diagnostics level 3 is already used by the CPU/GPU static-parity
    // fixtures. Emit a matching diagnostic evaluation at each Depondt/Heun
@@ -1255,17 +1291,39 @@ void GpuSimulation::advanceAdaptiveStep(
    printStaticStageTrace("initial", gpuLattice.emom.data());
    gpuAdaptiveRuntime.prepareCoarsePredictor(
       static_cast<real>(SimParam.delta_t), gpuAdaptiveRuntime.coarseFieldData());
-   gpuAdaptiveRuntime.synchronize();
+   // evolveFirst() (production work stream) reads gpuLattice.beff, written by
+   // the initial evaluateAdaptiveFields() call above on stream(); fence with
+   // an event instead of a host wait (CGP-05).
+   gpuAdaptiveRuntime.markProgress();
+   gpuAdaptiveRuntime.waitForProgress(ParallelizationHelperInstance.getWorkStream());
    integrator->evolveFirst(gpuLattice, activeAtomList, activeAtomCount);
-   ASSERT_GPU(GPU_STREAM_SYNC(ParallelizationHelperInstance.getWorkStream()));
+   // The predictor evaluateAdaptiveFields() call below (stream()) reads
+   // gpuLattice.emom, just written for active atoms by evolveFirst() on the
+   // production work stream.
+   gpuAdaptiveRuntime.markExternalProgress(ParallelizationHelperInstance.getWorkStream());
+   gpuAdaptiveRuntime.waitForExternalProgress();
    evaluateAdaptiveFields(gpuLattice.emom.data(), adaptiveDiagnostics > 0,
                           nextStepNeedsFullMaterialization || traceEnergy);
    printStaticStageTrace("predictor", gpuLattice.emom.data());
    integrator->evolveSecond(gpuLattice, activeAtomList, activeAtomCount);
-   ASSERT_GPU(GPU_STREAM_SYNC(ParallelizationHelperInstance.getWorkStream()));
+   // Everything stream()-side below this point that reads gpuLattice.emom2's
+   // active-atom entries (the traceEnergy evaluateAdaptiveFields() calls,
+   // restrictMoments()/evaluateSelectorScores() on a selector-update step,
+   // and -- after the buffer swap the moment updater performs once this
+   // function returns -- the *next* step's initial evaluateAdaptiveFields()
+   // call) needs evolveSecond()'s CommitActiveCorrector write fenced.
+   // stream() is FIFO, so one wait here, before correctCoarse(), covers every
+   // later stream() launch this step and (via the mark persisting until the
+   // next markExternalProgress()) into the next step as well.
+   gpuAdaptiveRuntime.markExternalProgress(ParallelizationHelperInstance.getWorkStream());
+   gpuAdaptiveRuntime.waitForExternalProgress();
+   // correctCoarse() only reads the predictor coarse field stream() itself
+   // produced earlier this step (see docs/CGP-05_HOST_BARRIER_REMOVAL_EVIDENCE.md
+   // section 2) -- no cross-stream fence needed around this call, and the
+   // GPU_STREAM_SYNC(stream()) previously issued right after it protected
+   // nothing in the ordinary (non-diagnostic) path; removed.
    gpuAdaptiveRuntime.correctCoarse(
       static_cast<real>(SimParam.delta_t), gpuAdaptiveRuntime.coarseFieldData());
-   gpuAdaptiveRuntime.synchronize();
    if(traceEnergy)
       evaluateAdaptiveFields(gpuLattice.emom2.data(), true, true);
    printStaticStageTrace("corrector", gpuLattice.emom2.data());
@@ -1337,11 +1395,26 @@ void GpuSimulation::advanceAdaptiveStep(
             gpuLattice.emom2.data(), adaptiveReconstructionPolicy);
       }
    }
-   ASSERT_GPU(GPU_STREAM_SYNC(gpuAdaptiveRuntime.stream()));
-   const auto adaptiveStepWallStopped = std::chrono::steady_clock::now();
-   gpuAdaptiveRuntime.recordStepWallMilliseconds(
-      std::chrono::duration<double, std::milli>(
-         adaptiveStepWallStopped - adaptiveStepWallStarted).count());
+   // CGP-05: mark stream()'s state so the moment-updater call
+   // (production work stream, in GpuSDSimulation::SDmphase right after this
+   // function returns) can fence its read of gpuLattice.emom2's coarse-atom
+   // entries with an event wait instead of this function host-blocking on
+   // stream() every step. See docs/CGP-05_HOST_BARRIER_REMOVAL_EVIDENCE.md
+   // section 2 for why one mark here is sufficient for both that call and
+   // the FFT read at the top of the *next* step's initial field evaluation.
+   gpuAdaptiveRuntime.markProgress();
+   // RCG-06C (F-18): the independent wall-clock step measurement is
+   // instrumentation, not a production dependency (Part B) -- only pay its
+   // blocking wait when phase timing is enabled, exactly like
+   // finishPhase()'s own gating. With it disabled the step still executes
+   // identically; only this measurement goes unrecorded.
+   if(gpuAdaptiveRuntime.phaseTimingEnabled()) {
+      gpuAdaptiveRuntime.synchronize();
+      const auto adaptiveStepWallStopped = std::chrono::steady_clock::now();
+      gpuAdaptiveRuntime.recordStepWallMilliseconds(
+         std::chrono::duration<double, std::milli>(
+            adaptiveStepWallStopped - adaptiveStepWallStarted).count());
+   }
 }
 
 void GpuSimulation::copyFromFortran() {

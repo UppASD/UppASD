@@ -455,6 +455,22 @@ public:
    void correctCoarse(real timeStepSeconds,
                       const real* predictorCoarseField);
    void synchronize();
+   // CGP-05: device-side cross-stream ordering, replacing host-blocking
+   // GPU_STREAM_SYNC handoffs between stream() and the production work
+   // stream. markProgress() records "everything queued on stream() so far";
+   // waitForProgress(consumer) makes another stream wait for that point
+   // without blocking the host. The reverse direction (production work
+   // stream -> stream()) is markExternalProgress()/waitForExternalProgress().
+   // Both event objects are safely re-recorded every call: CUDA/HIP defines
+   // cudaStreamWaitEvent/hipStreamWaitEvent as capturing the event's state at
+   // the time WaitEvent is issued, so calling markProgress() again later does
+   // not retroactively change a wait already enqueued. See
+   // docs/CGP-05_HOST_BARRIER_REMOVAL_EVIDENCE.md for the full dependency
+   // audit this API is built from.
+   void markProgress();
+   void waitForProgress(GPU_STREAM_T consumer) const;
+   void markExternalProgress(GPU_STREAM_T producer);
+   void waitForExternalProgress() const;
    void synchronizeAtomicState(
       real* atomDirection,
       const GpuAdaptiveReconstructionPolicy& policy);
@@ -563,6 +579,10 @@ private:
    GPU_EVENT_T updateEnd_{};
    GPU_EVENT_T phaseStart_{};
    GPU_EVENT_T phaseEnd_{};
+   // CGP-05: the markProgress()/waitForProgress()/markExternalProgress()/
+   // waitForExternalProgress() ordering events are process-lifetime
+   // singletons defined in gpuAdaptiveRuntime.cpp, not instance members --
+   // see that file's comment above their definition for why.
    GpuAdaptiveCompactionMetrics metrics_{};
    GpuAdaptivePhaseMetrics phaseMetrics_{};
    GpuAdaptiveEnergy lastEnergy_{};

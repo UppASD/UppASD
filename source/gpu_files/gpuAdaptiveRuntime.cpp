@@ -3691,6 +3691,66 @@ void GpuAdaptiveRuntime::synchronize() {
    ASSERT_GPU(GPU_STREAM_SYNC(stream_));
 }
 
+// CGP-05: see docs/CGP-05_HOST_BARRIER_REMOVAL_EVIDENCE.md for the
+// producer/consumer audit that identifies exactly which stream() work a
+// waitForProgress()/waitForExternalProgress() call must have already
+// followed a matching mark*Progress() call for. Recording is cheap and
+// idempotent from the caller's perspective -- always call markProgress()
+// right after the stream() work a consumer might need, and always call
+// waitForProgress()/waitForExternalProgress() right before launching work
+// that might consume it, even when a specific call site can be proven
+// redundant this step; GPU_STREAM_WAIT_EVENT on an already-satisfied event
+// is a cheap device-side check, not a host wait.
+//
+// The two ordering events are process-lifetime singletons, not
+// GpuAdaptiveRuntime members: production only ever has one live instance
+// for the process's whole run (exactly like ParallelizationHelperInstance's
+// own workStream/copyStream), and per-instance create/destroy churn was
+// found, empirically, to destabilize an unrelated curand generator's stream
+// binding in the multi-instance CG-10 test harness (benchmark_gpu_adaptive_runtime.cpp
+// constructs and releases several GpuAdaptiveRuntime instances in one
+// process) -- see the evidence doc section 6 for the compute-sanitizer
+// trace and the isolation procedure that identified event-lifecycle churn,
+// not this task's stream-ordering design, as the cause.
+namespace {
+GPU_EVENT_T& adaptiveCrossStreamMarkEvent() {
+   static GPU_EVENT_T event = [] {
+      GPU_EVENT_T e{};
+      ASSERT_GPU(GPU_EVENT_CREATE_NO_TIMING(&e));
+      return e;
+   }();
+   return event;
+}
+GPU_EVENT_T& adaptiveExternalMarkEvent() {
+   static GPU_EVENT_T event = [] {
+      GPU_EVENT_T e{};
+      ASSERT_GPU(GPU_EVENT_CREATE_NO_TIMING(&e));
+      return e;
+   }();
+   return event;
+}
+}  // namespace
+
+void GpuAdaptiveRuntime::markProgress() {
+   if(!ready_) throw std::logic_error("GPU adaptive runtime is not initialized");
+   ASSERT_GPU(GPU_EVENT_RECORD(adaptiveCrossStreamMarkEvent(), stream_));
+}
+
+void GpuAdaptiveRuntime::waitForProgress(GPU_STREAM_T consumer) const {
+   if(!ready_) throw std::logic_error("GPU adaptive runtime is not initialized");
+   ASSERT_GPU(GPU_STREAM_WAIT_EVENT(consumer, adaptiveCrossStreamMarkEvent(), 0));
+}
+
+void GpuAdaptiveRuntime::markExternalProgress(GPU_STREAM_T producer) {
+   if(!ready_) throw std::logic_error("GPU adaptive runtime is not initialized");
+   ASSERT_GPU(GPU_EVENT_RECORD(adaptiveExternalMarkEvent(), producer));
+}
+
+void GpuAdaptiveRuntime::waitForExternalProgress() const {
+   if(!ready_) throw std::logic_error("GPU adaptive runtime is not initialized");
+   ASSERT_GPU(GPU_STREAM_WAIT_EVENT(stream_, adaptiveExternalMarkEvent(), 0));
+}
+
 void GpuAdaptiveRuntime::synchronizeAtomicState(
    real* atomDirection,
    const GpuAdaptiveReconstructionPolicy& policy) {
