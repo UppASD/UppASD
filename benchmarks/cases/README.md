@@ -8,7 +8,7 @@ Planned families (blueprint §3):
 | Case | Workload | Status |
 | --- | --- | --- |
 | [`B01_bccFe`](B01_bccFe/README.md) | bcc Fe, medium-range interactions — central reference case | Admitted (WP-08A) |
-| `B02_skyrmion2D` | 2D skyrmion, short-range J+D | Not yet admitted |
+| [`B02_skyrmion2D`](B02_skyrmion2D/README.md) | 2D skyrmion, short-range J+D | Admitted (WP-08B) |
 | `B03_skyrmion3D` | 3D skyrmion/chiral magnet, short-range J+D | Not yet admitted |
 | `B04_dhcpNd` | dhcp Nd, very long-range interactions | Not yet admitted |
 | `B05_dipoleFFT` | dipole/FFT workload | Not yet admitted |
@@ -25,12 +25,18 @@ Rules that already apply:
   truncated, cutoffs are not reduced, weak interactions are not discarded and
   the basis is not simplified in order to make benchmarking easier.
 
-The B02–B05 physics families above are not yet admitted: their production
+The B03–B05 physics families above are not yet admitted: their production
 input templates come from the maintainer, not from this framework, and are
-added independently by **WP-08B**…**WP-08E**. What WP-02 provides is the
+added independently by **WP-08C**…**WP-08E**. What WP-02 provides is the
 mechanism they plug into. `B01_bccFe` was admitted by **WP-08A**; see
 [`B01_bccFe/README.md`](B01_bccFe/README.md) for its template audit,
-size-ladder rationale and scaling/sanity validation.
+size-ladder rationale and scaling/sanity validation. `B02_skyrmion2D` was
+admitted by **WP-08B**; see
+[`B02_skyrmion2D/README.md`](B02_skyrmion2D/README.md) for its template
+audit (including a rejected sibling template) and two real backend-
+compatibility findings (a GPU-unsupported `skyno` mode, and a cross-binary
+chiral-domain degeneracy in the maintainer's own field-free initial-phase
+search).
 
 ## Case manifest (WP-02)
 
@@ -64,9 +70,13 @@ case may ever declare overridable: `ncell` (supercell replication), `Nstep`
 variant defines it), `avrg_step`/`cumu_step`/`tottraj_step`/`ene_step`
 (measurement cadence), `do_prnstruct` (requests UppASD's own
 `struct.<simid>.out` diagnostic dump, which the neighbour-workload metadata
-parser reads), and `gpu_mode` (CPU/GPU backend dispatch — see
+parser reads), `gpu_mode` (CPU/GPU backend dispatch — see
 [`B01_bccFe/README.md`](B01_bccFe/README.md#backend-dispatch-gpu_mode) for
-why this is a per-run override rather than template content). None of these
+why this is a per-run override rather than template content), and `skyno`
+(skyrmion-number diagnostic method — see
+[`B02_skyrmion2D/README.md`](B02_skyrmion2D/README.md#backend-dispatch-gpu_mode-skyno)
+for why the GPU backend needs this overridden away from the maintainer's
+own `T` (triangulation) value, which it does not implement). None of these
 changes any Hamiltonian, lattice or moment parameter. A case's
 `allowed_input_overrides` only ever narrows this set. Anything outside it —
 exchange/DMI parameters, interaction cutoffs, lattice structure

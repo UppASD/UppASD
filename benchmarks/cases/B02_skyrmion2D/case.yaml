@@ -1,0 +1,85 @@
+schema_version: "1.0.0"
+id: B02_skyrmion2D
+description: >
+  Quasi-2D short-range exchange+DMI skyrmion lattice (blueprint B02) -- the
+  framework's short-range-neighbour, two-dimensional production reference,
+  contrasted against B01_bccFe's medium-range three-dimensional workload and
+  a future B03_skyrmion3D's genuinely three-dimensional short-range J+D
+  workload. Input template is the maintainer-supplied production deck
+  examples/SpecialFeatures/SkyrmionLattice (copied verbatim; see README.md in
+  this directory for the full audit, including a rejected sibling template
+  and two real backend-compatibility findings).
+template_directory: template
+workload_class: short_range_neighbor
+dimensionality: "2D"
+scalable_dimensions: ["Nx", "Ny"]
+thickness_cells: 1
+expected_physics:
+  lattice: >
+    Simple square lattice, single-atom basis (posfile: (0,0,0) only), cell
+    (1,0,0)/(0,1,0)/(0,0,1) in reduced units, quasi-two-dimensional single
+    layer (ncell Nx Ny 1), in-plane periodic / out-of-plane open (BC P P 0).
+  hamiltonian_terms: ["exchange", "dm"]
+  notes: >
+    Exchange: 4 nearest-neighbour bonds (+-x, +-y), J=1.0 (jfile), Sym=0 (no
+    symmetry expansion -- the 4 listed bonds are the full directed list).
+    DMI: same 4 nearest-neighbour bonds, |D|=0.8165, D parallel to each bond
+    (Bloch-type, not interfacial) -- dmdata. No anisotropy (#anisotropy
+    commented out in inpsd.dat, do_anisotropy stays 0). External field:
+    hfield 0 0 -150 (large easy-axis-like Zeeman field, reduced units).
+    Initial state: Initmag 3 (uniform direction from momfile, (0.1,0,1.0)
+    normalized, mmom=1.0) then overwritten by ip_mode Y's field-free (default
+    ip_hfield=0,0,0; the file does not set it) triple-Q spin-spiral line
+    search over the 129 q-points in qfile (source/MonteCarlo/qminimizer.f90
+    sweep_q3) -- a real O(129 x Natom) energy-minimization initial phase,
+    not a placeholder. Integrator: Heun (SDEalgh 1), damping 0.5, timestep
+    1.0e-15 s, Nstep 5000. Diagnostics: skyno T (skyrmion number via
+    triangulation), do_avrg Y; do_sc N (no spin correlation/qpoints
+    diagnostic despite qfile's dual use as the q-sweep candidate list).
+    Maintainer's own baseline temperature is 0 K -- no finite-T value is
+    given by this template (see variants below).
+variants:
+  - id: skyrmion_2d_t0
+    description: >
+      Zero-temperature relaxation dynamics from the ip_mode=Y triple-Q
+      initial condition. Deterministic within one compiled binary
+      (harness.gpu_sanity requires temperature==0) but see README.md
+      "Backend dispatch" for a real cross-binary degenerate-minimum caveat
+      that limits how strong a CPU/GPU discriminator this is.
+    overrides:
+      temp: 0.0
+      tseed: 1
+sizes:
+  # Nx=Ny=n square lattices, single-atom basis (natom = n^2), chosen as the
+  # closest legal integer square to each target in the blueprint's ~4x
+  # ladder (4k/16k/64k/256k/1M/4M atoms) -- every target is an exact integer
+  # square for this ladder, so no size is a rounded approximation. n=128 is
+  # this template's own maintainer-supplied default (examples/SpecialFeatures/
+  # SkyrmionLattice/inpsd.dat: ncell 128 128 1) and lands on this ladder's
+  # 16k tier exactly -- the natural anchor size, mirroring how B01_bccFe
+  # anchors on this project's historical 65,536-atom 3D reference.
+  - id: 64x64    # natom=4096    (target 4096,    exact)
+    replication: [64, 64]
+  - id: 128x128  # natom=16384   (target 16384,   exact -- maintainer's own default ncell)
+    replication: [128, 128]
+  - id: 256x256  # natom=65536   (target 65536,   exact)
+    replication: [256, 256]
+  - id: 512x512  # natom=262144  (target 262144,  exact)
+    replication: [512, 512]
+  - id: 1024x1024 # natom=1048576 (target 1048576, exact)
+    replication: [1024, 1024]
+  - id: 2048x2048 # natom=4194304 (target 4194304, exact)
+    replication: [2048, 2048]
+allowed_input_overrides:
+  - ncell
+  - Nstep
+  - tseed
+  - temp
+  - do_prnstruct
+  - avrg_step
+  - cumu_step
+  - tottraj_step
+  - ene_step
+  - gpu_mode
+  - skyno
+workload_metadata_method: neighbor_list_from_struct_output

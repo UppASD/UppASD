@@ -66,6 +66,13 @@ GLOBALLY_SAFE_OVERRIDE_KEYS = frozenset(
         "ene_step",  # measurement cadence
         "do_prnstruct",  # request struct.<simid>.out for neighbour metadata
         "gpu_mode",  # runtime CPU/GPU backend dispatch, not a physics parameter
+        # Skyrmion-number diagnostic method (Y/T/N). See B02_skyrmion2D/README.md
+        # "Backend dispatch": GPU only implements the 'Y' (brute-force) method
+        # and unconditionally throws on 'T' (triangulation) --
+        # source/gpu_files/measurement/gpuMeasurement.cpp:122-124. A post-hoc
+        # diagnostic of the current spin state, not a Hamiltonian/lattice/
+        # moment parameter.
+        "skyno",
     }
 )
 
