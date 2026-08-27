@@ -107,11 +107,51 @@ Present (WP-04):
   `setup_seconds`). Aggregation is strictly within one cell -- a
   heterogeneous mix of `run_id`s raises rather than silently pooling.
 
+Present (WP-05):
+
+* `omp_topology.py` — sections A-D: real host CPU/NUMA topology
+  (`capture_host_topology`, extending `cpu_provenance.capture_cpu_topology`
+  with per-physical-core identity and per-NUMA-node cpu membership),
+  thread-count validation that never oversubscribes the node
+  (`validate_thread_count`/`validate_thread_sweep`, capped at physical cores
+  unless `allow_smt=True`), and NUMA-placement classification
+  (`classify_numa_placement`/`classify_thread_count_numa` for a documented
+  placement *model*, `classify_observed_affinity` for a real measured
+  affinity mask) into `SINGLE_NODE`/`MULTI_NODE`/`FULL_NODE`.
+* `omp_sweep.py` — the declarative OpenMP sweep manifest
+  (`schema/omp_sweep.v1.schema.json`, loaded by `load_omp_sweep_manifest`):
+  thread counts, one binding policy for the whole sweep (never both `close`
+  and `spread` swept blindly in one campaign), and `smt_mode`
+  (`physical_only` versus the separately-enabled `smt_extension`).
+  `build_omp_env` sets `OMP_NUM_THREADS`/`OMP_PLACES=cores`/`OMP_PROC_BIND`/
+  `OMP_DYNAMIC=FALSE` explicitly, never left to inherit an unrecorded
+  ambient value; `resolve_run_configurations` validates a sweep against a
+  real `HostTopology` and returns one hardware-validated `RunConfiguration`
+  (env + NUMA label) per thread count, ready for `runner.run_sample`'s `env`
+  argument.
+* `omp_scaling.py` — sections E-F: `compute_omp_speedup_table`
+  (`S_OMP(p) = T(N,1)/T(N,p)`, `E_OMP(p) = S_OMP(p)/p`) and `determine_p_best`
+  operate on one case/variant/size/build/precision/profile's `aggregate`
+  records varying only `omp_threads`, restricted to numerically (optionally
+  environmentally) valid aggregates, and never assume the largest thread
+  count wins -- `p_best` is a plain empirical minimum over measured medians.
+  `select_cpu_1t`/`select_cpu_best` name the two canonical CPU baselines;
+  `persist_cpu_baseline` writes a stable-named pointer file (not itself an
+  `aggregate` record) so later GPU-crossover work can look up CPU-BEST by
+  cell without re-searching every aggregate.
+* `omp_sanity.py` — section G: `compare_restart_moments` parses the real
+  `restart.<simid>.out` production output of two T=0 runs and checks for a
+  *gross* physics failure (NaN/Inf, a diverged magnitude, a flipped moment
+  direction), not bitwise reproducibility -- OpenMP reduction-ordering makes
+  that unreasonable to demand. Tolerance is explicit and documented in the
+  module docstring (1e-3 relative moment magnitude, 0.999 minimum direction
+  cosine similarity). `sanity_check_thread_counts` guards the preconditions
+  (`COMPLETED`, `temperature == 0`, same case/variant/size) before comparing.
+
 Planned:
 
 | Work package | Adds |
 | --- | --- |
-| WP-05 | OpenMP thread sweeps, affinity and binding control |
 | WP-06 | CUDA SINGLE/DOUBLE campaigns, precision audit, GPU memory-limit handling |
 
 The harness writes records; it never edits tracked templates, and it never

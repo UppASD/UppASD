@@ -2,6 +2,18 @@
 
 Versioning policy: see [README.md](README.md).
 
+## omp_sweep 1.0.0 — WP-05
+
+Independent contract with its own `schema_version`; not a result record kind.
+
+* `omp_sweep.v1.schema.json` — declarative OpenMP thread-sweep manifests:
+  `thread_counts` (must include 1, so CPU-1T can be established), one
+  `proc_bind` (`close` or `spread`) for the whole sweep rather than a blind
+  sweep of both, `places` fixed to `cores` and `dynamic` fixed to `false`
+  (blueprint section 9/C), and `smt_mode` (`physical_only` versus the
+  separately-enabled `smt_extension`). Loaded by
+  `benchmarks/harness/omp_sweep.py`, not by `schema_validate.py`.
+
 ## 1.1.0 — WP-04
 
 * `benchmark_aggregate.v1.schema.json` — the `median`/`minimum`/`maximum`

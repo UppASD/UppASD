@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/UppASD/UppASD/benchmarks/schema/omp_sweep.v1.schema.json",
+  "title": "UppASD OpenMP thread-sweep manifest (v1)",
+  "description": "Declarative description of one OpenMP thread sweep: which thread counts to run, one binding policy for the whole sweep, and whether it is a standard physical-cores-first sweep or a separately-enabled SMT extension (docs/UppASD Production Benchmark Framework.md section 9, WP-05). This is a reusable building block for the run-configuration/OpenMP dimension of a future campaign manifest (WP-09); it does not itself select cases, sizes or builds. thread_counts are validated against real host topology at load time (benchmarks/harness/omp_topology.py) -- this manifest only declares intent, it does not know what hardware it will run on.",
+  "type": "object",
+  "additionalProperties": false,
+
+  "$defs": {
+    "id_slug": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"
+    }
+  },
+
+  "required": [
+    "schema_version",
+    "id",
+    "description",
+    "thread_counts",
+    "proc_bind",
+    "places",
+    "dynamic",
+    "smt_mode"
+  ],
+
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^1\\.[0-9]+\\.[0-9]+$"
+    },
+    "id": {
+      "description": "Sweep identifier, e.g. standard_physical or smt_extension.",
+      "$ref": "#/$defs/id_slug"
+    },
+    "description": { "type": "string", "minLength": 1 },
+    "thread_counts": {
+      "description": "OpenMP thread counts to sweep, e.g. [1, 2, 4, 8, 16]. Must include 1 so CPU-1T can be established. Legality against the actual host (physical core count, SMT ratio) is checked by harness.omp_topology.validate_thread_sweep at load/run time, not here.",
+      "type": "array",
+      "items": { "type": "integer", "minimum": 1 },
+      "minItems": 1,
+      "uniqueItems": true,
+      "contains": { "const": 1 }
+    },
+    "proc_bind": {
+      "description": "One OMP_PROC_BIND policy for the whole sweep (blueprint section 9/C: 'do not blindly sweep both for every production campaign; provide a campaign-level choice').",
+      "enum": ["close", "spread"]
+    },
+    "places": {
+      "description": "OMP_PLACES. The standard campaign prioritizes physical cores, so only 'cores' is accepted here.",
+      "const": "cores"
+    },
+    "dynamic": {
+      "description": "OMP_DYNAMIC. Always explicitly disabled (blueprint section 9/C).",
+      "const": false
+    },
+    "smt_mode": {
+      "description": "'physical_only' (default, standard campaign): every thread_counts entry must fit within the host's physical core count. 'smt_extension': a separately enabled sweep that may use logical threads beyond physical cores. A physical_only and an smt_extension sweep's results must never be pooled or compared without explicit labelling.",
+      "enum": ["physical_only", "smt_extension"]
+    }
+  }
+}
