@@ -1,0 +1,47 @@
+schema_version: "1.0.0"
+id: full_crossover
+description: >
+  FULL/AUTHORITATIVE crossover campaign (blueprint section 15, WP-09): the
+  manifest WP-10's first authoritative CPU/GPU crossover characterization
+  actually runs. Combines CPU-BEST (via a broad physical-core OpenMP sweep)
+  and CUDA SINGLE/DOUBLE for all five admitted workload families under one
+  campaign_id and one build/source revision (single_campaign_execution),
+  so every crossover computed from its aggregates
+  (analysis.crossover.compute_gpu_speedup, which requires the CPU and GPU
+  aggregate to already share campaign_id/case_id/variant_id/size_id/
+  machine_id/measurement_profile) is a real same-run comparison -- never a
+  CPU-BEST pulled from a separately-run full_cpu.yaml session merely
+  because the GPU campaign happened to start on its own.
+tier: FULL
+backend_scope: CPU_AND_CUDA
+single_campaign_execution: true
+cases:
+  - case_id: B01_bccFe
+    variant_ids: "ALL"
+    size_ids: "ALL"
+  - case_id: B02_skyrmion2D
+    variant_ids: "ALL"
+    size_ids: "ALL"
+  - case_id: B03_skyrmion3D
+    variant_ids: "ALL"
+    size_ids: "ALL"
+  - case_id: B04_dhcpNd
+    variant_ids: "ALL"
+    size_ids: "ALL"
+  - case_id: B05_dipoleFFT
+    variant_ids: "ALL"
+    size_ids: "ALL"
+cpu:
+  thread_policy: FULL_PHYSICAL_SWEEP
+  proc_bind: close
+gpu:
+  backend: CUDA
+  precisions: ["SINGLE", "DOUBLE"]
+  gpu_index: 0
+sample_count: 5
+measurement_profile: DYNAMICS_ONLY
+environment_quality_mode: STRICT
+notes: >
+  WP-10 depends on this manifest, not on a post-hoc merge of full_cpu.yaml
+  and full_cuda.yaml. GPU memory admission per case/size/precision is a
+  runtime decision (benchmarks/harness/gpu_memory.py), not predicted here.

@@ -13,6 +13,7 @@ interpretable.
 | `benchmark_aggregate.v1.schema.json` | `aggregate` | Statistics over the raw samples of one cell. |
 | `case_manifest.v1.schema.json` | — (WP-02) | A case's variants, legal size ladder, workload metadata hook and allow-listed input overrides. Loaded by `benchmarks/harness/cases.py`, not by `schema_validate.py` — it describes a case, not a result record. |
 | `omp_sweep.v1.schema.json` | — (WP-05) | A declarative OpenMP thread-sweep: thread counts, one binding policy for the whole sweep, and `physical_only`/`smt_extension` mode. Loaded by `benchmarks/harness/omp_sweep.py` — it describes intent, not a result record, and does not itself know what hardware it will run on. |
+| `campaign_manifest.v1.schema.json` | — (WP-09) | A declarative campaign: which cases/variants/sizes, which backends/precisions, sample count, measurement profile and environment-quality mode, at LEAN or FULL tier. Loaded by `benchmarks/harness/campaigns.py`, not by `schema_validate.py` — it describes intent, not a result record, and never bakes in a concrete OpenMP thread-count list (that is resolved against real host topology only once bound to a machine, mirroring `omp_sweep.py`). |
 | `CHANGELOG.md` | — | Version history of the contract. |
 
 Format is [JSON Schema draft 2020-12](https://json-schema.org/draft/2020-12/schema).

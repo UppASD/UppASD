@@ -1,0 +1,45 @@
+schema_version: "1.0.0"
+id: full_cuda
+description: >
+  FULL/AUTHORITATIVE CUDA campaign (blueprint section 15, WP-09). All five
+  admitted workload families where GPU memory permits (a runtime decision
+  per case/size/precision against the actual queried device --
+  benchmarks/harness/gpu_memory.py, benchmarks/harness/gpu_campaign.py
+  ::build_unavailable_memory_record -- never predicted here), SINGLE and
+  DOUBLE precision, at least 5 samples per cell, and a strict GPU
+  environment gate (contention/throttle/clock-instability classification,
+  benchmarks/harness/provenance.py::classify_gpu_environment).
+tier: FULL
+backend_scope: CUDA_ONLY
+cases:
+  - case_id: B01_bccFe
+    variant_ids: "ALL"
+    size_ids: "ALL"
+  - case_id: B02_skyrmion2D
+    variant_ids: "ALL"
+    size_ids: "ALL"
+  - case_id: B03_skyrmion3D
+    variant_ids: "ALL"
+    size_ids: "ALL"
+  - case_id: B04_dhcpNd
+    variant_ids: "ALL"
+    size_ids: "ALL"
+  - case_id: B05_dipoleFFT
+    variant_ids: "ALL"
+    size_ids: "ALL"
+gpu:
+  backend: CUDA
+  precisions: ["SINGLE", "DOUBLE"]
+  gpu_index: 0
+sample_count: 5
+measurement_profile: DYNAMICS_ONLY
+environment_quality_mode: STRICT
+notes: >
+  This campaign alone does not establish CPU/GPU crossover -- pair its GPU
+  aggregates with a matching CPU-BEST only when both were produced under
+  full_crossover.yaml (one campaign_id, one build). See blueprint section
+  10 and this manifest's backend_scope note in the schema. If the GPU host
+  this campaign runs on is shared with other users or processes, disclose
+  that contention in the resulting report rather than presenting the
+  timings as isolated; also discard each size's first ("cold") run as a
+  warm-up rather than folding it into the sample statistics.

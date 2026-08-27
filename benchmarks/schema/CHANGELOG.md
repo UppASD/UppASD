@@ -2,6 +2,25 @@
 
 Versioning policy: see [README.md](README.md).
 
+## campaign_manifest 1.0.0 — WP-09
+
+Independent contract with its own `schema_version`; not a result record kind.
+
+* `campaign_manifest.v1.schema.json` — declarative campaign manifests:
+  `tier` (`LEAN`/`FULL`), `backend_scope` (`CPU_ONLY`/`CUDA_ONLY`/
+  `CPU_AND_CUDA`), case/variant/size selection (with an `"ALL"` wildcard),
+  a symbolic CPU `thread_policy` (never a concrete thread-count list —
+  resolved against real host topology only once bound to a machine, via
+  `benchmarks/harness/campaigns.py::resolve_cpu_sweep`, the same discipline
+  `omp_sweep.py` established), GPU precisions, `sample_count`, `measurement_profile` and
+  `environment_quality_mode`. Cross-field rules tie the tiers to the
+  blueprint: `LEAN` requires the exact non-authoritative `report_banner`
+  text and `DEVELOPER` environment mode; `FULL` forbids the banner, requires
+  `sample_count >= 5` and `STRICT` environment mode; `CPU_AND_CUDA` requires
+  an explicit `single_campaign_execution: true` acknowledgement that its CPU
+  and CUDA cells run together under one `campaign_id`/build. Loaded by
+  `benchmarks/harness/campaigns.py`, not by `schema_validate.py`.
+
 ## omp_sweep 1.0.0 — WP-05
 
 Independent contract with its own `schema_version`; not a result record kind.

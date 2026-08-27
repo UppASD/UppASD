@@ -130,3 +130,27 @@ def test_write_markdown_report(tmp_path):
     path = markdown_report.write_markdown_report(summary, tmp_path / "report.md")
     assert path.is_file()
     assert path.read_text(encoding="utf-8") == markdown_report.generate_markdown_report(summary)
+
+
+# ---------------------------------------------------------------------------
+# WP-09: LEAN campaign non-authoritative banner
+# ---------------------------------------------------------------------------
+
+_LEAN_BANNER = "LEAN CAMPAIGN — NOT AUTHORITATIVE FOR CROSSOVER CLAIMS"
+
+
+def test_no_banner_by_default():
+    text = markdown_report.generate_markdown_report(_summary_above_range())
+    assert _LEAN_BANNER not in text
+
+
+def test_banner_renders_as_first_line_when_given():
+    text = markdown_report.generate_markdown_report(_summary_above_range(), report_banner=_LEAN_BANNER)
+    assert text.startswith(f"> # ⚠ {_LEAN_BANNER} ⚠")
+    assert text.index(_LEAN_BANNER) < text.index("# GPU crossover report")
+
+
+def test_write_markdown_report_carries_banner_through(tmp_path):
+    summary = _summary_above_range()
+    path = markdown_report.write_markdown_report(summary, tmp_path / "lean_report.md", report_banner=_LEAN_BANNER)
+    assert _LEAN_BANNER in path.read_text(encoding="utf-8")

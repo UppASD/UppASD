@@ -193,5 +193,28 @@ Present (WP-06):
   dimension differs between the two samples), with a precision-aware default
   magnitude tolerance (looser for a GPU SINGLE sample than for DOUBLE).
 
+Present (WP-09):
+
+* `campaigns.py` — loads and schema-validates campaign manifests against
+  [`../schema/campaign_manifest.v1.schema.json`](../schema/campaign_manifest.v1.schema.json)
+  (`load_campaign_manifest`), expands a campaign's case/variant/size
+  selection (including the `"ALL"` wildcard) and CPU/GPU backend axis into
+  the flat cell list a driver would iterate over (`resolve_cells`, which
+  also enforces that an authoritative campaign never resolves to an
+  `infrastructure_test_only` case via `cases.require_not_infrastructure_only`),
+  and resolves a campaign's symbolic `thread_policy`
+  (`LEAN_SAMPLE`/`FULL_PHYSICAL_SWEEP`) against a real
+  `omp_topology.HostTopology` into an `omp_sweep.OmpSweep`
+  (`resolve_cpu_sweep`) — the machine-hardware-policy/case-manifest
+  separation the WP-09 prompt asks for: no concrete thread count is ever
+  checked into a tracked campaign file. See
+  [`../campaigns/README.md`](../campaigns/README.md) for the four standard
+  campaigns (`lean`, `full_cpu`, `full_cuda`, `full_crossover`) plus the
+  tiny `ci_infra` manifest ordinary shared CI exercises this module against.
+  `analysis/markdown_report.py`'s `generate_markdown_report`/
+  `write_markdown_report` accept a `report_banner` keyword so a LEAN
+  campaign's `report_banner` field renders as the report's first,
+  most-prominent line.
+
 The harness writes records; it never edits tracked templates, and it never
 writes generated data into a tracked directory.

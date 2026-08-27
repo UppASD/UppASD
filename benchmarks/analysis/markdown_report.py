@@ -183,26 +183,40 @@ def _hypothesis_section(summary):
     ])
 
 
-def generate_markdown_report(summary):
+def generate_markdown_report(summary, *, report_banner=None):
     """Render `summary` (one case/variant's `campaign_summary.build_case_summary`
     output) as a Markdown report with FACT / INTERPOLATION / HYPOTHESIS sections.
+
+    `report_banner` (WP-09, blueprint section 15) is the LEAN-campaign
+    disclaimer a campaign manifest's `report_banner` field carries
+    (`harness.campaigns.LEAN_REPORT_BANNER`); when given, it is rendered
+    as the report's first, most prominent line -- a blockquote heading,
+    above even the title -- so a LEAN campaign's report can never be
+    mistaken for authoritative crossover evidence. `None` (the default,
+    and the only legal value for a FULL/authoritative campaign) renders
+    no such line.
     """
     identity = summary["identity"]
     header = (
         f"# GPU crossover report: {identity['case_id']} / {identity['variant_id']}\n\n"
         f"Campaign: `{identity['campaign_id']}` · Machine: `{identity['machine_id']}`"
     )
-    return "\n\n".join([
+    parts = []
+    if report_banner:
+        parts.append(f"> # ⚠ {report_banner} ⚠")
+    parts += [
         header,
         _fact_section(summary),
         _interpolation_section(summary),
         _hypothesis_section(summary),
-    ]) + "\n"
+    ]
+    return "\n\n".join(parts) + "\n"
 
 
-def write_markdown_report(summary, path):
-    """Write `generate_markdown_report(summary)` to `path`. Returns the path."""
+def write_markdown_report(summary, path, *, report_banner=None):
+    """Write `generate_markdown_report(summary, report_banner=report_banner)`
+    to `path`. Returns the path."""
     path = pathlib.Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(generate_markdown_report(summary), encoding="utf-8")
+    path.write_text(generate_markdown_report(summary, report_banner=report_banner), encoding="utf-8")
     return path

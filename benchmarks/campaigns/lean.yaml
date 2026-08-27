@@ -1,0 +1,36 @@
+schema_version: "1.0.0"
+id: lean
+description: >
+  LEAN developer campaign (blueprint section 15, WP-09). Exercises the
+  harness end to end and gives a rapid, gross regression signal -- it is
+  deliberately narrow and is never a source of crossover claims. Scope:
+  bcc Fe (the primary CPU/GPU crossover reference) plus one short-range J+D
+  case (2D skyrmion), 3 sizes each, a 3-point OpenMP sample (1 / moderate /
+  full physical-core count, resolved per host -- see
+  benchmarks/harness/campaigns.py::resolve_cpu_sweep) and CUDA SINGLE +
+  DOUBLE at these small, inexpensive sizes.
+tier: LEAN
+backend_scope: CPU_AND_CUDA
+single_campaign_execution: true
+report_banner: "LEAN CAMPAIGN — NOT AUTHORITATIVE FOR CROSSOVER CLAIMS"
+cases:
+  - case_id: B01_bccFe
+    variant_ids: ["bcc_fe_t0"]
+    size_ids: ["13x13x13", "20x20x20", "32x32x32"]
+  - case_id: B02_skyrmion2D
+    variant_ids: ["skyrmion_2d_t0"]
+    size_ids: ["64x64", "128x128", "256x256"]
+cpu:
+  thread_policy: LEAN_SAMPLE
+  proc_bind: close
+gpu:
+  backend: CUDA
+  precisions: ["SINGLE", "DOUBLE"]
+  gpu_index: 0
+sample_count: 3
+measurement_profile: DYNAMICS_ONLY
+environment_quality_mode: DEVELOPER
+notes: >
+  Developer sanity only. Do not use this campaign's records to support a
+  CPU/GPU crossover, precision-penalty or size-scaling claim -- use
+  full_crossover.yaml for that (WP-10).

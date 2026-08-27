@@ -1,0 +1,28 @@
+schema_version: "1.0.0"
+id: ci_infra
+description: >
+  Tiny infrastructure-only campaign (blueprint section 16, WP-09 section F).
+  Exists solely so normal, shared CI can exercise manifest parsing, cell
+  resolution and the runner against a real (if physically meaningless)
+  UppASD input, without imposing a wall-time pass/fail threshold on shared
+  hardware. Covers only INFRA_test_only, which can never enter an
+  authoritative report (benchmarks/harness/cases.py
+  ::require_not_infrastructure_only) -- this manifest's own tier (LEAN)
+  reflects that it is not, and can never become, evidence.
+tier: LEAN
+backend_scope: CPU_ONLY
+report_banner: "LEAN CAMPAIGN — NOT AUTHORITATIVE FOR CROSSOVER CLAIMS"
+cases:
+  - case_id: INFRA_test_only
+    variant_ids: "ALL"
+    size_ids: "ALL"
+cpu:
+  thread_policy: LEAN_SAMPLE
+  proc_bind: close
+sample_count: 1
+measurement_profile: DYNAMICS_ONLY
+environment_quality_mode: DEVELOPER
+notes: >
+  CI policy (blueprint section 16): normal CI may run schema tests,
+  manifest tests, runner parsing and this tiny infrastructure case. It must
+  never carry a fixed wall-time pass/fail threshold on shared CI hardware.

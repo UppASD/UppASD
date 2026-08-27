@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/UppASD/UppASD/benchmarks/schema/campaign_manifest.v1.schema.json",
+  "title": "UppASD benchmark campaign manifest (v1)",
+  "description": "Declarative description of one benchmark campaign (TERMINOLOGY.md CAMPAIGN, docs/UppASD Production Benchmark Framework.md section 15, WP-09): which cases/variants/sizes, which backends and precisions, at how many samples, under which environment-quality policy. A campaign manifest names cells to execute and leaves execution itself to the harness (WP-03/06) -- it is a declaration, not a script. Machine hardware policy (concrete OpenMP thread counts) is deliberately NOT baked in here: 'cpu.thread_policy' names a policy that benchmarks/harness/campaigns.py resolves against whatever host actually runs the campaign (benchmarks/harness/omp_topology.py), the same live-queried-never-hardcoded principle omp_topology.py already uses throughout.",
+  "type": "object",
+  "additionalProperties": false,
+
+  "$defs": {
+    "id_slug": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"
+    },
+    "id_list_or_all": {
+      "description": "Either the literal 'ALL' (every id the referenced case manifest declares) or an explicit, non-empty list of ids.",
+      "oneOf": [
+        { "const": "ALL" },
+        {
+          "type": "array",
+          "items": { "$ref": "#/$defs/id_slug" },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      ]
+    },
+    "case_selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "variant_ids", "size_ids"],
+      "properties": {
+        "case_id": { "$ref": "#/$defs/id_slug" },
+        "variant_ids": { "$ref": "#/$defs/id_list_or_all" },
+        "size_ids": { "$ref": "#/$defs/id_list_or_all" }
+      }
+    }
+  },
+
+  "required": [
+    "schema_version",
+    "id",
+    "description",
+    "tier",
+    "backend_scope",
+    "cases",
+    "sample_count",
+    "measurement_profile",
+    "environment_quality_mode"
+  ],
+
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^1\\.[0-9]+\\.[0-9]+$"
+    },
+    "id": {
+      "description": "Campaign identifier. This is what appears as campaign_id in every record the campaign produces.",
+      "$ref": "#/$defs/id_slug"
+    },
+    "description": { "type": "string", "minLength": 1 },
+    "tier": {
+      "description": "LEAN (harness development, developer sanity, gross regression detection -- never authoritative for crossover claims) or FULL (production characterization: all core workload families, practical size ladders, broad OpenMP scaling, sufficient independent samples, strict provenance and environment-quality gating). TERMINOLOGY.md CAMPAIGN.",
+      "enum": ["LEAN", "FULL"]
+    },
+    "backend_scope": {
+      "description": "CPU_ONLY, CUDA_ONLY, or CPU_AND_CUDA. A LEAN campaign normally covers both backends at reduced scope (blueprint section 15). Among FULL campaigns, full_cpu.yaml is CPU_ONLY, full_cuda.yaml is CUDA_ONLY, and full_crossover.yaml is CPU_AND_CUDA -- the only manifest whose CPU-BEST and CUDA cells are guaranteed to share one campaign_id/build/source-revision by construction (blueprint section 10: never pair CPU-BEST from a different campaign run against this campaign's CUDA cells).",
+      "enum": ["CPU_ONLY", "CUDA_ONLY", "CPU_AND_CUDA"]
+    },
+    "cases": {
+      "description": "Which case/variant/size cells this campaign covers. Every case_id must resolve against benchmarks/cases/ at load time (benchmarks/harness/campaigns.py); an authoritative (tier FULL) campaign may never resolve to an infrastructure_test_only case (benchmarks/harness/cases.py::require_not_infrastructure_only).",
+      "type": "array",
+      "items": { "$ref": "#/$defs/case_selection" },
+      "minItems": 1
+    },
+    "cpu": {
+      "description": "Required when backend_scope is CPU_ONLY or CPU_AND_CUDA; absent otherwise. thread_policy names a machine-hardware-policy resolution rule (benchmarks/harness/campaigns.py), never a concrete thread-count list: LEAN_SAMPLE resolves to {1, a moderate count, the host's full physical-core count} (blueprint section 15 'OMP 1 + one moderate + one large thread count'); FULL_PHYSICAL_SWEEP resolves to every thread count from 1 to the host's physical-core count (blueprint section 15 'broad OpenMP scaling' / TERMINOLOGY.md CPU-1T..CPU-BEST). Both always exclude SMT siblings (blueprint section 9: 'prioritize physical cores in the standard campaign').",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["thread_policy", "proc_bind"],
+      "properties": {
+        "thread_policy": { "enum": ["LEAN_SAMPLE", "FULL_PHYSICAL_SWEEP"] },
+        "proc_bind": { "enum": ["close", "spread"] }
+      }
+    },
+    "gpu": {
+      "description": "Required when backend_scope is CUDA_ONLY or CPU_AND_CUDA; absent otherwise. Only CUDA is represented among the four standard campaign tiers -- HIP performance claims require real HIP hardware and are out of scope here (blueprint section 4). GPU memory admission (blueprint section 14/WP-06 section E, 'all five workload families where GPU memory permits') is a runtime decision made per (case, size, precision) against the actual queried device (benchmarks/harness/gpu_memory.py, benchmarks/harness/gpu_campaign.py::build_unavailable_memory_record) -- it is not, and cannot be, predicted in this manifest.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["backend", "precisions"],
+      "properties": {
+        "backend": { "const": "CUDA" },
+        "precisions": {
+          "type": "array",
+          "items": { "enum": ["SINGLE", "DOUBLE"] },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "gpu_index": { "type": "integer", "minimum": 0, "default": 0 }
+      }
+    },
+    "single_campaign_execution": {
+      "description": "Required true when backend_scope is CPU_AND_CUDA. Documents and machine-checks blueprint section 10's crossover requirement: this manifest's CPU and CUDA cells are executed together, under one campaign_id and one build/source revision -- never assembled after the fact from an arbitrary separately-run CPU campaign merely because a GPU campaign happened to start separately.",
+      "const": true
+    },
+    "sample_count": {
+      "description": "Target repeated-sample count per cell (TERMINOLOGY.md SAMPLE). LEAN campaigns use a small count (harness development, gross regression detection only); FULL campaigns require at least 5, matching blueprint section 15 'sufficient independent samples' / section 13 'at least five valid timing samples where reasonable'.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "measurement_profile": {
+      "description": "DYNAMICS_ONLY (the primary computational benchmark, blueprint section 7) or PRODUCTION_LIGHT (fixed representative measurement cadence). Do not mix the two in one crossover claim (blueprint section 7).",
+      "enum": ["DYNAMICS_ONLY", "PRODUCTION_LIGHT"]
+    },
+    "environment_quality_mode": {
+      "description": "DEVELOPER (blueprint section 14: 'developer runs should remain usable even when some quality flags are present', runner.run_sample's default require_clean_environment=False) or STRICT (blueprint section 14: 'authoritative campaigns should support a strict environment mode that refuses unsuitable samples', runner.run_sample's require_clean_environment=True). LEAN campaigns must use DEVELOPER; FULL campaigns must use STRICT.",
+      "enum": ["DEVELOPER", "STRICT"]
+    },
+    "report_banner": {
+      "description": "Required, and fixed to this exact text, when tier is LEAN: every generated report for a LEAN campaign must prominently state this (blueprint section 15, TERMINOLOGY.md CAMPAIGN). Forbidden when tier is FULL -- a FULL/authoritative report carries no such disclaimer.",
+      "const": "LEAN CAMPAIGN — NOT AUTHORITATIVE FOR CROSSOVER CLAIMS"
+    },
+    "notes": { "type": "string" }
+  },
+
+  "allOf": [
+    {
+      "$comment": "LEAN tier: small repeat count is allowed, DEVELOPER environment mode, and the report banner is mandatory.",
+      "if": { "properties": { "tier": { "const": "LEAN" } }, "required": ["tier"] },
+      "then": {
+        "required": ["report_banner"],
+        "properties": {
+          "environment_quality_mode": { "const": "DEVELOPER" }
+        }
+      }
+    },
+    {
+      "$comment": "FULL tier: at least 5 samples, STRICT environment mode, and no report banner (that disclaimer is LEAN-only).",
+      "if": { "properties": { "tier": { "const": "FULL" } }, "required": ["tier"] },
+      "then": {
+        "not": { "required": ["report_banner"] },
+        "properties": {
+          "sample_count": { "minimum": 5 },
+          "environment_quality_mode": { "const": "STRICT" }
+        }
+      }
+    },
+    {
+      "$comment": "CPU_ONLY: a cpu block is required; no gpu block and no single_campaign_execution flag.",
+      "if": { "properties": { "backend_scope": { "const": "CPU_ONLY" } }, "required": ["backend_scope"] },
+      "then": {
+        "required": ["cpu"],
+        "not": { "anyOf": [{ "required": ["gpu"] }, { "required": ["single_campaign_execution"] }] }
+      }
+    },
+    {
+      "$comment": "CUDA_ONLY: a gpu block is required; no cpu block and no single_campaign_execution flag.",
+      "if": { "properties": { "backend_scope": { "const": "CUDA_ONLY" } }, "required": ["backend_scope"] },
+      "then": {
+        "required": ["gpu"],
+        "not": { "anyOf": [{ "required": ["cpu"] }, { "required": ["single_campaign_execution"] }] }
+      }
+    },
+    {
+      "$comment": "CPU_AND_CUDA: both blocks are required, and the single-campaign-execution guarantee must be explicitly affirmed.",
+      "if": { "properties": { "backend_scope": { "const": "CPU_AND_CUDA" } }, "required": ["backend_scope"] },
+      "then": {
+        "required": ["cpu", "gpu", "single_campaign_execution"]
+      }
+    }
+  ]
+}

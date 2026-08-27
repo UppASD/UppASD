@@ -1,0 +1,39 @@
+schema_version: "1.0.0"
+id: full_cpu
+description: >
+  FULL/AUTHORITATIVE CPU/OpenMP campaign (blueprint section 15, WP-09).
+  All five admitted workload families (B01-B05), every declared variant and
+  every rung of each case's practical size ladder, a broad physical-core
+  OpenMP sweep (1..physical_cores, resolved per host -- see
+  benchmarks/harness/campaigns.py::resolve_cpu_sweep) to establish CPU-1T
+  and CPU-BEST (TERMINOLOGY.md RUN CONFIGURATION), at least 5 samples per
+  cell, and strict environment-quality gating throughout.
+tier: FULL
+backend_scope: CPU_ONLY
+cases:
+  - case_id: B01_bccFe
+    variant_ids: "ALL"
+    size_ids: "ALL"
+  - case_id: B02_skyrmion2D
+    variant_ids: "ALL"
+    size_ids: "ALL"
+  - case_id: B03_skyrmion3D
+    variant_ids: "ALL"
+    size_ids: "ALL"
+  - case_id: B04_dhcpNd
+    variant_ids: "ALL"
+    size_ids: "ALL"
+  - case_id: B05_dipoleFFT
+    variant_ids: "ALL"
+    size_ids: "ALL"
+cpu:
+  thread_policy: FULL_PHYSICAL_SWEEP
+  proc_bind: close
+sample_count: 5
+measurement_profile: DYNAMICS_ONLY
+environment_quality_mode: STRICT
+notes: >
+  This campaign alone does not establish CPU/GPU crossover -- pair its
+  CPU-BEST aggregates with full_cuda.yaml's only when both were produced
+  under full_crossover.yaml (one campaign_id, one build). See blueprint
+  section 10 and this manifest's backend_scope note in the schema.
