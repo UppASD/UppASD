@@ -1,0 +1,42 @@
+schema_version: "1.0.0"
+id: INFRA_test_only
+description: >
+  Tiny synthetic 2-atom-basis case used solely to exercise the WP-02
+  case-manifest infrastructure: manifest parsing, immutable-template
+  copying, size-ladder expansion, allow-listed input overrides and
+  template fingerprinting.
+infrastructure_test_only: true
+template_directory: template
+workload_class: short_range_neighbor
+dimensionality: "3D"
+scalable_dimensions: ["Nx", "Ny", "Nz"]
+expected_physics:
+  lattice: "simple cubic, 2-atom basis (synthetic, not a production model)"
+  hamiltonian_terms: ["exchange"]
+  notes: >
+    Exists only to exercise the harness. Interaction shells, cutoffs and
+    moments carry no physical significance and must never be treated as a
+    production benchmark family or included in an authoritative report.
+variants:
+  - id: T0
+    description: Zero-temperature relaxation; exercises scalar overrides.
+    overrides:
+      temp: 0.0
+      tseed: 1
+  - id: finiteT
+    description: Finite-temperature dynamics; exercises a second override set.
+    overrides:
+      temp: 100.0
+      tseed: 2
+sizes:
+  - id: 2x2x2
+    replication: [2, 2, 2]
+  - id: 4x4x4
+    replication: [4, 4, 4]
+allowed_input_overrides:
+  - ncell
+  - Nstep
+  - tseed
+  - temp
+  - do_prnstruct
+workload_metadata_method: neighbor_list_from_struct_output

@@ -11,6 +11,7 @@ interpretable.
 | --- | --- | --- |
 | `benchmark_record.v1.schema.json` | `raw_sample` | One executable measurement. Always individual. |
 | `benchmark_aggregate.v1.schema.json` | `aggregate` | Statistics over the raw samples of one cell. |
+| `case_manifest.v1.schema.json` | — (WP-02) | A case's variants, legal size ladder, workload metadata hook and allow-listed input overrides. Loaded by `benchmarks/harness/cases.py`, not by `schema_validate.py` — it describes a case, not a result record. |
 | `CHANGELOG.md` | — | Version history of the contract. |
 
 Format is [JSON Schema draft 2020-12](https://json-schema.org/draft/2020-12/schema).

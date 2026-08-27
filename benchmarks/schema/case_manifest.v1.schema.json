@@ -1,0 +1,227 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/UppASD/UppASD/benchmarks/schema/case_manifest.v1.schema.json",
+  "title": "UppASD benchmark case manifest (v1)",
+  "description": "Declarative description of one benchmark case: an immutable production input template plus the legal variants, size ladder, allow-listed input overrides and workload-metadata hook that turn it into a scalable benchmark family. See benchmarks/cases/README.md and docs/UppASD Production Benchmark Framework.md section 17-18 (WP-02). A case manifest never contains generated data and never grants the harness license to rewrite arbitrary input parameters.",
+  "type": "object",
+  "additionalProperties": false,
+
+  "$defs": {
+    "id_slug": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"
+    },
+    "input_key": {
+      "description": "One UppASD inpsd.dat keyword, e.g. Nstep, ncell, tseed, temp, avrg_step.",
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+    },
+    "override_value": {
+      "description": "A scalar override value, or a fixed-length array for a vector keyword such as ncell.",
+      "oneOf": [
+        { "type": ["string", "number", "boolean"] },
+        {
+          "type": "array",
+          "items": { "type": ["string", "number", "boolean"] },
+          "minItems": 1
+        }
+      ]
+    },
+    "variant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "overrides"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id_slug" },
+        "description": { "type": "string", "minLength": 1 },
+        "overrides": {
+          "description": "Input keyword overrides that define this variant, e.g. a temperature. Every key must also appear in allowed_input_overrides.",
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/input_key" },
+          "additionalProperties": { "$ref": "#/$defs/override_value" }
+        }
+      }
+    },
+    "size_3d": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "replication"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id_slug" },
+        "replication": {
+          "description": "[Nx, Ny, Nz] supercell replication counts, in the order the case's scalable_dimensions declares them.",
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 },
+          "minItems": 3,
+          "maxItems": 3
+        }
+      }
+    },
+    "size_2d": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "replication"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id_slug" },
+        "replication": {
+          "description": "[Nx, Ny] replication counts; thickness (thickness_cells) is fixed by the case and not a scaled dimension.",
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 },
+          "minItems": 2,
+          "maxItems": 2
+        }
+      }
+    },
+    "size_explicit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "replication"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id_slug" },
+        "replication": {
+          "description": "Explicit legal replication tuple; length and meaning are case-specific and must match scalable_dimensions.",
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 },
+          "minItems": 1
+        }
+      }
+    }
+  },
+
+  "required": [
+    "schema_version",
+    "id",
+    "description",
+    "template_directory",
+    "workload_class",
+    "dimensionality",
+    "scalable_dimensions",
+    "variants",
+    "sizes",
+    "expected_physics",
+    "allowed_input_overrides",
+    "workload_metadata_method"
+  ],
+
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^1\\.[0-9]+\\.[0-9]+$"
+    },
+    "id": {
+      "description": "Case identifier. Matches TERMINOLOGY.md case_id and the directory this manifest lives in.",
+      "$ref": "#/$defs/id_slug"
+    },
+    "description": { "type": "string", "minLength": 1 },
+    "infrastructure_test_only": {
+      "description": "True only for the one tiny synthetic case that exercises this framework's own machinery. Such a case may never enter an authoritative campaign report.",
+      "type": "boolean",
+      "default": false
+    },
+    "template_directory": {
+      "description": "Path to the immutable input template, relative to this manifest file. The harness only ever reads from here; it copies the template into a generated per-run work directory before any execution.",
+      "type": "string",
+      "minLength": 1
+    },
+    "workload_class": {
+      "description": "Case-level interaction-range classification (blueprint section 3/5). Distinct from, and coarser-grained than, the per-record workload_class enum in benchmark_record.v1.schema.json, which this maps onto: *_neighbor -> NEIGHBOR_LIST, fft_dipole -> FFT_DIPOLE, neighbor_plus_dipole -> NEIGHBOR_LIST_PLUS_FFT_DIPOLE.",
+      "enum": [
+        "short_range_neighbor",
+        "medium_range_neighbor",
+        "long_range_neighbor",
+        "fft_dipole",
+        "neighbor_plus_dipole"
+      ]
+    },
+    "dimensionality": {
+      "enum": ["2D", "3D", "case_specific"]
+    },
+    "scalable_dimensions": {
+      "description": "Names of the dimensions each size's replication tuple varies, in order. 3D bulk: [Nx, Ny, Nz]. 2D: [Nx, Ny] with fixed thickness. case_specific: whatever the case's legal replication tuple actually means.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "thickness_cells": {
+      "description": "Fixed out-of-plane replication for a 2D case. Required when dimensionality is 2D, absent otherwise.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "variants": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/variant" },
+      "minItems": 1
+    },
+    "sizes": {
+      "description": "The case's legal size ladder (TERMINOLOGY.md SIZE). Every entry's replication must be consistent with dimensionality and scalable_dimensions.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "anyOf": [
+          { "$ref": "#/$defs/size_3d" },
+          { "$ref": "#/$defs/size_2d" },
+          { "$ref": "#/$defs/size_explicit" }
+        ]
+      }
+    },
+    "expected_physics": {
+      "description": "Documentation of the physics this case represents, so overrides can be audited against intent. Never machine-enforced beyond the allow-list.",
+      "type": "object",
+      "required": ["hamiltonian_terms"],
+      "properties": {
+        "lattice": { "type": "string" },
+        "hamiltonian_terms": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        },
+        "notes": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "allowed_input_overrides": {
+      "description": "Closed list of inpsd.dat keywords this case permits the harness to change. Every key here must also belong to the harness-wide safe-override vocabulary (harness.overrides.GLOBALLY_SAFE_OVERRIDE_KEYS); the case list only narrows that set further, it never widens it. A key absent from this list can never be overridden for this case, regardless of what a campaign or CLI invocation requests.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/input_key" },
+      "uniqueItems": true
+    },
+    "workload_metadata_method": {
+      "description": "Name of the registered workload-metadata parser (benchmarks/harness/workload_metadata.py) used to determine natom/directed_interactions/mean_neighbors/max_neighbors (neighbour cases) or natom/fft_grid (dipole/FFT cases) for a generated run. Must not estimate from assumptions when production input/output can supply the real value.",
+      "type": "string",
+      "minLength": 1
+    }
+  },
+
+  "allOf": [
+    {
+      "$comment": "A 2D case fixes its out-of-plane thickness and scales exactly [Nx, Ny].",
+      "if": { "properties": { "dimensionality": { "const": "2D" } }, "required": ["dimensionality"] },
+      "then": {
+        "required": ["thickness_cells"],
+        "properties": { "scalable_dimensions": { "minItems": 2, "maxItems": 2 } }
+      }
+    },
+    {
+      "$comment": "A 3D bulk case scales exactly [Nx, Ny, Nz] and has no separate fixed thickness.",
+      "if": { "properties": { "dimensionality": { "const": "3D" } }, "required": ["dimensionality"] },
+      "then": {
+        "not": { "required": ["thickness_cells"] },
+        "properties": { "scalable_dimensions": { "minItems": 3, "maxItems": 3 } }
+      }
+    },
+    {
+      "$comment": "Neighbour-family cases report neighbour-list workload metadata.",
+      "if": {
+        "properties": { "workload_class": { "enum": ["short_range_neighbor", "medium_range_neighbor", "long_range_neighbor", "neighbor_plus_dipole"] } },
+        "required": ["workload_class"]
+      },
+      "then": {
+        "properties": {
+          "workload_metadata_method": { "not": { "const": "" } }
+        }
+      }
+    }
+  ]
+}

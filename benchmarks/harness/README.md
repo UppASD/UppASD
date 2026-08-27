@@ -13,11 +13,28 @@ Present (WP-01):
   python3 benchmarks/harness/schema_validate.py results/lean01/*.json
   ```
 
+Present (WP-02):
+
+* `cases.py` — loads and validates case manifests against
+  [`../schema/case_manifest.v1.schema.json`](../schema/case_manifest.v1.schema.json),
+  resolves variants/sizes, enforces the allow-listed input-override vocabulary
+  (`GLOBALLY_SAFE_OVERRIDE_KEYS`), copies an immutable template into a
+  generated work directory with overrides applied
+  (`generate_run_directory`), and computes a deterministic SHA-256 template
+  fingerprint (`compute_template_fingerprint`). Also provides the campaign-tier
+  guard (`filter_cases_for_campaign`, `require_not_infrastructure_only`) that
+  keeps `infrastructure_test_only` cases out of authoritative reports.
+* `workload_metadata.py` — the case-specific hook mechanism of section E:
+  `neighbor_list_from_struct_output` parses UppASD's own
+  `struct.<simid>.out` diagnostic dump for real neighbour-workload metadata;
+  `fft_grid_from_replication` derives the dipole-FFT grid from the case's own
+  supercell replication using UppASD's own padding formula. Neither estimates
+  a quantity real production input/output already supplies.
+
 Planned:
 
 | Work package | Adds |
 | --- | --- |
-| WP-02 | Case/template loading, size expansion, input override allow-lists |
 | WP-03 | Isolated run directories, complete executable timing, multi-`nstep` steady-state estimation, measurement profiles |
 | WP-04 | Source/build provenance, CPU/GPU metadata, contention and throttling detection, sample-quality classification |
 | WP-05 | OpenMP thread sweeps, affinity and binding control |

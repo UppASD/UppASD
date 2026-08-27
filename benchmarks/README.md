@@ -69,7 +69,7 @@ subtracting unrelated profiler phase timings.
 | Directory | Responsibility | Status |
 | --- | --- | --- |
 | `schema/` | Versioned machine-readable result contract (JSON Schema) and its changelog. | WP-01 (this) |
-| `cases/` | Immutable case manifests and input templates: physics families, variants, legal size ladders, workload metadata, input override allow-lists. | WP-02 |
+| `cases/` | Immutable case manifests and input templates: physics families, variants, legal size ladders, workload metadata, input override allow-lists. | WP-02 (this) |
 | `campaigns/` | Declarative campaign manifests: which cases, sizes, builds and run configurations a LEAN or FULL campaign executes. | WP-09 |
 | `harness/` | Execution and validation code: record validation (now), run isolation, provenance capture, environment-quality gating, timing (later). | WP-01 → WP-06 |
 | `analysis/` | Aggregation, fitting, crossover detection, throughput metrics, plots and reports. Consumes records; never produces them. | WP-07 |
@@ -113,8 +113,8 @@ From the repository root:
 python3 -m pytest benchmarks/tests -q
 ```
 
-Requires `jsonschema` and `pytest`. A single record file can also be checked
-directly:
+Requires `jsonschema`, `pytest` and `PyYAML` (already a project dependency,
+see `requirements.txt`). A single record file can also be checked directly:
 
 ```sh
 python3 benchmarks/harness/schema_validate.py path/to/record.json
