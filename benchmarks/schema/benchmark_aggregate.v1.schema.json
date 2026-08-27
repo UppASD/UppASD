@@ -82,14 +82,17 @@
     },
 
     "sample_count": { "type": "integer", "minimum": 1 },
-    "median": { "type": "number", "exclusiveMinimum": 0 },
+    "median": {
+      "description": "Strictly positive for every metric except setup_seconds, which is a fitted intercept and may legitimately be zero or negative; see the setup_seconds conditional below.",
+      "type": "number"
+    },
     "mad": {
       "description": "Median absolute deviation of the samples.",
       "type": "number",
       "minimum": 0
     },
-    "minimum": { "type": "number", "exclusiveMinimum": 0 },
-    "maximum": { "type": "number", "exclusiveMinimum": 0 },
+    "minimum": { "type": "number" },
+    "maximum": { "type": "number" },
     "run_ids": {
       "description": "run_id of every raw sample record entering this aggregate. Never report only the fastest sample.",
       "type": "array",
@@ -152,16 +155,16 @@
       }
     },
     {
-      "$comment": "setup_seconds is an intercept and may legitimately be negative or zero; the other metrics may not.",
+      "$comment": "setup_seconds is an intercept and may legitimately be negative or zero; every other metric is a real elapsed duration and must be strictly positive.",
       "if": {
-        "properties": { "metric": { "const": "setup_seconds" } },
+        "properties": { "metric": { "not": { "const": "setup_seconds" } } },
         "required": ["metric"]
       },
       "then": {
         "properties": {
-          "median": { "type": "number" },
-          "minimum": { "type": "number" },
-          "maximum": { "type": "number" }
+          "median": { "exclusiveMinimum": 0 },
+          "minimum": { "exclusiveMinimum": 0 },
+          "maximum": { "exclusiveMinimum": 0 }
         }
       }
     },

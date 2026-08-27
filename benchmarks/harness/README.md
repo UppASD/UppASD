@@ -56,15 +56,61 @@ Present (WP-03):
   `resolve_workload_metadata` and reused for every sample of that cell,
   including a later sample that fails -- it describes the workload that was
   configured, not something a possibly-crashed process reported.
-  Provenance/hardware/precision auditing is WP-04's job; callers supply it as
-  `context` (`developer_context` is a non-authoritative local/self-test
-  stand-in that always raises `metadata_incomplete`).
+  Provenance/hardware/precision auditing is supplied as `context`:
+  `provenance.build_static_context` (WP-04) is the authoritative source;
+  `developer_context` remains a non-authoritative local/self-test stand-in
+  that always raises `metadata_incomplete`. `run_sample`'s
+  `require_clean_environment` argument is WP-04's strict mode.
+
+Present (WP-04):
+
+* `source_provenance.py` — section A: git commit/dirty state/dirty files
+  (`capture_git_provenance`), the executable's SHA-256
+  (`compute_binary_checksum`), and everything read from the build's own
+  `CMakeCache.txt` (`parse_cmake_cache`/`build_source_context`) --
+  `requested_precision` and `gpu_backend` come from `UPPASD_PRECISION`/
+  `UPPASD_GPU_BACKEND` there, never guessed from the binary's filename.
+* `cpu_provenance.py` — section B: CPU topology from `/proc/cpuinfo` and
+  `/sys/devices/system/node` (`capture_cpu_topology`), the OpenMP
+  environment (`capture_omp_environment`), process affinity
+  (`capture_process_affinity`), per-core governor/frequency
+  (`capture_cpu_frequency_state`) and load average
+  (`capture_background_load`). Every filesystem root is a parameter, so
+  tests run against a synthetic tree rather than the real machine.
+* `gpu_provenance.py` — section C: CUDA device identity/state via
+  `nvidia-smi` and toolkit version via `nvcc --version`
+  (`query_cuda_devices`, `query_cuda_runtime_version`,
+  `query_cuda_compute_processes`), plus contamination/throttle/clock-drift
+  classification (`classify_cuda_contamination`,
+  `detect_cuda_clock_instability`). HIP exposes the structurally analogous
+  functions against `rocm-smi --showallinfo --json`
+  (`query_hip_devices`, `classify_hip_contamination`) -- representable and
+  tested via mock parsers without requiring AMD hardware, per the
+  blueprint's "no HIP performance claim without real hardware" rule. Every
+  external call goes through an injectable `run` callable.
+* `provenance.py` — orchestrates the above into one `context` dict shaped
+  exactly like `runner.run_sample`'s (`build_static_context`, resolved once
+  per build+machine, the authoritative counterpart to
+  `runner.developer_context`); section D's environment-quality flags
+  (`classify_background_load`, `classify_cpu_frequency_stability`,
+  `classify_gpu_environment`, bracketing a sample with
+  `capture_gpu_snapshot` before and after); and section E's strict mode
+  (`gate_sample`, raising `EnvironmentGateError` -- surfaced through
+  `runner.run_sample`'s `require_clean_environment` argument, `False` by
+  default so ordinary developer runs, including against a dirty tree, are
+  never blocked).
+* `aggregate.py` — section F: `compute_sample_statistics` (count/median/
+  MAD/min/max, never just the fastest sample) and the two aggregate-record
+  builders, `build_process_wall_aggregate` (directly over completed raw
+  samples) and `build_fit_aggregate` (over several independent
+  `steady_state.FitResult`s of the same cell, for `steady_step_seconds`/
+  `setup_seconds`). Aggregation is strictly within one cell -- a
+  heterogeneous mix of `run_id`s raises rather than silently pooling.
 
 Planned:
 
 | Work package | Adds |
 | --- | --- |
-| WP-04 | Source/build provenance, CPU/GPU metadata, contention and throttling detection, sample-quality classification |
 | WP-05 | OpenMP thread sweeps, affinity and binding control |
 | WP-06 | CUDA SINGLE/DOUBLE campaigns, precision audit, GPU memory-limit handling |
 

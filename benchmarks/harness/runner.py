@@ -37,6 +37,7 @@ import time
 
 from harness import cases as cases_mod
 from harness import measurement_profiles
+from harness import provenance as provenance_mod
 from harness import schema_validate
 from harness import workload_metadata as workload_metadata_mod
 
@@ -70,6 +71,15 @@ _REQUIRED_CONTEXT_FIELDS = (
 class RunnerError(ValueError):
     """A harness usage/configuration error -- distinct from a sample that
     ran but failed validity (that is recorded, not raised)."""
+
+
+class EnvironmentGateError(RunnerError):
+    """WP-04 section E: a strict-mode ``require_clean_environment`` campaign
+    refused to accept a sample because it was not ``environment_valid``.
+
+    Raised only after the sample's record has already been written to disk
+    -- the measurement is not discarded, it is simply not accepted as
+    authoritative evidence. Never raised unless the caller opted in."""
 
 
 class ExecutionResult:
@@ -329,14 +339,24 @@ def run_sample(
     env=None,
     timeout_seconds=None,
     extra_overrides=None,
+    require_clean_environment=False,
 ):
     """Execute one complete production sample and write its raw record.
 
     ``workload_metadata`` must come from :func:`resolve_workload_metadata`
     for this ``(case, variant_id, size_id)`` cell -- it is not recomputed
     per sample. ``context`` supplies the provenance/hardware/precision/
-    run-configuration fields this WP does not itself audit (see module
-    docstring); :func:`developer_context` is a non-authoritative stand-in.
+    run-configuration fields (WP-04's ``provenance.build_static_context`` is
+    the authoritative source; :func:`developer_context` is a
+    non-authoritative local/self-test stand-in).
+
+    ``require_clean_environment`` is WP-04 section E's strict mode
+    (``--require-clean-environment`` at the campaign level): when set, a
+    sample that is not ``environment_valid`` still gets written -- the
+    record is real evidence either way -- but :class:`EnvironmentGateError`
+    is then raised so the caller does not silently fold it into authoritative
+    results. Default ``False`` leaves ordinary developer runs, including
+    against a dirty tree, unaffected.
     """
     _check_context(context)
     if measurement_profile not in measurement_profiles.PROFILES:
@@ -461,5 +481,14 @@ def run_sample(
     results_dir.mkdir(parents=True, exist_ok=True)
     record_path = results_dir / f"{run_id}.json"
     record_path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
+
+    try:
+        provenance_mod.gate_sample(
+            environment_valid=environment_valid,
+            quality_flags=quality_flags,
+            require_clean_environment=require_clean_environment,
+        )
+    except provenance_mod.EnvironmentGateError as exc:
+        raise EnvironmentGateError(str(exc)) from exc
 
     return SampleResult(run_directory=run_directory, record=record, record_path=record_path, execution=execution)

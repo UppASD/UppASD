@@ -2,6 +2,18 @@
 
 Versioning policy: see [README.md](README.md).
 
+## 1.1.0 — WP-04
+
+* `benchmark_aggregate.v1.schema.json` — the `median`/`minimum`/`maximum`
+  positivity constraint (`exclusiveMinimum: 0`) now applies only to metrics
+  other than `setup_seconds`. The schema's own `setup_seconds` conditional
+  already documented that a fitted fixed-cost intercept "may legitimately be
+  negative or zero" (blueprint section 6.2), but the constraint had
+  incorrectly stayed unconditional, silently rejecting exactly the records
+  that comment described. Backward compatible: every previously valid record
+  necessarily had positive statistics already and keeps validating; only
+  newly permits a `setup_seconds` aggregate with a non-positive statistic.
+
 ## case_manifest 1.0.0 — WP-02
 
 Independent contract with its own `schema_version`; not a result record kind.

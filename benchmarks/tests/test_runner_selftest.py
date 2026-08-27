@@ -13,6 +13,7 @@ hard-fail on a machine that simply has no build.
 
 from __future__ import annotations
 
+import json
 import os
 import pathlib
 import shutil
@@ -201,3 +202,51 @@ def test_source_template_remains_untouched(tmp_path, infra_case, binary_and_env)
 
     after = cases.compute_template_fingerprint(infra_case.template_dir)
     assert before == after
+
+
+def test_strict_mode_rejects_a_developer_context_run_even_when_it_completes(tmp_path, infra_case, binary_and_env):
+    """WP-04 section E: `require_clean_environment=True` refuses a sample
+    that is not `environment_valid` -- and `developer_context` always raises
+    `metadata_incomplete` (WP-03's documented non-authoritative stand-in), so
+    even a genuinely successful production run must still be rejected here.
+    The record itself is still written; only the campaign-level acceptance
+    is refused.
+    """
+    binary_path, env = binary_and_env
+    work_root = tmp_path / "work"
+    results_dir = tmp_path / "results"
+    context = _context(binary_path, env)
+
+    workload_metadata = runner.resolve_workload_metadata(infra_case, "T0", "2x2x2", work_root, binary_path, env=env)
+    with pytest.raises(runner.EnvironmentGateError):
+        runner.run_sample(
+            infra_case, "T0", "2x2x2",
+            nstep=5_000, run_id="strict-mode-reject", campaign_id="selftest", sample_index=0,
+            work_root=work_root, results_dir=results_dir, binary_path=binary_path,
+            measurement_profile="DYNAMICS_ONLY", workload_metadata=workload_metadata,
+            context=context, env=env, require_clean_environment=True,
+        )
+    # The measurement itself was not discarded.
+    written = results_dir / "strict-mode-reject.json"
+    assert written.is_file()
+    record = json.loads(written.read_text())
+    assert record["run_status"] == "COMPLETED"
+    assert record["environment_valid"] is False
+
+
+def test_non_strict_mode_accepts_the_same_flagged_run(tmp_path, infra_case, binary_and_env):
+    binary_path, env = binary_and_env
+    work_root = tmp_path / "work"
+    results_dir = tmp_path / "results"
+    context = _context(binary_path, env)
+
+    workload_metadata = runner.resolve_workload_metadata(infra_case, "T0", "2x2x2", work_root, binary_path, env=env)
+    result = runner.run_sample(
+        infra_case, "T0", "2x2x2",
+        nstep=5_000, run_id="non-strict-accept", campaign_id="selftest", sample_index=0,
+        work_root=work_root, results_dir=results_dir, binary_path=binary_path,
+        measurement_profile="DYNAMICS_ONLY", workload_metadata=workload_metadata,
+        context=context, env=env,
+    )
+    assert result.record["run_status"] == "COMPLETED"
+    assert result.record["environment_valid"] is False
