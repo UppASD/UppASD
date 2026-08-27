@@ -148,11 +148,50 @@ Present (WP-05):
   cosine similarity). `sanity_check_thread_counts` guards the preconditions
   (`COMPLETED`, `temperature == 0`, same case/variant/size) before comparing.
 
-Planned:
+Present (WP-06):
 
-| Work package | Adds |
-| --- | --- |
-| WP-06 | CUDA SINGLE/DOUBLE campaigns, precision audit, GPU memory-limit handling |
+* `precision_audit.py` — sections A-B: the effective (not requested)
+  precision of every audited component (`COMPONENT_AUDIT`, backed by
+  `../PRECISION_AUDIT.md`'s file:line citations). `effective_cpu_precision`
+  is `DOUBLE` for every buildable configuration -- `UPPASD_PRECISION` never
+  gates `dblprec` -- while `effective_gpu_precision` mirrors
+  `requested_precision` for the audited CUDA backend (`UNKNOWN` for
+  unaudited HIP). `classify_comparison_precision_class` turns those into
+  `comparison_precision_class` (`PRECISION_MATCHED`/`PRODUCTION_CONFIGURATION`/
+  `UNAUDITED`/`null`), and is now what `runner.run_sample` calls per sample
+  (once `run_status` is known) rather than reading a static context value;
+  `provenance.build_static_context` calls the two effective-precision
+  functions directly instead of leaving them `UNKNOWN` placeholders.
+* `gpu_memory.py` — section E: `estimate_gpu_memory_required_mib` (a
+  documented, conservative order-of-magnitude estimate from
+  `natom`/`directed_interactions`/effective GPU precision) and
+  `classify_gpu_memory_availability` (applies a safety margin against real
+  queried device memory, returning `gpu_memory.UNAVAILABLE_MEMORY` rather
+  than ever silently shrinking a case). `detect_gpu_oom` recognizes real
+  CUDA/cuFFT out-of-memory signatures in captured output, a secondary
+  post-hoc confirmation signal.
+* `gpu_campaign.py` — sections C-E orchestration: `GPU_HOST_OMP_THREADS_DEFAULT`
+  (section D's fixed initial host configuration, `resolve_gpu_host_env`
+  building it the same explicit way `omp_sweep.build_omp_env` does),
+  `build_unsupported_precision_record` (section C: `MIXED` recorded as the
+  schema's first-class unsupported state, matching
+  `tests/fixtures/valid/cuda_mixed_precision_unsupported.json`, never
+  attempted -- `CMakeLists.txt` fatal-errors `MIXED` at configure time) and
+  `build_unavailable_memory_record` (section E: a supported build/size this
+  campaign decided not to attempt, based on `gpu_memory`'s classification).
+  Both write records through the same `benchmark_record.v1.schema.json`
+  contract CPU records use -- no separate GPU-only result shape.
+* `precision_metrics.py` — section F: `compute_r_gpu_32_64` (`R_GPU_32_64 =
+  T_GPU_DOUBLE / T_GPU_SINGLE`) over one homogeneous GPU precision family,
+  modelled on `omp_scaling.py`'s family pattern. `compute_r_cpu_32_64` always
+  raises -- there is no effective CPU SINGLE mode to ratio against DOUBLE
+  (`precision_audit.CPU_EFFECTIVE_PRECISION`), so this makes that refusal
+  explicit rather than the function simply not existing.
+* `gpu_sanity.py` — section G: `sanity_check_cpu_vs_gpu`, the CPU/GPU
+  counterpart to `omp_sanity.sanity_check_thread_counts` (same underlying
+  `compare_restart_moments`, which does not care which run-configuration
+  dimension differs between the two samples), with a precision-aware default
+  magnitude tolerance (looser for a GPU SINGLE sample than for DOUBLE).
 
 The harness writes records; it never edits tracked templates, and it never
 writes generated data into a tracked directory.

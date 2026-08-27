@@ -30,6 +30,7 @@ import time
 
 from harness import cpu_provenance
 from harness import gpu_provenance
+from harness import precision_audit
 from harness import source_provenance
 
 BACKGROUND_LOAD_RATIO_THRESHOLD = 1.15
@@ -85,6 +86,7 @@ def build_static_context(
         if gpu_runtime is None:
             flags.add("metadata_incomplete")
 
+    requested_precision = source["requested_precision"]
     context = {
         "machine_id": machine_id,
         "backend": backend,
@@ -94,11 +96,15 @@ def build_static_context(
         "omp_proc_bind": omp["omp_proc_bind"],
         "omp_dynamic": omp["omp_dynamic"],
         "process_affinity": affinity,
-        "requested_precision": source["requested_precision"],
-        "effective_cpu_precision": "UNKNOWN",
-        "effective_gpu_precision": "UNKNOWN" if gpu_backend else None,
+        "requested_precision": requested_precision,
+        "effective_cpu_precision": precision_audit.effective_cpu_precision(requested_precision),
+        "effective_gpu_precision": precision_audit.effective_gpu_precision(requested_precision, gpu_backend),
         "precision_support_state": source["precision_support_state"],
-        "comparison_precision_class": None if source["precision_support_state"] == "unsupported" else "UNAUDITED",
+        # Finalized per sample once run_status is known -- see
+        # runner.run_sample, which calls
+        # precision_audit.classify_comparison_precision_class rather than
+        # reading a static value out of this context.
+        "comparison_precision_class": None,
         "git_commit": source["git_commit"],
         "git_dirty": source["git_dirty"],
         "git_dirty_files": source["git_dirty_files"],

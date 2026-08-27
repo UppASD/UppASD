@@ -102,6 +102,9 @@ subtracting unrelated profiler phase timings.
   configuration, sample, campaign.
 * [`VALIDITY.md`](VALIDITY.md) — numerical versus environment validity,
   quality flags, precision semantics.
+* [`PRECISION_AUDIT.md`](PRECISION_AUDIT.md) — what `UPPASD_PRECISION`
+  actually changes, component by component, with source citations: the CPU
+  path is double precision in every build, only the GPU path responds.
 * [`schema/README.md`](schema/README.md) — the result contract and its
   versioning policy.
 

@@ -37,6 +37,7 @@ import time
 
 from harness import cases as cases_mod
 from harness import measurement_profiles
+from harness import precision_audit
 from harness import provenance as provenance_mod
 from harness import schema_validate
 from harness import workload_metadata as workload_metadata_mod
@@ -408,6 +409,15 @@ def run_sample(
         quality_flags.add("dirty_tree")
     environment_valid = completed and not quality_flags
 
+    comparison_precision_class = precision_audit.classify_comparison_precision_class(
+        backend=context["backend"],
+        gpu_backend=context.get("gpu_backend"),
+        precision_support_state=context["precision_support_state"],
+        effective_cpu_precision=context.get("effective_cpu_precision"),
+        effective_gpu_precision=context.get("effective_gpu_precision"),
+        run_status=assessment.run_status,
+    )
+
     record = {
         "schema_version": SCHEMA_VERSION,
         "record_kind": "raw_sample",
@@ -441,7 +451,7 @@ def run_sample(
         "effective_cpu_precision": context.get("effective_cpu_precision"),
         "effective_gpu_precision": context.get("effective_gpu_precision"),
         "precision_support_state": context["precision_support_state"],
-        "comparison_precision_class": context.get("comparison_precision_class"),
+        "comparison_precision_class": comparison_precision_class,
         "git_commit": context["git_commit"],
         "git_dirty": context["git_dirty"],
         "git_dirty_files": context.get("git_dirty_files", []),
