@@ -38,6 +38,22 @@ CASE_SCHEMA_PATH = schema_validate.SCHEMA_DIR / "case_manifest.v1.schema.json"
 # dump (source/Hamiltonian/printhamiltonian.f90::prn_exchange), which is the
 # real production output the E. workload-metadata neighbour parser reads.
 # It changes no Hamiltonian, lattice or moment parameter.
+#
+# `gpu_mode` is included for the same reason `do_prnstruct` is: it is a
+# runtime backend-dispatch switch, not a Hamiltonian/lattice/moment
+# parameter. source/Input/inputhandler.f90's `gpu_mode` case sets `do_gpu`;
+# source/uppasd.f90's `run_initial_phase`/`run_measurement_phase` dispatch
+# to the GPU driver (`sd_iphaseGPU`/`sd_mphaseGPU`) only when `do_gpu=='Y'`,
+# else the ordinary Fortran CPU path -- and on a build without CUDA/HIP
+# compiled in, that GPU driver is `source/Tools/nocuda.f90`'s stub module,
+# whose subroutines silently `return` with no work done. A case template
+# shared between CPU and GPU backends (as the same case_id/variant_id/
+# size_id is, across backend records) therefore cannot bake in one fixed
+# `gpu_mode`: baking in 1 would make a CPU-only build silently skip the
+# simulation it was asked to run, and baking in 0 would make a GPU build
+# never dispatch to the device. It must be a per-run override instead --
+# a WP-06-style GPU campaign passes `extra_overrides={"gpu_mode": 1}` for
+# its GPU samples, leaving the template's own baseline (0) for CPU samples.
 GLOBALLY_SAFE_OVERRIDE_KEYS = frozenset(
     {
         "ncell",  # supercell replication -- the sanctioned size axis
@@ -49,6 +65,7 @@ GLOBALLY_SAFE_OVERRIDE_KEYS = frozenset(
         "tottraj_step",
         "ene_step",  # measurement cadence
         "do_prnstruct",  # request struct.<simid>.out for neighbour metadata
+        "gpu_mode",  # runtime CPU/GPU backend dispatch, not a physics parameter
     }
 )
 

@@ -5,13 +5,13 @@ manifest and the input templates it owns.
 
 Planned families (blueprint §3):
 
-| Case | Workload |
-| --- | --- |
-| `B01_bccFe` | bcc Fe, medium-range interactions — central reference case |
-| `B02_skyrmion2D` | 2D skyrmion, short-range J+D |
-| `B03_skyrmion3D` | 3D skyrmion/chiral magnet, short-range J+D |
-| `B04_dhcpNd` | dhcp Nd, very long-range interactions |
-| `B05_dipoleFFT` | dipole/FFT workload |
+| Case | Workload | Status |
+| --- | --- | --- |
+| [`B01_bccFe`](B01_bccFe/README.md) | bcc Fe, medium-range interactions — central reference case | Admitted (WP-08A) |
+| `B02_skyrmion2D` | 2D skyrmion, short-range J+D | Not yet admitted |
+| `B03_skyrmion3D` | 3D skyrmion/chiral magnet, short-range J+D | Not yet admitted |
+| `B04_dhcpNd` | dhcp Nd, very long-range interactions | Not yet admitted |
+| `B05_dipoleFFT` | dipole/FFT workload | Not yet admitted |
 
 Rules that already apply:
 
@@ -25,10 +25,12 @@ Rules that already apply:
   truncated, cutoffs are not reduced, weak interactions are not discarded and
   the basis is not simplified in order to make benchmarking easier.
 
-The B01–B05 physics families above are not yet admitted: their production
+The B02–B05 physics families above are not yet admitted: their production
 input templates come from the maintainer, not from this framework, and are
-added independently by **WP-08A**…**WP-08E**. What WP-02 provides is the
-mechanism they will plug into.
+added independently by **WP-08B**…**WP-08E**. What WP-02 provides is the
+mechanism they plug into. `B01_bccFe` was admitted by **WP-08A**; see
+[`B01_bccFe/README.md`](B01_bccFe/README.md) for its template audit,
+size-ladder rationale and scaling/sanity validation.
 
 ## Case manifest (WP-02)
 
@@ -60,11 +62,14 @@ worked example.
 case may ever declare overridable: `ncell` (supercell replication), `Nstep`
 (step count), `tseed` (RNG seed), `temp` (temperature, only when a case
 variant defines it), `avrg_step`/`cumu_step`/`tottraj_step`/`ene_step`
-(measurement cadence), and `do_prnstruct` (requests UppASD's own
+(measurement cadence), `do_prnstruct` (requests UppASD's own
 `struct.<simid>.out` diagnostic dump, which the neighbour-workload metadata
-parser reads — it changes no Hamiltonian, lattice or moment parameter). A
-case's `allowed_input_overrides` only ever narrows this set. Anything outside
-it — exchange/DMI parameters, interaction cutoffs, lattice structure
+parser reads), and `gpu_mode` (CPU/GPU backend dispatch — see
+[`B01_bccFe/README.md`](B01_bccFe/README.md#backend-dispatch-gpu_mode) for
+why this is a per-run override rather than template content). None of these
+changes any Hamiltonian, lattice or moment parameter. A case's
+`allowed_input_overrides` only ever narrows this set. Anything outside it —
+exchange/DMI parameters, interaction cutoffs, lattice structure
 (`cell`/`BC`/`Sym`), magnetic moments, or any other Hamiltonian term — is
 rejected outright, at manifest-load time for variant overrides and at
 override-build time for any other requested override; it is never silently
