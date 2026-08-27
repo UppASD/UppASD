@@ -71,7 +71,7 @@ subtracting unrelated profiler phase timings.
 | `schema/` | Versioned machine-readable result contract (JSON Schema) and its changelog. | WP-01 (this) |
 | `cases/` | Immutable case manifests and input templates: physics families, variants, legal size ladders, workload metadata, input override allow-lists. | WP-02 (this) |
 | `campaigns/` | Declarative campaign manifests: which cases, sizes, builds and run configurations a LEAN or FULL campaign executes. | WP-09 |
-| `harness/` | Execution and validation code: record validation (now), run isolation, provenance capture, environment-quality gating, timing (later). | WP-01 → WP-06 |
+| `harness/` | Execution and validation code: record validation, case/template handling, production-executable timing and steady-state fitting (now); provenance capture and environment-quality gating (later). | WP-01 → WP-04 |
 | `analysis/` | Aggregation, fitting, crossover detection, throughput metrics, plots and reports. Consumes records; never produces them. | WP-07 |
 | `tests/` | Infrastructure tests: schema validation, manifest validation, harness logic, aggregation logic. No performance thresholds. | WP-01 → |
 

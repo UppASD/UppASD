@@ -40,7 +40,7 @@ class WorkloadMetadataError(ValueError):
     """A workload-metadata parser could not determine its fields."""
 
 
-def _count_basis_atoms(run_dir):
+def count_basis_atoms(run_dir):
     posfile_name = cases_mod.read_keyword(run_dir, "posfile")
     if posfile_name is None:
         raise WorkloadMetadataError(f"{run_dir}: inpsd.dat has no posfile keyword")
@@ -116,7 +116,7 @@ def fft_grid_from_replication(case, size, run_dir):
     fft_grid = [n1, n2, n3]
     fft_grid_padded = [2 * n1 - 1, 2 * n2 - 1, 2 * n3 - 1]
     fft_grid_points = fft_grid_padded[0] * fft_grid_padded[1] * fft_grid_padded[2]
-    natom = _count_basis_atoms(run_dir) * n1 * n2 * n3
+    natom = count_basis_atoms(run_dir) * n1 * n2 * n3
     return {
         "natom": natom,
         "fft_grid": fft_grid,
@@ -129,6 +129,18 @@ PARSERS = {
     "neighbor_list_from_struct_output": neighbor_list_from_struct_output,
     "fft_grid_from_replication": fft_grid_from_replication,
 }
+
+
+def expected_natom(case, size, run_dir):
+    """Independently compute the atom count a run at ``(case, size)`` must report.
+
+    Used by the WP-03 runner as a validity cross-check: it is derived from
+    the case's own replication and the generated run's own posfile -- the
+    same two real inputs every workload-metadata parser above already uses --
+    never from whatever the executed run itself reports.
+    """
+    n1, n2, n3 = cases_mod.replication_to_ncell(case, size)
+    return count_basis_atoms(run_dir) * n1 * n2 * n3
 
 
 def compute_workload_metadata(case, size, run_dir):

@@ -39,4 +39,8 @@ allowed_input_overrides:
   - tseed
   - temp
   - do_prnstruct
+  - avrg_step
+  - cumu_step
+  - tottraj_step
+  - ene_step
 workload_metadata_method: neighbor_list_from_struct_output

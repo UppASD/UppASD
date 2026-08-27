@@ -54,6 +54,19 @@ GLOBALLY_SAFE_OVERRIDE_KEYS = frozenset(
 
 _INPUT_FILENAME = "inpsd.dat"
 
+# Case-level workload_class (blueprint section 3/5) -> the per-record
+# workload_class enum in benchmark_record.v1.schema.json. See
+# benchmarks/cases/README.md's mapping table; kept here because it is the
+# one place both the case manifest and the WP-03 runner (which writes
+# records) both depend on.
+RECORD_WORKLOAD_CLASS = {
+    "short_range_neighbor": "NEIGHBOR_LIST",
+    "medium_range_neighbor": "NEIGHBOR_LIST",
+    "long_range_neighbor": "NEIGHBOR_LIST",
+    "fft_dipole": "FFT_DIPOLE",
+    "neighbor_plus_dipole": "NEIGHBOR_LIST_PLUS_FFT_DIPOLE",
+}
+
 
 class CaseManifestError(ValueError):
     """A case manifest, or an operation on a resolved case, is invalid."""
@@ -74,6 +87,11 @@ class Case:
     @property
     def infrastructure_test_only(self):
         return bool(self.manifest.get("infrastructure_test_only", False))
+
+    @property
+    def record_workload_class(self):
+        """This case's `workload_class`, mapped onto the per-record enum."""
+        return RECORD_WORKLOAD_CLASS[self.manifest["workload_class"]]
 
     def resolve_variant(self, variant_id):
         for variant in self.manifest["variants"]:
