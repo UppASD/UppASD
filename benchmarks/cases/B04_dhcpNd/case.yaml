@@ -1,0 +1,114 @@
+schema_version: "1.0.0"
+id: B04_dhcpNd
+description: >
+  dhcp Nd, very long-range RKKY-type exchange interaction cloud (blueprint
+  B04) -- the framework's deliberately interaction-heavy neighbour-list
+  workload. Input template is the maintainer-supplied production deck
+  examples/SimpleSystems/dhcpNd (copied verbatim except one override-
+  mechanism-correctness fix; see README.md for the full audit).
+template_directory: template
+workload_class: long_range_neighbor
+dimensionality: "3D"
+scalable_dimensions: ["Nx", "Ny", "Nz"]
+expected_physics:
+  lattice: >
+    dhcp (double hexagonal close-packed), four-atom basis (posfile.cartesian,
+    reduced Cartesian units with a=1: (0,0,0), (0,0,1.61284),
+    (0,-0.57735,-0.80642), (0,0.57735,0.80642)), hexagonal cell (a=b,
+    gamma=120 degrees, c/a = 3.225675934279231), Sym=0 (no symmetry
+    expansion -- the jfile.cut5 list is the full directed set), fully
+    periodic (BC P P P).
+  hamiltonian_terms: ["exchange"]
+  notes: >
+    Exchange only (no DMI/anisotropy/dipole keyword present): a single
+    RKKY-type Heisenberg exchange list (jfile.cut5, maptype 3 explicit
+    (iatom, jatom, n1, n2, n3, J) directed bonds) cut off at a real-space
+    radius large enough to require lattice-translation offsets out to
+    n1,n2=+-6, n3=+-2. Below a real, directly measured floor this aliases
+    the same physical neighbour onto itself through different periodic
+    wraps (double/triple/...-counting its coupling) -- n=12 is the
+    smallest replication with zero duplicate neighbour-list entries
+    (README.md section B/D); no such floor exists for
+    B01_bccFe/B02_skyrmion2D/B03_skyrmion3D's much shorter cutoffs.
+    5,352 directed template bonds across the 4 basis atoms
+    (1340+1340+1336+1336), measured directly in struct.<simid>.out at
+    every tested size (README.md section D) -- constant ~1338
+    directed-interactions/atom, roughly 14-220x the coordination number of
+    B01_bccFe (96) depending on which shell-count convention is compared.
+    Maintainer-supplied production temperature: 2.00000001 K (the
+    template's own baseline `Temp` value; used verbatim by
+    dhcpNd_finite_t, never invented). Initial state: Initmag 1 (random,
+    seeded by `tseed`) -- unlike B01/B02/B03's uniform Initmag 3; see
+    README.md for what this means for CPU/GPU sanity comparison.
+    Integrator: Heun (SDEalgh unset -> default), damping 0.5, timestep
+    1.0e-15 s. ip_mode N: no initial phase executes despite the
+    ip_mcanneal block being present (source/System/damping.f90:155,
+    same dead-input pattern B01_bccFe/README.md documents).
+variants:
+  - id: dhcpNd_t0
+    description: >
+      Zero-temperature relaxation dynamics. Deterministic input parameters
+      (harness.gpu_sanity requires temperature==0); see README.md for
+      whether the random Initmag-1 initial state is itself bit-reproducible
+      across backends at fixed tseed.
+    overrides:
+      temp: 0.0
+      tseed: 1
+  - id: dhcpNd_finite_t
+    description: >
+      Finite-temperature Langevin dynamics at the maintainer-supplied
+      production temperature (2.00000001 K, the template's own baseline --
+      not an invented "representative" value).
+    overrides:
+      temp: 2.00000001
+      tseed: 2
+sizes:
+  # Nx=Ny=Nz=n, natom = 4*n^3 (four-atom dhcp basis). Unlike
+  # B01_bccFe/B02_skyrmion2D/B03_skyrmion3D, n cannot start near this
+  # project's usual ~4k tier: jfile.cut5's long-range bonds alias onto
+  # their own periodic images (the same physical neighbour double/triple/
+  # ...-counted through different lattice-translation wraps) below a real,
+  # directly measured floor -- n=12 is the smallest replication with zero
+  # duplicate (iatom, r_ij) neighbour-list entries; n=8 still has 327
+  # duplicate entries per checked atom (max one neighbour repeated 3x),
+  # n=4 has 1084 (max repeat 7x) -- see README.md section B/D for the full
+  # measurement. n=16 is used as this ladder's floor, a comfortable margin
+  # above the confirmed-clean n=12, and also this project's established
+  # smallest-tier convention (matches B03_skyrmion3D's own floor). The
+  # ladder's top is capped by real measured/queried memory limits on this
+  # development host (README.md section D/F), per blueprint B04: "stop
+  # when genuine memory/resource limits are reached... do not require 4M
+  # atoms merely for symmetry" with the other cases' ladders.
+  - id: 16x16x16   # natom=16384   (target 16384,  exact)
+    replication: [16, 16, 16]
+  - id: 20x20x20   # natom=32000   (target 32768,  -2.3%)
+    replication: [20, 20, 20]
+  - id: 25x25x25   # natom=62500   (target 65536,  -4.6%)
+    replication: [25, 25, 25]
+  - id: 32x32x32   # natom=131072  (target 131072, exact -- maintainer's own production size)
+    replication: [32, 32, 32]
+  - id: 40x40x40   # natom=256000  (target 262144, -2.3%)
+    replication: [40, 40, 40]
+  - id: 50x50x50   # natom=500000  (target 524288, -4.6%)
+    replication: [50, 50, 50]
+  - id: 64x64x64   # natom=1048576 (target 1048576, exact --
+                    # GPU DOUBLE crosses into unavailable_memory here; see README.md)
+    replication: [64, 64, 64]
+  - id: 80x80x80   # natom=2048000 (target 2097152, -2.3% -- ladder ceiling,
+                    # both GPU precisions unavailable_memory here, CPU still fits;
+                    # the next natural tier (100x100x100, ~4M atoms) is where CPU
+                    # itself is predicted unavailable_memory too -- deliberately
+                    # not admitted, see README.md section D/F)
+    replication: [80, 80, 80]
+allowed_input_overrides:
+  - ncell
+  - Nstep
+  - tseed
+  - temp
+  - do_prnstruct
+  - avrg_step
+  - cumu_step
+  - tottraj_step
+  - ene_step
+  - gpu_mode
+workload_metadata_method: neighbor_list_from_struct_output

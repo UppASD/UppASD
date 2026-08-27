@@ -10,7 +10,7 @@ Planned families (blueprint §3):
 | [`B01_bccFe`](B01_bccFe/README.md) | bcc Fe, medium-range interactions — central reference case | Admitted (WP-08A) |
 | [`B02_skyrmion2D`](B02_skyrmion2D/README.md) | 2D skyrmion, short-range J+D | Admitted (WP-08B) |
 | [`B03_skyrmion3D`](B03_skyrmion3D/README.md) | 3D skyrmion/chiral magnet, short-range J+D | Admitted (WP-08C) |
-| `B04_dhcpNd` | dhcp Nd, very long-range interactions | Not yet admitted |
+| [`B04_dhcpNd`](B04_dhcpNd/README.md) | dhcp Nd, very long-range interactions | Admitted (WP-08D) |
 | `B05_dipoleFFT` | dipole/FFT workload | Not yet admitted |
 
 Rules that already apply:
@@ -25,10 +25,10 @@ Rules that already apply:
   truncated, cutoffs are not reduced, weak interactions are not discarded and
   the basis is not simplified in order to make benchmarking easier.
 
-The B04–B05 physics families above are not yet admitted: their production
-input templates come from the maintainer, not from this framework, and are
-added independently by **WP-08D**…**WP-08E**. What WP-02 provides is the
-mechanism they plug into. `B01_bccFe` was admitted by **WP-08A**; see
+`B05_dipoleFFT` is not yet admitted: its production input template comes
+from the maintainer, not from this framework, and is added independently
+by **WP-08E**. What WP-02 provides is the mechanism it plugs into.
+`B01_bccFe` was admitted by **WP-08A**; see
 [`B01_bccFe/README.md`](B01_bccFe/README.md) for its template audit,
 size-ladder rationale and scaling/sanity validation. `B02_skyrmion2D` was
 admitted by **WP-08B**; see
@@ -43,7 +43,17 @@ a maintainer-approved *derived* construction rather than a verbatim copy
 -- see [`B03_skyrmion3D/README.md`](B03_skyrmion3D/README.md) for the full
 audit, the exact derivation from `B02_skyrmion2D`'s template, and why this
 case's simplified initial condition makes it a *stronger* CPU/GPU
-bit-exactness discriminator than `B02_skyrmion2D`'s.
+bit-exactness discriminator than `B02_skyrmion2D`'s. `B04_dhcpNd` was
+admitted by **WP-08D**; unlike `B01`-`B03`, its ~1338
+directed-interactions/atom exchange cutoff is large enough to alias onto
+itself through the periodic boundary below a real, measured minimum
+supercell size, and large enough that CPU (not only GPU) memory
+availability becomes a genuine per-size classification question -- see
+[`B04_dhcpNd/README.md`](B04_dhcpNd/README.md) for the aliasing-floor
+measurement, the new `harness/host_memory.py` CPU memory classifier this
+admission added (mirroring WP-06's GPU-side `gpu_memory.py`), and why this
+case's size ladder deliberately stops short of the ~4M-atom tier every
+other admitted case reaches.
 
 ## Case manifest (WP-02)
 

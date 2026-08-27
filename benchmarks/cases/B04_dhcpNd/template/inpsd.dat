@@ -1,0 +1,72 @@
+simid dhcpNd01
+ncell     32 32 32
+BC        P         P         P                 Boundary conditions (0=vacuum, P=periodic)
+cell      0.500000000000000  -0.866025403784439  0.000000000000000
+          0.500000000000000   0.866025403784439  0.000000000000000
+          0.000000000000000   0.000000000000000  3.225675934279231
+Sym       0                                     Symmetry of lattice (0 for no, 1 for cubic, 2 for 2d cubic, 3 for hexagonal)
+do_prnstruct 2
+
+posfile    ./posfile.cartesian
+momfile    ./momfile
+exchange   ./jfile.cut5
+maptype 3
+
+#Initmag   1                                     Initial config of moments (1=random, 2=cone, 3=spec., 4=file)
+#Initmag   3                                     Initial config of moments (1=random, 2=cone, 3=spec., 4=file)
+Initmag   1                                     Initial config of moments (1=random, 2=cone, 3=spec., 4=file)
+#restartfile ./start.2K
+
+tseed 1
+
+ip_mode   N
+ip_mcanneal 1
+150000   6.00000001
+ip_hfield 0.0 0.0 0.00
+
+mode      S
+Temp      2.00000001   K                     Temperature of the system
+hfield    0.00000   0.00000   0.00           Static H field
+nstep     10000                                Number of time-steps
+timestep  1.0e-15
+damping   0.5
+
+do_avrg   Y                                     Measure averages
+avrg_step 100
+avrg_buff 1
+
+do_tottraj N                                    Measure moments
+tottraj_step 1000
+tottraj_buff 1
+
+gpu_mode 0
+map_multiple T
+
+plotenergy 1
+ene_step 100
+ene_buff 1
+
+do_cumu Y
+cumu_step 100
+cumu_buff 1
+
+do_reduced Y
+
+do_stiffness N
+alat 3.6579e-10
+eta_min 14
+eta_max 22
+
+do_sc N
+do_sc_proj N
+qpoints F
+qfile ./qpoints.bz
+sc_sep 10000
+sc_step 10000
+sc_nstep 20
+
+do_gpu_measurements Y
+do_meminfo 1
+
+
+do_gpu_convolution N
