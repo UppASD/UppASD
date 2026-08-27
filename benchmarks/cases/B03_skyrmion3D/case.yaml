@@ -1,0 +1,116 @@
+schema_version: "1.0.0"
+id: B03_skyrmion3D
+description: >
+  Genuinely three-dimensional short-range exchange+DMI chiral magnet
+  (blueprint B03) -- contrasted against B02_skyrmion2D's quasi-two-
+  dimensional short-range workload while retaining the same Hamiltonian
+  class (simple-cubic nearest-neighbour exchange + Bloch DMI), and against
+  B01_bccFe's medium-range three-dimensional workload. Per blueprint B03, a
+  separate Hopfion benchmark is intentionally omitted: its ordinary ASD
+  computational workload is sufficiently represented by this family.
+
+  Unlike B01_bccFe/B02_skyrmion2D, no existing maintainer example deck is a
+  genuinely bulk (three-dimensionally periodic) short-range J+D system --
+  the only J+D decks in examples/ are quasi-2D (SkyrmionLattice,
+  SkyrmionTransport, SpinWaves/ChiralSpiral: all `BC P P 0`). This template
+  is therefore a maintainer-approved *derived* construction (not a verbatim
+  copy): examples/SpecialFeatures/SkyrmionLattice's square-lattice NN
+  exchange + Bloch DMI is extended isotropically to the third (z) axis --
+  same bond magnitudes (J=1.0, |D|=0.8165), same Bloch convention (D
+  parallel to bond) -- turning the quasi-2D single layer into a genuine
+  simple-cubic bulk lattice (`BC P P P`). See README.md for the full audit,
+  the exact template diff, and why `ip_mode Y`'s triple-Q search was
+  dropped rather than extended to 3D.
+template_directory: template
+workload_class: short_range_neighbor
+dimensionality: "3D"
+scalable_dimensions: ["Nx", "Ny", "Nz"]
+expected_physics:
+  lattice: >
+    Simple cubic lattice, single-atom basis (posfile: (0,0,0) only), cell
+    (1,0,0)/(0,1,0)/(0,0,1) in reduced units, genuinely three-dimensional
+    and fully periodic (BC P P P) -- vs. B02_skyrmion2D's single-layer
+    (BC P P 0) quasi-2D geometry.
+  hamiltonian_terms: ["exchange", "dm"]
+  notes: >
+    Exchange: 6 nearest-neighbour bonds (+-x, +-y, +-z), J=1.0 (jij),
+    Sym=0 (no symmetry expansion -- the 6 listed bonds are the full
+    directed list, verified directly in struct.<simid>.out at every tested
+    size: "Maximum num of neighbours: 6"). DMI: same 6 nearest-neighbour
+    bonds, |D|=0.8165, D parallel to each bond (Bloch-type, matching
+    B02_skyrmion2D's in-plane convention, extended unchanged to the z
+    axis) -- dmdata.<simid>.out confirms 6 directed DM bonds/atom at every
+    tested size. No anisotropy (#anisotropy commented out, do_anisotropy
+    stays 0). External field: hfield 0 0 -150 (same easy-axis-like Zeeman
+    field as B02_skyrmion2D's template, carried over unchanged). Initial
+    state: Initmag 3 (uniform direction from momfile, (0.1,0,1.0)
+    normalized, mmom=1.0) -- ip_mode is N (not Y): B02_skyrmion2D's
+    triple-Q qminimizer search (qm_svec/qm_nvec/qfile) is tuned to a
+    strictly in-plane (qz=0) reciprocal-lattice slice and does not
+    generalize to a bulk cubic lattice without inventing a new 3D q-grid,
+    so it is dropped rather than extended (see README.md). qfile is still
+    present and referenced (qpoints F) purely because
+    source/Correlation/qvectors.f90::read_q is called unconditionally
+    whenever qpoints is one of F/D/I/B/G regardless of do_sc -- removing
+    the file causes a hard runtime crash ("Cannot open file ''"), a real
+    source finding documented in README.md; the file's 129 q-points are
+    otherwise inert here (do_sc N, qpoints F, ip_mode N). Integrator:
+    Heun (SDEalgh 1), damping 0.5, timestep 1.0e-15 s, Nstep 5000.
+    Known, verified consequence of the uniform Initmag-3 initial state
+    (not a bug): for any spatially homogeneous spin configuration on this
+    lattice, each nearest-neighbour bond pair's Bloch D-vectors are equal
+    and opposite (D_{i,+e}= -D_{i,-e}), so their cross-product
+    contributions to the effective field cancel exactly -- confirmed
+    directly (totenergy.<simid>.out DM column stays at floating-point
+    noise, ~1e-17, across 200 measured steps at T=0) -- see README.md
+    section A. The full 6+6 directed-interaction neighbour list is still
+    evaluated by the solver every step regardless (verified via
+    struct/dmdata output); the benchmark's workload is this per-step
+    neighbour-list evaluation, not the resulting spin texture (per
+    blueprint B03/WP-08C: "Do not claim the initial spin texture itself
+    constitutes a new kernel workload").
+variants:
+  - id: skyrmion_3d_t0
+    description: >
+      Zero-temperature relaxation dynamics from the uniform Initmag-3
+      initial condition. Deterministic (harness.gpu_sanity requires
+      temperature==0); the required CPU-vs-GPU physical-consistency
+      reference, mirroring B01_bccFe's/B02_skyrmion2D's own T=0 variants.
+    overrides:
+      temp: 0.0
+      tseed: 1
+sizes:
+  # Nx=Ny=Nz=n, natom=n^3 (single-atom basis, simple cubic). Isotropic
+  # bulk cubes targeting the framework's ~4x ladder 4k/16k/64k/256k/1M/4M
+  # atoms; n is the closest legal integer replication to each target --
+  # geometry is never distorted to force an exact atom count (same
+  # methodology as B01_bccFe's cube ladder). 40x40x40 (64,000 atoms) is
+  # the closest tier to this project's established historical 65,536-atom
+  # 3D reference size (B01_bccFe's 32x32x32 lands on it exactly with its
+  # two-atom bcc basis; this case's single-atom simple-cubic basis cannot
+  # land exactly, same as several of B01_bccFe's own tiers).
+  - id: 16x16x16   # natom=4096    (target 4096,    exact)
+    replication: [16, 16, 16]
+  - id: 25x25x25   # natom=15625   (target 16384,   -4.6%)
+    replication: [25, 25, 25]
+  - id: 40x40x40   # natom=64000   (target 65536,   -2.3%, closest to historical reference)
+    replication: [40, 40, 40]
+  - id: 63x63x63   # natom=250047  (target 262144,  -4.6%)
+    replication: [63, 63, 63]
+  - id: 101x101x101 # natom=1030301 (target 1048576, -1.7%)
+    replication: [101, 101, 101]
+  - id: 161x161x161 # natom=4173281 (target 4194304, -0.5%)
+    replication: [161, 161, 161]
+allowed_input_overrides:
+  - ncell
+  - Nstep
+  - tseed
+  - temp
+  - do_prnstruct
+  - avrg_step
+  - cumu_step
+  - tottraj_step
+  - ene_step
+  - gpu_mode
+  - skyno
+workload_metadata_method: neighbor_list_from_struct_output
