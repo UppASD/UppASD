@@ -1,0 +1,34 @@
+simid dipFFT01
+ncell     16 16 1
+BC        0         0         0
+cell      1.00000   0.00000   0.00000
+          0.00000   1.00000   0.00000
+          0.00000   0.00000   1.00000
+
+do_prnstruct 2
+posfile   ./posfile
+exchange ./jij
+momfile ./momfile
+
+SDEalgh   5
+Initmag   3
+
+mode      S
+temp      0.000
+hfield    0.0000    0.0000    0.000
+
+damping   0.400
+Nstep     5000
+timestep  1.000d-15       s
+
+plotenergy   1
+ene_step 100
+
+do_avrg Y
+avrg_step 100
+
+alat 1.0e-9
+
+do_dip 0
+gpu_mode 0
+gpu_dipole_mode OFF

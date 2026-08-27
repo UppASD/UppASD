@@ -1,0 +1,130 @@
+schema_version: "1.0.0"
+id: B05_dipoleFFT
+description: >
+  Open-boundary simple-cubic dipole/FFT workload (blueprint B05) -- the
+  framework's algorithmically different, FFT-dominated production
+  benchmark, contrasted against every B01-B04 neighbour-list family.
+  Geometry (single-atom simple cubic, isotropic exchange, open BC) is
+  derived from this project's own internal dipole-validation fixtures
+  (`tests/SC2d_dipole`/`tests/SC3d_dipole`, the base decks
+  `tests/dipole_validation/generate_cases.py` already builds every dipole
+  regression/acceptance case from) with two disclosed, minimal physics
+  additions (isotropic 3D exchange, a non-degenerate moment direction) --
+  see README.md for the full audit and why the WP10 GPU `OPEN_FFT` solver,
+  not legacy CPU `do_dip=3`, is this case's FFT-accelerated path.
+template_directory: template
+workload_class: fft_dipole
+dimensionality: "3D"
+scalable_dimensions: ["Nx", "Ny", "Nz"]
+expected_physics:
+  lattice: >
+    Simple cubic, single-atom basis (posfile: (0,0,0) only, Sym unset -> 0),
+    cell (1,0,0)/(0,1,0)/(0,0,1) in reduced units, alat=1.0e-9 m -- fully
+    open (BC 0 0 0), the mandatory boundary condition for GPU
+    `gpu_dipole_mode OPEN_FFT` (source/Input/inputhandler.f90; WP10
+    blueprint section 8 "BC must be exactly 0 0 0").
+  hamiltonian_terms: ["exchange", "dipole"]
+  notes: >
+    Exchange: isotropic simple-cubic 6 nearest-neighbour bonds
+    (+-x,+-y,+-z), J=1.0 (jij) -- deliberately minimal and non-dominant
+    (O(N) cost, ~microseconds/atom-step), present only so ordinary ASD
+    dynamics remains valid per blueprint B05 section A ("ordinary exchange
+    remains present enough for valid ASD dynamics"); Mean-field Tc
+    estimate 210.5 K at this J, confirming it is genuinely active, not
+    inert. No anisotropy/DM (kdata/dmdata from the source SC fixtures were
+    not copied -- unreferenced by inpsd.dat there too, see README.md).
+    Dipole: CPU baseline `do_dip 0` / GPU baseline `gpu_dipole_mode OFF`
+    (both overridden per variant, see below) -- legacy CPU `do_dip=3`
+    (the FFT-based CPU dipole) is a **confirmed-broken, WP11-unaccepted**
+    implementation (docs/WP10_OPEN_FFT_BLUEPRINT.md section 9.2: measured
+    30.59% field error / -8.88% energy error versus the validated
+    `do_dip=1` reference) and is never used by this case; the CPU dipole
+    arm uses `do_dip=1` (finite direct point-dipole sum, independently
+    analytic-reference-validated per `tests/dipole_validation/README.md`),
+    and the GPU dipole arm uses `gpu_dipole_mode OPEN_FFT` (WP10, accepted,
+    commit 378010c3 "Close WP10 OPEN_FFT acceptance" -- an ancestor of this
+    branch's HEAD). The two are algorithmically different (CPU: O(Natom^2)
+    direct sum; GPU: O(NFFT log NFFT) zero-padded FFT convolution, exact
+    embedding formula NFFT_i = 2*Nx_i-1) -- this case's CPU/GPU comparison
+    is therefore a genuine algorithmic crossover, not merely a hardware
+    one, precisely because no correct same-algorithm CPU counterpart
+    exists (see README.md). Moment direction (0.1, 0.0, 1.0) (not a
+    trivial high-symmetry axis) is reused from B03_skyrmion3D's own
+    established convention (README.md section B: an isotropic cubic block
+    at this direction still lands on a near-exact dipole-energy
+    cancellation for a different, shape-driven reason -- a genuine
+    Lorentz-cavity-type effect for a cubic point-dipole lattice, not a
+    bug -- which is why this case's admitted sizes are thin-film/
+    racetrack-shaped, not cubes).
+variants:
+  - id: dipole_on
+    description: >
+      Dipole Hamiltonian active. CPU baseline override `do_dip=1` (finite
+      direct sum, the only WP11-validated CPU mode). A GPU sample must
+      additionally override `gpu_dipole_mode=OPEN_FFT` and `do_dip=0`
+      (mandatory -- WP10 requires legacy `do_dip=0` whenever
+      `gpu_dipole_mode` is not OFF) via `extra_overrides`, the same
+      per-backend-override pattern `gpu_mode` already uses in every prior
+      case.
+    overrides:
+      do_dip: 1
+  - id: dipole_off
+    description: >
+      Dipole Hamiltonian disabled everywhere (`do_dip=0`,
+      `gpu_dipole_mode=OFF`) -- otherwise the identical exchange-only
+      system, a physically legitimate control (blueprint B05 section E),
+      not a synthetic kernel-only stand-in. Used to estimate dipole's
+      incremental production cost.
+    overrides:
+      do_dip: 0
+      gpu_dipole_mode: "OFF"
+sizes:
+  # Geometry-preserving ladder (blueprint B05 section C): [Nx, Ny, Nz],
+  # natom = Nx*Ny*Nz (single-atom basis), NFFT = product of the zero-padded
+  # axes (2*Ni-1 each -- the exact OPEN_FFT/legacy-FFT embedding, matching
+  # harness/workload_metadata.py::fft_grid_from_replication and confirmed
+  # directly in this admission's own GPU startup diagnostic, README.md
+  # section D). Unlike B01-B04's isotropic cubes, shape itself is a first-
+  # class axis here: a cubic block's dipole field for this lattice nearly
+  # cancels by symmetry (README.md section B), so most tiers are
+  # deliberately thin-film (Nz=1) or racetrack (Nx>>Ny, Nz=1) shaped --
+  # the physically sensible geometry for a magnetostatics-dominated
+  # benchmark (blueprint B05 section A) -- with a few cubic/near-cubic
+  # tiers kept specifically to document that contrast. Three tiers
+  # (thin_128x64x1, racetrack_256x16x1, cube_32x24x16) intentionally match
+  # the exact shapes already measured at the FFT-kernel level in
+  # docs/terra_wp10_8_open_performance.md, so this admission's production-
+  # executable timings are directly comparable to that prior, narrower
+  # measurement.
+  - id: thin_16x16x1     # natom=256,   NFFT=31x31x1=961
+    replication: [16, 16, 1]
+  - id: thin_32x32x1     # natom=1024,  NFFT=63x63x1=3969
+    replication: [32, 32, 1]
+  - id: racetrack_256x16x1  # natom=4096, NFFT=511x31x1=15841 (matches WP10.8's own racetrack sample)
+    replication: [256, 16, 1]
+  - id: thin_64x64x1     # natom=4096,  NFFT=127x127x1=16129
+    replication: [64, 64, 1]
+  - id: thin_128x64x1    # natom=8192,  NFFT=255x127x1=32385 (matches WP10.8's own thin-film sample)
+    replication: [128, 64, 1]
+  - id: racetrack_512x32x1  # natom=16384, NFFT=1023x63x1=64449
+    replication: [512, 32, 1]
+  - id: cube_8x8x8       # natom=512,   NFFT=15x15x15=3375 -- near-cancelling cubic contrast case
+    replication: [8, 8, 8]
+  - id: cube_16x16x16    # natom=4096,  NFFT=31x31x31=29791 -- near-cancelling cubic contrast case
+    replication: [16, 16, 16]
+  - id: cube_32x24x16    # natom=12288, NFFT=63x47x31=91791 (matches WP10.8's own "fully 3D" sample)
+    replication: [32, 24, 16]
+allowed_input_overrides:
+  - ncell
+  - Nstep
+  - tseed
+  - temp
+  - do_prnstruct
+  - avrg_step
+  - cumu_step
+  - tottraj_step
+  - ene_step
+  - gpu_mode
+  - do_dip
+  - gpu_dipole_mode
+workload_metadata_method: fft_grid_from_replication

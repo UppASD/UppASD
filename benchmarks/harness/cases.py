@@ -73,6 +73,18 @@ GLOBALLY_SAFE_OVERRIDE_KEYS = frozenset(
         # diagnostic of the current spin state, not a Hamiltonian/lattice/
         # moment parameter.
         "skyno",
+        # Dipole Hamiltonian on/off (B05_dipoleFFT, WP-08E) -- the DIPOLE_ON/
+        # DIPOLE_OFF variant axis blueprint B05 section E asks for, same
+        # "a case variant defines it" justification as `temp`. `do_dip` is
+        # the legacy CPU dipole selector (0=off, 1=finite direct sum -- the
+        # only WP11-validated CPU mode, see B05_dipoleFFT/README.md);
+        # `gpu_dipole_mode` is the separate GPU selector (OFF/OPEN_FFT) --
+        # source/Input/inputhandler.f90's `gpu_dipole_mode` case. The two are
+        # independent keywords for independent backends (like `gpu_mode`),
+        # so both must be overridable per run rather than baked into one
+        # template default.
+        "do_dip",
+        "gpu_dipole_mode",
     }
 )
 

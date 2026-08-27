@@ -11,7 +11,7 @@ Planned families (blueprint §3):
 | [`B02_skyrmion2D`](B02_skyrmion2D/README.md) | 2D skyrmion, short-range J+D | Admitted (WP-08B) |
 | [`B03_skyrmion3D`](B03_skyrmion3D/README.md) | 3D skyrmion/chiral magnet, short-range J+D | Admitted (WP-08C) |
 | [`B04_dhcpNd`](B04_dhcpNd/README.md) | dhcp Nd, very long-range interactions | Admitted (WP-08D) |
-| `B05_dipoleFFT` | dipole/FFT workload | Not yet admitted |
+| [`B05_dipoleFFT`](B05_dipoleFFT/README.md) | open-boundary dipole/FFT workload | Admitted (WP-08E) |
 
 Rules that already apply:
 
@@ -25,9 +25,7 @@ Rules that already apply:
   truncated, cutoffs are not reduced, weak interactions are not discarded and
   the basis is not simplified in order to make benchmarking easier.
 
-`B05_dipoleFFT` is not yet admitted: its production input template comes
-from the maintainer, not from this framework, and is added independently
-by **WP-08E**. What WP-02 provides is the mechanism it plugs into.
+All five planned case families (blueprint §3) are now admitted.
 `B01_bccFe` was admitted by **WP-08A**; see
 [`B01_bccFe/README.md`](B01_bccFe/README.md) for its template audit,
 size-ladder rationale and scaling/sanity validation. `B02_skyrmion2D` was
@@ -53,7 +51,18 @@ availability becomes a genuine per-size classification question -- see
 measurement, the new `harness/host_memory.py` CPU memory classifier this
 admission added (mirroring WP-06's GPU-side `gpu_memory.py`), and why this
 case's size ladder deliberately stops short of the ~4M-atom tier every
-other admitted case reaches.
+other admitted case reaches. `B05_dipoleFFT` was admitted by **WP-08E**;
+unlike every other case, its dominant per-step cost is a global FFT-based
+dipole calculation rather than a neighbour-list sum -- no maintainer
+`examples/` deck exercises this, so its template is derived (with two
+disclosed, minimal changes) from this project's own internal dipole-
+validation base fixtures; see
+[`B05_dipoleFFT/README.md`](B05_dipoleFFT/README.md) for that audit, a
+confirmed-broken legacy CPU FFT-dipole implementation this case
+deliberately avoids using, a real "silently drops the dipole term with no
+error" backend-override trap, and why this case's size ladder is
+thin-film/racetrack-shaped rather than the isotropic cubes every other
+case uses.
 
 ## Case manifest (WP-02)
 
@@ -93,8 +102,16 @@ why this is a per-run override rather than template content), and `skyno`
 (skyrmion-number diagnostic method — see
 [`B02_skyrmion2D/README.md`](B02_skyrmion2D/README.md#backend-dispatch-gpu_mode-skyno)
 for why the GPU backend needs this overridden away from the maintainer's
-own `T` (triangulation) value, which it does not implement). None of these
-changes any Hamiltonian, lattice or moment parameter. A case's
+own `T` (triangulation) value, which it does not implement), and
+`do_dip`/`gpu_dipole_mode` (CPU/GPU dipole Hamiltonian on/off — see
+[`B05_dipoleFFT/README.md`](B05_dipoleFFT/README.md#a-template-audit) for
+why a GPU dipole sample needs both set together with `gpu_mode`, and what
+happens if one is forgotten). `temp`/`do_dip`/`gpu_dipole_mode` are the
+only entries here that change genuine Hamiltonian content rather than pure
+backend dispatch or diagnostics — each is safe-listed only because a case's
+own `variants` define the legal values, the same "a case variant defines
+it" justification `temp` already established. None of these changes any
+lattice or moment parameter. A case's
 `allowed_input_overrides` only ever narrows this set. Anything outside it —
 exchange/DMI parameters, interaction cutoffs, lattice structure
 (`cell`/`BC`/`Sym`), magnetic moments, or any other Hamiltonian term — is
