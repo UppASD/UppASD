@@ -99,7 +99,9 @@ def build_static_context(
         "requested_precision": requested_precision,
         "effective_cpu_precision": precision_audit.effective_cpu_precision(requested_precision),
         "effective_gpu_precision": precision_audit.effective_gpu_precision(requested_precision, gpu_backend),
-        "precision_support_state": source["precision_support_state"],
+        "precision_support_state": precision_audit.resolve_precision_support_state(
+            requested_precision, backend, gpu_backend
+        ),
         # Finalized per sample once run_status is known -- see
         # runner.run_sample, which calls
         # precision_audit.classify_comparison_precision_class rather than

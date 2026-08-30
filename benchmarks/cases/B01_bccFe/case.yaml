@@ -68,6 +68,12 @@ sizes:
     replication: [20, 20, 20]
   - id: 32x32x32   # natom=65536  (target 65536,  exact -- historical reference size)
     replication: [32, 32, 32]
+  - id: 40x40x40   # natom=128000 -- WP-10 intermediate tier, added (not part of the original
+                    # ~4x ladder) so the first authoritative campaign's "large" size can sit at
+                    # roughly half of 51x51x51's fixed-cost budget (fixed/setup cost was measured
+                    # to scale ~linearly with natom, ~0.2ms/atom) rather than the full 265302-atom
+                    # point, per docs/BENCHMARK_PRODUCTION_CHARACTERIZATION_2026-08-28.md.
+    replication: [40, 40, 40]
   - id: 51x51x51   # natom=265302 (target 262144, +1.2%)
     replication: [51, 51, 51]
   - id: 81x81x81   # natom=1062882 (target 1048576, +1.4%)

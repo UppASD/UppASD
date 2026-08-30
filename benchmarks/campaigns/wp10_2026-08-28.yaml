@@ -1,0 +1,72 @@
+schema_version: "1.0.0"
+id: wp10_2026-08-28
+description: >
+  WP-10 first authoritative production-performance characterization
+  (docs/UppASD Production Benchmark Framework.md section 15/WP-10). A
+  practical-scope descendant of full_crossover.yaml (blueprint section 15
+  "practical size ladders", not literal exhaustive ladders): 3 sizes per
+  case spanning small/historical-reference/large-but-tractable rather than
+  each case.yaml's full 6-12-size ladder up to 4M atoms, chosen jointly
+  with the human operator to keep the first authoritative run tractable on
+  a shared 8-physical-core/2-GPU development host (blueprint section 22
+  applies to the *executable under test*, not to campaign scope --
+  reducing the size ladder is a measurement-budget decision, not a
+  production optimization). The "large" tier for B01/B02/B03 uses a new
+  intermediate size added to each case's own size ladder (B01_bccFe
+  40x40x40=128000, B02_skyrmion2D 384x384=147456, B03_skyrmion3D
+  50x50x50=125000) rather than each case's original ~260k-atom "large"
+  point: pilot timing showed fixed/setup cost scales ~linearly with natom
+  (~0.2ms/atom) and dominates process_wall_seconds at these sizes, so
+  targeting ~125k-150k atoms instead of ~250k-265k keeps the campaign's
+  total wall time roughly proportionally lower while still exercising a
+  distinctly large tier. B04_dhcpNd's ladder is capped at 62500 atoms
+  (well below its case.yaml's own larger tiers): its long-range interaction
+  list is ~14-20x denser per atom than the other cases, and the one-time
+  workload-metadata probe (do_prnstruct=1, needed for
+  neighbor_list_from_struct_output) was observed to write a >9 GiB
+  struct.<simid>.out and still growing at 131072 atoms on this host's
+  45 GiB-free disk -- a real, disclosed scope limitation, not an oversight.
+  CPU and CUDA cells run together under one campaign_id/build/source
+  revision (single_campaign_execution), so every crossover computed from
+  this campaign's aggregates is a real same-run comparison, exactly as
+  full_crossover.yaml requires. Variant selection follows the WP-10 task
+  prompt section C literally: B01 gets both T=0 and finite-T (the only
+  case both are required); B02/B03 use their one available variant
+  (T=0 -- neither case defines a finite-T variant); B04 uses
+  dhcpNd_finite_t ("full long-range production variant"); B05 uses
+  dipole_on ("dipole-on production variant"). A full-ladder follow-up
+  campaign (full_crossover.yaml itself, or a widened version of this
+  manifest) is left as documented future work, not attempted here.
+tier: FULL
+backend_scope: CPU_AND_CUDA
+single_campaign_execution: true
+cases:
+  - case_id: B01_bccFe
+    variant_ids: ["bcc_fe_t0", "bcc_fe_finite_t"]
+    size_ids: ["20x20x20", "32x32x32", "40x40x40"]
+  - case_id: B02_skyrmion2D
+    variant_ids: ["skyrmion_2d_t0"]
+    size_ids: ["128x128", "256x256", "384x384"]
+  - case_id: B03_skyrmion3D
+    variant_ids: ["skyrmion_3d_t0"]
+    size_ids: ["25x25x25", "40x40x40", "50x50x50"]
+  - case_id: B04_dhcpNd
+    variant_ids: ["dhcpNd_finite_t"]
+    size_ids: ["16x16x16", "20x20x20", "25x25x25"]
+  - case_id: B05_dipoleFFT
+    variant_ids: ["dipole_on"]
+    size_ids: ["thin_32x32x1", "thin_128x64x1", "racetrack_512x32x1"]
+cpu:
+  thread_policy: FULL_PHYSICAL_SWEEP
+  proc_bind: close
+gpu:
+  backend: CUDA
+  precisions: ["SINGLE", "DOUBLE"]
+  gpu_index: 0
+sample_count: 5
+measurement_profile: DYNAMICS_ONLY
+environment_quality_mode: STRICT
+notes: >
+  Practical-scope companion to full_crossover.yaml, not a replacement for
+  it. See description for the exact scope-reduction rationale and what is
+  deferred to future work.

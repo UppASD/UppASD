@@ -354,21 +354,40 @@ def _format_override_line(key, value):
 
 
 def _apply_overrides(work_dir, overrides):
+    """Rewrite ``inpsd.dat`` in place, replacing each overridden keyword's
+    existing line rather than appending a duplicate.
+
+    Matching is case-insensitive on the keyword, mirroring UppASD's own
+    parser (``source/Input/inputhandler.f90`` lowercases every keyword via
+    ``caps2small`` before dispatch, so ``nstep``/``Nstep``/``NSTEP`` are one
+    keyword to it). A prior case-sensitive match here missed every
+    differently-cased template keyword (e.g. this project's templates all
+    use lowercase ``nstep`` while every override here is built with
+    ``{"Nstep": ...}``): the override was silently appended as a *second*
+    line instead of replacing the first. UppASD's sequential per-line
+    dispatch still applies the last-read value, so this was never a
+    physics/measurement bug -- but it did mean the file (and therefore
+    anything reading it back, like ``read_keyword`` below) carried a stale,
+    misleading original value on the now-unreachable first line.
+    """
     inpsd_path = work_dir / _INPUT_FILENAME
     if not inpsd_path.is_file():
         raise CaseManifestError(f"generated work directory has no {_INPUT_FILENAME}: {work_dir}")
 
-    remaining = dict(overrides)
+    remaining_by_lower = {key.lower(): key for key in overrides}
+    values = dict(overrides)
     out_lines = []
     for line in inpsd_path.read_text().splitlines():
         keyword = _read_line_keyword(line)
-        if keyword is not None and keyword in remaining:
-            out_lines.append(_format_override_line(keyword, remaining.pop(keyword)))
+        lower = keyword.lower() if keyword is not None else None
+        if lower is not None and lower in remaining_by_lower:
+            original_key = remaining_by_lower.pop(lower)
+            out_lines.append(_format_override_line(keyword, values.pop(original_key)))
         else:
             out_lines.append(line)
 
-    for key, value in remaining.items():
-        out_lines.append(_format_override_line(key, value))
+    for key in remaining_by_lower.values():
+        out_lines.append(_format_override_line(key, values[key]))
 
     inpsd_path.write_text("\n".join(out_lines) + "\n")
 

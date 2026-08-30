@@ -64,6 +64,10 @@ sizes:
     replication: [128, 128]
   - id: 256x256  # natom=65536   (target 65536,   exact)
     replication: [256, 256]
+  - id: 384x384  # natom=147456  -- WP-10 intermediate tier, added for the same budget reason as
+                  # B01_bccFe's 40x40x40 (see that file's comment and
+                  # docs/BENCHMARK_PRODUCTION_CHARACTERIZATION_2026-08-28.md).
+    replication: [384, 384]
   - id: 512x512  # natom=262144  (target 262144,  exact)
     replication: [512, 512]
   - id: 1024x1024 # natom=1048576 (target 1048576, exact)

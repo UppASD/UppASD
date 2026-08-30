@@ -121,6 +121,36 @@ and no `.f90`/`.F90` file tests `SINGLE_PREC`."""
 _AUDITED_GPU_BACKENDS = ("CUDA",)
 
 
+def resolve_precision_support_state(requested_precision, backend, gpu_backend):
+    """Whether this build's precision behaviour is audited well enough to
+    classify a comparison (WP-06 section B), from real backend identity
+    rather than a blanket default.
+
+    `source_provenance.build_source_context` always reports `"unaudited"`
+    for a real (non-MIXED) build -- correctly, since that module (section A:
+    git/build identity) has no precision-audit knowledge of its own. This is
+    the missing link `provenance.build_static_context` (which *does* import
+    this module) is expected to apply on top: CPU is `"supported"`
+    unconditionally (`CPU_EFFECTIVE_PRECISION` is unconditional); a GPU
+    backend is `"supported"` iff it is in `_AUDITED_GPU_BACKENDS` (CUDA
+    today), else `"unaudited"` (HIP -- no HIP performance claim without real
+    hardware, per the blueprint). Without this, `classify_comparison_
+    precision_class` -- which trusts whatever `precision_support_state` it is
+    given -- would report every real CUDA/CPU comparison as `UNAUDITED`
+    despite this project's own component-level audit (`PRECISION_AUDIT.md`)
+    establishing otherwise; found exactly that way running WP-10's first full
+    campaign, since no earlier work package exercised the whole
+    provenance -> classification pipeline end to end.
+    """
+    if requested_precision == "MIXED":
+        return "unsupported"
+    if backend == "CPU":
+        return "supported"
+    if backend == "GPU":
+        return "supported" if gpu_backend in _AUDITED_GPU_BACKENDS else "unaudited"
+    raise ValueError(f"unrecognized backend {backend!r}")
+
+
 def effective_cpu_precision(requested_precision):
     """CPU-path effective precision for a build requesting `requested_precision`.
 
