@@ -85,6 +85,20 @@ GLOBALLY_SAFE_OVERRIDE_KEYS = frozenset(
         # template default.
         "do_dip",
         "gpu_dipole_mode",
+        # GPU exchange/DM/tensor-Hamiltonian evaluator selector: sparse
+        # neighbour-list (N, the template default for every case) versus an
+        # FFT convolution over the device lattice (Y) --
+        # source/gpu_files/gpuLatticeConvolutionHamiltonian.{hpp,cpp},
+        # dispatch at source/gpu_files/gpuHamiltonianCalculations.cpp:970-990.
+        # A backend/numerical-method dispatch switch, not a Hamiltonian/
+        # lattice/moment parameter -- same justification as `gpu_mode`/
+        # `gpu_dipole_mode`. Requires `do_reduced Y` and all-periodic `BC`
+        # (gpuHamiltonianCalculations.cpp:530-542); a case whose template
+        # does not satisfy those falls back to the sparse kernel silently
+        # (no error, a log line only) rather than refusing, so a caller
+        # requesting this override must independently verify activation from
+        # captured stdout, not just a successful exit code.
+        "do_gpu_convolution",
     }
 )
 

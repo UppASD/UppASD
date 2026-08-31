@@ -100,6 +100,29 @@ sizes:
                     # itself is predicted unavailable_memory too -- deliberately
                     # not admitted, see README.md section D/F)
     replication: [80, 80, 80]
+  - id: 100x100x3   # natom=120000 -- deliberately anisotropic thin-slab shape (100x100
+                    # in-plane, only 3 replicas along the third hexagonal axis), added
+                    # for GPU convolution-kernel benchmarking (see
+                    # benchmarks/campaigns/dhcpnd_convolution_2026-08-31.yaml), NOT part
+                    # of the isotropic n^3 ladder above.
+                    #
+                    # KNOWN, UNVERIFIED ALIASING RISK: this case's own exchange list
+                    # (jfile.cut5) needs lattice-translation offsets out to n3=+-2 along
+                    # this axis (see this file's earlier n=12-floor comment). A periodic
+                    # axis needs a replica count > 2*|max offset| to keep every wrapped
+                    # image distinct; 3 replicas is *below* that naive floor of 5 for
+                    # n3=+-2 (unlike x/y at 100, far above the n1/n2=+-6 floor of ~13).
+                    # This has NOT been measured directly (no struct.<simid>.out
+                    # duplicate-entry check has been run for this specific shape, unlike
+                    # the isotropic n=4/8/12 points this file's own measurements cover)
+                    # -- it is a principled extrapolation from that measured floor, not
+                    # a confirmed result. Treat any benchmark at this size as
+                    # methodologically interesting (anisotropic FFT convolution grid
+                    # behaviour) but NOT as a validated physical measurement until a
+                    # duplicate-neighbour check (workload_metadata_method's own
+                    # struct-output parse, or a direct do_prnstruct=1 probe) confirms
+                    # the z-axis wrap is clean at this replication.
+    replication: [100, 100, 3]
 allowed_input_overrides:
   - ncell
   - Nstep
@@ -111,4 +134,5 @@ allowed_input_overrides:
   - tottraj_step
   - ene_step
   - gpu_mode
+  - do_gpu_convolution
 workload_metadata_method: neighbor_list_from_struct_output

@@ -1,0 +1,59 @@
+schema_version: "1.0.0"
+id: dhcpnd_convolution_2026-08-31
+description: >
+  dhcp Nd (B04_dhcpNd) at two sizes -- 40x40x40 (natom=256000, already part
+  of B04's own isotropic size ladder) and 100x100x3 (natom=120000, a new,
+  deliberately anisotropic thin-slab size added to this case specifically
+  for this campaign; see that size's own comment in
+  benchmarks/cases/B04_dhcpNd/case.yaml for a disclosed, unverified aliasing
+  risk along its 3-replica axis) -- for OpenMP scaling (CPU) and CUDA
+  SINGLE+DOUBLE, run via benchmarks/harness/convolution_driver.py, which
+  adds a GPU convolution ("conv", do_gpu_convolution=Y) arm alongside the
+  ordinary sparse-neighbour-list ("pair") arm this project's other GPU
+  campaigns already run -- benchmarks/harness/wp10_driver.py does not know
+  about the convolution axis at all.
+
+  B04_dhcpNd is the only one of this project's five admitted cases whose
+  template passes harness.gpu_convolution.check_convolution_gate (all-
+  periodic BC and do_reduced Y): B01/B03 lack do_reduced Y in their own
+  maintainer-supplied templates, B02/B05 are not fully periodic. This is
+  also, on the evidence already in this repository
+  (conv_bench.txt's dhcp_nd_long_range entry, ncell=32x32x32, this exact
+  lattice), the single best-performing case on record for this feature --
+  a measured 13.2x Hamiltonian-only speedup (total wall speedup is much
+  smaller, ~1.09x, since only the Hamiltonian evaluation is replaced; LLG
+  integration/RNG/etc. are unaffected either way) -- so this campaign
+  exists to characterize that at production benchmark sizes and
+  methodology (multi-nstep steady-state fits, 5 samples, full OMP sweep),
+  not just the single ncell=32^3/1000-step point conv_bench.txt already
+  covers.
+tier: FULL
+backend_scope: CPU_AND_CUDA
+single_campaign_execution: true
+cases:
+  - case_id: B04_dhcpNd
+    variant_ids: ["dhcpNd_finite_t"]
+    size_ids: ["40x40x40", "100x100x3"]
+cpu:
+  thread_policy: FULL_PHYSICAL_SWEEP
+  proc_bind: close
+gpu:
+  backend: CUDA
+  precisions: ["SINGLE", "DOUBLE"]
+  gpu_index: 0
+sample_count: 5
+measurement_profile: DYNAMICS_ONLY
+environment_quality_mode: STRICT
+notes: >
+  Run with benchmarks/harness/convolution_driver.py, not wp10_driver.py:
+  --campaign benchmarks/campaigns/dhcpnd_convolution_2026-08-31.yaml
+  --results-dir benchmarks/results/dhcpnd_convolution_2026-08-31
+  --work-root benchmarks/work/dhcpnd_convolution_2026-08-31
+  --machine-id <same as WP-10> --cpu-binary/--cpu-build-dir/
+  --gpu-fp32-binary/--gpu-fp32-build-dir/--gpu-fp64-binary/
+  --gpu-fp64-build-dir pointed at the existing build_wp10_cpu/
+  build_wp10_cuda_fp32/build_wp10_cuda_fp64 (do_gpu_convolution needs no
+  separate CMake flag -- source/gpu_files/CMakeLists.txt already builds
+  gpuLatticeConvolutionHamiltonian.cpp unconditionally -- so no new build
+  is required). Not yet run; prepared for a future session per the
+  "without running" instruction this manifest was created under.
