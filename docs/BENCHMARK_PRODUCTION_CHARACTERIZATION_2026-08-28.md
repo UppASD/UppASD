@@ -499,6 +499,31 @@ Ranked by measured evidence, most to least immediately actionable:
 
 ## 14. Limitations
 
+- **B01_bccFe's `setup_seconds`/fixed-cost-intercept numbers (§11) are
+  likely inflated and should not be trusted at face value — found after
+  this report was first published, not before.** Neither driver overrode
+  `do_prnstruct` for a timed sample, only for the one-time
+  workload-metadata probe; B01_bccFe's own template defaults to
+  `do_prnstruct 1`, which triggers a real `struct.<simid>.out` write
+  during Hamiltonian setup on *every* run
+  (`source/Hamiltonian/hamiltonianinit.f90`'s `do_prnstruct==1.or.==4`
+  branches), proportional to directed-interaction count — an estimated
+  ~1.4 GiB at B01's largest tested size here (128,000 atoms). That write
+  is folded straight into `process_wall_seconds` for all ~900 of B01's
+  timed samples in this campaign. It should *not* materially change
+  §5–§8's headline `steady_step_seconds`-based conclusions (OMP scaling
+  shape, GPU crossover, precision effects): the write is a per-run-constant
+  cost a multi-nstep linear regression's *slope* is largely insensitive
+  to, only its intercept. But §11's B01 setup-cost/N(steady≥95%) numbers
+  specifically measure "genuine setup + this spurious write" combined, not
+  pure setup — treat B01's row in that section as unreliable pending a
+  re-measurement, which this repository's harness fix (`do_prnstruct` now
+  forced to 0 on every timed sample regardless of template default,
+  `benchmarks/harness/wp10_driver.py`) makes straightforward to run.
+  B02–B05 are not comparably affected: their shared template default
+  (`do_prnstruct 2`) triggers only a much smaller, natom-proportional
+  `coord.<simid>.out` (`source/System/geometry.f90`), confirmed
+  structurally cheaper than B01's `struct.out` path.
 - **`git_dirty: true` on every record, structurally, for reasons unrelated
   to measurement quality.** The harness's `dirty_tree` flag
   (`source_provenance.capture_git_provenance`) is a deliberately tested,
@@ -624,9 +649,21 @@ plots were generated:
     (`"BRUTE_FORCE"` CPU / `"FFT_CUFFT"` GPU) and adding the required
     `do_dip=0`/`gpu_dipole_mode=OPEN_FFT` GPU overrides; re-run recovered
     all 30 affected configurations with zero new failures.
+- **A measurement-contamination bug, found after this report was first
+  published, while preparing a follow-on campaign** (`dhcp Nd`
+  convolution): neither driver ever forced `do_prnstruct=0` on a *timed*
+  sample, only on the one-time metadata probe. B01_bccFe's own template
+  defaults to `do_prnstruct 1`, which writes a real `struct.<simid>.out`
+  during Hamiltonian setup on every run — folded straight into
+  `process_wall_seconds` for all ~900 of B01's timed samples in this
+  campaign. See §14 for the specific, disclosed impact on B01's
+  `setup_seconds` numbers and why `steady_step_seconds` (this report's
+  §5–§8 headline results) is expected to be much less affected. Fixed
+  going forward by forcing `do_prnstruct=0` inside the shared per-sample
+  driver helper itself, not left to each call site to remember.
 
-**All four fixes are disclosed here and in the commit accompanying this
-report; none altered `source/` or any physics template.**
+**All five fixes are disclosed here and in the commits that made them;
+none altered `source/` or any physics template.**
 
 ---
 
