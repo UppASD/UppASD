@@ -60,13 +60,19 @@ echo "== WP-10 campaign preflight =="
 [[ -x "$GPU_FP32_BINARY" ]] || fail "CUDA SINGLE binary not found/executable: $GPU_FP32_BINARY"
 [[ -x "$GPU_FP64_BINARY" ]] || fail "CUDA DOUBLE binary not found/executable: $GPU_FP64_BINARY"
 
-# Refuse to run the exact same binaries against a different git commit than
-# they were built from (blueprint section A: never mix builds from
-# different revisions in one performance curve).
-FROZEN_COMMIT="ad44f260aa918aca2304d2bf22bd544e11e199bc"
+# Refuse to run these binaries against a tree whose *physics source* has
+# diverged from the commit they were built from (blueprint section A:
+# never mix builds from different revisions in one performance curve).
+# Checks source/ and CMakeLists.txt specifically, not an exact HEAD match:
+# an exact-commit check breaks every time an unrelated benchmarks/tooling
+# commit lands after this one -- what actually invalidates a build is a
+# change to the compiled source, not the repository's commit count moving
+# on (found the hard way: this check's original exact-HEAD-match form was
+# already stale by the time run_dhcpnd_convolution_campaign.sh was added).
+BUILD_COMMIT="ad44f260aa918aca2304d2bf22bd544e11e199bc"
 CURRENT_COMMIT="$(git -C "$REPO_ROOT" rev-parse HEAD)"
-if [[ "$CURRENT_COMMIT" != "$FROZEN_COMMIT" ]]; then
-  fail "HEAD is $CURRENT_COMMIT, expected the frozen WP-10 revision $FROZEN_COMMIT. Checked out the wrong commit, or rebuild+refreeze deliberately and update this script's FROZEN_COMMIT."
+if ! git -C "$REPO_ROOT" diff --quiet "$BUILD_COMMIT" HEAD -- source/ CMakeLists.txt; then
+  fail "source/ or CMakeLists.txt differs between the build commit ($BUILD_COMMIT) and HEAD ($CURRENT_COMMIT) -- the existing build_wp10_* binaries no longer match the checked-out physics source. Rebuild from HEAD, or check out $BUILD_COMMIT."
 fi
 
 # GPU courtesy check: this host's two A4000s are shared with other users.
