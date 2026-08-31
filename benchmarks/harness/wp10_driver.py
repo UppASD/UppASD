@@ -204,11 +204,27 @@ def run_fit_family(
     (fits, fit_run_ids, completed_records, contamination_flags) -- the last
     is the union of any GPU contamination flags observed across every
     sample's before/after bracket (empty for CPU).
+
+    Every sample forces `do_prnstruct=0`, overriding whatever each case's
+    own template defaults to -- B01_bccFe's template is `do_prnstruct 1`
+    (B02/B03/B04/B05 are `do_prnstruct 2`; the harness-wide allow-list
+    exists for exactly this kind of runtime diagnostic toggle, never a
+    physics parameter). `do_prnstruct==1` triggers a real, potentially very
+    large `struct.<simid>.out` write during Hamiltonian setup
+    (`source/Hamiltonian/hamiltonianinit.f90`'s `do_prnstruct==1.or.==4`
+    branches -- proportional to directed-interaction count, not atom
+    count); `==2` only writes a small, natom-proportional `coord.<simid>.out`
+    (`source/System/geometry.f90`). Only the one-time workload-metadata
+    probe (`resolve_metadata`, not this function) legitimately needs
+    `do_prnstruct=1` -- every timed sample here must never write either
+    file, since a real disk write folded into `process_wall_seconds` would
+    contaminate the very quantity this harness exists to measure.
     """
     fits = []
     fit_run_ids = []
     completed_records = []
     contamination_flags = set()
+    extra_overrides = {"do_prnstruct": 0, **(extra_overrides or {})}
 
     for sample_index in range(sample_count):
         points = []

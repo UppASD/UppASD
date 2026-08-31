@@ -76,11 +76,19 @@ def run_fit_family_with_verification(
     preserving stdout/stderr for inspection the same way an ordinary
     failure does) and excluded from the fit exactly like a failed sample --
     it measured the wrong thing, cleanly.
+
+    Also forces `do_prnstruct=0` on every sample -- see
+    `wp10_driver.run_fit_family`'s docstring for why: B04_dhcpNd's own
+    template defaults to `do_prnstruct 2` (cheap, natom-proportional), but
+    this function must never depend on a case's particular default, since
+    nothing here is the one-time metadata probe that legitimately needs
+    diagnostic output.
     """
     fits = []
     fit_run_ids = []
     completed_records = []
     contamination_flags = set()
+    extra_overrides = {"do_prnstruct": 0, **(extra_overrides or {})}
 
     for sample_index in range(sample_count):
         points = []
