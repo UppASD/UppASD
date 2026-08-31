@@ -34,12 +34,17 @@ likewise generated, not tracked; this page links to them by relative path
 for local viewing after running the command above, and the images shown
 here were captured from that run on this host.
 
-48 PNGs across two directories:
+66 PNGs across two directories:
 
 - `benchmarks/analysis/out/wp10_2026-08-28/omp_scaling/<case>__<variant>/` —
   one 3-panel (step time / speedup / efficiency vs. thread count) figure
   per size, plus one CPU-BEST-thread-count-vs-N_atom figure, per
-  case/variant (24 PNGs).
+  case/variant (24 PNGs); **plus a duplicate of the per-size figure with
+  GPU SINGLE/DOUBLE steady-state step time added as horizontal reference
+  lines on the step-time panel** (`omp_scaling_with_gpu__<size_id>.png`,
+  log-scaled y-axis since the GPU baseline can sit 1-3 orders of magnitude
+  below the CPU curve — 18 PNGs, one per size, speedup/efficiency panels
+  unchanged since GPU has no thread-count axis to overlay there).
 - `benchmarks/analysis/out/wp10_2026-08-28/crossover/` — step time,
   GPU/CPU-BEST speedup, SINGLE-vs-DOUBLE, crossover-threshold and (B05
   only) FFT-grid-size figures, one set per case/variant (24 PNGs plus 11
@@ -79,11 +84,14 @@ dominated by the FFT rather than the atom count directly).*
 
 ## OpenMP scaling: efficiency drops off past 3–4 threads (mostly)
 
-![B01 bcc Fe OMP scaling at 20x20x20](../benchmarks/analysis/out/wp10_2026-08-28/omp_scaling/B01_bccFe__bcc_fe_t0/omp_scaling__20x20x20.png)
+![B01 bcc Fe OMP scaling at 20x20x20, with GPU baseline](../benchmarks/analysis/out/wp10_2026-08-28/omp_scaling/B01_bccFe__bcc_fe_t0/omp_scaling_with_gpu__20x20x20.png)
 
-*B01_bccFe (T=0, 16,000 atoms): step time, speedup and efficiency vs.
-thread count. CPU-BEST here is 8 threads at only 3.0× speedup (E≈0.38) —
-typical of most cells in this campaign. B04_dhcpNd is the one family that
+*B01_bccFe (T=0, 16,000 atoms): step time (with GPU SINGLE/DOUBLE drawn
+as horizontal reference lines — the dedicated GPU-baseline variant of this
+figure), speedup and efficiency vs. thread count. CPU-BEST here is 8
+threads at only 3.0× speedup (E≈0.38) — typical of most cells in this
+campaign — and still sits nearly an order of magnitude above the GPU
+DOUBLE line regardless of thread count. B04_dhcpNd is the one family that
 scales meaningfully better (E_OMP 0.6–0.9 through 5–8 threads on most
 sizes) — see the full report §5/§9 for why its explicit, pre-flattened
 long-range bond list appears to help both single-thread cost *and*
