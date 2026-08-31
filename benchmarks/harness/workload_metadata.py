@@ -75,22 +75,31 @@ def neighbor_list_from_struct_output(case, size, run_dir):
     natom = None
     max_neighbors = None
     directed_interactions = 0
-    for line in struct_path.read_text().splitlines():
-        if natom is None:
-            match = _HEADER_NATOM_RE.search(line)
-            if match:
-                natom = int(match.group(1))
+    # Streamed line-by-line, never `struct_path.read_text().splitlines()`:
+    # that materializes the entire file as one string and then a second
+    # time as a list of line objects, which is fine for a small case but
+    # was observed to OOM-kill this parser outright on B04_dhcpNd at
+    # 256000 atoms (~342M directed-interaction body lines, a genuine
+    # ~36 GiB struct.<simid>.out) on a 62 GiB-RAM host. The parsing logic
+    # itself -- same regex header matches, same stripped-line body count --
+    # is unchanged; only how the file is read is.
+    with struct_path.open("r") as handle:
+        for line in handle:
+            if natom is None:
+                match = _HEADER_NATOM_RE.search(line)
+                if match:
+                    natom = int(match.group(1))
+                    continue
+            if max_neighbors is None:
+                match = _HEADER_MAXNEIGH_RE.search(line)
+                if match:
+                    max_neighbors = int(match.group(1))
+                    continue
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
                 continue
-        if max_neighbors is None:
-            match = _HEADER_MAXNEIGH_RE.search(line)
-            if match:
-                max_neighbors = int(match.group(1))
-                continue
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        # One body line per directed (iatom, jatom) pair.
-        directed_interactions += 1
+            # One body line per directed (iatom, jatom) pair.
+            directed_interactions += 1
 
     if natom is None or max_neighbors is None:
         raise WorkloadMetadataError(f"{struct_path}: missing header (Number of atoms / Maximum num of neighbours)")
