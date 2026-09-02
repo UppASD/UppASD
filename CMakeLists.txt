@@ -913,6 +913,16 @@ if(BUILD_TESTING)
    target_link_libraries(target_order_tests PRIVATE ${UppASD_LIB})
    add_test(NAME cpu-ham-target-order COMMAND target_order_tests)
 
+   # CPU-HAM-02B: reduced periodic scalar-J stencil construction and host
+   # reference oracle.  This is intentionally not connected to production
+   # dispatch; it validates an alternative representation against DIRECT.
+   add_executable(reduced_stencil_tests
+      ${CMAKE_SOURCE_DIR}/tests/hamiltonian/test_reduced_stencil.f90)
+   set_target_properties(reduced_stencil_tests PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/reduced_stencil_tests)
+   target_link_libraries(reduced_stencil_tests PRIVATE ${UppASD_LIB})
+   add_test(NAME cpu-ham-reduced-stencil COMMAND reduced_stencil_tests)
+
    # RCG-09A.1: exact adaptive-setup predicates for reciprocal directed
    # exchange/DMI lists, periodic-image aliasing, and ensemble moments.
    add_executable(adaptive_hamiltonian_contract_tests

@@ -15,6 +15,7 @@ module HamiltonianInit
    use NeighbourMap, only : setup_nm
    use NeighbourMapSFC, only : setup_nm_sfc
    use HamiltonianTargetOrder, only : setup_target_order
+   use ReducedStencil, only : build_reduced_stencil, clear_reduced_stencil
 
    implicit none
 
@@ -178,6 +179,8 @@ contains
       integer :: max_no_equiv_clus  !< Calculated maximum of neighbours in one shell for exchange in the cluster
       integer :: tot_max_no_neigh   !< Find which is the largest maximum number of neighbours between the cluster and the host
       integer :: i_all, i_stat
+      logical :: reduced_stencil_ok
+      character(len=256) :: reduced_stencil_diagnostic
 
       ! Variable currently used only to match with the extended call arguments in setup_nm_nelem
       real(dblprec), dimension(27,NT,ham_inp%max_no_chirshells,NT,NT,48) :: chir_symtens
@@ -459,6 +462,23 @@ contains
          ham%target_work_prefix,ham%target_total_work, &
          do_sfc=='Y' .and. do_ralloy==0,ham%target_order_weighted)
       ham%target_order_sfc=(do_sfc=='Y' .and. do_ralloy==0)
+
+      ! Construct the optional validated scalar-J representation, but leave
+      ! production dispatch on the canonical neighbour-list path until the
+      ! reduced-direct task supplies a measured switch.
+      call clear_reduced_stencil(ham%reduced_stencil)
+      if (do_reduced=='Y' .and. ham_inp%do_jtensor/=1 .and. do_ralloy==0 .and. &
+            ham_inp%exc_inter=='N') then
+         call build_reduced_stencil(Natom,NA,N1,N2,N3,BC1,BC2,BC3,do_reduced, &
+            do_ralloy,nHam,ham%aHam,ham%nlistsize,ham%nlist,ham%ncoup, &
+            ham%reduced_stencil,reduced_stencil_ok,reduced_stencil_diagnostic)
+         if (reduced_stencil_ok) then
+            write(*,'(2x,a)') 'Validated reduced scalar-J stencil available'
+         else
+            write(*,'(2x,a,a)') 'Reduced scalar-J stencil declined: ', &
+               trim(reduced_stencil_diagnostic)
+         endif
+      endif
 
       ! Anisotropies
       if (ham_inp%do_anisotropy==1) then

@@ -1,4 +1,5 @@
-target_sources(${UppASD_LIB} PRIVATE dipolecommon.f90
+target_sources(${UppASD_LIB} PRIVATE reducedstencil.f90
+dipolecommon.f90
 dipolemanager.f90
 energy.f90
 ewaldmom.f90

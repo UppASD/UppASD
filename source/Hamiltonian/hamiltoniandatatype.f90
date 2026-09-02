@@ -7,6 +7,7 @@
 module HamiltonianDataType
 
    use Parameters
+   use ReducedStencil, only : reduced_stencil_t
    !
    implicit none
    !
@@ -21,6 +22,7 @@ module HamiltonianDataType
       integer(kind=8) :: target_total_work = 0_8
       logical :: target_order_sfc = .false.
       logical :: target_order_weighted = .false.
+      type(reduced_stencil_t) :: reduced_stencil
       ! Variables for Heisenberg exchange
       integer ::  max_no_neigh                                 !< Calculated maximum of neighbours for exchange
       integer, dimension(:), allocatable :: nlistsize          !< Size of neighbour list for Heisenberg exchange couplings
