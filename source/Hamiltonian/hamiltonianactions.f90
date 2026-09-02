@@ -39,7 +39,7 @@ contains
    !> @todo Check the sign of the dipolar field
    !----------------------------------------------------------------------------
    ! Aliases with less arguments
-   subroutine effective_field_bare()
+   subroutine effective_field_bare(measure_energy)
       use InputData, only : Natom, Mensemble, NA, N1, N2, N3
       use MomentData, only : emomM, mmom
       use FieldData, only : external_field, time_external_field, beff, beff1, beff2
@@ -47,19 +47,20 @@ contains
       implicit none
 
       real(dblprec) :: energy
+      logical, intent(in), optional :: measure_energy
 
 
       call effective_field_full(Natom,Mensemble,1,Natom,   &
          emomM,mmom,external_field,time_external_field,beff,beff1,beff2,energy,       &
          Num_macro,cell_index,emomM_macro,    &
-         macro_nlistsize,NA,N1,N2,N3)
+         macro_nlistsize,NA,N1,N2,N3,measure_energy)
 
    end subroutine effective_field_bare
       !
    subroutine effective_field_full(Natom,Mensemble,start_atom,stop_atom,   &
       emomM,mmom,external_field,time_external_field,beff,beff1,beff2,energy,         &
       Num_macro,cell_index,emomM_macro,    &
-      macro_nlistsize,NA,N1,N2,N3)
+      macro_nlistsize,NA,N1,N2,N3,measure_energy)
       !
       use Constants, only : mry,mub
       use DipoleManager, only : dipole_field_calculation
@@ -87,12 +88,17 @@ contains
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff  !< Total effective field from application of Hamiltonian
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff1 !< Internal effective field from application of Hamiltonian
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff2 !< External field from application of Hamiltonian
+      logical, intent(in), optional :: measure_energy !< Request the canonical energy reduction
 
       !.. Local scalars
       integer :: i,k
-      real(dblprec), dimension(3) :: tfield, beff_s, beff_q, beff_m
+      logical :: calculate_energy
+      real(dblprec) :: atom_energy
 
       !.. Executable statements
+      calculate_energy=.true.
+      if (present(measure_energy)) calculate_energy=measure_energy
+
       ! Initialization of the energy
       energy=0.0_dblprec
       ! Initialization if the effective field
@@ -106,80 +112,115 @@ contains
          call timing(0,'Dipolar Int.  ','ON')
          call dipole_field_calculation(NA,N1,N2,N3,Natom,ham_inp%do_dip,Num_macro,          &
             Mensemble,stop_atom,start_atom,cell_index,macro_nlistsize,emomM,        &
-            emomM_macro,ham%Qdip,ham%Qdip_macro,energy,beff)
+            emomM_macro,ham%Qdip,ham%Qdip_macro,energy,beff,calculate_energy)
          call timing(0,'Dipolar Int.  ','OF')
          call timing(0,'Hamiltonian   ','ON')
       endif
-      !reduction(+:energy)
-      !$omp parallel do default(shared) schedule(static) private(i,k,beff_s,beff_q,tfield,beff_m) collapse(2) reduction(+:energy)
-      do k=1, Mensemble
-         do i=start_atom, stop_atom
-
-            beff_s=0.0_dblprec
-            beff_q=0.0_dblprec
-            beff_m=0.0_dblprec
-
-            if(ham_inp%do_jtensor/=1) then
-               ! Heisenberg exchange term
-               if(ham_inp%exc_inter=='N') then
-                  call heisenberg_field(i, k, beff_s,Natom,Mensemble,emomM)
-               else
-                  call heisenberg_rescaling_field(i, k, beff_s,Natom,Mensemble,mmom,emomM)
-               endif
-            else
-               call tensor_field(i, k, beff_s,Natom,Mensemble,emomM)
-            end if
-
-            ! Dzyaloshinskii-Moriya term
-            if(ham_inp%do_dm==1) call dzyaloshinskii_moriya_field(i, k, beff_s,Natom,Mensemble,emomM)
-
-            ! Symmetric anisotropic term
-            if(ham_inp%do_sa==1) call symmetric_anisotropic_field(i, k, beff_s,Natom,Mensemble,emomM)
-
-            ! Pseudo-Dipolar term
-            if(ham_inp%do_pd==1) call pseudo_dipolar_field(i, k, beff_s,Natom,Mensemble,emomM)
-
-            ! BIQDM term
-            if(ham_inp%do_biqdm==1) call dzyaloshinskii_moriya_bq_field(i, k, beff_q,Natom,Mensemble,emomM)
-
-            ! Biquadratic exchange term
-            if(ham_inp%do_bq==1) call biquadratic_field(i, k, beff_q,Natom,Mensemble,emomM)
-            
-            ! Four-spin ring exchange term
-            if(ham_inp%do_ring==1) call ring_field(i, k, beff_s,Natom,Mensemble,emomM)
-
-            ! Scalar chiral term
-            if(ham_inp%do_chir==1) call chirality_field(i, k, beff_s,Natom,Mensemble,emomM)
-
-            ! Anisotropy
-            if (ham_inp%do_anisotropy==1) then
-               if (ham%taniso(i)==1) then
-                  ! Uniaxial anisotropy
-                  call uniaxial_anisotropy_field(i, k, beff_s,Natom,Mensemble,ham_inp%mult_axis,emomM)
-               elseif (ham%taniso(i)==2) then
-                  ! Cubic anisotropy
-                  call cubic_anisotropy_field(i, k, beff_s,Natom,Mensemble,ham_inp%mult_axis,emomM)
-               elseif (ham%taniso(i)==7)then
-                  ! Uniaxial and cubic anisotropy
-                  call uniaxial_anisotropy_field(i, k, beff_s,Natom,Mensemble,ham_inp%mult_axis,emomM)
-                  tfield=0.0_dblprec
-                  call cubic_anisotropy_field(i, k, tfield,Natom,Mensemble,ham_inp%mult_axis,emomM)
-                  beff_q=beff_q+tfield*ham%sb(i)
-               endif
-            endif
-            beff1(1:3,i,k)= beff_s
-            beff2(1:3,i,k)= beff_q+external_field(1:3,i,k)+time_external_field(1:3,i,k)
-            ! Here the dipole contribution is added since beff != 0 in that case.
-            beff(1:3,i,k) = beff(1:3,i,k)+ beff1(1:3,i,k)+beff2(1:3,i,k)
-
-            tfield=0.50_dblprec*(beff_s+2.0_dblprec*beff_q+2.0_dblprec*external_field(1:3,i,k)+time_external_field(1:3,i,k))
-            energy=energy - emomM(1,i,k)*tfield(1)-emomM(2,i,k)*tfield(2)-emomM(3,i,k)*tfield(3)
+      ! The per-atom field implementation is shared by both execution modes.
+      ! Only the energy-enabled loop carries an OpenMP reduction.
+      if (calculate_energy) then
+         !$omp parallel do default(shared) schedule(static) private(i,k,atom_energy) collapse(2) reduction(+:energy)
+         do k=1, Mensemble
+            do i=start_atom, stop_atom
+               call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
+                  time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.true.)
+               energy=energy+atom_energy
+            end do
          end do
-      end do
-      !$omp end parallel do
-      energy = energy * mub / mry
+         !$omp end parallel do
+         energy = energy * mub / mry
+      else
+         !$omp parallel do default(shared) schedule(static) private(i,k,atom_energy) collapse(2)
+         do k=1, Mensemble
+            do i=start_atom, stop_atom
+               call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
+                  time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.false.)
+            end do
+         end do
+         !$omp end parallel do
+      endif
 
    end subroutine effective_field_full
+
+   ! Shared canonical field assembly for the energy-enabled and field-only paths.
+   subroutine effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
+      time_external_field,beff,beff1,beff2,atom_energy,calculate_energy)
+      implicit none
+
+      integer, intent(in) :: i,k,Natom,Mensemble
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM
+      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: external_field
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: time_external_field
+      real(dblprec), dimension(3), intent(inout) :: beff
+      real(dblprec), dimension(3), intent(out) :: beff1
+      real(dblprec), dimension(3), intent(out) :: beff2
+      real(dblprec), intent(out) :: atom_energy
+      logical, intent(in) :: calculate_energy
+
+      real(dblprec), dimension(3) :: tfield, beff_s, beff_q
+
+      beff_s=0.0_dblprec
+      beff_q=0.0_dblprec
+
+      if(ham_inp%do_jtensor/=1) then
+         ! Heisenberg exchange term
+         if(ham_inp%exc_inter=='N') then
+            call heisenberg_field(i, k, beff_s,Natom,Mensemble,emomM)
+         else
+            call heisenberg_rescaling_field(i, k, beff_s,Natom,Mensemble,mmom,emomM)
+         endif
+      else
+         call tensor_field(i, k, beff_s,Natom,Mensemble,emomM)
+      end if
+
+      ! Dzyaloshinskii-Moriya term
+      if(ham_inp%do_dm==1) call dzyaloshinskii_moriya_field(i, k, beff_s,Natom,Mensemble,emomM)
+
+      ! Symmetric anisotropic term
+      if(ham_inp%do_sa==1) call symmetric_anisotropic_field(i, k, beff_s,Natom,Mensemble,emomM)
+
+      ! Pseudo-Dipolar term
+      if(ham_inp%do_pd==1) call pseudo_dipolar_field(i, k, beff_s,Natom,Mensemble,emomM)
+
+      ! BIQDM term
+      if(ham_inp%do_biqdm==1) call dzyaloshinskii_moriya_bq_field(i, k, beff_q,Natom,Mensemble,emomM)
+
+      ! Biquadratic exchange term
+      if(ham_inp%do_bq==1) call biquadratic_field(i, k, beff_q,Natom,Mensemble,emomM)
+
+      ! Four-spin ring exchange term
+      if(ham_inp%do_ring==1) call ring_field(i, k, beff_s,Natom,Mensemble,emomM)
+
+      ! Scalar chiral term
+      if(ham_inp%do_chir==1) call chirality_field(i, k, beff_s,Natom,Mensemble,emomM)
+
+      ! Anisotropy
+      if (ham_inp%do_anisotropy==1) then
+         if (ham%taniso(i)==1) then
+            call uniaxial_anisotropy_field(i, k, beff_s,Natom,Mensemble,ham_inp%mult_axis,emomM)
+         elseif (ham%taniso(i)==2) then
+            call cubic_anisotropy_field(i, k, beff_s,Natom,Mensemble,ham_inp%mult_axis,emomM)
+         elseif (ham%taniso(i)==7)then
+            call uniaxial_anisotropy_field(i, k, beff_s,Natom,Mensemble,ham_inp%mult_axis,emomM)
+            tfield=0.0_dblprec
+            call cubic_anisotropy_field(i, k, tfield,Natom,Mensemble,ham_inp%mult_axis,emomM)
+            beff_q=beff_q+tfield*ham%sb(i)
+         endif
+      endif
+
+      beff1=beff_s
+      beff2=beff_q+external_field(1:3,i,k)+time_external_field(1:3,i,k)
+      ! Here the dipole contribution is added since beff != 0 in that case.
+      beff = beff + beff1 + beff2
+
+      atom_energy=0.0_dblprec
+      if (calculate_energy) then
+         tfield=0.50_dblprec*(beff_s+2.0_dblprec*beff_q+2.0_dblprec*external_field(1:3,i,k)+time_external_field(1:3,i,k))
+         atom_energy = -emomM(1,i,k)*tfield(1)-emomM(2,i,k)*tfield(2)-emomM(3,i,k)*tfield(3)
+      endif
+
+   end subroutine effective_field_atom
 
       !---------------heisenberg_field---------------!
       !> Heisenberg

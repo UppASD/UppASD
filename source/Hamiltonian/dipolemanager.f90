@@ -118,7 +118,7 @@ contains
    !----------------------------------------------------------------------------
    subroutine dipole_field_calculation(NA,N1,N2,N3,Natom,do_dip,Num_macro,          &
       Mensemble,stop_atom,start_atom,cell_index,macro_nlistsize,emomM,emomM_macro,  &
-      Qdip,Qdip_macro,energy,bfield)
+      Qdip,Qdip_macro,energy,bfield,measure_energy)
 
       implicit none
 
@@ -140,37 +140,62 @@ contains
       real(dblprec), dimension(3,3,Num_macro,Num_macro), intent(in):: Qdip_macro !< Matrix for the macro spin dipole-dipole interaction
       real(dblprec), intent(inout) :: energy
       real(dblprec), dimension(3,Natom,Mensemble), intent(inout) :: bfield
+      logical, intent(in), optional :: measure_energy
 
       integer :: ii,kk
+      logical :: calculate_energy
+
+      calculate_energy=.true.
+      if (present(measure_energy)) calculate_energy=measure_energy
 
       ! Brute force calculation of the dipole-dipole field
       if (do_dip==1) then
-         !$omp parallel do default(shared) schedule(static) private(ii,kk) collapse(2) reduction(+:energy)
-         do kk=1, Mensemble
-            do ii=start_atom, stop_atom
-               ! Dipolar term
-               call dipolar_field(ii,kk,bfield(:,ii,kk),Natom,Mensemble,emomM,Qdip)
-               energy=energy-0.50_dblprec*(bfield(1,ii,kk)*emomM(1,ii,kk)+          &
-                  bfield(2,ii,kk)*emomM(2,ii,kk)+bfield(3,ii,kk)*emomM(3,ii,kk))
+         if (calculate_energy) then
+            !$omp parallel do default(shared) schedule(static) private(ii,kk) collapse(2) reduction(+:energy)
+            do kk=1, Mensemble
+               do ii=start_atom, stop_atom
+                  ! Dipolar term
+                  call dipolar_field(ii,kk,bfield(:,ii,kk),Natom,Mensemble,emomM,Qdip)
+                  energy=energy-0.50_dblprec*(bfield(1,ii,kk)*emomM(1,ii,kk)+          &
+                     bfield(2,ii,kk)*emomM(2,ii,kk)+bfield(3,ii,kk)*emomM(3,ii,kk))
+               enddo
             enddo
-         enddo
-         !$omp end parallel do
+            !$omp end parallel do
+         else
+            !$omp parallel do default(shared) schedule(static) private(ii,kk) collapse(2)
+            do kk=1, Mensemble
+               do ii=start_atom, stop_atom
+                  call dipolar_field(ii,kk,bfield(:,ii,kk),Natom,Mensemble,emomM,Qdip)
+               enddo
+            enddo
+            !$omp end parallel do
+         endif
       ! Macro cell calculation of the dipole-dipole field
       else if (do_dip==2) then
-
-         !$omp parallel do default(shared) schedule(static) private(ii,kk) collapse(2) reduction(+:energy)
-         do kk=1, Mensemble
-            do ii=start_atom, stop_atom
-               ! Macro cell dipolar field
-               call macro_dipolar_field(ii,kk,bfield(:,ii,kk),Natom,Num_macro,      &
-                  Mensemble,cell_index,emomM_macro,Qdip_macro)
-               ! Calculate the contribution to the energy comming from the macrocell treatment of the
-               ! dipole-dipole interaction
-               call calc_macro_energy(ii,kk,bfield(:,ii,kk),energy,Natom,Num_macro,Mensemble, &
-                  cell_index,emomM_macro,macro_nlistsize)
+         if (calculate_energy) then
+            !$omp parallel do default(shared) schedule(static) private(ii,kk) collapse(2) reduction(+:energy)
+            do kk=1, Mensemble
+               do ii=start_atom, stop_atom
+                  ! Macro cell dipolar field
+                  call macro_dipolar_field(ii,kk,bfield(:,ii,kk),Natom,Num_macro,      &
+                     Mensemble,cell_index,emomM_macro,Qdip_macro)
+                  ! Calculate the contribution to the energy comming from the macrocell treatment of the
+                  ! dipole-dipole interaction
+                  call calc_macro_energy(ii,kk,bfield(:,ii,kk),energy,Natom,Num_macro,Mensemble, &
+                     cell_index,emomM_macro,macro_nlistsize)
+               enddo
             enddo
-         enddo
-         !$omp end parallel do
+            !$omp end parallel do
+         else
+            !$omp parallel do default(shared) schedule(static) private(ii,kk) collapse(2)
+            do kk=1, Mensemble
+               do ii=start_atom, stop_atom
+                  call macro_dipolar_field(ii,kk,bfield(:,ii,kk),Natom,Num_macro,      &
+                     Mensemble,cell_index,emomM_macro,Qdip_macro)
+               enddo
+            enddo
+            !$omp end parallel do
+         endif
       ! Calculation of the dipole-dipole field making use of the FFT and the convolution theorem
       else if (do_dip==3) then
 #ifdef USE_FFTW

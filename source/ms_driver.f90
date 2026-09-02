@@ -140,7 +140,7 @@ contains
             
               call effective_field(Natom,Mensemble,1,Natom,emomM,   &
                mmom,external_field,time_external_field,beff,beff1,beff2, totenergy,        &
-               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3,measure_energy=.false.)
             
             call timing(0,'Hamiltonian   ','OF')
             call timing(0,'Initial       ','ON')
@@ -191,7 +191,7 @@ contains
 
                      call effective_field(Natom,Mensemble,1,Natom,emomM,   &
                mmom,external_field,time_external_field,beff,beff1,beff2, totenergy,        &
-               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3,measure_energy=.false.)
                  
                   call timing(0,'Hamiltonian   ','OF')
                   call timing(0,'Evolution     ','ON')
@@ -450,7 +450,7 @@ contains
 
              call effective_field(Natom,Mensemble,1,Natom,emomM,   &
                mmom,external_field,time_external_field,beff,beff1,beff2, totenergy,        &
-               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3,measure_energy=.false.)
         
             call dampingBandPreinterpolation(dampingBand,emom)
 
@@ -509,7 +509,7 @@ contains
                !---------------------------------------------------------------------
                call effective_field(Natom,Mensemble,1,Natom,emomM,   &
                mmom,external_field,time_external_field,beff,beff1,beff2, totenergy,        &
-               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3,measure_energy=.false.)
             
            
          

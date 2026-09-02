@@ -149,7 +149,7 @@ contains
                   emomM,mmom,external_field,time_external_field,beff,beff1,    & 
                   beff2,      &
                   denergy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,  &
-                  N3)
+                  N3,measure_energy=.false.)
             end if
             call timing(0,'Hamiltonian   ','OF')
             call timing(0,'Initial       ','ON')
@@ -188,7 +188,7 @@ contains
                      call effective_field(Natom,Mensemble,1,Natom, &
                         emomM,mmom,external_field,                   &
                         time_external_field,beff,beff1,beff2,denergy,Num_macro,        &
-                        cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+                        cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3,measure_energy=.false.)
                   end if
                   call timing(0,'Hamiltonian   ','OF')
                   call timing(0,'Evolution     ','ON')
@@ -367,7 +367,7 @@ contains
 
             call effective_field(Natom,Mensemble,1,Natom,emomM,   &
                mmom,external_field,time_external_field,beff,beff1,beff2, totenergy,        &
-               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3,measure_energy=.false.)
          end if
       end if
 
@@ -538,7 +538,7 @@ contains
 
             call effective_field(Natom,Mensemble,1,Natom,emomM,   &
                mmom,external_field,time_external_field,beff,beff1,beff2, totenergy,        &
-               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3,measure_energy=.false.)
          end if
 
          call timing(0,'Hamiltonian   ','OF')
@@ -595,7 +595,7 @@ contains
                   emomM,mmom,external_field,time_external_field,     &
                   beff,beff1,beff2,  &
                   totenergy,Num_macro,cell_index,emomM_macro,             &
-                  macro_nlistsize,NA,N1,N2,N3)
+                  macro_nlistsize,NA,N1,N2,N3,measure_energy=.false.)
             end if
 
          end if
@@ -1204,7 +1204,7 @@ contains
                emomM,mmom,external_field,time_external_field,beff,beff1,    & 
                beff2,      &
                denergy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,  &
-               N3)
+               N3,measure_energy=.false.)
          end if
 
          ! Try to see if this fixes the energy bouncing around. It did. This is need to avoid incremental temp.
@@ -1232,7 +1232,7 @@ contains
                call effective_field(Natom,Mensemble,1,Natom, &
                   emomM,mmom,external_field,                   &
                   time_external_field,beff,beff1,beff2,denergy,Num_macro,        &
-                  cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3)
+                  cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3,measure_energy=.false.)
             end if
          endif
 

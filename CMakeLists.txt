@@ -896,6 +896,15 @@ if(BUILD_TESTING)
    target_link_libraries(dmi_dimer_energy_tests PRIVATE ${UppASD_LIB})
    add_test(NAME coarse-graining-dmi-dimer-energy COMMAND dmi_dimer_energy_tests)
 
+   # CPU-HAM-01A: the canonical production field path must produce identical
+   # fields with energy enabled/disabled, while the energy reduction is gated.
+   add_executable(field_energy_contract_tests
+      ${CMAKE_SOURCE_DIR}/tests/hamiltonian/test_field_energy_contract.f90)
+   set_target_properties(field_energy_contract_tests PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/field_energy_contract_tests)
+   target_link_libraries(field_energy_contract_tests PRIVATE ${UppASD_LIB})
+   add_test(NAME cpu-ham-field-energy-contract COMMAND field_energy_contract_tests)
+
    # RCG-09A.1: exact adaptive-setup predicates for reciprocal directed
    # exchange/DMI lists, periodic-image aliasing, and ensemble moments.
    add_executable(adaptive_hamiltonian_contract_tests
