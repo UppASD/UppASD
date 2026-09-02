@@ -130,7 +130,7 @@ contains
    end subroutine setup_case
 
    subroutine check_fallback()
-      integer, parameter :: natom=5,nensemble=2,max_neigh=2,nmacro=1
+      integer, parameter :: natom=5,nensemble=2,max_neigh=4,nmacro=1
       integer :: cell_index(natom),macro_nlistsize(nmacro)
       real(dblprec) :: emomM(3,natom,nensemble),mmom(natom,nensemble)
       real(dblprec) :: ext(3,natom,nensemble),text(3,natom,nensemble)

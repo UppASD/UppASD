@@ -932,9 +932,9 @@ if(BUILD_TESTING)
    target_link_libraries(reduced_stencil_tests PRIVATE ${UppASD_LIB})
    add_test(NAME cpu-ham-reduced-stencil COMMAND reduced_stencil_tests)
 
-   # CPU-HAM-04A: correctness-first scalar-J periodic convolution oracle.
-   # The reference exists only when the selected CPU FFT provider is available;
-   # it is not connected to the production timestep path.
+   # CPU-HAM-04B: persistent scalar-J periodic CPU convolution and its DIRECT
+   # parity/energy/timing coverage.  The backend exists only when the selected
+   # CPU FFT provider is available.
    if(USE_FFTW)
       add_executable(cpu_convolution_tests
          ${CMAKE_SOURCE_DIR}/tests/hamiltonian/test_cpu_convolution.f90)

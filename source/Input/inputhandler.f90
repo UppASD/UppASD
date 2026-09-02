@@ -1174,6 +1174,10 @@ contains
                read(ifile,*,iostat=i_err) do_sparse
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('do_convolution')
+               read(ifile,*,iostat=i_err) do_convolution
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             case('do_reduced')
                read(ifile,*,iostat=i_err) do_reduced
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err

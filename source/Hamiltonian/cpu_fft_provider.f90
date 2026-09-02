@@ -26,8 +26,24 @@ module CPUFFTProvider
    public :: cpu_fft_execute_r2c
    public :: cpu_fft_execute_c2r
    public :: cpu_fft_plan_destroy
+   public :: cpu_fft_provider_name
+   public :: cpu_fft_provider_threads
 
 contains
+
+   pure function cpu_fft_provider_name() result(name)
+      character(len=32) :: name
+
+      name='FFTW'
+   end function cpu_fft_provider_name
+
+
+   pure integer function cpu_fft_provider_threads()
+      ! The provider deliberately does not initialize FFTW's threaded API.
+      ! FFT execution therefore has one provider-owned thread and cannot nest
+      ! a multithreaded transform inside an UppASD OpenMP worker.
+      cpu_fft_provider_threads=1
+   end function cpu_fft_provider_threads
 
    logical function cpu_fft_plan_many_r2c(plan,n1,n2,n3,howmany,real_data,complex_data)
       type(cpu_fft_plan_t), intent(inout) :: plan

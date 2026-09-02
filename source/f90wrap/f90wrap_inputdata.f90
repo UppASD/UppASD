@@ -1672,6 +1672,20 @@ subroutine f90wrap_inputdata__set__do_sparse(f90wrap_do_sparse)
     inputdata_do_sparse = f90wrap_do_sparse
 end subroutine f90wrap_inputdata__set__do_sparse
 
+subroutine f90wrap_inputdata__get__do_convolution(f90wrap_do_convolution)
+    use inputdata, only: inputdata_do_convolution => do_convolution
+    implicit none
+    character(1), intent(out) :: f90wrap_do_convolution
+    f90wrap_do_convolution = inputdata_do_convolution
+end subroutine f90wrap_inputdata__get__do_convolution
+
+subroutine f90wrap_inputdata__set__do_convolution(f90wrap_do_convolution)
+    use inputdata, only: inputdata_do_convolution => do_convolution
+    implicit none
+    character(1), intent(in) :: f90wrap_do_convolution
+    inputdata_do_convolution = f90wrap_do_convolution
+end subroutine f90wrap_inputdata__set__do_convolution
+
 subroutine f90wrap_inputdata__get__do_reduced(f90wrap_do_reduced)
     use inputdata, only: inputdata_do_reduced => do_reduced
     implicit none
@@ -3254,4 +3268,3 @@ subroutine f90wrap_inputdata__set__multiscale_old_format(f90wrap_multiscale_old_
 end subroutine f90wrap_inputdata__set__multiscale_old_format
 
 ! End of module inputdata defined in file Input/inputdata.f90
-

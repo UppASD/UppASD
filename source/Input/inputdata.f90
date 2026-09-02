@@ -145,6 +145,7 @@ module InputData
    integer :: do_read_elk      !< Read geometry on ELK format (0/1)
    integer :: compensate_drift !< Correct for drift in RNG
    character(len=1) :: do_sparse    !< Use sparse linear algebra for effective field evaluation (T/F)
+   character(len=1) :: do_convolution !< Use persistent scalar-J CPU convolution (Y/N)
    character(len=1) :: do_reduced   !< Use reduced formulation of Hamiltonian (Y/N)
    !---------------------------------------------------------------------------------
    ! Measurement phase
@@ -467,6 +468,7 @@ contains
       ene_step          = 100
       ene_buff          = 10
       do_sparse         = 'N'
+      do_convolution    = 'N'
       do_reduced        = 'N'
 
       !Measurement phase

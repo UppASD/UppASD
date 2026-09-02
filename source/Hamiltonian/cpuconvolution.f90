@@ -1,10 +1,11 @@
 !-------------------------------------------------------------------------------
 ! MODULE: CPUConvolution
-!> @brief Correctness-first scalar-J periodic lattice convolution reference.
+!> @brief Persistent scalar-J periodic lattice convolution backend.
 !>
-!> This is an oracle and design reference for CPU-HAM-04A.  It is deliberately
-!> not connected to HamiltonianActions or to a production timestep.  The
-!> persistent object mirrors the state needed by the future 04B backend.
+!> The object is provider-neutral at the Hamiltonian boundary and owns the
+!> persistent mapping, spectral kernel, FFT plans and timestep work buffers
+!> used by the explicit CPU-HAM-04B production path.  Its field result is
+!> validated against the canonical DIRECT implementation by the test target.
 !-------------------------------------------------------------------------------
 module CPUConvolution
 
@@ -42,6 +43,13 @@ module CPUConvolution
       complex(C_DOUBLE_COMPLEX), allocatable :: field_spectral(:)
       real(C_DOUBLE), allocatable :: kernel_real(:)
       complex(C_DOUBLE_COMPLEX), allocatable :: kernel_spectral(:)
+      real(dblprec) :: pack_seconds=0.0_dblprec
+      real(dblprec) :: forward_seconds=0.0_dblprec
+      real(dblprec) :: spectral_seconds=0.0_dblprec
+      real(dblprec) :: inverse_seconds=0.0_dblprec
+      real(dblprec) :: unpack_seconds=0.0_dblprec
+      real(dblprec) :: apply_seconds=0.0_dblprec
+      integer(kind=8) :: apply_count=0_8
    end type cpu_convolution_t
 
    public :: cpu_convolution_eligible
@@ -49,6 +57,7 @@ module CPUConvolution
    public :: cpu_convolution_build_kernel
    public :: cpu_convolution_apply
    public :: cpu_convolution_pair_energy
+   public :: cpu_convolution_get_stats
    public :: cpu_convolution_clear
 
 contains
@@ -224,6 +233,8 @@ contains
       real(dblprec), intent(out) :: field(:,:,:)
       character(len=*), intent(out), optional :: diagnostic
       integer :: ensemble,a,b,axis,cell,atom,q,batch_in,batch_out,pair
+      real(dblprec) :: stage_start
+      real(dblprec) :: apply_start
       real(C_DOUBLE) :: scale
       complex(C_DOUBLE_COMPLEX) :: value
       character(len=256) :: reason
@@ -244,6 +255,8 @@ contains
          return
       endif
 
+      call cpu_time(apply_start)
+      call cpu_time(stage_start)
       convolution%real_work=0.0_C_DOUBLE
       do ensemble=1,convolution%ensembles
          do cell=0,convolution%ncells-1
@@ -257,9 +270,14 @@ contains
             end do
          end do
       end do
+      call accumulate_seconds(stage_start,convolution%pack_seconds)
+
+      call cpu_time(stage_start)
       call cpu_fft_execute_r2c(convolution%forward_plan,convolution%real_work, &
          convolution%spin_spectral)
+      call accumulate_seconds(stage_start,convolution%forward_seconds)
 
+      call cpu_time(stage_start)
       convolution%field_spectral=cmplx(0.0_C_DOUBLE,0.0_C_DOUBLE,kind=C_DOUBLE)
       do ensemble=1,convolution%ensembles
          do a=1,convolution%na
@@ -279,9 +297,14 @@ contains
             end do
          end do
       end do
+      call accumulate_seconds(stage_start,convolution%spectral_seconds)
+
+      call cpu_time(stage_start)
       call cpu_fft_execute_c2r(convolution%backward_plan,convolution%field_spectral, &
          convolution%real_work)
+      call accumulate_seconds(stage_start,convolution%inverse_seconds)
 
+      call cpu_time(stage_start)
       scale=1.0_C_DOUBLE/real(convolution%ncells,C_DOUBLE)
       do ensemble=1,convolution%ensembles
          do cell=0,convolution%ncells-1
@@ -295,10 +318,30 @@ contains
             end do
          end do
       end do
+      call accumulate_seconds(stage_start,convolution%unpack_seconds)
+      call accumulate_seconds(apply_start,convolution%apply_seconds)
+      convolution%apply_count=convolution%apply_count+1_8
       reason='FFT convolution field applied'
       call set_diagnostic(reason,diagnostic)
       cpu_convolution_apply=.true.
    end function cpu_convolution_apply
+
+
+   subroutine cpu_convolution_get_stats(convolution,pack_seconds,forward_seconds, &
+         spectral_seconds,inverse_seconds,unpack_seconds,apply_seconds,apply_count)
+      type(cpu_convolution_t), intent(in) :: convolution
+      real(dblprec), intent(out) :: pack_seconds,forward_seconds,spectral_seconds
+      real(dblprec), intent(out) :: inverse_seconds,unpack_seconds,apply_seconds
+      integer(kind=8), intent(out) :: apply_count
+
+      pack_seconds=convolution%pack_seconds
+      forward_seconds=convolution%forward_seconds
+      spectral_seconds=convolution%spectral_seconds
+      inverse_seconds=convolution%inverse_seconds
+      unpack_seconds=convolution%unpack_seconds
+      apply_seconds=convolution%apply_seconds
+      apply_count=convolution%apply_count
+   end subroutine cpu_convolution_get_stats
 
 
    pure real(dblprec) function cpu_convolution_pair_energy(spin,field)
@@ -336,7 +379,24 @@ contains
       convolution%spectral_cells=0
       convolution%ready=.false.
       convolution%kernel_ready=.false.
+      convolution%pack_seconds=0.0_dblprec
+      convolution%forward_seconds=0.0_dblprec
+      convolution%spectral_seconds=0.0_dblprec
+      convolution%inverse_seconds=0.0_dblprec
+      convolution%unpack_seconds=0.0_dblprec
+      convolution%apply_seconds=0.0_dblprec
+      convolution%apply_count=0_8
    end subroutine cpu_convolution_clear
+
+
+   subroutine accumulate_seconds(time_start,total)
+      real(dblprec), intent(in) :: time_start
+      real(dblprec), intent(inout) :: total
+      real(dblprec) :: time_stop
+
+      call cpu_time(time_stop)
+      total=total+max(0.0_dblprec,time_stop-time_start)
+   end subroutine accumulate_seconds
 
 
    subroutine set_diagnostic(reason,diagnostic)

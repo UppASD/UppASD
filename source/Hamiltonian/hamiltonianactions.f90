@@ -18,8 +18,14 @@ module HamiltonianActions
    use Profiling
    use Parameters
    use HamiltonianData
-   use InputData, only : ham_inp, do_sparse
+   use InputData, only : ham_inp, do_sparse, do_convolution
    use ReducedStencil, only : apply_reduced_stencil_target
+#ifdef USE_FFTW
+   use CPUConvolution, only : cpu_convolution_t, cpu_convolution_eligible, &
+      cpu_convolution_init, cpu_convolution_build_kernel, cpu_convolution_apply, &
+      cpu_convolution_get_stats, cpu_convolution_clear
+   use CPUFFTProvider, only : cpu_fft_provider_name, cpu_fft_provider_threads
+#endif
 
    implicit none
 
@@ -38,6 +44,13 @@ module HamiltonianActions
    real(dblprec) :: sparse_setup_seconds = 0.0_dblprec
    real(dblprec) :: sparse_pack_seconds = 0.0_dblprec
    real(dblprec) :: sparse_apply_seconds = 0.0_dblprec
+
+#ifdef USE_FFTW
+   type(cpu_convolution_t) :: convolution_backend
+   real(dblprec), dimension(:,:,:), allocatable :: convolution_field
+   logical :: convolution_backend_ready = .false.
+   real(dblprec) :: convolution_setup_seconds = 0.0_dblprec
+#endif
 
    interface effective_field
       module procedure effective_field_bare, effective_field_full
@@ -62,6 +75,11 @@ contains
 
       call cleanup_sparse_backend()
       if (do_sparse /= 'Y') return
+
+      if (do_convolution == 'Y') then
+         write(*,'(2x,a)') 'Scalar-J sparse backend declined: do_convolution is also selected'
+         return
+      endif
 
       if (ham_inp%do_jtensor == 1 .or. ham_inp%do_dm == 1 .or. &
             ham_inp%exc_inter /= 'N' .or. do_ralloy /= 0 .or. do_lsf == 'Y') then
@@ -210,6 +228,138 @@ contains
    end subroutine sparse_backend_get_stats
 
    !----------------------------------------------------------------------------
+   !> Construct the persistent explicit scalar-J periodic convolution backend.
+   !>
+   !> The validated reduced stencil is the sole source for the translational
+   !> kernel. FFT plans, mappings, spectra and work buffers all persist until
+   !> cleanup; no setup or allocation occurs in effective_field.
+   !----------------------------------------------------------------------------
+   subroutine setup_convolution_backend(Natom,Mensemble,do_ralloy,do_lsf,NA,N1,N2,N3, &
+         BC1,BC2,BC3,do_reduced,nHam)
+      implicit none
+
+      integer, intent(in) :: Natom,Mensemble,do_ralloy,NA,N1,N2,N3,nHam
+      character(len=1), intent(in) :: do_lsf,BC1,BC2,BC3,do_reduced
+#ifdef USE_FFTW
+      logical :: ok
+      character(len=256) :: diagnostic
+      real(dblprec) :: t_start,t_end
+
+      call cleanup_convolution_backend()
+      if (do_convolution /= 'Y') return
+      if (do_sparse == 'Y') then
+         write(*,'(2x,a)') 'Scalar-J convolution backend declined: do_sparse is also selected'
+         return
+      endif
+      if (ham_inp%do_jtensor == 1 .or. ham_inp%do_dm == 1 .or. &
+            ham_inp%do_sa == 1 .or. ham_inp%do_pd == 1 .or. &
+            ham_inp%do_biqdm == 1 .or. ham_inp%do_bq == 1 .or. &
+            ham_inp%do_ring == 1 .or. ham_inp%do_chir == 1 .or. &
+            ham_inp%exc_inter /= 'N' .or. do_ralloy /= 0 .or. do_lsf == 'Y') then
+         write(*,'(2x,a)') 'Scalar-J convolution backend declined: unsupported Hamiltonian variant'
+         return
+      endif
+      if (.not.allocated(ham%reduced_stencil%record_start) .or. &
+            .not.allocated(ham%reduced_stencil%record)) then
+         write(*,'(2x,a)') 'Scalar-J convolution backend declined: eligible reduced stencil unavailable'
+         return
+      endif
+      ok=cpu_convolution_eligible(Natom,NA,N1,N2,N3,BC1,BC2,BC3,do_reduced, &
+         do_ralloy,nHam,ham%aHam,ham%nlistsize,ham%nlist,ham%ncoup,diagnostic)
+      if (.not.ok) then
+         write(*,'(2x,a,a)') 'Scalar-J convolution backend declined: ',trim(diagnostic)
+         return
+      endif
+
+      call cpu_time(t_start)
+      ok=cpu_convolution_init(convolution_backend,ham%reduced_stencil,Mensemble,diagnostic)
+      if (ok) ok=cpu_convolution_build_kernel(convolution_backend,ham%reduced_stencil,diagnostic)
+      if (.not.ok) then
+         write(*,'(2x,a,a)') 'Scalar-J convolution backend declined: ',trim(diagnostic)
+         call cleanup_convolution_backend()
+         return
+      endif
+      allocate(convolution_field(3,Natom,Mensemble))
+      convolution_field=0.0_dblprec
+      call cpu_time(t_end)
+      convolution_setup_seconds=t_end-t_start
+      convolution_backend_ready=.true.
+      write(*,'(2x,a,i0,a,i0,a,a,a,i0)') &
+         'Persistent scalar-J CPU convolution ready: ',Natom,' atoms, ',NA, &
+         ' basis, provider ',trim(cpu_fft_provider_name()),' threads=', &
+         cpu_fft_provider_threads()
+#else
+      if (do_convolution == 'Y') then
+         write(*,'(2x,a)') 'Scalar-J convolution backend unavailable: build requires FFTW or MKL FFT support'
+      endif
+#endif
+   end subroutine setup_convolution_backend
+
+
+   subroutine cleanup_convolution_backend()
+      implicit none
+
+#ifdef USE_FFTW
+      call cpu_convolution_clear(convolution_backend)
+      if (allocated(convolution_field)) deallocate(convolution_field)
+      convolution_backend_ready=.false.
+      convolution_setup_seconds=0.0_dblprec
+#endif
+   end subroutine cleanup_convolution_backend
+
+
+   logical function convolution_backend_can_apply(Natom,Mensemble,start_atom,stop_atom)
+      implicit none
+      integer, intent(in) :: Natom,Mensemble,start_atom,stop_atom
+
+      convolution_backend_can_apply=.false.
+#ifdef USE_FFTW
+      convolution_backend_can_apply=convolution_backend_ready .and. do_convolution == 'Y' .and. &
+         Natom == convolution_backend%natom .and. Mensemble == convolution_backend%ensembles .and. &
+         start_atom == 1 .and. stop_atom == Natom
+#endif
+   end function convolution_backend_can_apply
+
+
+   subroutine apply_convolution_exchange(Mensemble,emomM)
+      implicit none
+      integer, intent(in) :: Mensemble
+#ifdef USE_FFTW
+      real(dblprec), dimension(3,convolution_backend%natom,Mensemble), intent(in) :: emomM
+      logical :: ok
+      character(len=256) :: diagnostic
+
+      ok=cpu_convolution_apply(convolution_backend,emomM,convolution_field,diagnostic)
+      if (.not.ok) error stop 'CPU convolution apply failed: '//trim(diagnostic)
+#else
+      real(dblprec), intent(in) :: emomM(:,:,:)
+#endif
+   end subroutine apply_convolution_exchange
+
+
+   subroutine convolution_backend_get_stats(setup_seconds,pack_seconds,forward_seconds, &
+         spectral_seconds,inverse_seconds,unpack_seconds,apply_seconds,apply_count)
+      implicit none
+      real(dblprec), intent(out) :: setup_seconds,pack_seconds,forward_seconds
+      real(dblprec), intent(out) :: spectral_seconds,inverse_seconds,unpack_seconds,apply_seconds
+      integer(kind=8), intent(out) :: apply_count
+
+      setup_seconds=0.0_dblprec
+      pack_seconds=0.0_dblprec
+      forward_seconds=0.0_dblprec
+      spectral_seconds=0.0_dblprec
+      inverse_seconds=0.0_dblprec
+      unpack_seconds=0.0_dblprec
+      apply_seconds=0.0_dblprec
+      apply_count=0_8
+#ifdef USE_FFTW
+      setup_seconds=convolution_setup_seconds
+      call cpu_convolution_get_stats(convolution_backend,pack_seconds,forward_seconds, &
+         spectral_seconds,inverse_seconds,unpack_seconds,apply_seconds,apply_count)
+#endif
+   end subroutine convolution_backend_get_stats
+
+   !----------------------------------------------------------------------------
    ! SUBROUTINE: effective_field
    !> @brief
    !> Calculate effective field by applying the derivative of the Hamiltonian
@@ -277,7 +427,7 @@ contains
 
       !.. Local scalars
       integer :: i,k,q,thread_id,nthreads,q_start,q_stop
-      logical :: calculate_energy,ordered_targets,weighted_targets,sparse_active
+      logical :: calculate_energy,ordered_targets,weighted_targets,sparse_active,convolution_active
       real(dblprec) :: atom_energy
 
       !.. Executable statements
@@ -303,6 +453,8 @@ contains
       endif
       sparse_active=sparse_backend_can_apply(Natom,Mensemble,start_atom,stop_atom)
       if (sparse_active) call apply_sparse_exchange(Mensemble,emomM)
+      convolution_active=convolution_backend_can_apply(Natom,Mensemble,start_atom,stop_atom)
+      if (convolution_active) call apply_convolution_exchange(Mensemble,emomM)
       ! The target order is a permutation of physical atom IDs.  Partial
       ! callers retain the historical natural loop because their range is not
       ! generally a contiguous interval in the permutation.
@@ -334,7 +486,7 @@ contains
                   i=ham%target_order(q)
                   do k=1,Mensemble
                      call effective_field_atom_dispatch(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-                        time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.true.,sparse_active)
+                        time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.true.,sparse_active,convolution_active)
                      energy=energy+atom_energy
                   end do
                end do
@@ -354,7 +506,7 @@ contains
                   i=ham%target_order(q)
                   do k=1,Mensemble
                      call effective_field_atom_dispatch(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-                        time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.false.,sparse_active)
+                        time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.false.,sparse_active,convolution_active)
                   end do
                end do
                !$omp end parallel
@@ -365,7 +517,7 @@ contains
                i=ham%target_order(q)
                do k=1,Mensemble
                   call effective_field_atom_dispatch(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-                     time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.true.,sparse_active)
+                     time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.true.,sparse_active,convolution_active)
                   energy=energy+atom_energy
                end do
             end do
@@ -376,7 +528,7 @@ contains
                i=ham%target_order(q)
                do k=1,Mensemble
                   call effective_field_atom_dispatch(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-                     time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.false.,sparse_active)
+                     time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.false.,sparse_active,convolution_active)
                end do
             end do
             !$omp end parallel do
@@ -386,7 +538,7 @@ contains
          do k=1, Mensemble
             do i=start_atom, stop_atom
                call effective_field_atom_dispatch(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-                  time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.true.,sparse_active)
+                  time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.true.,sparse_active,convolution_active)
                energy=energy+atom_energy
             end do
          end do
@@ -396,7 +548,7 @@ contains
          do k=1, Mensemble
             do i=start_atom, stop_atom
                call effective_field_atom_dispatch(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-                  time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.false.,sparse_active)
+                  time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.false.,sparse_active,convolution_active)
             end do
          end do
          !$omp end parallel do
@@ -409,7 +561,8 @@ contains
    ! explicit sparse backend is active, only scalar Heisenberg J is supplied
    ! by CSR; all remaining terms still use the canonical implementation.
    subroutine effective_field_atom_dispatch(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-      time_external_field,beff,beff1,beff2,atom_energy,calculate_energy,use_sparse_pair)
+      time_external_field,beff,beff1,beff2,atom_energy,calculate_energy,use_sparse_pair, &
+      use_convolution_pair)
       implicit none
 
       integer, intent(in) :: i,k,Natom,Mensemble
@@ -421,9 +574,17 @@ contains
       real(dblprec), dimension(3), intent(out) :: beff1
       real(dblprec), dimension(3), intent(out) :: beff2
       real(dblprec), intent(out) :: atom_energy
-      logical, intent(in) :: calculate_energy,use_sparse_pair
+      logical, intent(in) :: calculate_energy,use_sparse_pair,use_convolution_pair
 
-      if (use_sparse_pair) then
+      if (use_convolution_pair) then
+         call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
+            time_external_field,beff,beff1,beff2,atom_energy,calculate_energy, &
+#ifdef USE_FFTW
+            convolution_field(:,i,k))
+#else
+            beff1)
+#endif
+      elseif (use_sparse_pair) then
          call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
             time_external_field,beff,beff1,beff2,atom_energy,calculate_energy, &
             sparse_field(i,:,k))
