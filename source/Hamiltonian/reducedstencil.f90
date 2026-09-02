@@ -13,6 +13,7 @@ module ReducedStencil
       integer :: output_basis = 0
       integer :: input_basis = 0
       integer :: delta_cell(3) = 0
+      integer :: cell_offset = 0
       real(dblprec) :: j = 0.0_dblprec
    end type reduced_stencil_record
 
@@ -28,6 +29,7 @@ module ReducedStencil
    public :: reduced_stencil_eligible
    public :: build_reduced_stencil
    public :: apply_reduced_stencil
+   public :: apply_reduced_stencil_target
    public :: clear_reduced_stencil
    public :: cell_basis_to_atom
    public :: atom_to_cell_basis
@@ -178,6 +180,7 @@ contains
             stencil%record(nrec)%output_basis=b
             stencil%record(nrec)%input_basis=source_basis
             stencil%record(nrec)%delta_cell=source_cell
+            stencil%record(nrec)%cell_offset=source_cell(1)+n1*(source_cell(2)+n2*source_cell(3))
             stencil%record(nrec)%j=ncoup(slot,ham_index(atom),1)
          end do
       end do
@@ -277,6 +280,68 @@ contains
          end do
       end do
    end subroutine apply_reduced_stencil
+
+
+   ! Production target kernel.  The stencil is built once during Hamiltonian
+   ! setup; only the target cell and compact records are touched here.  The
+   ! source atom is reconstructed from basis/cell coordinates instead of
+   ! loading an arbitrary physical neighbour index.
+   subroutine apply_reduced_stencil_target(stencil,atom,ensemble,spin,field)
+      implicit none
+
+      type(reduced_stencil_t), intent(in) :: stencil
+      integer, intent(in) :: atom, ensemble
+      real(dblprec), intent(in) :: spin(:,:,:)
+      real(dblprec), intent(inout) :: field(:)
+
+      integer :: zero_based, cell_number, cell1, cell2, cell3, basis
+      integer :: slot, start, stop, source, source_cell1, source_cell2, source_cell3
+      integer :: input_basis, delta1, delta2, delta3
+      real(dblprec) :: bx, by, bz, coupling
+
+      ! These checks are outside the stencil loop.  Production callers have
+      ! already validated the dimensions during setup.
+      if (size(spin,1) /= 3 .or. size(field) /= 3 .or. &
+            atom < 1 .or. atom > stencil%na*stencil%n1*stencil%n2*stencil%n3 .or. &
+            ensemble < 1 .or. ensemble > size(spin,3)) then
+         error stop 'apply_reduced_stencil_target: incompatible dimensions'
+      endif
+
+      zero_based=atom-1
+      basis=modulo(zero_based,stencil%na)+1
+      cell_number=zero_based/stencil%na
+      cell1=modulo(cell_number,stencil%n1)
+      cell_number=cell_number/stencil%n1
+      cell2=modulo(cell_number,stencil%n2)
+      cell3=cell_number/stencil%n2
+
+      start=stencil%record_start(basis)
+      stop=stencil%record_start(basis+1)-1
+      bx=field(1)
+      by=field(2)
+      bz=field(3)
+      do slot=start,stop
+         input_basis=stencil%record(slot)%input_basis
+         delta1=stencil%record(slot)%delta_cell(1)
+         delta2=stencil%record(slot)%delta_cell(2)
+         delta3=stencil%record(slot)%delta_cell(3)
+         source_cell1=cell1+delta1
+         source_cell2=cell2+delta2
+         source_cell3=cell3+delta3
+         source=input_basis+stencil%na*(cell1+stencil%n1*(cell2+stencil%n2*cell3)+ &
+            stencil%record(slot)%cell_offset)
+         if (source_cell1 >= stencil%n1) source=source-stencil%na*stencil%n1
+         if (source_cell2 >= stencil%n2) source=source-stencil%na*stencil%n1*stencil%n2
+         if (source_cell3 >= stencil%n3) source=source-stencil%na*stencil%n1*stencil%n2*stencil%n3
+         coupling=stencil%record(slot)%j
+         bx=bx+coupling*spin(1,source,ensemble)
+         by=by+coupling*spin(2,source,ensemble)
+         bz=bz+coupling*spin(3,source,ensemble)
+      end do
+      field(1)=bx
+      field(2)=by
+      field(3)=bz
+   end subroutine apply_reduced_stencil_target
 
 
    pure integer function cell_basis_to_atom(cell1,cell2,cell3,basis,na,n1,n2,n3)

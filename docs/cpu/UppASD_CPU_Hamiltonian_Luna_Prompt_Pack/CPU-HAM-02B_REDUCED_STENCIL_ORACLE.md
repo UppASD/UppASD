@@ -145,12 +145,13 @@ pass. A real reduced FeCo production startup and 5,000-step run reports
 “Validated reduced scalar-J stencil available” and completes successfully.
 
 The metadata probe counts the direct nlist, nlistsize, aHam, and reduced
-scalar ncoup allocation shapes against packed 28-byte stencil records:
+scalar ncoup allocation shapes against the 32-byte production stencil records
+(the 02C kernel adds a cached flat cell offset):
 
 | Reference | Full direct metadata | Reduced-stencil metadata | Ratio |
 |---|---:|---:|---:|
-| bcc Fe, 16,000 atoms, 96 neighbours, NA=2 | 6,273,536 B | 5,376 B | 1167.0x |
-| dhcp Nd, 16,384 atoms, 1,340 allocated max neighbours, NA=4; 1,338 records | 87,992,192 B | 149,856 B | 587.2x |
+| bcc Fe, 16,000 atoms, 96 neighbours, NA=2 | 6,273,536 B | 6,144 B | 1021.1x |
+| dhcp Nd, 16,384 atoms, 1,340 allocated max neighbours, NA=4; 1,338 records | 87,992,192 B | 171,264 B | 513.8x |
 
 These are metadata representation figures only. The current production full
 arrays remain allocated elsewhere and other Hamiltonian terms are outside

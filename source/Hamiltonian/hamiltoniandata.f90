@@ -8,6 +8,7 @@ module HamiltonianData
    use Profiling
    use Parameters
    use HamiltonianDataType
+   use ReducedStencil, only : clear_reduced_stencil
    !
    implicit none
    !
@@ -151,6 +152,7 @@ contains
             ham%j_tens=0.0_dblprec
          end if
       else
+         call clear_reduced_stencil(ham%reduced_stencil)
          i_all=-product(shape(ham%nlistsize))*kind(ham%nlistsize)
          deallocate(ham%nlistsize,stat=i_stat)
          call memocc(i_stat,i_all,'nlistsize','allocate_hamiltoniandata')

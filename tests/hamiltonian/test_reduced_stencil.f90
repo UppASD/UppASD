@@ -88,6 +88,7 @@ contains
       real(dblprec), allocatable :: external_field(:,:,:),time_field(:,:,:)
       real(dblprec), allocatable :: beff(:,:,:),beff1(:,:,:),beff2(:,:,:)
       real(dblprec), allocatable :: stencil_field(:,:)
+      real(dblprec), allocatable :: direct_field(:,:)
       real(dblprec), allocatable :: emomM_macro(:,:,:)
       integer, allocatable :: cell_index(:),macro_nlistsize(:)
       type(reduced_stencil_t) :: stencil
@@ -135,6 +136,7 @@ contains
          trim(label)//': translation validation reported')
 
       allocate(spin(3,natom),spin3d(3,natom,1),stencil_field(3,natom),mmom(natom,1))
+      allocate(direct_field(3,natom))
       allocate(external_field(3,natom,1),time_field(3,natom,1))
       allocate(beff(3,natom,1),beff1(3,natom,1),beff2(3,natom,1))
       allocate(emomM_macro(3,1,1),cell_index(natom),macro_nlistsize(1))
@@ -171,17 +173,31 @@ contains
       if (allocated(ham%target_order)) deallocate(ham%target_order)
       if (allocated(ham%target_work_prefix)) deallocate(ham%target_work_prefix)
 
+      ! First call with no reduced representation: this is the canonical
+      ! production DIRECT result used as the physics oracle.
+      call clear_reduced_stencil(ham%reduced_stencil)
       call effective_field(natom,1,1,natom,spin3d,mmom,external_field,time_field, &
          beff,beff1,beff2,direct_energy,1,cell_index,emomM_macro,macro_nlistsize, &
          na,n1,n2,n3,measure_energy=.true.)
-      call check(maxval(abs(beff1(:,:,1)-stencil_field)) < 1.0d-14, &
-         trim(label)//': reduced field matches canonical DIRECT')
+      direct_field=beff1(:,:,1)
+      ! Install the validated compact object and exercise the production
+      ! reduced-DIRECT dispatch through HamiltonianActions.
+      ham%reduced_stencil=stencil
+      call effective_field(natom,1,1,natom,spin3d,mmom,external_field,time_field, &
+         beff,beff1,beff2,stencil_energy,1,cell_index,emomM_macro,macro_nlistsize, &
+         na,n1,n2,n3,measure_energy=.true.)
+      call check(maxval(abs(direct_field-stencil_field)) < 1.0d-14, &
+         trim(label)//': canonical DIRECT matches reference stencil')
+      call check(maxval(abs(beff1(:,:,1)-direct_field)) < 1.0d-14, &
+         trim(label)//': production reduced-DIRECT matches canonical DIRECT')
       stencil_energy=-0.5_dblprec*sum(spin*stencil_field)*mub/mry
-      call check(abs(direct_energy-stencil_energy) < 1.0d-12, &
+      call check(abs(direct_energy-stencil_energy) < 1.0d-12 .and. &
+         abs(stencil_energy-(-0.5_dblprec*sum(spin*beff1(:,:,1))*mub/mry)) < 1.0d-12, &
          trim(label)//': pair energy matches field-derived oracle')
 
       deallocate(ham_index,nlistsize,nlist,ncoup,spin,spin3d,stencil_field,mmom, &
-         external_field,time_field,beff,beff1,beff2,emomM_macro,cell_index,macro_nlistsize)
+         direct_field,external_field,time_field,beff,beff1,beff2,emomM_macro, &
+         cell_index,macro_nlistsize)
       call clear_hamiltonian_fixture()
    end subroutine run_case
 
@@ -232,7 +248,7 @@ contains
 
    subroutine test_metadata_footprint()
       integer(kind=8) :: direct_bytes,stencil_bytes
-      integer(kind=8), parameter :: i4=4_8, r8=8_8, record_bytes=28_8
+      integer(kind=8), parameter :: i4=4_8, r8=8_8, record_bytes=32_8
 
       direct_bytes=(int(1340,8)*16384_8+2_8*16384_8)*i4+int(1340,8)*4_8*r8
       stencil_bytes=4_8*1338_8*record_bytes
@@ -247,6 +263,7 @@ contains
 
 
    subroutine clear_hamiltonian_fixture()
+      call clear_reduced_stencil(ham%reduced_stencil)
       if (allocated(ham%aHam)) deallocate(ham%aHam)
       if (allocated(ham%nlistsize)) deallocate(ham%nlistsize)
       if (allocated(ham%nlist)) deallocate(ham%nlist)

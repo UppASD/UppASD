@@ -19,6 +19,7 @@ module HamiltonianActions
    use Parameters
    use HamiltonianData
    use InputData, only : ham_inp
+   use ReducedStencil, only : apply_reduced_stencil_target
 
    implicit none
 
@@ -316,6 +317,11 @@ contains
 
          integer :: j, ih, x, n_neigh
          real(dblprec) :: bx, by, bz, coup
+
+         if (allocated(ham%reduced_stencil%record_start)) then
+            call apply_reduced_stencil_target(ham%reduced_stencil,i,k,emomM,field)
+            return
+         endif
 
          ih=ham%aHam(i)
          n_neigh=ham%nlistsize(ih)
