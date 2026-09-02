@@ -5,7 +5,7 @@ cell      1.00000   0.00000   0.00000
           0.00000   1.00000   0.00000
           0.00000   0.00000   1.00000
 Sym       1                                     Symmetry of lattice (0 for no, 1 for cubic, 2 for 2d cubic, 3 for hexagonal)
-do_prnstruct 1
+do_prnstruct 0
 
 posfile    ./posfile
 momfile    ./momfile

@@ -22,7 +22,7 @@ exchange              ./jfile
 #bq                    ./bqfile
 ##do_ewald    Y          N , Y                        !< Perform Ewald summation
 
-do_prnstruct   1       0 , 1 , 2                    !< Print Hamiltonian information (0/1)
+do_prnstruct   0       0 , 1 , 2                    !< Print Hamiltonian information (0/1)
 maptype     2          1 , 2                        !< Format for input data (1=direct format,2=bgfm style)
 sym    1               0 , 1 , 2 , 3 , 4            !< Assumed symmetry of the system
 

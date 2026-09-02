@@ -7,7 +7,7 @@ cell      1.000000   0.000000   0.000000
          -0.500000   0.866025   0.000000
           0.000000   0.000000   1.000000
 Sym       0                                     Symmetry of lattice
-do_prnstruct 1
+do_prnstruct 0
 do_hoc_debug 0
 aunits    N
 do_N3     Y

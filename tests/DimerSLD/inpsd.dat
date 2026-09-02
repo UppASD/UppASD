@@ -7,7 +7,7 @@ cell      3.00000   0.00000   0.00000
           0.00000   3.00000   0.00000
           0.00000   0.00000   3.00000
 Sym       0                                     Symmetry of lattice (0 for no, 1 for cubic, 2 for 2d cubic, 3 for hexagonal)
-do_prnstruct 1
+do_prnstruct 0
 do_sortcoup N
 aunits    N
 do_hoc_debug 0

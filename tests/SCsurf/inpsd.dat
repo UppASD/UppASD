@@ -5,7 +5,7 @@ cell      1.00000   0.00000   0.00000
           0.00000   1.00000   0.00000
           0.00000   0.00000   1.00000
 
-do_prnstruct 1
+do_prnstruct 0
 posfile   ./posfile
 exchange ./jij
 momfile ./momfile
