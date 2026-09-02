@@ -1,6 +1,8 @@
 ! CPU-HAM-06: periodic J+D parity and DMI negative controls.
 program test_cpu_ham06_j_plus_d
 
+   use, intrinsic :: iso_c_binding, only : C_DOUBLE
+   use, intrinsic :: ieee_arithmetic, only : ieee_is_finite, ieee_quiet_nan, ieee_value
    use Parameters, only : dblprec
    use Constants, only : mub,mry
    use HamiltonianData, only : ham
@@ -42,6 +44,7 @@ contains
       type(cpu_convolution_t) :: convolution
       real(dblprec) :: direct_energy,reduced_energy,convolution_energy
       real(dblprec) :: pair_energy
+      real(dblprec) :: poison
       real(dblprec) :: x,y,r,theta,phi,radius,pi
       character(len=256) :: diagnostic
       logical :: ok
@@ -221,9 +224,14 @@ contains
       if (ok) then
          call check(convolution%kernel_batches == 4*na*na, &
             trim(label)//': convolution stores J,Dx,Dy,Dz basis kernels',failures)
+         poison=ieee_value(0.0_dblprec,ieee_quiet_nan)
+         convolution%real_work=poison
+         convolution%field_spectral=cmplx(poison,poison,kind=C_DOUBLE)
          ok=cpu_convolution_apply(convolution,spin,convolution_field,diagnostic)
          call check(ok,trim(label)//': direct convolution apply succeeds',failures)
          if (ok) then
+            call check(all(ieee_is_finite(convolution_field)), &
+               trim(label)//': poisoned convolution work buffers never reach J+D output',failures)
             call compare_fields(direct_field,convolution_field, &
                trim(label)//': direct convolution field parity',failures)
             pair_energy=-0.5_dblprec*sum(spin*convolution_field)

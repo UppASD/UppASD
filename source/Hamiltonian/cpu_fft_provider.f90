@@ -21,6 +21,9 @@ module CPUFFTProvider
       type(C_PTR) :: handle=C_NULL_PTR
    end type cpu_fft_plan_t
 
+   logical :: thread_configuration_read=.false.
+   integer :: configured_threads=1
+
    public :: cpu_fft_plan_many_r2c
    public :: cpu_fft_plan_many_c2r
    public :: cpu_fft_execute_r2c
@@ -38,11 +41,9 @@ contains
    end function cpu_fft_provider_name
 
 
-   pure integer function cpu_fft_provider_threads()
-      ! The provider deliberately does not initialize FFTW's threaded API.
-      ! FFT execution therefore has one provider-owned thread and cannot nest
-      ! a multithreaded transform inside an UppASD OpenMP worker.
-      cpu_fft_provider_threads=1
+   integer function cpu_fft_provider_threads()
+      call configure_fft_threads()
+      cpu_fft_provider_threads=configured_threads
    end function cpu_fft_provider_threads
 
    logical function cpu_fft_plan_many_r2c(plan,n1,n2,n3,howmany,real_data,complex_data)
@@ -55,6 +56,7 @@ contains
       call cpu_fft_plan_destroy(plan)
       cpu_fft_plan_many_r2c=.false.
       if (n1 < 1 .or. n2 < 1 .or. n3 < 1 .or. howmany < 1) return
+      call configure_fft_threads()
 
       ! FFTW's C dimensions are reversed so the Fortran first dimension is
       ! the contiguous x/cell dimension.  This matches the UppASD cell map:
@@ -79,6 +81,7 @@ contains
       call cpu_fft_plan_destroy(plan)
       cpu_fft_plan_many_c2r=.false.
       if (n1 < 1 .or. n2 < 1 .or. n3 < 1 .or. howmany < 1) return
+      call configure_fft_threads()
 
       n=(/int(n3,C_INT),int(n2,C_INT),int(n1,C_INT)/)
       inembed=(/int(n3,C_INT),int(n2,C_INT),int(n1/2+1,C_INT)/)
@@ -114,5 +117,36 @@ contains
       if (c_associated(plan%handle)) call fftw_destroy_plan(plan%handle)
       plan%handle=C_NULL_PTR
    end subroutine cpu_fft_plan_destroy
+
+
+   subroutine configure_fft_threads()
+      character(len=32) :: env_value
+      integer :: env_status, read_status, requested
+#ifdef UPPASD_FFTW_THREADS
+      integer(C_INT) :: init_status
+#endif
+
+      if (thread_configuration_read) return
+      configured_threads=1
+      env_value=''
+      call get_environment_variable('UPPASD_FFT_THREADS',env_value,status=env_status)
+      if (env_status == 0) then
+         read(env_value,*,iostat=read_status) requested
+         if (read_status == 0 .and. requested > 0) configured_threads=requested
+      endif
+#ifdef UPPASD_FFTW_THREADS
+      init_status=fftw_init_threads()
+      if (init_status /= 0_C_INT) then
+         call fftw_plan_with_nthreads(int(configured_threads,C_INT))
+      else
+         configured_threads=1
+      endif
+#else
+      ! A serial-only FFTW installation is still a valid provider. Keeping
+      ! the reported count at one makes the thread ownership explicit.
+      configured_threads=1
+#endif
+      thread_configuration_read=.true.
+   end subroutine configure_fft_threads
 
 end module CPUFFTProvider

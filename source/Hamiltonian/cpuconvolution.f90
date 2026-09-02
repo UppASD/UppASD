@@ -11,6 +11,9 @@ module CPUConvolution
 
    use, intrinsic :: iso_c_binding, only : C_DOUBLE, C_DOUBLE_COMPLEX
    use Parameters, only : dblprec
+#ifdef _OPENMP
+   use omp_lib, only : omp_get_wtime
+#endif
    use ReducedStencil, only : reduced_stencil_t, build_reduced_stencil, &
       clear_reduced_stencil, reduced_stencil_eligible, atom_to_cell_basis, &
       cell_basis_to_atom
@@ -263,11 +266,10 @@ contains
       real(dblprec), intent(in) :: spin(:,:,:)
       real(dblprec), intent(out) :: field(:,:,:)
       character(len=*), intent(out), optional :: diagnostic
-      integer :: ensemble,a,b,axis,cell,atom,q,batch_in,batch_out,pair,base_in,pair_count
+      integer :: ensemble,a,axis,cell,atom,batch_in,batch_out
       real(dblprec) :: stage_start
       real(dblprec) :: apply_start
       real(C_DOUBLE) :: scale
-      complex(C_DOUBLE_COMPLEX) :: value,j_value,dx,dy,dz,mx,my,mz
       character(len=256) :: reason
 
       cpu_convolution_apply=.false.
@@ -286,9 +288,13 @@ contains
          return
       endif
 
-      call cpu_time(apply_start)
-      call cpu_time(stage_start)
-      convolution%real_work=0.0_C_DOUBLE
+      apply_start=convolution_clock()
+      stage_start=convolution_clock()
+      ! Every packed cell/basis/component slot is assigned below.  There is no
+      ! read-before-write path, so a full-buffer clear only adds memory traffic.
+      ! Keep the assignment structure rectangular so OpenMP can distribute the
+      ! independent ensemble/cell/basis tiles.
+      !$omp parallel do collapse(3) default(shared) private(atom,axis,batch_in) schedule(static)
       do ensemble=1,convolution%ensembles
          do cell=0,convolution%ncells-1
             do a=1,convolution%na
@@ -301,65 +307,33 @@ contains
             end do
          end do
       end do
+      !$omp end parallel do
       call accumulate_seconds(stage_start,convolution%pack_seconds)
 
-      call cpu_time(stage_start)
+      stage_start=convolution_clock()
       call cpu_fft_execute_r2c(convolution%forward_plan,convolution%real_work, &
          convolution%spin_spectral)
       call accumulate_seconds(stage_start,convolution%forward_seconds)
 
-      call cpu_time(stage_start)
-      convolution%field_spectral=cmplx(0.0_C_DOUBLE,0.0_C_DOUBLE,kind=C_DOUBLE)
-      pair_count=convolution%na*convolution%na
-      do ensemble=1,convolution%ensembles
-         do a=1,convolution%na
-            do axis=1,3
-               batch_out=axis+3*(a-1+convolution%na*(ensemble-1))
-               do q=0,convolution%spectral_cells-1
-                  value=cmplx(0.0_C_DOUBLE,0.0_C_DOUBLE,kind=C_DOUBLE)
-                  do b=1,convolution%na
-                     base_in=3*(b-1+convolution%na*(ensemble-1))
-                     batch_in=axis+base_in
-                     pair=a+convolution%na*(b-1)
-                     j_value=convolution%kernel_spectral(q+1+ &
-                        convolution%spectral_cells*(pair-1))
-                     mx=convolution%spin_spectral(q+1+convolution%spectral_cells*base_in)
-                     my=convolution%spin_spectral(q+1+convolution%spectral_cells*(base_in+1))
-                     mz=convolution%spin_spectral(q+1+convolution%spectral_cells*(base_in+2))
-                     if (axis == 1) then
-                        value=value+j_value*mx
-                     elseif (axis == 2) then
-                        value=value+j_value*my
-                     else
-                        value=value+j_value*mz
-                     endif
-                     if (convolution%kernel_batches > pair_count) then
-                        dx=convolution%kernel_spectral(q+1+convolution%spectral_cells*(pair-1+pair_count))
-                        dy=convolution%kernel_spectral(q+1+convolution%spectral_cells*(pair-1+2*pair_count))
-                        dz=convolution%kernel_spectral(q+1+convolution%spectral_cells*(pair-1+3*pair_count))
-                        if (axis == 1) then
-                           value=value+dy*mz-dz*my
-                        elseif (axis == 2) then
-                           value=value+dz*mx-dx*mz
-                        else
-                           value=value+dx*my-dy*mx
-                        endif
-                     endif
-                  end do
-                  convolution%field_spectral(q+1+convolution%spectral_cells*(batch_out-1))=value
-               end do
-            end do
-         end do
-      end do
+      stage_start=convolution_clock()
+      if (convolution%kernel_batches == convolution%na*convolution%na) then
+         call apply_scalar_j_spectral(convolution)
+      else
+         call apply_j_plus_d_spectral(convolution)
+      endif
       call accumulate_seconds(stage_start,convolution%spectral_seconds)
 
-      call cpu_time(stage_start)
+      stage_start=convolution_clock()
       call cpu_fft_execute_c2r(convolution%backward_plan,convolution%field_spectral, &
          convolution%real_work)
       call accumulate_seconds(stage_start,convolution%inverse_seconds)
 
-      call cpu_time(stage_start)
+      stage_start=convolution_clock()
       scale=1.0_C_DOUBLE/real(convolution%ncells,C_DOUBLE)
+      ! Every output atom/ensemble/component is assigned exactly once by the
+      ! unpack loop.  The inverse transform reuses real_work as its output, so
+      ! no output clear is needed here either.
+      !$omp parallel do collapse(3) default(shared) private(atom,axis,batch_out) schedule(static)
       do ensemble=1,convolution%ensembles
          do cell=0,convolution%ncells-1
             do a=1,convolution%na
@@ -372,6 +346,7 @@ contains
             end do
          end do
       end do
+      !$omp end parallel do
       call accumulate_seconds(stage_start,convolution%unpack_seconds)
       call accumulate_seconds(apply_start,convolution%apply_seconds)
       convolution%apply_count=convolution%apply_count+1_8
@@ -379,6 +354,123 @@ contains
       call set_diagnostic(reason,diagnostic)
       cpu_convolution_apply=.true.
    end function cpu_convolution_apply
+
+
+   subroutine apply_scalar_j_spectral(convolution)
+      type(cpu_convolution_t), intent(inout) :: convolution
+      integer :: ensemble,a,b,q,pair,base_in,base_out
+      complex(C_DOUBLE_COMPLEX) :: j_value,mx,my,mz
+
+      ! The first basis contribution assigns the output and later contributions
+      ! accumulate into it.  This is a complete overwrite of field_spectral,
+      ! while avoiding a separate full-array zero pass.
+      !$omp parallel do collapse(2) default(shared) &
+      !$omp& private(ensemble,a,b,q,pair,base_in,base_out,j_value,mx,my,mz) schedule(static)
+      do ensemble=1,convolution%ensembles
+         do a=1,convolution%na
+            base_out=3*(a-1+convolution%na*(ensemble-1))
+            do b=1,convolution%na
+               base_in=3*(b-1+convolution%na*(ensemble-1))
+               pair=a+convolution%na*(b-1)
+               if (b == 1) then
+                  do q=0,convolution%spectral_cells-1
+                     j_value=convolution%kernel_spectral(q+1+ &
+                        convolution%spectral_cells*(pair-1))
+                     mx=convolution%spin_spectral(q+1+convolution%spectral_cells*base_in)
+                     my=convolution%spin_spectral(q+1+convolution%spectral_cells*(base_in+1))
+                     mz=convolution%spin_spectral(q+1+convolution%spectral_cells*(base_in+2))
+                     convolution%field_spectral(q+1+convolution%spectral_cells*base_out)=j_value*mx
+                     convolution%field_spectral(q+1+convolution%spectral_cells*(base_out+1))=j_value*my
+                     convolution%field_spectral(q+1+convolution%spectral_cells*(base_out+2))=j_value*mz
+                  end do
+               else
+                  do q=0,convolution%spectral_cells-1
+                     j_value=convolution%kernel_spectral(q+1+ &
+                        convolution%spectral_cells*(pair-1))
+                     mx=convolution%spin_spectral(q+1+convolution%spectral_cells*base_in)
+                     my=convolution%spin_spectral(q+1+convolution%spectral_cells*(base_in+1))
+                     mz=convolution%spin_spectral(q+1+convolution%spectral_cells*(base_in+2))
+                     convolution%field_spectral(q+1+convolution%spectral_cells*base_out)= &
+                        convolution%field_spectral(q+1+convolution%spectral_cells*base_out)+j_value*mx
+                     convolution%field_spectral(q+1+convolution%spectral_cells*(base_out+1))= &
+                        convolution%field_spectral(q+1+convolution%spectral_cells*(base_out+1))+j_value*my
+                     convolution%field_spectral(q+1+convolution%spectral_cells*(base_out+2))= &
+                        convolution%field_spectral(q+1+convolution%spectral_cells*(base_out+2))+j_value*mz
+                  end do
+               endif
+            end do
+         end do
+      end do
+      !$omp end parallel do
+   end subroutine apply_scalar_j_spectral
+
+
+   subroutine apply_j_plus_d_spectral(convolution)
+      type(cpu_convolution_t), intent(inout) :: convolution
+      integer :: ensemble,a,b,q,pair,base_in,base_out,pair_count
+      complex(C_DOUBLE_COMPLEX) :: j_value,dx,dy,dz,mx,my,mz
+
+      pair_count=convolution%na*convolution%na
+      ! Load the J/D symbols and the three spin components once per input
+      ! basis/spectral point, then update all Cartesian outputs together.  The
+      ! component order is the frozen HAM-06 D x M convention.
+      !$omp parallel do collapse(2) default(shared) &
+      !$omp& private(ensemble,a,b,q,pair,base_in,base_out,j_value,dx,dy,dz,mx,my,mz) schedule(static)
+      do ensemble=1,convolution%ensembles
+         do a=1,convolution%na
+            base_out=3*(a-1+convolution%na*(ensemble-1))
+            do b=1,convolution%na
+               base_in=3*(b-1+convolution%na*(ensemble-1))
+               pair=a+convolution%na*(b-1)
+               if (b == 1) then
+                  do q=0,convolution%spectral_cells-1
+                     j_value=convolution%kernel_spectral(q+1+ &
+                        convolution%spectral_cells*(pair-1))
+                     dx=convolution%kernel_spectral(q+1+ &
+                        convolution%spectral_cells*(pair-1+pair_count))
+                     dy=convolution%kernel_spectral(q+1+ &
+                        convolution%spectral_cells*(pair-1+2*pair_count))
+                     dz=convolution%kernel_spectral(q+1+ &
+                        convolution%spectral_cells*(pair-1+3*pair_count))
+                     mx=convolution%spin_spectral(q+1+convolution%spectral_cells*base_in)
+                     my=convolution%spin_spectral(q+1+convolution%spectral_cells*(base_in+1))
+                     mz=convolution%spin_spectral(q+1+convolution%spectral_cells*(base_in+2))
+                     convolution%field_spectral(q+1+convolution%spectral_cells*base_out)= &
+                        j_value*mx+dy*mz-dz*my
+                     convolution%field_spectral(q+1+convolution%spectral_cells*(base_out+1))= &
+                        j_value*my+dz*mx-dx*mz
+                     convolution%field_spectral(q+1+convolution%spectral_cells*(base_out+2))= &
+                        j_value*mz+dx*my-dy*mx
+                  end do
+               else
+                  do q=0,convolution%spectral_cells-1
+                     j_value=convolution%kernel_spectral(q+1+ &
+                        convolution%spectral_cells*(pair-1))
+                     dx=convolution%kernel_spectral(q+1+ &
+                        convolution%spectral_cells*(pair-1+pair_count))
+                     dy=convolution%kernel_spectral(q+1+ &
+                        convolution%spectral_cells*(pair-1+2*pair_count))
+                     dz=convolution%kernel_spectral(q+1+ &
+                        convolution%spectral_cells*(pair-1+3*pair_count))
+                     mx=convolution%spin_spectral(q+1+convolution%spectral_cells*base_in)
+                     my=convolution%spin_spectral(q+1+convolution%spectral_cells*(base_in+1))
+                     mz=convolution%spin_spectral(q+1+convolution%spectral_cells*(base_in+2))
+                     convolution%field_spectral(q+1+convolution%spectral_cells*base_out)= &
+                        convolution%field_spectral(q+1+convolution%spectral_cells*base_out)+ &
+                        j_value*mx+dy*mz-dz*my
+                     convolution%field_spectral(q+1+convolution%spectral_cells*(base_out+1))= &
+                        convolution%field_spectral(q+1+convolution%spectral_cells*(base_out+1))+ &
+                        j_value*my+dz*mx-dx*mz
+                     convolution%field_spectral(q+1+convolution%spectral_cells*(base_out+2))= &
+                        convolution%field_spectral(q+1+convolution%spectral_cells*(base_out+2))+ &
+                        j_value*mz+dx*my-dy*mx
+                  end do
+               endif
+            end do
+         end do
+      end do
+      !$omp end parallel do
+   end subroutine apply_j_plus_d_spectral
 
 
    subroutine cpu_convolution_get_stats(convolution,pack_seconds,forward_seconds, &
@@ -449,9 +541,18 @@ contains
       real(dblprec), intent(inout) :: total
       real(dblprec) :: time_stop
 
-      call cpu_time(time_stop)
+      time_stop=convolution_clock()
       total=total+max(0.0_dblprec,time_stop-time_start)
    end subroutine accumulate_seconds
+
+
+   real(dblprec) function convolution_clock()
+#ifdef _OPENMP
+      convolution_clock=omp_get_wtime()
+#else
+      call cpu_time(convolution_clock)
+#endif
+   end function convolution_clock
 
 
    subroutine set_diagnostic(reason,diagnostic)

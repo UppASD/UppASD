@@ -315,6 +315,10 @@ OPTION(BUILD_MANUAL "Build manual"  OFF)
 OPTION(BUILD_DOXYGEN "Build doxygen"  OFF)
 OPTION(BUILD_PYTHON "Build Python interface"  OFF)
 
+if(USE_FFTW AND FFTW_THREADS_LIB)
+   target_compile_definitions(${UppASD_LIB} PRIVATE UPPASD_FFTW_THREADS)
+endif()
+
 ##############################################################################################
 # Enable and define tests
 ##############################################################################################
@@ -951,6 +955,14 @@ if(BUILD_TESTING)
          Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/cpu_convolution_tests)
       target_link_libraries(cpu_convolution_tests PRIVATE ${UppASD_LIB})
       add_test(NAME cpu-ham-convolution COMMAND cpu_convolution_tests)
+
+      # CPU-HAM-09: reproducible stage-level hot-path measurements.  This is
+      # intentionally a benchmark target, not a CTest pass/fail test.
+      add_executable(cpu_convolution_benchmark
+         ${CMAKE_SOURCE_DIR}/tests/hamiltonian/benchmark_cpu_convolution.f90)
+      set_target_properties(cpu_convolution_benchmark PROPERTIES
+         Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/cpu_convolution_benchmark)
+      target_link_libraries(cpu_convolution_benchmark PRIVATE ${UppASD_LIB})
 
       # CPU-HAM-06: exact periodic J+D parity for REDUCED-DIRECT and
       # CONVOLUTION, including DMI sign and reciprocal-antisymmetry controls.

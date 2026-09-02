@@ -1,6 +1,8 @@
 ! CPU-HAM-04B: persistent scalar-J periodic CPU convolution backend parity.
 program test_cpu_convolution
 
+   use, intrinsic :: iso_c_binding, only : C_DOUBLE
+   use, intrinsic :: ieee_arithmetic, only : ieee_is_finite, ieee_quiet_nan, ieee_value
    use Parameters, only : dblprec
    use Constants, only : mub,mry
    use HamiltonianData, only : ham
@@ -26,6 +28,7 @@ contains
       type(reduced_stencil_t) :: stencil
       type(cpu_convolution_t) :: convolution
       real(dblprec), allocatable :: spin(:,:,:),field(:,:,:),direct(:,:,:)
+      real(dblprec) :: poison
       character(len=256) :: diagnostic
       logical :: ok
       integer :: atom,axis
@@ -43,8 +46,14 @@ contains
             spin(axis,atom,1)=0.07_dblprec*real(axis+2*atom,dblprec)-0.11_dblprec*real(atom,dblprec)
          end do
       end do
+      ! Test the complete-overwrite proof for both reusable apply buffers.
+      poison=ieee_value(0.0_dblprec,ieee_quiet_nan)
+      convolution%real_work=poison
+      convolution%field_spectral=cmplx(poison,poison,kind=C_DOUBLE)
       ok=cpu_convolution_apply(convolution,spin,field,diagnostic)
       call check(ok,trim(diagnostic))
+      call check(all(ieee_is_finite(field)), &
+         'poisoned convolution work buffers never reach scalar-J output')
       call apply_direct(stencil,spin,direct)
       call check(maxval(abs(field-direct)) < 2.0e-12_dblprec, &
          'delta convolution matches circular DIRECT')

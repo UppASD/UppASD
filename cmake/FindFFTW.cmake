@@ -65,6 +65,14 @@ if( FFTW_ROOT )
     NO_DEFAULT_PATH
   )
 
+  find_library(
+    FFTW_THREADS_LIB
+    NAMES "fftw3_threads"
+    PATHS ${FFTW_ROOT}
+    PATH_SUFFIXES "lib" "lib64"
+    NO_DEFAULT_PATH
+  )
+
   #find includes
   find_path(
     FFTW_INCLUDES
@@ -95,6 +103,12 @@ else()
     PATHS ${PKG_FFTW_LIBRARY_DIRS} ${LIB_INSTALL_DIR}
   )
 
+  find_library(
+    FFTW_THREADS_LIB
+    NAMES "fftw3_threads"
+    PATHS ${PKG_FFTW_LIBRARY_DIRS} ${LIB_INSTALL_DIR}
+  )
+
   find_path(
     FFTW_INCLUDES
     NAMES "fftw3.h"
@@ -104,6 +118,14 @@ else()
 endif( FFTW_ROOT )
 
 set(FFTW_LIBRARIES ${FFTW_LIB} ${FFTWF_LIB})
+
+# The threaded API is optional. Keep the serial provider available on
+# installations that only ship libfftw3, while exposing the threads library
+# to the CPU-HAM convolution provider when it exists.
+if(FFTW_THREADS_LIB)
+  list(APPEND FFTW_LIBRARIES ${FFTW_THREADS_LIB})
+  list(APPEND FFTW_LIB ${FFTW_THREADS_LIB})
+endif()
 
 if(FFTWL_LIB)
   set(FFTW_LIBRARIES ${FFTW_LIBRARIES} ${FFTWL_LIB})
@@ -115,5 +137,4 @@ include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(FFTW DEFAULT_MSG
                                   FFTW_INCLUDES FFTW_LIBRARIES)
 
-mark_as_advanced(FFTW_INCLUDES FFTW_LIBRARIES FFTW_LIB FFTWF_LIB FFTWL_LIB)
-
+mark_as_advanced(FFTW_INCLUDES FFTW_LIBRARIES FFTW_LIB FFTW_THREADS_LIB FFTWF_LIB FFTWL_LIB)
