@@ -463,23 +463,6 @@ contains
          do_sfc=='Y' .and. do_ralloy==0,ham%target_order_weighted)
       ham%target_order_sfc=(do_sfc=='Y' .and. do_ralloy==0)
 
-      ! Construct the optional validated scalar-J representation, but leave
-      ! production dispatch on the canonical neighbour-list path until the
-      ! reduced-direct task supplies a measured switch.
-      call clear_reduced_stencil(ham%reduced_stencil)
-      if (do_reduced=='Y' .and. ham_inp%do_jtensor/=1 .and. do_ralloy==0 .and. &
-            ham_inp%exc_inter=='N') then
-         call build_reduced_stencil(Natom,NA,N1,N2,N3,BC1,BC2,BC3,do_reduced, &
-            do_ralloy,nHam,ham%aHam,ham%nlistsize,ham%nlist,ham%ncoup, &
-            ham%reduced_stencil,reduced_stencil_ok,reduced_stencil_diagnostic)
-         if (reduced_stencil_ok) then
-            write(*,'(2x,a)') 'Validated reduced scalar-J stencil available'
-         else
-            write(*,'(2x,a,a)') 'Reduced scalar-J stencil declined: ', &
-               trim(reduced_stencil_diagnostic)
-         endif
-      endif
-
       ! Anisotropies
       if (ham_inp%do_anisotropy==1) then
          write(*,'(2x,a)',advance='no') "Set up anisotropies"
@@ -606,6 +589,35 @@ contains
          write (*,'(2x,a)',advance='no') 'Set up moments map for Longitudial Fluctuation'
          call LSF_datareshape(NA, Nchmax, conf_num)
          write(*,'(a)') ' done'
+      endif
+
+      ! Build the optional reduced representation after all bilinear pair data
+      ! exist.  A J+D stencil keeps the exact oriented DMI records separate
+      ! from exchange records because the two production lists may differ in
+      ! length, while validating both against the same periodic cell map.
+      call clear_reduced_stencil(ham%reduced_stencil)
+      if (do_reduced=='Y' .and. ham_inp%do_jtensor/=1 .and. do_ralloy==0 .and. &
+            ham_inp%exc_inter=='N') then
+         if (ham_inp%do_dm==1) then
+            call build_reduced_stencil(Natom,NA,N1,N2,N3,BC1,BC2,BC3,do_reduced, &
+               do_ralloy,nHam,ham%aHam,ham%nlistsize,ham%nlist,ham%ncoup, &
+               ham%reduced_stencil,reduced_stencil_ok,reduced_stencil_diagnostic, &
+               dmlistsize=ham%dmlistsize,dmlist=ham%dmlist,dm_vect=ham%dm_vect)
+         else
+            call build_reduced_stencil(Natom,NA,N1,N2,N3,BC1,BC2,BC3,do_reduced, &
+               do_ralloy,nHam,ham%aHam,ham%nlistsize,ham%nlist,ham%ncoup, &
+               ham%reduced_stencil,reduced_stencil_ok,reduced_stencil_diagnostic)
+         endif
+         if (reduced_stencil_ok) then
+            if (ham_inp%do_dm==1) then
+               write(*,'(2x,a)') 'Validated reduced J+D stencil available'
+            else
+               write(*,'(2x,a)') 'Validated reduced scalar-J stencil available'
+            endif
+         else
+            write(*,'(2x,a,a)') 'Reduced pair stencil declined: ', &
+               trim(reduced_stencil_diagnostic)
+         endif
       endif
 
       if(ham_inp%do_pd==1) then

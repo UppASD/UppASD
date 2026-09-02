@@ -1,6 +1,6 @@
 !-------------------------------------------------------------------------------
 ! MODULE: ReducedStencil
-!> @brief Validated translational stencil representation for reduced scalar J.
+!> @brief Validated translational stencil representation for reduced J+D.
 !-------------------------------------------------------------------------------
 module ReducedStencil
 
@@ -17,6 +17,14 @@ module ReducedStencil
       real(dblprec) :: j = 0.0_dblprec
    end type reduced_stencil_record
 
+   type, public :: reduced_stencil_dmi_record
+      integer :: output_basis = 0
+      integer :: input_basis = 0
+      integer :: delta_cell(3) = 0
+      integer :: cell_offset = 0
+      real(dblprec) :: d(3) = 0.0_dblprec
+   end type reduced_stencil_dmi_record
+
    type, public :: reduced_stencil_t
       integer :: na = 0
       integer :: n1 = 0
@@ -24,12 +32,15 @@ module ReducedStencil
       integer :: n3 = 0
       integer, allocatable :: record_start(:)
       type(reduced_stencil_record), allocatable :: record(:)
+      integer, allocatable :: dmi_record_start(:)
+      type(reduced_stencil_dmi_record), allocatable :: dmi_record(:)
    end type reduced_stencil_t
 
    public :: reduced_stencil_eligible
    public :: build_reduced_stencil
    public :: apply_reduced_stencil
    public :: apply_reduced_stencil_target
+   public :: apply_reduced_stencil_dmi_target
    public :: clear_reduced_stencil
    public :: cell_basis_to_atom
    public :: atom_to_cell_basis
@@ -104,7 +115,8 @@ contains
    ! the source of the compact records; every other cell is then checked
    ! against it before the representation is accepted.
    subroutine build_reduced_stencil(natom,na,n1,n2,n3,bc1,bc2,bc3,do_reduced, &
-         do_ralloy,nham,ham_index,nlistsize,nlist,ncoup,stencil,ok,diagnostic)
+         do_ralloy,nham,ham_index,nlistsize,nlist,ncoup,stencil,ok,diagnostic, &
+         dmlistsize,dmlist,dm_vect)
       implicit none
 
       integer, intent(in) :: natom, na, n1, n2, n3, do_ralloy, nham
@@ -114,11 +126,13 @@ contains
       type(reduced_stencil_t), intent(out) :: stencil
       logical, intent(out), optional :: ok
       character(len=*), intent(out), optional :: diagnostic
+      integer, intent(in), optional :: dmlistsize(:), dmlist(:,:)
+      real(dblprec), intent(in), optional :: dm_vect(:,:,:)
 
-      integer :: b, atom, source, slot, nrec, z, start
+      integer :: b, atom, source, slot, nrec, ndmi, z, zdmi, start
       integer :: cell(3), source_cell(3), source_basis
       integer :: wrapped(3), expected
-      logical :: success
+      logical :: success, include_dmi
       character(len=256) :: reason
 
       call clear_reduced_stencil(stencil)
@@ -141,7 +155,35 @@ contains
          return
       endif
 
+      include_dmi=present(dmlistsize) .or. present(dmlist) .or. present(dm_vect)
+      if (include_dmi .and. (.not.present(dmlistsize) .or. .not.present(dmlist) .or. &
+            .not.present(dm_vect))) then
+         reason='DMI stencil requires sizes, neighbours, and vectors together'
+         call finish(success,reason,ok,diagnostic)
+         return
+      endif
+      if (include_dmi) then
+         if (size(dmlistsize) < nham .or. size(dmlist,2) < natom .or. &
+               size(dm_vect,1) < 3 .or. size(dm_vect,3) < nham) then
+            reason='production DMI arrays have insufficient dimensions'
+            call finish(success,reason,ok,diagnostic)
+            return
+         endif
+         if (any(dmlistsize(1:nham) < 0)) then
+            reason='production DMI neighbour counts cannot be negative'
+            call finish(success,reason,ok,diagnostic)
+            return
+         endif
+         if (size(dmlist,1) < maxval(dmlistsize(1:nham)) .or. &
+               size(dm_vect,2) < maxval(dmlistsize(1:nham))) then
+            reason='production DMI arrays have insufficient neighbour capacity'
+            call finish(success,reason,ok,diagnostic)
+            return
+         endif
+      endif
+
       nrec=0
+      ndmi=0
       do b=1,na
          if (ham_index(b) < 1 .or. ham_index(b) > nham) then
             reason='basis target does not have a valid reduced Hamiltonian index'
@@ -155,6 +197,15 @@ contains
             return
          endif
          nrec=nrec+z
+         if (include_dmi) then
+            zdmi=dmlistsize(ham_index(b))
+            if (zdmi < 0 .or. zdmi > size(dmlist,1) .or. zdmi > size(dm_vect,2)) then
+               reason='basis DMI neighbour count is outside production array bounds'
+               call finish(success,reason,ok,diagnostic)
+               return
+            endif
+            ndmi=ndmi+zdmi
+         endif
       end do
 
       stencil%na=na
@@ -162,7 +213,11 @@ contains
       stencil%n2=n2
       stencil%n3=n3
       allocate(stencil%record_start(na+1),stencil%record(nrec))
+      if (include_dmi) then
+         allocate(stencil%dmi_record_start(na+1),stencil%dmi_record(ndmi))
+      endif
       nrec=0
+      ndmi=0
       do b=1,na
          stencil%record_start(b)=nrec+1
          atom=cell_basis_to_atom(0,0,0,b,na,n1,n2,n3)
@@ -183,8 +238,29 @@ contains
             stencil%record(nrec)%cell_offset=source_cell(1)+n1*(source_cell(2)+n2*source_cell(3))
             stencil%record(nrec)%j=ncoup(slot,ham_index(atom),1)
          end do
+         if (include_dmi) then
+            stencil%dmi_record_start(b)=ndmi+1
+            zdmi=dmlistsize(ham_index(atom))
+            do slot=1,zdmi
+               source=dmlist(slot,atom)
+               if (source < 1 .or. source > natom) then
+                  reason='production DMI neighbour index is outside physical atom range'
+                  call clear_reduced_stencil(stencil)
+                  call finish(success,reason,ok,diagnostic)
+                  return
+               endif
+               call atom_to_cell_basis(source,na,n1,n2,n3,source_cell,source_basis)
+               ndmi=ndmi+1
+               stencil%dmi_record(ndmi)%output_basis=b
+               stencil%dmi_record(ndmi)%input_basis=source_basis
+               stencil%dmi_record(ndmi)%delta_cell=source_cell
+               stencil%dmi_record(ndmi)%cell_offset=source_cell(1)+n1*(source_cell(2)+n2*source_cell(3))
+               stencil%dmi_record(ndmi)%d=dm_vect(:,slot,ham_index(atom))
+            end do
+         endif
       end do
       stencil%record_start(na+1)=nrec+1
+      if (include_dmi) stencil%dmi_record_start(na+1)=ndmi+1
 
       ! The reduced production path retains full nlist records for every target
       ! but obtains the count/couplings from the compact basis entry.  Check
@@ -225,7 +301,53 @@ contains
                return
             endif
          end do
+         if (include_dmi) then
+            start=stencil%dmi_record_start(b)
+            zdmi=stencil%dmi_record_start(b+1)-start
+            if (dmlistsize(ham_index(atom)) /= zdmi) then
+               reason='DMI translation-invariance validation failed for list size'
+               call clear_reduced_stencil(stencil)
+               call finish(success,reason,ok,diagnostic)
+               return
+            endif
+            do slot=1,zdmi
+               source_basis=stencil%dmi_record(start+slot-1)%input_basis
+               call wrap_reduced_cell(cell,stencil%dmi_record(start+slot-1)%delta_cell, &
+                  n1,n2,n3,wrapped)
+               expected=cell_basis_to_atom(wrapped(1),wrapped(2),wrapped(3),source_basis, &
+                  na,n1,n2,n3)
+               if (dmlist(slot,atom) /= expected) then
+                  reason='DMI translation-invariance validation failed for dmlist'
+                  call clear_reduced_stencil(stencil)
+                  call finish(success,reason,ok,diagnostic)
+                  return
+               endif
+               if (maxval(abs(dm_vect(:,slot,ham_index(atom))- &
+                     stencil%dmi_record(start+slot-1)%d)) > dmi_tolerance(dm_vect(:,slot,ham_index(atom)))) then
+                  reason='DMI translation-invariance validation failed for vector'
+                  call clear_reduced_stencil(stencil)
+                  call finish(success,reason,ok,diagnostic)
+                  return
+               endif
+            end do
+         endif
       end do
+
+      if (include_dmi) then
+         do b=1,na
+            start=stencil%dmi_record_start(b)
+            do slot=start,stencil%dmi_record_start(b+1)-1
+               source_basis=stencil%dmi_record(slot)%input_basis
+               if (.not.has_reverse_dmi(stencil,source_basis,b, &
+                     stencil%dmi_record(slot)%delta_cell,stencil%dmi_record(slot)%d)) then
+                  reason='DMI reciprocal/antisymmetric validation failed'
+                  call clear_reduced_stencil(stencil)
+                  call finish(success,reason,ok,diagnostic)
+                  return
+               endif
+            end do
+         end do
+      endif
 
       success=.true.
       reason='stencil built and translation invariance validated'
@@ -241,6 +363,33 @@ contains
          if (present(ok_out)) ok_out=success
          if (present(diagnostic_out)) diagnostic_out=message
       end subroutine finish
+
+      pure real(dblprec) function dmi_tolerance(vector)
+         real(dblprec), intent(in) :: vector(3)
+         dmi_tolerance=1.0d-12*max(1.0d-30,maxval(abs(vector)))
+      end function dmi_tolerance
+
+      logical function has_reverse_dmi(stencil_in,output_basis,input_basis,delta,vector)
+         type(reduced_stencil_t), intent(in) :: stencil_in
+         integer, intent(in) :: output_basis,input_basis,delta(3)
+         real(dblprec), intent(in) :: vector(3)
+         integer :: reverse_slot,reverse_start,reverse_stop,reverse_delta(3)
+
+         has_reverse_dmi=.false.
+         reverse_start=stencil_in%dmi_record_start(output_basis)
+         reverse_stop=stencil_in%dmi_record_start(output_basis+1)-1
+         reverse_delta=(/modulo(-delta(1),stencil_in%n1), &
+            modulo(-delta(2),stencil_in%n2),modulo(-delta(3),stencil_in%n3)/)
+         do reverse_slot=reverse_start,reverse_stop
+            if (stencil_in%dmi_record(reverse_slot)%input_basis == input_basis .and. &
+                  all(stencil_in%dmi_record(reverse_slot)%delta_cell == reverse_delta) .and. &
+                  maxval(abs(stencil_in%dmi_record(reverse_slot)%d+vector)) <= &
+                  dmi_tolerance(vector)) then
+               has_reverse_dmi=.true.
+               return
+            endif
+         end do
+      end function has_reverse_dmi
 
    end subroutine build_reduced_stencil
 
@@ -344,6 +493,70 @@ contains
    end subroutine apply_reduced_stencil_target
 
 
+   subroutine apply_reduced_stencil_dmi_target(stencil,atom,ensemble,spin,field)
+      implicit none
+
+      type(reduced_stencil_t), intent(in) :: stencil
+      integer, intent(in) :: atom, ensemble
+      real(dblprec), intent(in) :: spin(:,:,:)
+      real(dblprec), intent(inout) :: field(:)
+
+      integer :: zero_based, cell_number, cell1, cell2, cell3, basis
+      integer :: slot, start, stop, source, source_cell1, source_cell2, source_cell3
+      integer :: input_basis, delta1, delta2, delta3
+      real(dblprec) :: bx, by, bz, dx, dy, dz, mx, my, mz
+
+      if (size(spin,1) /= 3 .or. size(field) /= 3 .or. &
+            atom < 1 .or. atom > stencil%na*stencil%n1*stencil%n2*stencil%n3 .or. &
+            ensemble < 1 .or. ensemble > size(spin,3)) then
+         error stop 'apply_reduced_stencil_dmi_target: incompatible dimensions'
+      endif
+      if (.not.allocated(stencil%dmi_record_start) .or. .not.allocated(stencil%dmi_record)) then
+         error stop 'apply_reduced_stencil_dmi_target: DMI stencil is not allocated'
+      endif
+
+      zero_based=atom-1
+      basis=modulo(zero_based,stencil%na)+1
+      cell_number=zero_based/stencil%na
+      cell1=modulo(cell_number,stencil%n1)
+      cell_number=cell_number/stencil%n1
+      cell2=modulo(cell_number,stencil%n2)
+      cell3=cell_number/stencil%n2
+
+      start=stencil%dmi_record_start(basis)
+      stop=stencil%dmi_record_start(basis+1)-1
+      bx=field(1)
+      by=field(2)
+      bz=field(3)
+      do slot=start,stop
+         input_basis=stencil%dmi_record(slot)%input_basis
+         delta1=stencil%dmi_record(slot)%delta_cell(1)
+         delta2=stencil%dmi_record(slot)%delta_cell(2)
+         delta3=stencil%dmi_record(slot)%delta_cell(3)
+         source_cell1=cell1+delta1
+         source_cell2=cell2+delta2
+         source_cell3=cell3+delta3
+         source=input_basis+stencil%na*(cell1+stencil%n1*(cell2+stencil%n2*cell3)+ &
+            stencil%dmi_record(slot)%cell_offset)
+         if (source_cell1 >= stencil%n1) source=source-stencil%na*stencil%n1
+         if (source_cell2 >= stencil%n2) source=source-stencil%na*stencil%n1*stencil%n2
+         if (source_cell3 >= stencil%n3) source=source-stencil%na*stencil%n1*stencil%n2*stencil%n3
+         dx=stencil%dmi_record(slot)%d(1)
+         dy=stencil%dmi_record(slot)%d(2)
+         dz=stencil%dmi_record(slot)%d(3)
+         mx=spin(1,source,ensemble)
+         my=spin(2,source,ensemble)
+         mz=spin(3,source,ensemble)
+         bx=bx+dy*mz-dz*my
+         by=by+dz*mx-dx*mz
+         bz=bz+dx*my-dy*mx
+      end do
+      field(1)=bx
+      field(2)=by
+      field(3)=bz
+   end subroutine apply_reduced_stencil_dmi_target
+
+
    pure integer function cell_basis_to_atom(cell1,cell2,cell3,basis,na,n1,n2,n3)
       implicit none
       integer, intent(in) :: cell1,cell2,cell3,basis,na,n1,n2,n3
@@ -395,6 +608,8 @@ contains
       stencil%n3=0
       if (allocated(stencil%record_start)) deallocate(stencil%record_start)
       if (allocated(stencil%record)) deallocate(stencil%record)
+      if (allocated(stencil%dmi_record_start)) deallocate(stencil%dmi_record_start)
+      if (allocated(stencil%dmi_record)) deallocate(stencil%dmi_record)
    end subroutine clear_reduced_stencil
 
 end module ReducedStencil

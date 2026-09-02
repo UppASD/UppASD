@@ -19,7 +19,7 @@ module HamiltonianActions
    use Parameters
    use HamiltonianData
    use InputData, only : ham_inp, do_sparse, do_convolution
-   use ReducedStencil, only : apply_reduced_stencil_target
+   use ReducedStencil, only : apply_reduced_stencil_target, apply_reduced_stencil_dmi_target
 #ifdef USE_FFTW
    use CPUConvolution, only : cpu_convolution_t, cpu_convolution_eligible, &
       cpu_convolution_init, cpu_convolution_build_kernel, cpu_convolution_apply, &
@@ -228,7 +228,7 @@ contains
    end subroutine sparse_backend_get_stats
 
    !----------------------------------------------------------------------------
-   !> Construct the persistent explicit scalar-J periodic convolution backend.
+   !> Construct the persistent periodic scalar-J/DMI convolution backend.
    !>
    !> The validated reduced stencil is the sole source for the translational
    !> kernel. FFT plans, mappings, spectra and work buffers all persist until
@@ -251,7 +251,7 @@ contains
          write(*,'(2x,a)') 'Scalar-J convolution backend declined: do_sparse is also selected'
          return
       endif
-      if (ham_inp%do_jtensor == 1 .or. ham_inp%do_dm == 1 .or. &
+      if (ham_inp%do_jtensor == 1 .or. &
             ham_inp%do_sa == 1 .or. ham_inp%do_pd == 1 .or. &
             ham_inp%do_biqdm == 1 .or. ham_inp%do_bq == 1 .or. &
             ham_inp%do_ring == 1 .or. ham_inp%do_chir == 1 .or. &
@@ -264,8 +264,20 @@ contains
          write(*,'(2x,a)') 'Scalar-J convolution backend declined: eligible reduced stencil unavailable'
          return
       endif
-      ok=cpu_convolution_eligible(Natom,NA,N1,N2,N3,BC1,BC2,BC3,do_reduced, &
-         do_ralloy,nHam,ham%aHam,ham%nlistsize,ham%nlist,ham%ncoup,diagnostic)
+      if (ham_inp%do_dm == 1) then
+         if (.not.allocated(ham%dmlistsize) .or. .not.allocated(ham%dmlist) .or. &
+               .not.allocated(ham%dm_vect) .or. &
+               .not.allocated(ham%reduced_stencil%dmi_record_start)) then
+            write(*,'(2x,a)') 'Scalar-J/DMI convolution backend declined: DMI data unavailable'
+            return
+         endif
+         ok=cpu_convolution_eligible(Natom,NA,N1,N2,N3,BC1,BC2,BC3,do_reduced, &
+            do_ralloy,nHam,ham%aHam,ham%nlistsize,ham%nlist,ham%ncoup,diagnostic, &
+            dmlistsize=ham%dmlistsize,dmlist=ham%dmlist,dm_vect=ham%dm_vect)
+      else
+         ok=cpu_convolution_eligible(Natom,NA,N1,N2,N3,BC1,BC2,BC3,do_reduced, &
+            do_ralloy,nHam,ham%aHam,ham%nlistsize,ham%nlist,ham%ncoup,diagnostic)
+      endif
       if (.not.ok) then
          write(*,'(2x,a,a)') 'Scalar-J convolution backend declined: ',trim(diagnostic)
          return
@@ -580,14 +592,14 @@ contains
          call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
             time_external_field,beff,beff1,beff2,atom_energy,calculate_energy, &
 #ifdef USE_FFTW
-            convolution_field(:,i,k))
+            convolution_field(:,i,k),.true.)
 #else
-            beff1)
+            beff1,.true.)
 #endif
       elseif (use_sparse_pair) then
          call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
             time_external_field,beff,beff1,beff2,atom_energy,calculate_energy, &
-            sparse_field(i,:,k))
+            sparse_field(i,:,k),.false.)
       else
          call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
             time_external_field,beff,beff1,beff2,atom_energy,calculate_energy)
@@ -596,7 +608,8 @@ contains
 
    ! Shared canonical field assembly for the energy-enabled and field-only paths.
    subroutine effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-      time_external_field,beff,beff1,beff2,atom_energy,calculate_energy,sparse_pair)
+      time_external_field,beff,beff1,beff2,atom_energy,calculate_energy,pair_field, &
+      pair_includes_dmi)
       implicit none
 
       integer, intent(in) :: i,k,Natom,Mensemble
@@ -609,15 +622,19 @@ contains
       real(dblprec), dimension(3), intent(out) :: beff2
       real(dblprec), intent(out) :: atom_energy
       logical, intent(in) :: calculate_energy
-      real(dblprec), dimension(3), optional, intent(in) :: sparse_pair
+      real(dblprec), dimension(3), optional, intent(in) :: pair_field
+      logical, optional, intent(in) :: pair_includes_dmi
 
       real(dblprec), dimension(3) :: tfield, beff_s, beff_q
+      logical :: complete_pair
 
       beff_s=0.0_dblprec
       beff_q=0.0_dblprec
+      complete_pair=.false.
+      if (present(pair_includes_dmi)) complete_pair=pair_includes_dmi
 
-      if (present(sparse_pair)) then
-         beff_s=sparse_pair
+      if (present(pair_field)) then
+         beff_s=pair_field
       elseif(ham_inp%do_jtensor/=1) then
          ! Heisenberg exchange term
          if(ham_inp%exc_inter=='N') then
@@ -630,7 +647,13 @@ contains
       end if
 
       ! Dzyaloshinskii-Moriya term
-      if(ham_inp%do_dm==1) call dzyaloshinskii_moriya_field(i, k, beff_s,Natom,Mensemble,emomM)
+      if(ham_inp%do_dm==1 .and. .not.complete_pair) then
+         if (allocated(ham%reduced_stencil%dmi_record_start)) then
+            call apply_reduced_stencil_dmi_target(ham%reduced_stencil,i,k,emomM,beff_s)
+         else
+            call dzyaloshinskii_moriya_field(i, k, beff_s,Natom,Mensemble,emomM)
+         endif
+      endif
 
       ! Symmetric anisotropic term
       if(ham_inp%do_sa==1) call symmetric_anisotropic_field(i, k, beff_s,Natom,Mensemble,emomM)

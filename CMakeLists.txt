@@ -942,6 +942,15 @@ if(BUILD_TESTING)
          Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/cpu_convolution_tests)
       target_link_libraries(cpu_convolution_tests PRIVATE ${UppASD_LIB})
       add_test(NAME cpu-ham-convolution COMMAND cpu_convolution_tests)
+
+      # CPU-HAM-06: exact periodic J+D parity for REDUCED-DIRECT and
+      # CONVOLUTION, including DMI sign and reciprocal-antisymmetry controls.
+      add_executable(cpu_ham06_j_plus_d_tests
+         ${CMAKE_SOURCE_DIR}/tests/hamiltonian/test_cpu_ham06_j_plus_d.f90)
+      set_target_properties(cpu_ham06_j_plus_d_tests PROPERTIES
+         Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/cpu_ham06_j_plus_d_tests)
+      target_link_libraries(cpu_ham06_j_plus_d_tests PRIVATE ${UppASD_LIB})
+      add_test(NAME cpu-ham-j-plus-d COMMAND cpu_ham06_j_plus_d_tests)
    endif()
 
    # RCG-09A.1: exact adaptive-setup predicates for reciprocal directed

@@ -1,6 +1,6 @@
 !-------------------------------------------------------------------------------
 ! MODULE: CPUConvolution
-!> @brief Persistent scalar-J periodic lattice convolution backend.
+!> @brief Persistent periodic lattice convolution backend for scalar J plus DMI.
 !>
 !> The object is provider-neutral at the Hamiltonian boundary and owns the
 !> persistent mapping, spectral kernel, FFT plans and timestep work buffers
@@ -30,6 +30,7 @@ module CPUConvolution
       integer :: natom=0
       integer :: ensembles=0
       integer :: spectral_cells=0
+      integer :: kernel_batches=0
       logical :: ready=.false.
       logical :: kernel_ready=.false.
       type(cpu_fft_plan_t) :: forward_plan
@@ -67,12 +68,15 @@ contains
    ! it reuses the accepted ReducedStencil validation rather than inventing a
    ! second connectivity oracle.
    logical function cpu_convolution_eligible(natom,na,n1,n2,n3,bc1,bc2,bc3, &
-         do_reduced,do_ralloy,nham,ham_index,nlistsize,nlist,ncoup,diagnostic)
+         do_reduced,do_ralloy,nham,ham_index,nlistsize,nlist,ncoup,diagnostic, &
+         dmlistsize,dmlist,dm_vect)
       integer, intent(in) :: natom,na,n1,n2,n3,do_ralloy,nham
       character(len=1), intent(in) :: bc1,bc2,bc3,do_reduced
       integer, intent(in) :: ham_index(:),nlistsize(:),nlist(:,:)
       real(dblprec), intent(in) :: ncoup(:,:,:)
       character(len=*), intent(out), optional :: diagnostic
+      integer, intent(in), optional :: dmlistsize(:), dmlist(:,:)
+      real(dblprec), intent(in), optional :: dm_vect(:,:,:)
       type(reduced_stencil_t) :: stencil
       logical :: ok
       character(len=256) :: reason
@@ -85,7 +89,8 @@ contains
          return
       endif
       call build_reduced_stencil(natom,na,n1,n2,n3,bc1,bc2,bc3,do_reduced, &
-         do_ralloy,nham,ham_index,nlistsize,nlist,ncoup,stencil,ok,reason)
+         do_ralloy,nham,ham_index,nlistsize,nlist,ncoup,stencil,ok,reason, &
+         dmlistsize,dmlist,dm_vect)
       call clear_reduced_stencil(stencil)
       cpu_convolution_eligible=ok
       call set_diagnostic(reason,diagnostic)
@@ -127,6 +132,8 @@ contains
       natom=convolution%natom
       batch_count=3*stencil%na*ensembles
       kernel_batches=stencil%na*stencil%na
+      if (allocated(stencil%dmi_record_start)) kernel_batches=4*kernel_batches
+      convolution%kernel_batches=kernel_batches
 
       allocate(convolution%atom_cell(3,natom),convolution%atom_basis(natom), &
          convolution%atom_index(stencil%na,convolution%ncells), &
@@ -180,7 +187,7 @@ contains
       type(cpu_convolution_t), intent(inout) :: convolution
       type(reduced_stencil_t), intent(in) :: stencil
       character(len=*), intent(out), optional :: diagnostic
-      integer :: a,b,slot,start,stop,delta(3),x,y,z,cell,pair
+      integer :: a,b,slot,start,stop,delta(3),x,y,z,cell,pair,component
       character(len=256) :: reason
 
       cpu_convolution_build_kernel=.false.
@@ -217,11 +224,35 @@ contains
                convolution%kernel_real(cell+1+convolution%ncells*(pair-1))+ &
                stencil%record(slot)%j
          end do
+         if (allocated(stencil%dmi_record_start)) then
+            start=stencil%dmi_record_start(a)
+            stop=stencil%dmi_record_start(a+1)-1
+            do slot=start,stop
+               b=stencil%dmi_record(slot)%input_basis
+               delta=stencil%dmi_record(slot)%delta_cell
+               x=modulo(-delta(1),convolution%n1)
+               y=modulo(-delta(2),convolution%n2)
+               z=modulo(-delta(3),convolution%n3)
+               cell=x+convolution%n1*(y+convolution%n2*z)
+               pair=a+convolution%na*(b-1)
+               do component=1,3
+                  convolution%kernel_real(cell+1+convolution%ncells*(pair-1+ &
+                     convolution%na*convolution%na*component))=&
+                     convolution%kernel_real(cell+1+convolution%ncells*(pair-1+ &
+                     convolution%na*convolution%na*component))+ &
+                     stencil%dmi_record(slot)%d(component)
+               end do
+            end do
+         endif
       end do
       call cpu_fft_execute_r2c(convolution%kernel_plan,convolution%kernel_real, &
          convolution%kernel_spectral)
       convolution%kernel_ready=.true.
-      reason='scalar-J spectral kernel built with N_A^2 basis kernels'
+      if (allocated(stencil%dmi_record_start)) then
+         reason='J+D spectral kernels built with 4*N_A^2 basis kernels'
+      else
+         reason='scalar-J spectral kernel built with N_A^2 basis kernels'
+      endif
       call set_diagnostic(reason,diagnostic)
       cpu_convolution_build_kernel=.true.
    end function cpu_convolution_build_kernel
@@ -232,11 +263,11 @@ contains
       real(dblprec), intent(in) :: spin(:,:,:)
       real(dblprec), intent(out) :: field(:,:,:)
       character(len=*), intent(out), optional :: diagnostic
-      integer :: ensemble,a,b,axis,cell,atom,q,batch_in,batch_out,pair
+      integer :: ensemble,a,b,axis,cell,atom,q,batch_in,batch_out,pair,base_in,pair_count
       real(dblprec) :: stage_start
       real(dblprec) :: apply_start
       real(C_DOUBLE) :: scale
-      complex(C_DOUBLE_COMPLEX) :: value
+      complex(C_DOUBLE_COMPLEX) :: value,j_value,dx,dy,dz,mx,my,mz
       character(len=256) :: reason
 
       cpu_convolution_apply=.false.
@@ -279,6 +310,7 @@ contains
 
       call cpu_time(stage_start)
       convolution%field_spectral=cmplx(0.0_C_DOUBLE,0.0_C_DOUBLE,kind=C_DOUBLE)
+      pair_count=convolution%na*convolution%na
       do ensemble=1,convolution%ensembles
          do a=1,convolution%na
             do axis=1,3
@@ -286,11 +318,33 @@ contains
                do q=0,convolution%spectral_cells-1
                   value=cmplx(0.0_C_DOUBLE,0.0_C_DOUBLE,kind=C_DOUBLE)
                   do b=1,convolution%na
-                     batch_in=axis+3*(b-1+convolution%na*(ensemble-1))
+                     base_in=3*(b-1+convolution%na*(ensemble-1))
+                     batch_in=axis+base_in
                      pair=a+convolution%na*(b-1)
-                     value=value+convolution%kernel_spectral(q+1+ &
-                        convolution%spectral_cells*(pair-1))*convolution%spin_spectral(q+1+ &
-                        convolution%spectral_cells*(batch_in-1))
+                     j_value=convolution%kernel_spectral(q+1+ &
+                        convolution%spectral_cells*(pair-1))
+                     mx=convolution%spin_spectral(q+1+convolution%spectral_cells*base_in)
+                     my=convolution%spin_spectral(q+1+convolution%spectral_cells*(base_in+1))
+                     mz=convolution%spin_spectral(q+1+convolution%spectral_cells*(base_in+2))
+                     if (axis == 1) then
+                        value=value+j_value*mx
+                     elseif (axis == 2) then
+                        value=value+j_value*my
+                     else
+                        value=value+j_value*mz
+                     endif
+                     if (convolution%kernel_batches > pair_count) then
+                        dx=convolution%kernel_spectral(q+1+convolution%spectral_cells*(pair-1+pair_count))
+                        dy=convolution%kernel_spectral(q+1+convolution%spectral_cells*(pair-1+2*pair_count))
+                        dz=convolution%kernel_spectral(q+1+convolution%spectral_cells*(pair-1+3*pair_count))
+                        if (axis == 1) then
+                           value=value+dy*mz-dz*my
+                        elseif (axis == 2) then
+                           value=value+dz*mx-dx*mz
+                        else
+                           value=value+dx*my-dy*mx
+                        endif
+                     endif
                   end do
                   convolution%field_spectral(q+1+convolution%spectral_cells*(batch_out-1))=value
                end do
@@ -377,6 +431,7 @@ contains
       convolution%natom=0
       convolution%ensembles=0
       convolution%spectral_cells=0
+      convolution%kernel_batches=0
       convolution%ready=.false.
       convolution%kernel_ready=.false.
       convolution%pack_seconds=0.0_dblprec
