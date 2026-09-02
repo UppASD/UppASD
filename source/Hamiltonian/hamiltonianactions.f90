@@ -234,16 +234,28 @@ contains
          real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM  !< Current magnetic moment vector
          real(dblprec), dimension(3), intent(inout) :: field !< Effective field
 
-         integer :: j, ih
+         integer :: j, ih, x, n_neigh
+         real(dblprec) :: bx, by, bz, coup
 
          ih=ham%aHam(i)
-#if _OPENMP >= 201307 && ( ! defined __INTEL_COMPILER_BUILD_DATE || __INTEL_COMPILER_BUILD_DATE > 20140422) && __INTEL_COMPILER < 1800
-!            !$omp simd reduction(+:field)
-#endif
-            do j=1,ham%nlistsize(ih)
-               !           !DIR$ vector always aligned
-               field = field + ham%ncoup(j,ih,1)*emomM(:,ham%nlist(j,i),k)
-            end do
+         n_neigh=ham%nlistsize(ih)
+
+         ! Keep the gather formulation, but make the three scalar reductions
+         ! explicit. This avoids constructing and repeatedly updating a
+         ! three-element array expression in the neighbour loop.
+         bx=field(1)
+         by=field(2)
+         bz=field(3)
+         do j=1,n_neigh
+            x=ham%nlist(j,i)
+            coup=ham%ncoup(j,ih,1)
+            bx=bx+coup*emomM(1,x,k)
+            by=by+coup*emomM(2,x,k)
+            bz=bz+coup*emomM(3,x,k)
+         end do
+         field(1)=bx
+         field(2)=by
+         field(3)=bz
       end subroutine heisenberg_field
 
       !---------------heisenberg_rescaling_field---------------!

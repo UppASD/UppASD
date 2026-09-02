@@ -9,12 +9,14 @@ program test_field_energy_contract
 
    integer, parameter :: natom=3, nensemble=2, nmacro=1, max_neigh=1
    real(dblprec), parameter :: tolerance=0.0_dblprec
-   integer :: i, failures
+   integer :: i, j, jj, failures
    integer :: cell_index(natom), macro_nlistsize(nmacro)
    real(dblprec) :: emomM(3,natom,nensemble), mmom(natom,nensemble)
    real(dblprec) :: external_field(3,natom,nensemble), time_external_field(3,natom,nensemble)
    real(dblprec) :: emomM_macro(3,nmacro,nensemble)
    real(dblprec) :: beff_on(3,natom,nensemble), beff_off(3,natom,nensemble)
+   real(dblprec) :: beff_j(3,natom,nensemble), beff1_j(3,natom,nensemble)
+   real(dblprec) :: beff2_j(3,natom,nensemble), j_reference(3,natom,nensemble)
    real(dblprec) :: beff_default(3,natom,nensemble)
    real(dblprec) :: beff1_on(3,natom,nensemble), beff1_off(3,natom,nensemble)
    real(dblprec) :: beff1_default(3,natom,nensemble)
@@ -35,6 +37,30 @@ program test_field_energy_contract
    time_external_field=0.0_dblprec
    time_external_field(2,:,:)=0.07_dblprec
    emomM_macro=0.0_dblprec
+
+   ! Exercise the production scalar-J path directly with non-collinear
+   ! moments and multiple ensembles before enabling the DMI part below.
+   ham_inp%do_dm=0
+   call effective_field(natom,nensemble,1,natom,emomM,mmom,external_field, &
+      time_external_field,beff_j,beff1_j,beff2_j,energy_off,nmacro,cell_index, &
+      emomM_macro,macro_nlistsize,1,1,1,1,measure_energy=.false.)
+   j_reference=0.0_dblprec
+   do j=1,nensemble
+      do i=1,natom
+         j_reference(:,i,j)=0.0_dblprec
+         do jj=1,ham%nlistsize(ham%aHam(i))
+            j_reference(1,i,j)=j_reference(1,i,j)+ham%ncoup(jj,ham%aHam(i),1)* &
+               emomM(1,ham%nlist(jj,i),j)
+            j_reference(2,i,j)=j_reference(2,i,j)+ham%ncoup(jj,ham%aHam(i),1)* &
+               emomM(2,ham%nlist(jj,i),j)
+            j_reference(3,i,j)=j_reference(3,i,j)+ham%ncoup(jj,ham%aHam(i),1)* &
+               emomM(3,ham%nlist(jj,i),j)
+         end do
+      end do
+   end do
+   call check(maxval(abs(beff1_j-j_reference)) <= tolerance, &
+      'scalar-J field matches the direct neighbour-list oracle')
+   ham_inp%do_dm=1
 
    call effective_field(natom,nensemble,1,natom,emomM,mmom,external_field, &
       time_external_field,beff_on,beff1_on,beff2_on,energy_on,nmacro,cell_index, &
