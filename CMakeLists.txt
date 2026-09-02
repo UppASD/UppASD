@@ -905,6 +905,15 @@ if(BUILD_TESTING)
    target_link_libraries(field_energy_contract_tests PRIVATE ${UppASD_LIB})
    add_test(NAME cpu-ham-field-energy-contract COMMAND field_energy_contract_tests)
 
+   # CPU-HAM-03B: persistent portable scalar-J CSR parity, energy semantics,
+   # repeated setup/cleanup, multi-ensemble operation, and explicit fallback.
+   add_executable(sparse_backend_tests
+      ${CMAKE_SOURCE_DIR}/tests/hamiltonian/test_sparse_backend.f90)
+   set_target_properties(sparse_backend_tests PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/sparse_backend_tests)
+   target_link_libraries(sparse_backend_tests PRIVATE ${UppASD_LIB})
+   add_test(NAME cpu-ham-sparse-backend COMMAND sparse_backend_tests)
+
    # CPU-HAM-02A: target-order permutation and weighted-static cut oracle.
    add_executable(target_order_tests
       ${CMAKE_SOURCE_DIR}/tests/hamiltonian/test_target_order.f90)

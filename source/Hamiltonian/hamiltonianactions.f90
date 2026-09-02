@@ -18,16 +18,196 @@ module HamiltonianActions
    use Profiling
    use Parameters
    use HamiltonianData
-   use InputData, only : ham_inp
+   use InputData, only : ham_inp, do_sparse
    use ReducedStencil, only : apply_reduced_stencil_target
 
    implicit none
+
+   ! Persistent CPU sparse-backend state. The matrix is a directed CSR
+   ! representation of the canonical neighbour-list operator; physical atom
+   ! indices and canonical Hamiltonian arrays are never reordered.
+   integer, dimension(:), allocatable :: sparse_row_ptr
+   integer, dimension(:), allocatable :: sparse_columns
+   real(dblprec), dimension(:), allocatable :: sparse_values
+   real(dblprec), dimension(:,:,:), allocatable :: sparse_rhs
+   real(dblprec), dimension(:,:,:), allocatable :: sparse_field
+   logical :: sparse_backend_ready = .false.
+   integer :: sparse_natom = 0
+   integer :: sparse_mensemble = 0
+   integer(kind=8) :: sparse_nnz = 0_8
+   real(dblprec) :: sparse_setup_seconds = 0.0_dblprec
+   real(dblprec) :: sparse_pack_seconds = 0.0_dblprec
+   real(dblprec) :: sparse_apply_seconds = 0.0_dblprec
 
    interface effective_field
       module procedure effective_field_bare, effective_field_full
    end interface
 
 contains
+
+   !----------------------------------------------------------------------------
+   !> Construct the persistent portable scalar-J CSR backend.
+   !>
+   !> This is intentionally an explicit opt-in through do_sparse. Only the
+   !> static scalar-J case is eligible; all other variants retain DIRECT.
+   !----------------------------------------------------------------------------
+   subroutine setup_sparse_backend(Natom,Mensemble,do_ralloy,do_lsf)
+      use omp_lib, only : omp_get_wtime
+      implicit none
+
+      integer, intent(in) :: Natom, Mensemble, do_ralloy
+      character(len=1), intent(in) :: do_lsf
+      integer :: i, j, ih, nnz, pos, istat
+      real(dblprec) :: t_start
+
+      call cleanup_sparse_backend()
+      if (do_sparse /= 'Y') return
+
+      if (ham_inp%do_jtensor == 1 .or. ham_inp%do_dm == 1 .or. &
+            ham_inp%exc_inter /= 'N' .or. do_ralloy /= 0 .or. do_lsf == 'Y') then
+         write(*,'(2x,a)') 'Scalar-J sparse backend declined: unsupported Hamiltonian variant'
+         return
+      endif
+      if (.not. allocated(ham%aHam) .or. .not. allocated(ham%nlistsize) .or. &
+            .not. allocated(ham%nlist) .or. .not. allocated(ham%ncoup)) then
+         write(*,'(2x,a)') 'Scalar-J sparse backend declined: exchange data unavailable'
+         return
+      endif
+      if (size(ham%aHam) /= Natom .or. size(ham%nlistsize) < Natom) then
+         write(*,'(2x,a)') 'Scalar-J sparse backend declined: incompatible exchange dimensions'
+         return
+      endif
+
+      t_start = omp_get_wtime()
+      nnz = 0
+      do i=1,Natom
+         ih=ham%aHam(i)
+         if (ih < 1 .or. ih > size(ham%nlistsize)) then
+            write(*,'(2x,a)') 'Scalar-J sparse backend declined: invalid Hamiltonian map'
+            return
+         endif
+         nnz=nnz+ham%nlistsize(ih)
+      end do
+
+      allocate(sparse_row_ptr(Natom+1),stat=istat)
+      if (istat /= 0) error stop 'Unable to allocate sparse CSR row pointers'
+      allocate(sparse_columns(nnz),sparse_values(nnz),stat=istat)
+      if (istat /= 0) error stop 'Unable to allocate sparse CSR entries'
+      allocate(sparse_rhs(Natom,3,Mensemble),sparse_field(Natom,3,Mensemble),stat=istat)
+      if (istat /= 0) error stop 'Unable to allocate sparse RHS work buffers'
+
+      sparse_row_ptr(1)=0
+      pos=0
+      do i=1,Natom
+         ih=ham%aHam(i)
+         do j=1,ham%nlistsize(ih)
+            pos=pos+1
+            sparse_columns(pos)=ham%nlist(j,i)
+            sparse_values(pos)=ham%ncoup(j,ih,1)
+         end do
+         sparse_row_ptr(i+1)=pos
+      end do
+
+      sparse_natom=Natom
+      sparse_mensemble=Mensemble
+      sparse_nnz=int(nnz,kind=8)
+      sparse_backend_ready=.true.
+      sparse_setup_seconds=omp_get_wtime()-t_start
+      write(*,'(2x,a,i0,a,i0,a)') 'Persistent scalar-J sparse backend ready: ', &
+         Natom, ' atoms, ', nnz, ' directed entries'
+   end subroutine setup_sparse_backend
+
+   !----------------------------------------------------------------------------
+   !> Release all persistent sparse state. Safe for repeated setup/cleanup.
+   !----------------------------------------------------------------------------
+   subroutine cleanup_sparse_backend()
+      implicit none
+
+      if (allocated(sparse_row_ptr)) deallocate(sparse_row_ptr)
+      if (allocated(sparse_columns)) deallocate(sparse_columns)
+      if (allocated(sparse_values)) deallocate(sparse_values)
+      if (allocated(sparse_rhs)) deallocate(sparse_rhs)
+      if (allocated(sparse_field)) deallocate(sparse_field)
+      sparse_backend_ready=.false.
+      sparse_natom=0
+      sparse_mensemble=0
+      sparse_nnz=0_8
+      sparse_setup_seconds=0.0_dblprec
+      sparse_pack_seconds=0.0_dblprec
+      sparse_apply_seconds=0.0_dblprec
+   end subroutine cleanup_sparse_backend
+
+   !----------------------------------------------------------------------------
+   !> Return whether the explicit sparse backend can serve this field request.
+   !----------------------------------------------------------------------------
+   logical function sparse_backend_can_apply(Natom,Mensemble,start_atom,stop_atom)
+      implicit none
+      integer, intent(in) :: Natom,Mensemble,start_atom,stop_atom
+
+      sparse_backend_can_apply = sparse_backend_ready .and. do_sparse == 'Y' .and. &
+         Natom == sparse_natom .and. Mensemble == sparse_mensemble .and. &
+         start_atom == 1 .and. stop_atom == Natom
+   end function sparse_backend_can_apply
+
+   !----------------------------------------------------------------------------
+   !> Apply persistent CSR J to all three Cartesian RHS columns.
+   !>
+   !> The sparse backend owns its OpenMP work. Packing and application are
+   !> separate measured regions, and no allocation or CSR construction occurs.
+   !----------------------------------------------------------------------------
+   subroutine apply_sparse_exchange(Mensemble,emomM)
+      use omp_lib, only : omp_get_wtime
+      implicit none
+
+      integer, intent(in) :: Mensemble
+      real(dblprec), dimension(3,sparse_natom,Mensemble), intent(in) :: emomM
+      integer :: i,j,k,p
+      real(dblprec) :: t_start
+
+      t_start=omp_get_wtime()
+      !$omp parallel do default(shared) private(i,k) collapse(2) schedule(static)
+      do k=1,Mensemble
+         do i=1,sparse_natom
+            sparse_rhs(i,1,k)=emomM(1,i,k)
+            sparse_rhs(i,2,k)=emomM(2,i,k)
+            sparse_rhs(i,3,k)=emomM(3,i,k)
+         end do
+      end do
+      !$omp end parallel do
+      sparse_pack_seconds=sparse_pack_seconds+(omp_get_wtime()-t_start)
+
+      t_start=omp_get_wtime()
+      !$omp parallel do default(shared) private(i,j,k,p) collapse(2) schedule(static)
+      do k=1,Mensemble
+         do i=1,sparse_natom
+            sparse_field(i,1,k)=0.0_dblprec
+            sparse_field(i,2,k)=0.0_dblprec
+            sparse_field(i,3,k)=0.0_dblprec
+            do p=sparse_row_ptr(i)+1,sparse_row_ptr(i+1)
+               j=sparse_columns(p)
+               sparse_field(i,1,k)=sparse_field(i,1,k)+sparse_values(p)*sparse_rhs(j,1,k)
+               sparse_field(i,2,k)=sparse_field(i,2,k)+sparse_values(p)*sparse_rhs(j,2,k)
+               sparse_field(i,3,k)=sparse_field(i,3,k)+sparse_values(p)*sparse_rhs(j,3,k)
+            end do
+         end do
+      end do
+      !$omp end parallel do
+      sparse_apply_seconds=sparse_apply_seconds+(omp_get_wtime()-t_start)
+   end subroutine apply_sparse_exchange
+
+   !----------------------------------------------------------------------------
+   !> Expose setup/apply timing for backend measurements without exposing state.
+   !----------------------------------------------------------------------------
+   subroutine sparse_backend_get_stats(setup_seconds,pack_seconds,apply_seconds,nnz)
+      implicit none
+      real(dblprec), intent(out) :: setup_seconds,pack_seconds,apply_seconds
+      integer(kind=8), intent(out) :: nnz
+
+      setup_seconds=sparse_setup_seconds
+      pack_seconds=sparse_pack_seconds
+      apply_seconds=sparse_apply_seconds
+      nnz=sparse_nnz
+   end subroutine sparse_backend_get_stats
 
    !----------------------------------------------------------------------------
    ! SUBROUTINE: effective_field
@@ -97,7 +277,7 @@ contains
 
       !.. Local scalars
       integer :: i,k,q,thread_id,nthreads,q_start,q_stop
-      logical :: calculate_energy,ordered_targets,weighted_targets
+      logical :: calculate_energy,ordered_targets,weighted_targets,sparse_active
       real(dblprec) :: atom_energy
 
       !.. Executable statements
@@ -121,6 +301,8 @@ contains
          call timing(0,'Dipolar Int.  ','OF')
          call timing(0,'Hamiltonian   ','ON')
       endif
+      sparse_active=sparse_backend_can_apply(Natom,Mensemble,start_atom,stop_atom)
+      if (sparse_active) call apply_sparse_exchange(Mensemble,emomM)
       ! The target order is a permutation of physical atom IDs.  Partial
       ! callers retain the historical natural loop because their range is not
       ! generally a contiguous interval in the permutation.
@@ -151,8 +333,8 @@ contains
                do q=q_start,q_stop
                   i=ham%target_order(q)
                   do k=1,Mensemble
-                     call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-                        time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.true.)
+                     call effective_field_atom_dispatch(i,k,Natom,Mensemble,emomM,mmom,external_field, &
+                        time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.true.,sparse_active)
                      energy=energy+atom_energy
                   end do
                end do
@@ -171,8 +353,8 @@ contains
                do q=q_start,q_stop
                   i=ham%target_order(q)
                   do k=1,Mensemble
-                     call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-                        time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.false.)
+                     call effective_field_atom_dispatch(i,k,Natom,Mensemble,emomM,mmom,external_field, &
+                        time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.false.,sparse_active)
                   end do
                end do
                !$omp end parallel
@@ -182,8 +364,8 @@ contains
             do q=1,Natom
                i=ham%target_order(q)
                do k=1,Mensemble
-                  call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-                     time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.true.)
+                  call effective_field_atom_dispatch(i,k,Natom,Mensemble,emomM,mmom,external_field, &
+                     time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.true.,sparse_active)
                   energy=energy+atom_energy
                end do
             end do
@@ -193,8 +375,8 @@ contains
             do q=1,Natom
                i=ham%target_order(q)
                do k=1,Mensemble
-                  call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-                     time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.false.)
+                  call effective_field_atom_dispatch(i,k,Natom,Mensemble,emomM,mmom,external_field, &
+                     time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.false.,sparse_active)
                end do
             end do
             !$omp end parallel do
@@ -203,8 +385,8 @@ contains
          !$omp parallel do default(shared) schedule(static) private(i,k,atom_energy) collapse(2) reduction(+:energy)
          do k=1, Mensemble
             do i=start_atom, stop_atom
-               call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-                  time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.true.)
+               call effective_field_atom_dispatch(i,k,Natom,Mensemble,emomM,mmom,external_field, &
+                  time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.true.,sparse_active)
                energy=energy+atom_energy
             end do
          end do
@@ -213,8 +395,8 @@ contains
          !$omp parallel do default(shared) schedule(static) private(i,k,atom_energy) collapse(2)
          do k=1, Mensemble
             do i=start_atom, stop_atom
-               call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-                  time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.false.)
+               call effective_field_atom_dispatch(i,k,Natom,Mensemble,emomM,mmom,external_field, &
+                  time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.false.,sparse_active)
             end do
          end do
          !$omp end parallel do
@@ -223,9 +405,37 @@ contains
 
    end subroutine effective_field_full
 
+   ! Dispatch one target through the canonical field assembly. When the
+   ! explicit sparse backend is active, only scalar Heisenberg J is supplied
+   ! by CSR; all remaining terms still use the canonical implementation.
+   subroutine effective_field_atom_dispatch(i,k,Natom,Mensemble,emomM,mmom,external_field, &
+      time_external_field,beff,beff1,beff2,atom_energy,calculate_energy,use_sparse_pair)
+      implicit none
+
+      integer, intent(in) :: i,k,Natom,Mensemble
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM
+      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: external_field
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: time_external_field
+      real(dblprec), dimension(3), intent(inout) :: beff
+      real(dblprec), dimension(3), intent(out) :: beff1
+      real(dblprec), dimension(3), intent(out) :: beff2
+      real(dblprec), intent(out) :: atom_energy
+      logical, intent(in) :: calculate_energy,use_sparse_pair
+
+      if (use_sparse_pair) then
+         call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
+            time_external_field,beff,beff1,beff2,atom_energy,calculate_energy, &
+            sparse_field(i,:,k))
+      else
+         call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
+            time_external_field,beff,beff1,beff2,atom_energy,calculate_energy)
+      endif
+   end subroutine effective_field_atom_dispatch
+
    ! Shared canonical field assembly for the energy-enabled and field-only paths.
    subroutine effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-      time_external_field,beff,beff1,beff2,atom_energy,calculate_energy)
+      time_external_field,beff,beff1,beff2,atom_energy,calculate_energy,sparse_pair)
       implicit none
 
       integer, intent(in) :: i,k,Natom,Mensemble
@@ -238,13 +448,16 @@ contains
       real(dblprec), dimension(3), intent(out) :: beff2
       real(dblprec), intent(out) :: atom_energy
       logical, intent(in) :: calculate_energy
+      real(dblprec), dimension(3), optional, intent(in) :: sparse_pair
 
       real(dblprec), dimension(3) :: tfield, beff_s, beff_q
 
       beff_s=0.0_dblprec
       beff_q=0.0_dblprec
 
-      if(ham_inp%do_jtensor/=1) then
+      if (present(sparse_pair)) then
+         beff_s=sparse_pair
+      elseif(ham_inp%do_jtensor/=1) then
          ! Heisenberg exchange term
          if(ham_inp%exc_inter=='N') then
             call heisenberg_field(i, k, beff_s,Natom,Mensemble,emomM)

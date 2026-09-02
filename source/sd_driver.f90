@@ -42,7 +42,6 @@ contains
    subroutine sd_iphase()
       !
       use QHB,                   only : qhb_rescale, do_qhb, qhb_mode
-      use Sparse
       use Damping,               only : iplambda1_array,iplambda2_array
       use FixedMom
       use Evolution
@@ -134,23 +133,11 @@ contains
             ! Apply Hamiltonian to obtain effective field
             call timing(0,'Initial       ','OF')
             call timing(0,'Hamiltonian   ','ON')
-            if(do_sparse=='Y') then
-               if(ham_inp%do_dm==1.or.ham_inp%do_jtensor==1) then
-                  call effective_field_SparseBlock(Natom,Mensemble,emomM,beff)
-               else
-                  call effective_field_SparseScalar(Natom,Mensemble,emomM,beff)
-               end if
-               beff1=beff
-               beff2=external_field+time_external_field
-               beff=beff1+beff2
-            else
-
-               call effective_field(Natom,Mensemble,1,Natom, &
-                  emomM,mmom,external_field,time_external_field,beff,beff1,    & 
-                  beff2,      &
-                  denergy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,  &
-                  N3,measure_energy=.false.)
-            end if
+            call effective_field(Natom,Mensemble,1,Natom, &
+               emomM,mmom,external_field,time_external_field,beff,beff1,    &
+               beff2,      &
+               denergy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,  &
+               N3,measure_energy=.false.)
             call timing(0,'Hamiltonian   ','OF')
             call timing(0,'Initial       ','ON')
 
@@ -175,21 +162,10 @@ contains
                   ! Apply Hamiltonian to obtain effective field
                   call timing(0,'Evolution     ','OF')
                   call timing(0,'Hamiltonian   ','ON')
-                  if(do_sparse=='Y') then
-                      if(ham_inp%do_dm==1.or.ham_inp%do_jtensor==1) then
-                        call effective_field_SparseBlock(Natom,Mensemble,emomM,beff)
-                     else
-                        call effective_field_SparseScalar(Natom,Mensemble,emomM,beff)
-                     end if
-                     beff1=beff
-                     beff2=external_field+time_external_field
-                     beff=beff1+beff2
-                  else
-                     call effective_field(Natom,Mensemble,1,Natom, &
-                        emomM,mmom,external_field,                   &
-                        time_external_field,beff,beff1,beff2,denergy,Num_macro,        &
-                        cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3,measure_energy=.false.)
-                  end if
+                  call effective_field(Natom,Mensemble,1,Natom, &
+                     emomM,mmom,external_field,                   &
+                     time_external_field,beff,beff1,beff2,denergy,Num_macro,        &
+                     cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3,measure_energy=.false.)
                   call timing(0,'Hamiltonian   ','OF')
                   call timing(0,'Evolution     ','ON')
                endif
@@ -254,7 +230,6 @@ contains
       use QHB,                   only : qhb_rescale, do_qhb, qhb_mode
       use BLS,                   only : calc_bls
       use Energy,                only : calc_energy
-      use Sparse
       use Damping
       use KMCData
       use FixedMom
@@ -354,21 +329,9 @@ contains
       ! Calculate the effective field before the simulation starts, if fields are to be printed
       if (do_prn_beff=='Y') then
          ! Apply Hamiltonian to obtain effective field
-         if(do_sparse=='Y') then
-            if(ham_inp%do_dm==1.or.ham_inp%do_jtensor==1) then
-               call effective_field_SparseBlock(Natom,Mensemble,emomM,beff)
-            else
-               call effective_field_SparseScalar(Natom,Mensemble,emomM,beff)
-            end if
-            beff1=beff
-            beff2=external_field+time_external_field
-            beff=beff1+beff2
-         else
-
-            call effective_field(Natom,Mensemble,1,Natom,emomM,   &
-               mmom,external_field,time_external_field,beff,beff1,beff2, totenergy,        &
-               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3,measure_energy=.false.)
-         end if
+         call effective_field(Natom,Mensemble,1,Natom,emomM,   &
+            mmom,external_field,time_external_field,beff,beff1,beff2, totenergy,        &
+            Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3,measure_energy=.false.)
       end if
 
 
@@ -525,21 +488,9 @@ contains
          end if
 
          ! Apply Hamiltonian to obtain effective field
-         if(do_sparse=='Y') then
-            if(ham_inp%do_dm==1.or.ham_inp%do_jtensor==1) then
-               call effective_field_SparseBlock(Natom,Mensemble,emomM,beff)
-            else
-               call effective_field_SparseScalar(Natom,Mensemble,emomM,beff)
-            end if
-            beff1=beff
-            beff2=external_field+time_external_field
-            beff=beff1+beff2
-         else
-
-            call effective_field(Natom,Mensemble,1,Natom,emomM,   &
-               mmom,external_field,time_external_field,beff,beff1,beff2, totenergy,        &
-               Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3,measure_energy=.false.)
-         end if
+         call effective_field(Natom,Mensemble,1,Natom,emomM,   &
+            mmom,external_field,time_external_field,beff,beff1,beff2, totenergy,        &
+            Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3,measure_energy=.false.)
 
          call timing(0,'Hamiltonian   ','OF')
          call timing(0,'Evolution     ','ON')
@@ -578,25 +529,14 @@ contains
             endif
 
             ! Apply Hamiltonian to obtain effective field
-            if(do_sparse=='Y') then
-               if(ham_inp%do_dm==1.or.ham_inp%do_jtensor==1) then
-                  call effective_field_SparseBlock(Natom,Mensemble,emomM,beff)
-               else
-                  call effective_field_SparseScalar(Natom,Mensemble,emomM,beff)
-               end if
-               beff1=beff
-               beff2=external_field+time_external_field
-               beff=beff1+beff2
-            else
-               !---------------------------------------------------------------------
-               !! End of the induced moments treatment
-               !---------------------------------------------------------------------
-               call effective_field(Natom,Mensemble,1,Natom,  &
-                  emomM,mmom,external_field,time_external_field,     &
-                  beff,beff1,beff2,  &
-                  totenergy,Num_macro,cell_index,emomM_macro,             &
-                  macro_nlistsize,NA,N1,N2,N3,measure_energy=.false.)
-            end if
+            !---------------------------------------------------------------------
+            !! End of the induced moments treatment
+            !---------------------------------------------------------------------
+            call effective_field(Natom,Mensemble,1,Natom,  &
+               emomM,mmom,external_field,time_external_field,     &
+               beff,beff1,beff2,  &
+               totenergy,Num_macro,cell_index,emomM_macro,             &
+               macro_nlistsize,NA,N1,N2,N3,measure_energy=.false.)
 
          end if
          call timing(0,'Hamiltonian   ','OF')
@@ -727,7 +667,6 @@ contains
       !use QHB,                   only : qhb_rescale, do_qhb, qhb_mode
       !use BLS,                   only : calc_bls
       use Energy,                only : calc_energy
-      use Sparse
       use Damping
       !use KMCData
       use FixedMom
@@ -1121,7 +1060,6 @@ contains
    subroutine sd_minimal(emomM_io,emom_io,mmom_io,niter,sd_alg,sd_temp)
       !
       use QHB,                   only : qhb_rescale, do_qhb, qhb_mode
-      use Sparse
       use Damping,               only : lambda1_array,lambda2_array
       use FixedMom
       use Evolution
@@ -1189,23 +1127,11 @@ contains
       ipstep = 1
       do while(ipstep.LE.niter)
 
-         if(do_sparse=='Y') then
-            if(ham_inp%do_dm==1.or.ham_inp%do_jtensor==1) then
-               call effective_field_SparseBlock(Natom,Mensemble,emomM,beff)
-            else
-               call effective_field_SparseScalar(Natom,Mensemble,emomM,beff)
-            end if
-            beff1=beff
-            beff2=external_field+time_external_field
-            beff=beff1+beff2
-         else
-
-            call effective_field(Natom,Mensemble,1,Natom, &
-               emomM,mmom,external_field,time_external_field,beff,beff1,    & 
-               beff2,      &
-               denergy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,  &
-               N3,measure_energy=.false.)
-         end if
+         call effective_field(Natom,Mensemble,1,Natom, &
+            emomM,mmom,external_field,time_external_field,beff,beff1,    &
+            beff2,      &
+            denergy,Num_macro,cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,  &
+            N3,measure_energy=.false.)
 
          ! Try to see if this fixes the energy bouncing around. It did. This is need to avoid incremental temp.
          thermal_field=0.0_dblprec
@@ -1219,21 +1145,10 @@ contains
 
          if(sd_alg==1.or.sd_alg==4.or.sd_alg==5.or.sd_alg==6.or.sd_alg==7.or.sd_alg==11) then
 
-            if(do_sparse=='Y') then
-               if(ham_inp%do_dm==1.or.ham_inp%do_jtensor==1) then
-                  call effective_field_SparseBlock(Natom,Mensemble,emomM,beff)
-               else
-                  call effective_field_SparseScalar(Natom,Mensemble,emomM,beff)
-               end if
-               beff1=beff
-               beff2=external_field+time_external_field
-               beff=beff1+beff2
-            else
-               call effective_field(Natom,Mensemble,1,Natom, &
-                  emomM,mmom,external_field,                   &
-                  time_external_field,beff,beff1,beff2,denergy,Num_macro,        &
-                  cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3,measure_energy=.false.)
-            end if
+            call effective_field(Natom,Mensemble,1,Natom, &
+               emomM,mmom,external_field,                   &
+               time_external_field,beff,beff1,beff2,denergy,Num_macro,        &
+               cell_index,emomM_macro,macro_nlistsize,NA,N1,N2,N3,measure_energy=.false.)
          endif
 
          ! Perform second (corrector) step of SDE solver

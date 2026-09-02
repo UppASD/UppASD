@@ -504,8 +504,10 @@ contains
       use MultiscaleInterpolation
       use MultiscaleSetupSystem
       use MultiscaleDampingBand
+      use HamiltonianActions, only : cleanup_sparse_backend
       use AdaptiveCGProduction, only : print_adaptive_cg_summary, cleanup_adaptive_cg_production
 
+    call cleanup_sparse_backend()
     if (do_multiscale) then
       call allocate_multiscale(flag=-1)
       call allocate_systemdata(flag=-1)
@@ -609,7 +611,7 @@ contains
       use KMC
       use BLS
       use LSF,             only : read_LSF,allocate_lsfdata
-      use Sparse
+      use HamiltonianActions, only : setup_sparse_backend
       use Energy,          only: allocate_energies
       use Damping
       use KMCData
@@ -1209,22 +1211,7 @@ contains
       ! Allocate arrays for simulation and measurement
       call allocate_general(1)
 
-      if(do_sparse=='Y') then
-         if(ham_inp%do_jtensor==1) then
-            write (*,'(1x,a)') "Setting up sparse Hamiltonian from tensor form"
-            call setupSparseTensor(Natom,nHam,conf_num,ham%max_no_neigh,ham%nlist,   &
-               ham%nlistsize,ham%j_tens, ham%aham)
-         else if (ham_inp%do_dm==1) then
-            write (*,'(1x,a)') "Setting up sparse Hamiltonian with DMI"
-            call setupSparseBlock(Natom,nHam,conf_num,ham%max_no_neigh,ham%nlist,   &
-               ham%nlistsize,ham%ncoup,ham%max_no_dmneigh,ham%dmlistsize,ham%dmlist,&
-               ham%dm_vect,ham%aham)
-         else
-            write (*,'(1x,a)') "Setting up sparse Hamiltonian"
-            call setupSparseScalar(Natom,nHam,conf_num,ham%max_no_neigh,ham%nlist,  &
-               ham%nlistsize,ham%ncoup,ham%aham)
-         end if
-      end if
+      call setup_sparse_backend(Natom,Mensemble,do_ralloy,do_lsf)
 
       write (*,'(1x,a)') "Initialize metatype "
       call find_metatype_coordination(Natom,atype,ham,metatype)
