@@ -909,6 +909,15 @@ if(BUILD_TESTING)
    target_link_libraries(field_energy_contract_tests PRIVATE ${UppASD_LIB})
    add_test(NAME cpu-ham-field-energy-contract COMMAND field_energy_contract_tests)
 
+   # CPU-HAM-11: canonical global term decomposition against the specialized
+   # single-flip MC DeltaE path, including sign/factor negative controls.
+   add_executable(cpu_ham11_energy_tests
+      ${CMAKE_SOURCE_DIR}/tests/hamiltonian/test_cpu_ham11_energy.f90)
+   set_target_properties(cpu_ham11_energy_tests PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/cpu_ham11_energy_tests)
+   target_link_libraries(cpu_ham11_energy_tests PRIVATE ${UppASD_LIB})
+   add_test(NAME cpu-ham-energy-convention COMMAND cpu_ham11_energy_tests)
+
    # CPU-HAM-07: public backend vocabulary, legacy alias resolution and the
    # conservative AUTO/eligibility policy.
    add_executable(cpu_ham07_backend_policy_tests

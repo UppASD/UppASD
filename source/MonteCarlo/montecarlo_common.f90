@@ -436,6 +436,7 @@ contains
       use Constants, only : mub
       use macrocells, only : calc_trial_macro_mom
       use HamiltonianData, only : ham
+      use HamiltonianActions, only : canonical_onsite_energy
 
       !.. Implicit declarations
       implicit none
@@ -460,7 +461,6 @@ contains
       real(dblprec), dimension(3), intent(in) :: extfield !< External magnetic field
       real(dblprec), intent(out):: de  !< Energy difference
       integer, intent(in) :: k !< Current ensemble
-      real(dblprec) :: aw1,aw2
       integer, intent(in) :: do_dip  !<  Calculate dipole-dipole contribution (0/1)
       character(len=1), intent(in) :: exc_inter !< Interpolation of Jij between FM/DLM (Y/N)
       character(len=1), intent(in) :: mult_axis !< Flag to treat more than one anisotropy axis at the same time
@@ -477,7 +477,7 @@ contains
 
       !.. Local scalars
       integer :: j,mu,nu, iflip_h
-      real(dblprec) :: tt, tta, ttb, e_c, e_t
+      real(dblprec) :: tt, e_c, e_t
       real(dblprec) :: bqmdot, excscale
       real(dblprec) :: ringmdotij,ringmdotkl,ringmdotil,ringmdotkj,ringmdotik,ringmdotjl   
       real(dblprec), dimension(3) :: field
@@ -532,78 +532,8 @@ contains
 
       ! Anisotropy
       if (do_anisotropy==1) then
-         ! Uniaxial anisotropy
-         if (ham%taniso(iflip)==1) then
-            tta=sum(emomM(:,iflip,k)*ham%eaniso(:,iflip))
-            ttb=sum(trialmom(:)*ham%eaniso(:,iflip))
-            e_c=e_c+ham%kaniso(1,iflip)*(tta**2)+ham%kaniso(2,iflip)*(tta**4)
-            e_t=e_t+ham%kaniso(1,iflip)*(ttb**2)+ham%kaniso(2,iflip)*(ttb**4)
-            ! Cubic anisotropy
-         elseif (ham%taniso(iflip)==2) then
-            e_c=e_c-ham%kaniso(1,iflip)*(emomM(1,iflip,k)**2*emomM(2,iflip,k)**2+ &
-               emomM(2,iflip,k)**2*emomM(3,iflip,k)**2+emomM(3,iflip,k)**2*emomM(1,iflip,k)**2)- &
-               ham%kaniso(2,iflip)*(emomM(1,iflip,k)**2*emomM(2,iflip,k)**2*emomM(3,iflip,k)**2)
-               e_t=e_t-ham%kaniso(1,iflip)*(trialmom(1)**2*trialmom(2)**2+ &
-               trialmom(2)**2*trialmom(3)**2+trialmom(3)**2*trialmom(1)**2)- &
-               ham%kaniso(2,iflip)*(trialmom(1)**2*trialmom(2)**2*trialmom(3)**2)
-         endif
-         ! When both Cubic and Uniaxial are switched on
-         if (ham%taniso(iflip)==7) then
-            ! Uniaxial anisotropy
-            tta=(emomM(1,iflip,k)*ham%eaniso(1,iflip)+emomM(2,iflip,k)*ham%eaniso(2,iflip)+emomM(3,iflip,k)*ham%eaniso(3,iflip))
-            ttb=(trialmom(1)*ham%eaniso(1,iflip)+trialmom(2)*ham%eaniso(2,iflip)+trialmom(3)*ham%eaniso(3,iflip))
-            e_c=e_c+ham%kaniso(1,iflip)*(tta**2)+ham%kaniso(2,iflip)*(tta**4)
-            e_t=e_t+ham%kaniso(1,iflip)*(ttb**2)+ham%kaniso(2,iflip)*(ttb**4)
-            ! Cubic anisotropy
-            aw1=ham%kaniso(1,iflip)*ham%sb(iflip)
-            aw2=ham%kaniso(2,iflip)*ham%sb(iflip)
-            ! Adding up the contributions
-            e_c=e_c+aw1*(emomM(1,iflip,k)**2*emomM(2,iflip,k)**2+ &
-            emomM(2,iflip,k)**2*emomM(3,iflip,k)**2+emomM(3,iflip,k)**2*emomM(1,iflip,k)**2)+ &
-            aw2*(emomM(1,iflip,k)**2*emomM(2,iflip,k)**2*emomM(3,iflip,k)**2)
-            e_t=e_t+aw1*(trialmom(1)**2*trialmom(2)**2+ &
-            trialmom(2)**2*trialmom(3)**2+trialmom(3)**2*trialmom(1)**2)+ &
-            aw2*(trialmom(1)**2*trialmom(2)**2*trialmom(3)**2)
-         endif
-
-         ! This includes a secondary anisotropy energy
-         if (mult_axis=='Y') then
-            ! Uniaxial anisotropy
-            if (ham%taniso_diff(iflip)==1) then
-               tta=(emomM(1,iflip,k)*ham%eaniso_diff(1,iflip)+emomM(2,iflip,k)*ham%eaniso_diff(2,iflip)+emomM(3,iflip,k)*ham%eaniso_diff(3,iflip))
-               ttb=(trialmom(1)*ham%eaniso_diff(1,iflip)+trialmom(2)*ham%eaniso_diff(2,iflip)+trialmom(3)*ham%eaniso_diff(3,iflip))
-               e_c=e_c+ham%kaniso_diff(1,iflip)*(tta**2)+ham%kaniso_diff(2,iflip)*(tta**4)
-               e_t=e_t+ham%kaniso_diff(1,iflip)*(ttb**2)+ham%kaniso_diff(2,iflip)*(ttb**4)
-
-               ! Cubic anisotropy
-            elseif (ham%taniso_diff(iflip)==2) then
-               e_c=e_c+ham%kaniso_diff(1,iflip)*(emomM(1,iflip,k)**2*emomM(2,iflip,k)**2+ &
-               emomM(2,iflip,k)**2*emomM(3,iflip,k)**2+emomM(3,iflip,k)**2*emomM(1,iflip,k)**2)+ &
-               ham%kaniso_diff(2,iflip)*(emomM(1,iflip,k)**2*emomM(2,iflip,k)**2*emomM(3,iflip,k)**2)
-               e_t=e_t+ham%kaniso_diff(1,iflip)*(trialmom(1)**2*trialmom(2)**2+ &
-               trialmom(2)**2*trialmom(3)**2+trialmom(3)**2*trialmom(1)**2)+ &
-               ham%kaniso_diff(2,iflip)*(trialmom(1)**2*trialmom(2)**2*trialmom(3)**2)
-            endif
-            ! When both Cubic and Uniaxial are switched on
-            if (ham%taniso_diff(iflip)==7) then
-               ! Uniaxial anisotropy
-               tta=(emomM(1,iflip,k)*ham%eaniso_diff(1,iflip)+emomM(2,iflip,k)*ham%eaniso_diff(2,iflip)+emomM(3,iflip,k)*ham%eaniso_diff(3,iflip))
-               ttb=(trialmom(1)*ham%eaniso_diff(1,iflip)+trialmom(2)*ham%eaniso_diff(2,iflip)+trialmom(3)*ham%eaniso_diff(3,iflip))
-               e_c=e_c+ham%kaniso_diff(1,iflip)*(tta**2)+ham%kaniso_diff(2,iflip)*(tta**4)
-               e_t=e_t+ham%kaniso_diff(1,iflip)*(ttb**2)+ham%kaniso_diff(2,iflip)*(ttb**4)
-
-               ! Cubic anisotropy
-               aw1=ham%kaniso_diff(1,iflip)*ham%sb_diff(iflip)
-               aw2=ham%kaniso_diff(2,iflip)*ham%sb_diff(iflip)
-
-               e_c=e_c+aw1*(emomM(1,iflip,k)**2*emomM(2,iflip,k)**2+ &
-               emomM(2,iflip,k)**2*emomM(3,iflip,k)**2+emomM(3,iflip,k)**2*emomM(1,iflip,k)**2)+ &
-               aw2*(emomM(1,iflip,k)**2*emomM(2,iflip,k)**2*emomM(3,iflip,k)**2)
-               e_t=e_t+aw1*(trialmom(1)**2*trialmom(2)**2+ &
-               trialmom(2)**2*trialmom(3)**2+trialmom(3)**2*trialmom(1)**2)+ &
-               aw2*(trialmom(1)**2*trialmom(2)**2*trialmom(3)**2)
-            endif
-         endif
+         e_c=e_c+canonical_onsite_energy(iflip,emomM(:,iflip,k),mult_axis)
+         e_t=e_t+canonical_onsite_energy(iflip,trialmom,mult_axis)
       endif
       ! DM interaction
       ! Accepted convention (RCG-02): E_dm(i) = sum_j D_ij . (M_i x M_j),

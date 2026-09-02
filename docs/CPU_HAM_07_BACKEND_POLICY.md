@@ -48,3 +48,19 @@ legacy aliases, and conflicts. Existing SPARSE and CONVOLUTION parity tests
 exercise the production selector and compare fields and field-derived energy
 against canonical DIRECT. Local validation used FFTW with MKL disabled; no
 MKL-specific run was required.
+
+## Global energy convention
+
+`HamiltonianActions` is the global Hamiltonian convention authority. Global
+measurement energy should request the optional canonical `term_fields`
+decomposition from the full `effective_field` interface rather than repeat
+term physics in `Energy`. Pair backends may return a combined field, but the
+measurement interface preserves exchange/DMI and all existing term-resolved
+outputs.
+
+Normal LLG field calls may continue to pass `measure_energy=.false.`. Local
+single-flip MC `DeltaE` kernels remain valid specialized transition paths;
+each supported term must be protected by parity against canonical global
+before/after energy. The complete HAM-11 call graph, relationships, backend
+parity, and explicit LSF/lattice exceptions are recorded in
+`docs/CPU_HAM_11_ENERGY_CONVENTION_MAP.md`.

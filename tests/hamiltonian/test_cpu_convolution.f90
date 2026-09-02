@@ -8,7 +8,7 @@ program test_cpu_convolution
    use HamiltonianData, only : ham
    use HamiltonianActions, only : effective_field, setup_convolution_backend, &
       setup_cpu_hamiltonian_backend, cleanup_convolution_backend, convolution_backend_can_apply, &
-      convolution_backend_get_stats
+      convolution_backend_get_stats, HAM_TERM_COUNT
    use InputData, only : ham_inp, cpu_ham_backend, do_convolution, do_sparse
    use ReducedStencil
    use CPUConvolution
@@ -162,6 +162,7 @@ contains
       real(dblprec), allocatable :: spin(:,:,:),mmom(:,:),external_field(:,:,:)
       real(dblprec), allocatable :: time_field(:,:,:),beff(:,:,:),beff1(:,:,:)
       real(dblprec), allocatable :: beff2(:,:,:),direct(:,:,:)
+      real(dblprec), allocatable :: terms_direct(:,:,:,:),terms_convolution(:,:,:,:)
       real(dblprec), allocatable :: emomM_macro(:,:,:)
       integer, allocatable :: cell_index(:),macro_nlistsize(:)
       type(reduced_stencil_t) :: stencil
@@ -213,7 +214,8 @@ contains
       allocate(spin(3,natom,ensembles),mmom(natom,ensembles),external_field(3,natom,ensembles), &
          time_field(3,natom,ensembles),beff(3,natom,ensembles),beff1(3,natom,ensembles), &
          beff2(3,natom,ensembles),direct(3,natom,ensembles),emomM_macro(3,1,ensembles), &
-         cell_index(natom),macro_nlistsize(1))
+         cell_index(natom),macro_nlistsize(1),terms_direct(3,HAM_TERM_COUNT,natom,ensembles), &
+         terms_convolution(3,HAM_TERM_COUNT,natom,ensembles))
       do ensemble=1,ensembles
          do atom=1,natom
             do axis=1,3
@@ -232,7 +234,7 @@ contains
       call clear_reduced_stencil(ham%reduced_stencil)
       call effective_field(natom,ensembles,1,natom,spin,mmom,external_field,time_field, &
          beff,beff1,beff2,direct_energy,1,cell_index,emomM_macro,macro_nlistsize, &
-         na,n1,n2,n3,measure_energy=.true.)
+         na,n1,n2,n3,measure_energy=.true.,term_fields=terms_direct)
       direct=beff1
 
       do_convolution='Y'
@@ -243,11 +245,13 @@ contains
          'production convolution backend is active')
       call effective_field(natom,ensembles,1,natom,spin,mmom,external_field,time_field, &
          beff,beff1,beff2,convolution_energy,1,cell_index,emomM_macro,macro_nlistsize, &
-         na,n1,n2,n3,measure_energy=.true.)
+         na,n1,n2,n3,measure_energy=.true.,term_fields=terms_convolution)
       call check(maxval(abs(beff1-direct)) < 2.0e-12_dblprec, &
          'production convolution field matches DIRECT')
       call check(abs(convolution_energy-direct_energy) < 2.0e-12_dblprec, &
          'production convolution energy matches DIRECT')
+      call check(maxval(abs(terms_convolution-terms_direct)) < 2.0e-12_dblprec, &
+         'production convolution term-resolved fields match DIRECT')
       call effective_field(natom,ensembles,1,natom,spin,mmom,external_field,time_field, &
          beff,beff1,beff2,convolution_energy,1,cell_index,emomM_macro,macro_nlistsize, &
          na,n1,n2,n3,measure_energy=.false.)
@@ -278,7 +282,7 @@ contains
       do_convolution='N'
       cpu_ham_backend='direct'
       deallocate(spin,mmom,external_field,time_field,beff,beff1,beff2,direct,emomM_macro, &
-         cell_index,macro_nlistsize)
+         cell_index,macro_nlistsize,terms_direct,terms_convolution)
       call clear_production_fixture()
       call clear_reduced_stencil(stencil)
    end subroutine test_production_backend

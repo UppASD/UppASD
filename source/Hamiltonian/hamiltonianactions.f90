@@ -29,6 +29,22 @@ module HamiltonianActions
 
    implicit none
 
+   ! Canonical term slots used by the optional measurement-time decomposition.
+   ! These slots carry fields; each term retains its own energy relationship.
+   integer, parameter, public :: HAM_TERM_EXCHANGE=1
+   integer, parameter, public :: HAM_TERM_DMI=2
+   integer, parameter, public :: HAM_TERM_SA=3
+   integer, parameter, public :: HAM_TERM_PD=4
+   integer, parameter, public :: HAM_TERM_BIQDM=5
+   integer, parameter, public :: HAM_TERM_BQ=6
+   integer, parameter, public :: HAM_TERM_RING=7
+   integer, parameter, public :: HAM_TERM_ANISOTROPY=8
+   integer, parameter, public :: HAM_TERM_EXTERNAL=9
+   integer, parameter, public :: HAM_TERM_DIPOLE=10
+   integer, parameter, public :: HAM_TERM_CHIRALITY=11
+   integer, parameter, public :: HAM_TERM_PAIR=12
+   integer, parameter, public :: HAM_TERM_COUNT=12
+
    character(len=16) :: cpu_ham_backend_resolved = 'direct'
    character(len=256) :: cpu_ham_backend_reason = 'not configured'
    logical :: cpu_ham_backend_initialized = .false.
@@ -676,7 +692,7 @@ contains
    subroutine effective_field_full(Natom,Mensemble,start_atom,stop_atom,   &
       emomM,mmom,external_field,time_external_field,beff,beff1,beff2,energy,         &
       Num_macro,cell_index,emomM_macro,    &
-      macro_nlistsize,NA,N1,N2,N3,measure_energy)
+      macro_nlistsize,NA,N1,N2,N3,measure_energy,term_fields)
       !
       use Constants, only : mry,mub
       use DipoleManager, only : dipole_field_calculation
@@ -709,6 +725,7 @@ contains
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff1 !< Internal effective field from application of Hamiltonian
       real(dblprec), dimension(3,Natom,Mensemble), intent(out) :: beff2 !< External field from application of Hamiltonian
       logical, intent(in), optional :: measure_energy !< Request the canonical energy reduction
+      real(dblprec), dimension(3,HAM_TERM_COUNT,Natom,Mensemble), intent(out), optional :: term_fields
 
       !.. Local scalars
       integer :: i,k,q,thread_id,nthreads,q_start,q_stop
@@ -723,6 +740,7 @@ contains
       energy=0.0_dblprec
       ! Initialization if the effective field
       beff=0.0_dblprec
+      if (present(term_fields)) term_fields=0.0_dblprec
       ! Wrapper for the calculation of the dipole-dipole interaction field
       ! The field is stored in the bfield array which then is passed to the main loop
       ! This is inefficient for the brute-force methods, but it the best way to ensure
@@ -781,7 +799,8 @@ contains
                   i=ham%target_order(q)
                   do k=1,Mensemble
                      call effective_field_atom_dispatch(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-                        time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.true.,sparse_active,convolution_active)
+                        time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.true.,sparse_active,convolution_active, &
+                        term_fields=term_fields)
                      energy=energy+atom_energy
                   end do
                end do
@@ -801,7 +820,8 @@ contains
                   i=ham%target_order(q)
                   do k=1,Mensemble
                      call effective_field_atom_dispatch(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-                        time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.false.,sparse_active,convolution_active)
+                        time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.false.,sparse_active,convolution_active, &
+                        term_fields=term_fields)
                   end do
                end do
                !$omp end parallel
@@ -812,7 +832,8 @@ contains
                i=ham%target_order(q)
                do k=1,Mensemble
                   call effective_field_atom_dispatch(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-                     time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.true.,sparse_active,convolution_active)
+                     time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.true.,sparse_active,convolution_active, &
+                     term_fields=term_fields)
                   energy=energy+atom_energy
                end do
             end do
@@ -823,7 +844,8 @@ contains
                i=ham%target_order(q)
                do k=1,Mensemble
                   call effective_field_atom_dispatch(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-                     time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.false.,sparse_active,convolution_active)
+                     time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.false.,sparse_active,convolution_active, &
+                     term_fields=term_fields)
                end do
             end do
             !$omp end parallel do
@@ -833,7 +855,8 @@ contains
          do k=1, Mensemble
             do i=start_atom, stop_atom
                call effective_field_atom_dispatch(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-                  time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.true.,sparse_active,convolution_active)
+                  time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.true.,sparse_active,convolution_active, &
+                  term_fields=term_fields)
                energy=energy+atom_energy
             end do
          end do
@@ -843,7 +866,8 @@ contains
          do k=1, Mensemble
             do i=start_atom, stop_atom
                call effective_field_atom_dispatch(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-                  time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.false.,sparse_active,convolution_active)
+                  time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.false.,sparse_active,convolution_active, &
+                  term_fields=term_fields)
             end do
          end do
          !$omp end parallel do
@@ -857,7 +881,7 @@ contains
    ! by CSR; all remaining terms still use the canonical implementation.
    subroutine effective_field_atom_dispatch(i,k,Natom,Mensemble,emomM,mmom,external_field, &
       time_external_field,beff,beff1,beff2,atom_energy,calculate_energy,use_sparse_pair, &
-      use_convolution_pair)
+      use_convolution_pair,term_fields)
       implicit none
 
       integer, intent(in) :: i,k,Natom,Mensemble
@@ -870,29 +894,30 @@ contains
       real(dblprec), dimension(3), intent(out) :: beff2
       real(dblprec), intent(out) :: atom_energy
       logical, intent(in) :: calculate_energy,use_sparse_pair,use_convolution_pair
+      real(dblprec), dimension(3,HAM_TERM_COUNT,Natom,Mensemble), intent(inout), optional :: term_fields
 
       if (use_convolution_pair) then
          call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
             time_external_field,beff,beff1,beff2,atom_energy,calculate_energy, &
 #ifdef USE_FFTW
-            convolution_field(:,i,k),.true.)
+            convolution_field(:,i,k),.true.,term_fields=term_fields)
 #else
-            beff1,.true.)
+            beff1,.true.,term_fields=term_fields)
 #endif
       elseif (use_sparse_pair) then
          call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
             time_external_field,beff,beff1,beff2,atom_energy,calculate_energy, &
-            sparse_field(i,:,k),.false.)
+            sparse_field(i,:,k),.false.,term_fields=term_fields)
       else
          call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
-            time_external_field,beff,beff1,beff2,atom_energy,calculate_energy)
+            time_external_field,beff,beff1,beff2,atom_energy,calculate_energy,term_fields=term_fields)
       endif
    end subroutine effective_field_atom_dispatch
 
    ! Shared canonical field assembly for the energy-enabled and field-only paths.
    subroutine effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
       time_external_field,beff,beff1,beff2,atom_energy,calculate_energy,pair_field, &
-      pair_includes_dmi)
+      pair_includes_dmi,term_fields)
       implicit none
 
       integer, intent(in) :: i,k,Natom,Mensemble
@@ -907,9 +932,21 @@ contains
       logical, intent(in) :: calculate_energy
       real(dblprec), dimension(3), optional, intent(in) :: pair_field
       logical, optional, intent(in) :: pair_includes_dmi
+      real(dblprec), dimension(3,HAM_TERM_COUNT,Natom,Mensemble), optional, intent(inout) :: term_fields
 
       real(dblprec), dimension(3) :: tfield, beff_s, beff_q
       logical :: complete_pair
+
+      ! A term decomposition is an explicit measurement request.  Calls that
+      ! only request the legacy scalar energy retain the exact field assembly
+      ! contract; consolidated global measurement passes request term_fields.
+      if (present(term_fields)) then
+         call effective_field_atom_with_terms(i,k,Natom,Mensemble,emomM,mmom,external_field, &
+            time_external_field,beff,beff1,beff2,atom_energy,calculate_energy, &
+            pair_field=pair_field,pair_includes_dmi=pair_includes_dmi, &
+            term_fields=term_fields(:,:,i,k))
+         return
+      endif
 
       beff_s=0.0_dblprec
       beff_q=0.0_dblprec
@@ -982,6 +1019,187 @@ contains
       endif
 
    end subroutine effective_field_atom
+
+   ! Assemble and expose the canonical terms used by measurement-time energy.
+   ! Pair backends may provide a combined J+D field; in that case the canonical
+   ! DMI field is evaluated once and subtracted to retain term-resolved output.
+   subroutine effective_field_atom_with_terms(i,k,Natom,Mensemble,emomM,mmom,external_field, &
+      time_external_field,beff,beff1,beff2,atom_energy,calculate_energy,pair_field, &
+      pair_includes_dmi,term_fields)
+      implicit none
+
+      integer, intent(in) :: i,k,Natom,Mensemble
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emomM
+      real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: external_field
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: time_external_field
+      real(dblprec), dimension(3), intent(inout) :: beff
+      real(dblprec), dimension(3), intent(out) :: beff1
+      real(dblprec), dimension(3), intent(out) :: beff2
+      real(dblprec), intent(out) :: atom_energy
+      logical, intent(in) :: calculate_energy
+      real(dblprec), dimension(3), optional, intent(in) :: pair_field
+      logical, optional, intent(in) :: pair_includes_dmi
+      real(dblprec), dimension(3,HAM_TERM_COUNT), optional, intent(out) :: term_fields
+
+      real(dblprec), dimension(3,HAM_TERM_COUNT) :: terms
+      real(dblprec), dimension(3) :: cubic_field
+      logical :: complete_pair
+
+      terms=0.0_dblprec
+      complete_pair=.false.
+      if (present(pair_includes_dmi)) complete_pair=pair_includes_dmi
+
+      ! The incoming field is the dipole field calculated by the outer wrapper.
+      terms(:,HAM_TERM_DIPOLE)=beff
+
+      if (present(pair_field)) then
+         if (complete_pair .and. ham_inp%do_dm==1) then
+            if (reduced_direct_testing .and. allocated(ham%reduced_stencil%dmi_record_start)) then
+               call apply_reduced_stencil_dmi_target(ham%reduced_stencil,i,k,emomM,terms(:,HAM_TERM_DMI))
+            else
+               call dzyaloshinskii_moriya_field(i,k,terms(:,HAM_TERM_DMI),Natom,Mensemble,emomM)
+            endif
+            terms(:,HAM_TERM_EXCHANGE)=pair_field-terms(:,HAM_TERM_DMI)
+         else
+            terms(:,HAM_TERM_EXCHANGE)=pair_field
+         endif
+      elseif (ham_inp%do_jtensor/=1) then
+         if (ham_inp%exc_inter=='N') then
+            call heisenberg_field(i,k,terms(:,HAM_TERM_EXCHANGE),Natom,Mensemble,emomM)
+         else
+            call heisenberg_rescaling_field(i,k,terms(:,HAM_TERM_EXCHANGE),Natom,Mensemble,mmom,emomM)
+         endif
+      else
+         call tensor_field(i,k,terms(:,HAM_TERM_PAIR),Natom,Mensemble,emomM)
+      endif
+
+      if (ham_inp%do_dm==1 .and. .not.complete_pair) then
+         if (reduced_direct_testing .and. allocated(ham%reduced_stencil%dmi_record_start)) then
+            call apply_reduced_stencil_dmi_target(ham%reduced_stencil,i,k,emomM,terms(:,HAM_TERM_DMI))
+         else
+            call dzyaloshinskii_moriya_field(i,k,terms(:,HAM_TERM_DMI),Natom,Mensemble,emomM)
+         endif
+      endif
+      if (ham_inp%do_sa==1) call symmetric_anisotropic_field(i,k,terms(:,HAM_TERM_SA),Natom,Mensemble,emomM)
+      if (ham_inp%do_pd==1) call pseudo_dipolar_field(i,k,terms(:,HAM_TERM_PD),Natom,Mensemble,emomM)
+      if (ham_inp%do_biqdm==1) call dzyaloshinskii_moriya_bq_field(i,k,terms(:,HAM_TERM_BIQDM),Natom,Mensemble,emomM)
+      if (ham_inp%do_bq==1) call biquadratic_field(i,k,terms(:,HAM_TERM_BQ),Natom,Mensemble,emomM)
+      if (ham_inp%do_ring==1) call ring_field(i,k,terms(:,HAM_TERM_RING),Natom,Mensemble,emomM)
+      if (ham_inp%do_chir==1) call chirality_field(i,k,terms(:,HAM_TERM_CHIRALITY),Natom,Mensemble,emomM)
+
+      if (ham_inp%do_anisotropy==1) then
+         if (ham%taniso(i)==1) then
+            call uniaxial_anisotropy_field(i,k,terms(:,HAM_TERM_ANISOTROPY),Natom,Mensemble,ham_inp%mult_axis,emomM)
+         elseif (ham%taniso(i)==2) then
+            call cubic_anisotropy_field(i,k,terms(:,HAM_TERM_ANISOTROPY),Natom,Mensemble,ham_inp%mult_axis,emomM)
+         elseif (ham%taniso(i)==7) then
+            call uniaxial_anisotropy_field(i,k,terms(:,HAM_TERM_ANISOTROPY),Natom,Mensemble,ham_inp%mult_axis,emomM)
+            cubic_field=0.0_dblprec
+            call cubic_anisotropy_field(i,k,cubic_field,Natom,Mensemble,ham_inp%mult_axis,emomM)
+            terms(:,HAM_TERM_ANISOTROPY)=terms(:,HAM_TERM_ANISOTROPY)+ham%sb(i)*cubic_field
+         endif
+      endif
+
+      terms(:,HAM_TERM_EXTERNAL)=external_field(:,i,k)+time_external_field(:,i,k)
+      beff1=terms(:,HAM_TERM_EXCHANGE)
+      beff1=beff1+terms(:,HAM_TERM_DMI)
+      beff1=beff1+terms(:,HAM_TERM_SA)
+      beff1=beff1+terms(:,HAM_TERM_PD)
+      beff1=beff1+terms(:,HAM_TERM_RING)
+      beff1=beff1+terms(:,HAM_TERM_CHIRALITY)
+      beff1=beff1+terms(:,HAM_TERM_ANISOTROPY)
+      beff1=beff1+terms(:,HAM_TERM_PAIR)
+      beff2=terms(:,HAM_TERM_BIQDM)
+      beff2=beff2+terms(:,HAM_TERM_BQ)
+      beff2=beff2+terms(:,HAM_TERM_EXTERNAL)
+      beff=beff+beff1+beff2
+
+      atom_energy=0.0_dblprec
+      if (calculate_energy) then
+         atom_energy=canonical_field_energy(HAM_TERM_EXCHANGE,emomM(:,i,k),terms(:,HAM_TERM_EXCHANGE)) + &
+            canonical_field_energy(HAM_TERM_DMI,emomM(:,i,k),terms(:,HAM_TERM_DMI)) + &
+            canonical_field_energy(HAM_TERM_SA,emomM(:,i,k),terms(:,HAM_TERM_SA)) + &
+            canonical_field_energy(HAM_TERM_PD,emomM(:,i,k),terms(:,HAM_TERM_PD)) + &
+            canonical_field_energy(HAM_TERM_BIQDM,emomM(:,i,k),terms(:,HAM_TERM_BIQDM)) + &
+            canonical_field_energy(HAM_TERM_BQ,emomM(:,i,k),terms(:,HAM_TERM_BQ)) + &
+            canonical_field_energy(HAM_TERM_RING,emomM(:,i,k),terms(:,HAM_TERM_RING)) + &
+            canonical_field_energy(HAM_TERM_CHIRALITY,emomM(:,i,k),terms(:,HAM_TERM_CHIRALITY)) + &
+            canonical_field_energy(HAM_TERM_PAIR,emomM(:,i,k),terms(:,HAM_TERM_PAIR)) + &
+            canonical_field_energy(HAM_TERM_EXTERNAL,emomM(:,i,k),terms(:,HAM_TERM_EXTERNAL))
+         if (ham_inp%do_anisotropy==1) atom_energy=atom_energy+canonical_onsite_energy(i,emomM(:,i,k),ham_inp%mult_axis)
+         ! Dipole energy is accumulated by dipole_field_calculation in the
+         ! outer wrapper.  Its field remains available in terms for callers.
+      endif
+      if (present(term_fields)) term_fields=terms
+   end subroutine effective_field_atom_with_terms
+
+   ! Return the field-derived energy for terms with a fixed polynomial degree.
+   ! Onsite anisotropy deliberately has a separate canonical expression.
+   real(dblprec) function canonical_field_energy(term,moment,field)
+      implicit none
+      integer, intent(in) :: term
+      real(dblprec), dimension(3), intent(in) :: moment,field
+      real(dblprec) :: factor
+
+      select case(term)
+      case(HAM_TERM_BQ,HAM_TERM_RING)
+         factor=0.25_dblprec
+      case(HAM_TERM_EXTERNAL)
+         factor=1.0_dblprec
+      case default
+         factor=0.50_dblprec
+      end select
+      canonical_field_energy=-factor*sum(moment*field)
+   end function canonical_field_energy
+
+   ! Canonical onsite anisotropy energy paired with the production fields.
+   ! This is intentionally explicit: onsite terms are not assigned a generic
+   ! homogeneous field prefactor.
+   real(dblprec) function canonical_onsite_energy(i,moment,mult_axis)
+      implicit none
+      integer, intent(in) :: i
+      real(dblprec), dimension(3), intent(in) :: moment
+      character(len=1), intent(in) :: mult_axis
+      real(dblprec) :: c, s1, s2
+
+      canonical_onsite_energy=0.0_dblprec
+
+      if (ham%taniso(i)==1 .or. ham%taniso(i)==7) then
+         c=sum(moment*ham%eaniso(:,i))
+         canonical_onsite_energy=ham%kaniso(1,i)*c**2+2.0_dblprec*ham%kaniso(2,i)*c**2- &
+            ham%kaniso(2,i)*c**4
+      endif
+      if (ham%taniso(i)==2) then
+         s1=moment(1)**2*moment(2)**2+moment(2)**2*moment(3)**2+moment(3)**2*moment(1)**2
+         s2=moment(1)**2*moment(2)**2*moment(3)**2
+         canonical_onsite_energy=-ham%kaniso(1,i)*s1-ham%kaniso(2,i)*s2
+      elseif (ham%taniso(i)==7) then
+         s1=moment(1)**2*moment(2)**2+moment(2)**2*moment(3)**2+moment(3)**2*moment(1)**2
+         s2=moment(1)**2*moment(2)**2*moment(3)**2
+         canonical_onsite_energy=canonical_onsite_energy-ham%sb(i)*ham%kaniso(1,i)*s1- &
+            ham%sb(i)*ham%kaniso(2,i)*s2
+      endif
+
+      if (mult_axis=='Y' .and. allocated(ham%taniso_diff)) then
+         if (ham%taniso_diff(i)==1 .or. ham%taniso_diff(i)==7) then
+            c=sum(moment*ham%eaniso_diff(:,i))
+            canonical_onsite_energy=canonical_onsite_energy+ham%kaniso_diff(1,i)*c**2+ &
+               2.0_dblprec*ham%kaniso_diff(2,i)*c**2-ham%kaniso_diff(2,i)*c**4
+         endif
+         if (ham%taniso_diff(i)==2) then
+            s1=moment(1)**2*moment(2)**2+moment(2)**2*moment(3)**2+moment(3)**2*moment(1)**2
+            s2=moment(1)**2*moment(2)**2*moment(3)**2
+            canonical_onsite_energy=canonical_onsite_energy-ham%kaniso_diff(1,i)*s1- &
+               ham%kaniso_diff(2,i)*s2
+         elseif (ham%taniso_diff(i)==7) then
+            s1=moment(1)**2*moment(2)**2+moment(2)**2*moment(3)**2+moment(3)**2*moment(1)**2
+            s2=moment(1)**2*moment(2)**2*moment(3)**2
+            canonical_onsite_energy=canonical_onsite_energy-ham%sb_diff(i)*ham%kaniso_diff(1,i)*s1- &
+               ham%sb_diff(i)*ham%kaniso_diff(2,i)*s2
+         endif
+      endif
+   end function canonical_onsite_energy
 
       !---------------heisenberg_field---------------!
       !> Heisenberg

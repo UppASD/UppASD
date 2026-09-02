@@ -4,7 +4,7 @@ program test_sparse_backend
    use HamiltonianData, only : ham
    use HamiltonianActions, only : effective_field, setup_sparse_backend, &
       setup_cpu_hamiltonian_backend, cleanup_cpu_hamiltonian_backend, cleanup_sparse_backend, &
-      sparse_backend_can_apply, sparse_backend_get_stats
+      sparse_backend_can_apply, sparse_backend_get_stats, HAM_TERM_COUNT
    use InputData, only : ham_inp, cpu_ham_backend, do_sparse
    implicit none
 
@@ -35,6 +35,8 @@ contains
       real(dblprec) :: beff1_sparse(3,natom,nensemble),beff1_direct(3,natom,nensemble)
       real(dblprec) :: beff2_sparse(3,natom,nensemble),beff2_direct(3,natom,nensemble)
       real(dblprec) :: energy_sparse,energy_direct
+      real(dblprec) :: terms_sparse(3,HAM_TERM_COUNT,natom,nensemble)
+      real(dblprec) :: terms_direct(3,HAM_TERM_COUNT,natom,nensemble)
       real(dblprec) :: setup_seconds,pack_seconds,apply_seconds
       integer(kind=8) :: sparse_nnz
 
@@ -61,7 +63,8 @@ contains
          trim(label)//' sparse backend is active')
       call effective_field(natom,nensemble,1,natom,emomM,mmom,external_field, &
          time_external_field,beff_sparse,beff1_sparse,beff2_sparse,energy_sparse, &
-         nmacro,cell_index,emomM_macro,macro_nlistsize,1,1,1,1,measure_energy=.true.)
+         nmacro,cell_index,emomM_macro,macro_nlistsize,1,1,1,1,measure_energy=.true., &
+         term_fields=terms_sparse)
 
       call sparse_backend_get_stats(setup_seconds,pack_seconds,apply_seconds,sparse_nnz)
       write(*,'(a,a,a,3(es12.4,1x),a,i0)') 'CPU-HAM-03B ',trim(label), &
@@ -77,7 +80,8 @@ contains
       call cleanup_cpu_hamiltonian_backend()
       call effective_field(natom,nensemble,1,natom,emomM,mmom,external_field, &
          time_external_field,beff_direct,beff1_direct,beff2_direct,energy_direct, &
-         nmacro,cell_index,emomM_macro,macro_nlistsize,1,1,1,1,measure_energy=.true.)
+         nmacro,cell_index,emomM_macro,macro_nlistsize,1,1,1,1,measure_energy=.true., &
+         term_fields=terms_direct)
 
       call check(maxval(abs(beff_sparse-beff_direct)) <= 1.0d-13, &
          trim(label)//' total field matches DIRECT')
@@ -87,6 +91,8 @@ contains
          trim(label)//' external field matches DIRECT')
       call check(abs(energy_sparse-energy_direct) <= 1.0d-13, &
          trim(label)//' field-derived energy matches DIRECT')
+      call check(maxval(abs(terms_sparse-terms_direct)) <= 1.0d-13, &
+         trim(label)//' term-resolved energy fields match DIRECT')
 
       ! Policy 2: an explicit sparse partial-range request intentionally uses
       ! the canonical DIRECT loop, with a diagnostic emitted by the backend.
