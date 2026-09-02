@@ -946,8 +946,10 @@ contains
          call reject('hfield/do_bpulse/demag: external or time-dependent fields are not supported by the first production CG path', &
             status,diagnostic); return
       end if
-      if (do_sparse == 'Y' .or. do_reduced == 'Y' .or. mompar /= 0 .or. do_fixed_mom == 'Y') then
-         call reject('do_sparse/do_reduced/mompar/do_fixed_mom is unsupported with adaptive coarse graining', &
+      if (.not. same_word(cpu_ham_backend,'DIRECT') .or. same_word(do_sparse,'Y') .or. &
+          same_word(do_reduced,'Y') .or. same_word(do_convolution,'Y') .or. &
+          mompar /= 0 .or. do_fixed_mom == 'Y') then
+         call reject('cpu_ham_backend/do_sparse/do_reduced/do_convolution/mompar/do_fixed_mom is unsupported with adaptive coarse graining', &
             status,diagnostic); return
       end if
       if (plotenergy /= 0) then

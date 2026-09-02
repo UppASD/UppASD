@@ -144,8 +144,9 @@ module InputData
    integer :: do_prn_elk       !< Print geometry on ELK format (0/1)
    integer :: do_read_elk      !< Read geometry on ELK format (0/1)
    integer :: compensate_drift !< Correct for drift in RNG
-   character(len=1) :: do_sparse    !< Use sparse linear algebra for effective field evaluation (T/F)
-   character(len=1) :: do_convolution !< Use persistent scalar-J CPU convolution (Y/N)
+   character(len=16) :: cpu_ham_backend !< CPU pair backend: direct, sparse or convolution
+   character(len=1) :: do_sparse    !< Legacy alias for cpu_ham_backend=sparse (T/F)
+   character(len=1) :: do_convolution !< Legacy alias for cpu_ham_backend=convolution (Y/N)
    character(len=1) :: do_reduced   !< Use reduced formulation of Hamiltonian (Y/N)
    !---------------------------------------------------------------------------------
    ! Measurement phase
@@ -467,6 +468,7 @@ contains
       plotenergy        = 0
       ene_step          = 100
       ene_buff          = 10
+      cpu_ham_backend   = 'direct'
       do_sparse         = 'N'
       do_convolution    = 'N'
       do_reduced        = 'N'

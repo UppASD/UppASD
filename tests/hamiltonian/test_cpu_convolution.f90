@@ -4,8 +4,9 @@ program test_cpu_convolution
    use Parameters, only : dblprec
    use HamiltonianData, only : ham
    use HamiltonianActions, only : effective_field, setup_convolution_backend, &
-      cleanup_convolution_backend, convolution_backend_can_apply, convolution_backend_get_stats
-   use InputData, only : ham_inp, do_convolution, do_sparse
+      setup_cpu_hamiltonian_backend, cleanup_convolution_backend, convolution_backend_can_apply, &
+      convolution_backend_get_stats
+   use InputData, only : ham_inp, cpu_ham_backend, do_convolution, do_sparse
    use ReducedStencil
    use CPUConvolution
 
@@ -225,8 +226,9 @@ contains
       direct=beff1
 
       do_convolution='Y'
+      cpu_ham_backend='convolution'
       ham%reduced_stencil=stencil
-      call setup_convolution_backend(natom,ensembles,0,'N',na,n1,n2,n3,'P','P','P','Y',na)
+      call setup_cpu_hamiltonian_backend(natom,ensembles,0,'N',na,n1,n2,n3,'P','P','P','Y',na)
       call check(convolution_backend_can_apply(natom,ensembles,1,natom), &
          'production convolution backend is active')
       call effective_field(natom,ensembles,1,natom,spin,mmom,external_field,time_field, &
@@ -254,6 +256,7 @@ contains
 
       call cleanup_convolution_backend()
       do_convolution='N'
+      cpu_ham_backend='direct'
       deallocate(spin,mmom,external_field,time_field,beff,beff1,beff2,direct,emomM_macro, &
          cell_index,macro_nlistsize)
       call clear_production_fixture()

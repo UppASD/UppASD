@@ -5,8 +5,8 @@ program test_cpu_ham06_j_plus_d
    use Constants, only : mub,mry
    use HamiltonianData, only : ham
    use HamiltonianActions, only : effective_field, setup_convolution_backend, &
-      cleanup_convolution_backend, convolution_backend_can_apply
-   use InputData, only : ham_inp, do_sparse, do_convolution
+      setup_cpu_hamiltonian_backend, cleanup_convolution_backend, convolution_backend_can_apply
+   use InputData, only : ham_inp, cpu_ham_backend, do_sparse, do_convolution
    use ReducedStencil
    use CPUConvolution
 
@@ -229,7 +229,8 @@ contains
       endif
       call cpu_convolution_clear(convolution)
       do_convolution='Y'
-      call setup_convolution_backend(natom,ensembles,0,'N',na,n1,n2,n3,'P','P','P','Y',na)
+      cpu_ham_backend='convolution'
+      call setup_cpu_hamiltonian_backend(natom,ensembles,0,'N',na,n1,n2,n3,'P','P','P','Y',na)
       call check(convolution_backend_can_apply(natom,ensembles,1,natom), &
          trim(label)//': J+D convolution backend is active',failures)
       if (convolution_backend_can_apply(natom,ensembles,1,natom)) then
@@ -242,6 +243,7 @@ contains
       endif
       call cleanup_convolution_backend()
       do_convolution='N'
+      cpu_ham_backend='direct'
 
       deallocate(spin,mmom,ext,text,beff,beff1,beff2,direct_field,reduced_field,wrong_field, &
          convolution_field, &

@@ -504,11 +504,10 @@ contains
       use MultiscaleInterpolation
       use MultiscaleSetupSystem
       use MultiscaleDampingBand
-      use HamiltonianActions, only : cleanup_sparse_backend, cleanup_convolution_backend
+      use HamiltonianActions, only : cleanup_cpu_hamiltonian_backend
       use AdaptiveCGProduction, only : print_adaptive_cg_summary, cleanup_adaptive_cg_production
 
-      call cleanup_sparse_backend()
-      call cleanup_convolution_backend()
+      call cleanup_cpu_hamiltonian_backend()
     if (do_multiscale) then
       call allocate_multiscale(flag=-1)
       call allocate_systemdata(flag=-1)
@@ -612,7 +611,7 @@ contains
       use KMC
       use BLS
       use LSF,             only : read_LSF,allocate_lsfdata
-      use HamiltonianActions, only : setup_sparse_backend, setup_convolution_backend
+      use HamiltonianActions, only : setup_cpu_hamiltonian_backend
       use Energy,          only: allocate_energies
       use Damping
       use KMCData
@@ -1212,8 +1211,7 @@ contains
       ! Allocate arrays for simulation and measurement
       call allocate_general(1)
 
-      call setup_sparse_backend(Natom,Mensemble,do_ralloy,do_lsf)
-      call setup_convolution_backend(Natom,Mensemble,do_ralloy,do_lsf,NA,N1,N2,N3, &
+      call setup_cpu_hamiltonian_backend(Natom,Mensemble,do_ralloy,do_lsf,NA,N1,N2,N3, &
          BC1,BC2,BC3,do_reduced,nHam)
 
       write (*,'(1x,a)') "Initialize metatype "

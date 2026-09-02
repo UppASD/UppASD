@@ -1672,6 +1672,22 @@ subroutine f90wrap_inputdata__set__do_sparse(f90wrap_do_sparse)
     inputdata_do_sparse = f90wrap_do_sparse
 end subroutine f90wrap_inputdata__set__do_sparse
 
+subroutine f90wrap_inputdata__get__cpu_ham_backend(f90wrap_cpu_ham_backend)
+    use inputdata, only: inputdata_cpu_ham_backend => cpu_ham_backend
+    implicit none
+    character(16), intent(out) :: f90wrap_cpu_ham_backend
+
+    f90wrap_cpu_ham_backend = inputdata_cpu_ham_backend
+end subroutine f90wrap_inputdata__get__cpu_ham_backend
+
+subroutine f90wrap_inputdata__set__cpu_ham_backend(f90wrap_cpu_ham_backend)
+    use inputdata, only: inputdata_cpu_ham_backend => cpu_ham_backend
+    implicit none
+    character(16), intent(in) :: f90wrap_cpu_ham_backend
+
+    inputdata_cpu_ham_backend = f90wrap_cpu_ham_backend
+end subroutine f90wrap_inputdata__set__cpu_ham_backend
+
 subroutine f90wrap_inputdata__get__do_convolution(f90wrap_do_convolution)
     use inputdata, only: inputdata_do_convolution => do_convolution
     implicit none

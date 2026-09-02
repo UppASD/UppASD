@@ -1170,6 +1170,10 @@ contains
                read(ifile,*,iostat=i_err) ene_buff
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('cpu_ham_backend','ham_backend')
+               read(ifile,*,iostat=i_err) cpu_ham_backend
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             case('do_sparse')
                read(ifile,*,iostat=i_err) do_sparse
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err

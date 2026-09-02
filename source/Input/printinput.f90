@@ -138,6 +138,9 @@ contains
          ! sym
          call json_write(file_id,(/Sym/),1,key='sym')
 
+         ! CPU Hamiltonian pair backend request
+         call json_write(file_id,cpu_ham_backend,key='cpu_ham_backend')
+
          ! natom not used in input
          !write (file_id,'(a, 20x ,i0)') '   "natom" :', Natom
 
@@ -401,6 +404,7 @@ contains
       call yaml_print("timestep:",delta_t,file_id)
       call yaml_print("damping:",mplambda1,file_id)
       call yaml_print("nstep:",nstep,file_id)
+      call yaml_print("cpu_ham_backend:",trim(cpu_ham_backend),file_id)
 
       if (mode .eq. 'S') then
          call yaml_print("mode:",'LLG',file_id)

@@ -70,6 +70,8 @@ def main() -> None:
         "local-spin-fluctuation": (source + "\ndo_lsf Y\n", "do_ralloy/Nchmax/do_lsf/ind_mom_flag"),
         "induced-moment": (source + "\nind_mom_flag Y\n", "do_ralloy/Nchmax/do_lsf/ind_mom_flag"),
         "sparse": (source + "\ndo_sparse Y\n", "do_sparse/do_reduced"),
+        "canonical-sparse": (source + "\ncpu_ham_backend sparse\n", "cpu_ham_backend/do_sparse/do_reduced"),
+        "canonical-convolution": (source + "\ncpu_ham_backend convolution\n", "cpu_ham_backend/do_sparse/do_reduced"),
         "reduced": (source + "\ndo_reduced Y\n", "do_sparse/do_reduced"),
         "fixed-moment": (source + "\ndo_fixed_mom Y\n", "do_sparse/do_reduced"),
         "legacy-sampler": (source + "\ndo_autocorr Y\n", "do_autocorr/do_spintemp/do_kmc"),

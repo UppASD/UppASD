@@ -3,8 +3,9 @@ program test_sparse_backend
    use Parameters, only : dblprec
    use HamiltonianData, only : ham
    use HamiltonianActions, only : effective_field, setup_sparse_backend, &
-      cleanup_sparse_backend, sparse_backend_can_apply, sparse_backend_get_stats
-   use InputData, only : ham_inp, do_sparse
+      setup_cpu_hamiltonian_backend, cleanup_cpu_hamiltonian_backend, cleanup_sparse_backend, &
+      sparse_backend_can_apply, sparse_backend_get_stats
+   use InputData, only : ham_inp, cpu_ham_backend, do_sparse
    implicit none
 
    integer :: failures
@@ -53,14 +54,26 @@ contains
       nnz=sum(ham%nlistsize)
 
       do_sparse='Y'
-      call setup_sparse_backend(natom,nensemble,0,'N')
+      cpu_ham_backend='sparse'
+      call setup_cpu_hamiltonian_backend(natom,nensemble,0,'N',1,1,1,1,'P','P','P','N',1)
       call check(sparse_backend_can_apply(natom,nensemble,1,natom), &
          trim(label)//' sparse backend is active')
       call effective_field(natom,nensemble,1,natom,emomM,mmom,external_field, &
          time_external_field,beff_sparse,beff1_sparse,beff2_sparse,energy_sparse, &
          nmacro,cell_index,emomM_macro,macro_nlistsize,1,1,1,1,measure_energy=.true.)
 
+      call sparse_backend_get_stats(setup_seconds,pack_seconds,apply_seconds,sparse_nnz)
+      write(*,'(a,a,a,3(es12.4,1x),a,i0)') 'CPU-HAM-03B ',trim(label), &
+         ' setup/pack/apply seconds=',setup_seconds,pack_seconds,apply_seconds, &
+         ' nnz=',sparse_nnz
+      call check(sparse_nnz == int(nnz,kind=8),trim(label)//' CSR has exact directed nnz')
+      call check(setup_seconds >= 0.0_dblprec,trim(label)//' setup cost is recorded')
+      call check(pack_seconds >= 0.0_dblprec,trim(label)//' packing cost is recorded')
+      call check(apply_seconds >= 0.0_dblprec,trim(label)//' sparse apply cost is recorded')
+
       do_sparse='N'
+      cpu_ham_backend='direct'
+      call cleanup_cpu_hamiltonian_backend()
       call effective_field(natom,nensemble,1,natom,emomM,mmom,external_field, &
          time_external_field,beff_direct,beff1_direct,beff2_direct,energy_direct, &
          nmacro,cell_index,emomM_macro,macro_nlistsize,1,1,1,1,measure_energy=.true.)
@@ -74,18 +87,10 @@ contains
       call check(abs(energy_sparse-energy_direct) <= 1.0d-13, &
          trim(label)//' field-derived energy matches DIRECT')
 
-      call sparse_backend_get_stats(setup_seconds,pack_seconds,apply_seconds,sparse_nnz)
-      write(*,'(a,a,a,3(es12.4,1x),a,i0)') 'CPU-HAM-03B ',trim(label), &
-         ' setup/pack/apply seconds=',setup_seconds,pack_seconds,apply_seconds, &
-         ' nnz=',sparse_nnz
-      call check(sparse_nnz == int(nnz,kind=8),trim(label)//' CSR has exact directed nnz')
-      call check(setup_seconds >= 0.0_dblprec,trim(label)//' setup cost is recorded')
-      call check(pack_seconds >= 0.0_dblprec,trim(label)//' packing cost is recorded')
-      call check(apply_seconds >= 0.0_dblprec,trim(label)//' sparse apply cost is recorded')
-
       ! Repeated setup must replace, not append to, the persistent structure.
       do_sparse='Y'
-      call setup_sparse_backend(natom,nensemble,0,'N')
+      cpu_ham_backend='sparse'
+      call setup_cpu_hamiltonian_backend(natom,nensemble,0,'N',1,1,1,1,'P','P','P','N',1)
       call check(sparse_backend_can_apply(natom,nensemble,1,natom), &
          trim(label)//' repeated setup remains active')
       call cleanup_sparse_backend()
@@ -154,6 +159,7 @@ contains
 
       ham_inp%exc_inter='Y'
       do_sparse='Y'
+      cpu_ham_backend='sparse'
       call setup_sparse_backend(natom,nensemble,0,'N')
       call check(.not. sparse_backend_can_apply(natom,nensemble,1,natom), &
          'rescaled exchange explicitly falls back from sparse')
@@ -161,6 +167,7 @@ contains
          beff_sparse,beff1,beff2,energy,nmacro,cell_index,emomM_macro, &
          macro_nlistsize,1,1,1,1,measure_energy=.false.)
       do_sparse='N'
+      cpu_ham_backend='direct'
       call effective_field(natom,nensemble,1,natom,emomM,mmom,ext,text, &
          beff_direct,beff1,beff2,energy,nmacro,cell_index,emomM_macro, &
          macro_nlistsize,1,1,1,1,measure_energy=.false.)

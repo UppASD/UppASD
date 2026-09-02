@@ -18,7 +18,7 @@ module HamiltonianActions
    use Profiling
    use Parameters
    use HamiltonianData
-   use InputData, only : ham_inp, do_sparse, do_convolution
+   use InputData, only : ham_inp, cpu_ham_backend, do_sparse, do_convolution
    use ReducedStencil, only : apply_reduced_stencil_target, apply_reduced_stencil_dmi_target
 #ifdef USE_FFTW
    use CPUConvolution, only : cpu_convolution_t, cpu_convolution_eligible, &
@@ -28,6 +28,10 @@ module HamiltonianActions
 #endif
 
    implicit none
+
+   character(len=16) :: cpu_ham_backend_resolved = 'direct'
+   character(len=256) :: cpu_ham_backend_reason = 'not configured'
+   logical :: cpu_ham_backend_initialized = .false.
 
    ! Persistent CPU sparse-backend state. The matrix is a directed CSR
    ! representation of the canonical neighbour-list operator; physical atom
@@ -59,10 +63,209 @@ module HamiltonianActions
 contains
 
    !----------------------------------------------------------------------------
+   !> Normalize a backend name without making input spelling significant.
+   !----------------------------------------------------------------------------
+   pure function lowercase_backend_name(value) result(lower)
+      character(len=*), intent(in) :: value
+      character(len=len(value)) :: lower
+      integer :: i,code
+
+      do i=1,len(value)
+         code=iachar(value(i:i))
+         if (code >= iachar('A') .and. code <= iachar('Z')) then
+            lower(i:i)=achar(code+iachar('a')-iachar('A'))
+         else
+            lower(i:i)=value(i:i)
+         endif
+      enddo
+   end function lowercase_backend_name
+
+
+   !----------------------------------------------------------------------------
+   !> Resolve the public CPU pair-backend vocabulary.
+   !>
+   !> AUTO is deliberately rejected: CPU-HAM-05 found no portable crossover
+   !> rule, and a machine-dependent heuristic must not be inferred here.
+   !----------------------------------------------------------------------------
+   subroutine resolve_cpu_ham_backend(requested,resolved,ok,diagnostic)
+      character(len=*), intent(in) :: requested
+      character(len=*), intent(out) :: resolved
+      logical, intent(out) :: ok
+      character(len=*), intent(out) :: diagnostic
+      character(len=16) :: normalized
+
+      normalized=trim(lowercase_backend_name(requested))
+      resolved=''
+      diagnostic=''
+      ok=.true.
+      select case(normalized)
+      case('direct')
+         resolved='direct'
+      case('sparse')
+         resolved='sparse'
+      case('convolution')
+         resolved='convolution'
+      case('auto')
+         ok=.false.
+         diagnostic='AUTO is disabled: CPU-HAM-05 did not establish a portable crossover rule'
+      case default
+         ok=.false.
+         diagnostic='unsupported CPU Hamiltonian backend "'//trim(requested)// &
+            '"; expected direct, sparse or convolution'
+      end select
+   end subroutine resolve_cpu_ham_backend
+
+
+   logical function legacy_backend_flag_enabled(flag)
+      character(len=*), intent(in) :: flag
+
+      select case(trim(lowercase_backend_name(flag)))
+      case('y','t','1')
+         legacy_backend_flag_enabled=.true.
+      case default
+         legacy_backend_flag_enabled=.false.
+      end select
+   end function legacy_backend_flag_enabled
+
+
+   !----------------------------------------------------------------------------
+   !> Resolve the canonical request plus the pre-CPU-HAM-07 compatibility flags.
+   !----------------------------------------------------------------------------
+   subroutine resolve_requested_cpu_ham_backend(resolved,ok,diagnostic)
+      character(len=*), intent(out) :: resolved
+      logical, intent(out) :: ok
+      character(len=*), intent(out) :: diagnostic
+      character(len=16) :: requested
+      logical :: legacy_sparse,legacy_convolution
+
+      call resolve_cpu_ham_backend(cpu_ham_backend,resolved,ok,diagnostic)
+      if (.not.ok) return
+
+      legacy_sparse=legacy_backend_flag_enabled(do_sparse)
+      legacy_convolution=legacy_backend_flag_enabled(do_convolution)
+      if (legacy_sparse .and. legacy_convolution) then
+         ok=.false.
+         diagnostic='do_sparse and do_convolution cannot select two CPU Hamiltonian backends'
+         return
+      endif
+
+      requested=resolved
+      if (trim(resolved) == 'direct') then
+         if (legacy_sparse) then
+            resolved='sparse'
+            diagnostic='legacy do_sparse compatibility alias'
+         elseif (legacy_convolution) then
+            resolved='convolution'
+            diagnostic='legacy do_convolution compatibility alias'
+         else
+            diagnostic='explicit DIRECT request; safe general path'
+         endif
+      elseif (trim(resolved) == 'sparse' .and. legacy_convolution) then
+         ok=.false.
+         diagnostic='cpu_ham_backend=sparse conflicts with do_convolution'
+      elseif (trim(resolved) == 'convolution' .and. legacy_sparse) then
+         ok=.false.
+         diagnostic='cpu_ham_backend=convolution conflicts with do_sparse'
+      else
+         diagnostic='explicit '//trim(requested)//' request'
+      endif
+   end subroutine resolve_requested_cpu_ham_backend
+
+
+   subroutine report_cpu_ham_backend(requested,resolved,eligible,reason)
+      character(len=*), intent(in) :: requested,resolved,reason
+      logical, intent(in) :: eligible
+
+      write(*,'(2x,a,a,a,a,a,l1,a,a)') 'CPU Hamiltonian backend: requested=',trim(requested), &
+         ' resolved=',trim(resolved),' eligible=',eligible,' reason=',trim(reason)
+   end subroutine report_cpu_ham_backend
+
+
+   subroutine reject_cpu_ham_backend(reason,resolved)
+      character(len=*), intent(in) :: reason
+      character(len=*), intent(in), optional :: resolved
+      character(len=16) :: resolved_name
+
+      resolved_name='unresolved'
+      if (present(resolved)) resolved_name=trim(resolved)
+      write(*,'(1x,a,a,a,a,a,a,a,a)') 'ERROR: CPU Hamiltonian backend request rejected: requested=', &
+         trim(cpu_ham_backend),' resolved=',trim(resolved_name),' eligible=F reason=',trim(reason)
+      error stop 1
+   end subroutine reject_cpu_ham_backend
+
+
+   !----------------------------------------------------------------------------
+   !> Construct the explicitly requested production CPU pair backend.
+   !>
+   !> DIRECT performs no persistent setup.  SPARSE and CONVOLUTION must prove
+   !> eligibility and become ready; an explicit ineligible request is fatal so
+   !> production never silently changes backend or physics.
+   !----------------------------------------------------------------------------
+   subroutine setup_cpu_hamiltonian_backend(Natom,Mensemble,do_ralloy,do_lsf,NA,N1,N2,N3, &
+         BC1,BC2,BC3,do_reduced,nHam)
+      implicit none
+
+      integer, intent(in) :: Natom,Mensemble,do_ralloy,NA,N1,N2,N3,nHam
+      character(len=1), intent(in) :: do_lsf,BC1,BC2,BC3,do_reduced
+      character(len=16) :: resolved
+      logical :: ok
+      character(len=256) :: diagnostic
+
+      call cleanup_cpu_hamiltonian_backend()
+      call resolve_requested_cpu_ham_backend(resolved,ok,diagnostic)
+      if (.not.ok) call reject_cpu_ham_backend(trim(diagnostic),resolved)
+
+      select case(trim(resolved))
+      case('direct')
+         cpu_ham_backend_resolved='direct'
+         cpu_ham_backend_reason='DIRECT is the safe general path; canonical HamiltonianActions terms remain active'
+         cpu_ham_backend_initialized=.true.
+         call report_cpu_ham_backend(cpu_ham_backend,resolved,.true.,cpu_ham_backend_reason)
+      case('sparse')
+         call setup_sparse_backend(Natom,Mensemble,do_ralloy,do_lsf)
+         if (.not.sparse_backend_ready) then
+            if (len_trim(cpu_ham_backend_reason) == 0) cpu_ham_backend_reason= &
+               'scalar-J sparse backend is ineligible for this Hamiltonian'
+            call reject_cpu_ham_backend(trim(cpu_ham_backend_reason),'sparse')
+         endif
+         cpu_ham_backend_resolved='sparse'
+         cpu_ham_backend_reason='eligible scalar-J; persistent CSR backend initialized'
+         cpu_ham_backend_initialized=.true.
+         call report_cpu_ham_backend(cpu_ham_backend,resolved,.true.,cpu_ham_backend_reason)
+      case('convolution')
+         call setup_convolution_backend(Natom,Mensemble,do_ralloy,do_lsf,NA,N1,N2,N3, &
+            BC1,BC2,BC3,do_reduced,nHam)
+         if (.not.convolution_backend_can_apply(Natom,Mensemble,1,Natom)) then
+            if (len_trim(cpu_ham_backend_reason) == 0) cpu_ham_backend_reason= &
+               'periodic reduced scalar-J/DMI convolution backend is unavailable or ineligible'
+            call reject_cpu_ham_backend(trim(cpu_ham_backend_reason),'convolution')
+         endif
+         cpu_ham_backend_resolved='convolution'
+         cpu_ham_backend_reason='eligible periodic reduced scalar-J/DMI; persistent convolution backend initialized'
+         cpu_ham_backend_initialized=.true.
+         call report_cpu_ham_backend(cpu_ham_backend,resolved,.true.,cpu_ham_backend_reason)
+      case default
+         call reject_cpu_ham_backend('internal backend resolution failure',resolved)
+      end select
+   end subroutine setup_cpu_hamiltonian_backend
+
+
+   subroutine cleanup_cpu_hamiltonian_backend()
+      implicit none
+
+      call cleanup_sparse_backend()
+      call cleanup_convolution_backend()
+      cpu_ham_backend_resolved='direct'
+      cpu_ham_backend_reason='not configured'
+      cpu_ham_backend_initialized=.false.
+   end subroutine cleanup_cpu_hamiltonian_backend
+
+   !----------------------------------------------------------------------------
    !> Construct the persistent portable scalar-J CSR backend.
    !>
-   !> This is intentionally an explicit opt-in through do_sparse. Only the
-   !> static scalar-J case is eligible; all other variants retain DIRECT.
+   !> This is an explicit scalar-J setup helper.  Production selection is
+   !> owned by setup_cpu_hamiltonian_backend; legacy do_sparse callers remain
+   !> supported for the focused backend tests and compatibility path.
    !----------------------------------------------------------------------------
    subroutine setup_sparse_backend(Natom,Mensemble,do_ralloy,do_lsf)
       use omp_lib, only : omp_get_wtime
@@ -72,26 +275,34 @@ contains
       character(len=1), intent(in) :: do_lsf
       integer :: i, j, ih, nnz, pos, istat
       real(dblprec) :: t_start
+      character(len=16) :: requested_backend
+      character(len=256) :: backend_diagnostic
+      logical :: backend_ok
 
       call cleanup_sparse_backend()
-      if (do_sparse /= 'Y') return
-
-      if (do_convolution == 'Y') then
-         write(*,'(2x,a)') 'Scalar-J sparse backend declined: do_convolution is also selected'
+      cpu_ham_backend_reason=''
+      call resolve_requested_cpu_ham_backend(requested_backend,backend_ok,backend_diagnostic)
+      if (.not.backend_ok) then
+         cpu_ham_backend_reason=trim(backend_diagnostic)
+         write(*,'(2x,a,a)') 'Scalar-J sparse backend declined: ',trim(backend_diagnostic)
          return
       endif
+      if (trim(requested_backend) /= 'sparse') return
 
       if (ham_inp%do_jtensor == 1 .or. ham_inp%do_dm == 1 .or. &
             ham_inp%exc_inter /= 'N' .or. do_ralloy /= 0 .or. do_lsf == 'Y') then
+         cpu_ham_backend_reason='sparse supports only static scalar-J Hamiltonians without DMI, rescaling, disorder or LSF'
          write(*,'(2x,a)') 'Scalar-J sparse backend declined: unsupported Hamiltonian variant'
          return
       endif
       if (.not. allocated(ham%aHam) .or. .not. allocated(ham%nlistsize) .or. &
             .not. allocated(ham%nlist) .or. .not. allocated(ham%ncoup)) then
+         cpu_ham_backend_reason='sparse exchange data unavailable'
          write(*,'(2x,a)') 'Scalar-J sparse backend declined: exchange data unavailable'
          return
       endif
       if (size(ham%aHam) /= Natom .or. size(ham%nlistsize) < Natom) then
+         cpu_ham_backend_reason='sparse exchange dimensions are incompatible with the requested atom count'
          write(*,'(2x,a)') 'Scalar-J sparse backend declined: incompatible exchange dimensions'
          return
       endif
@@ -101,6 +312,7 @@ contains
       do i=1,Natom
          ih=ham%aHam(i)
          if (ih < 1 .or. ih > size(ham%nlistsize)) then
+            cpu_ham_backend_reason='sparse Hamiltonian map contains an invalid exchange index'
             write(*,'(2x,a)') 'Scalar-J sparse backend declined: invalid Hamiltonian map'
             return
          endif
@@ -131,6 +343,9 @@ contains
       sparse_nnz=int(nnz,kind=8)
       sparse_backend_ready=.true.
       sparse_setup_seconds=omp_get_wtime()-t_start
+      cpu_ham_backend_resolved='sparse'
+      cpu_ham_backend_initialized=.true.
+      cpu_ham_backend_reason='eligible scalar-J; persistent CSR backend initialized'
       write(*,'(2x,a,i0,a,i0,a)') 'Persistent scalar-J sparse backend ready: ', &
          Natom, ' atoms, ', nnz, ' directed entries'
    end subroutine setup_sparse_backend
@@ -153,6 +368,8 @@ contains
       sparse_setup_seconds=0.0_dblprec
       sparse_pack_seconds=0.0_dblprec
       sparse_apply_seconds=0.0_dblprec
+      if (trim(cpu_ham_backend_resolved) == 'sparse') cpu_ham_backend_resolved='direct'
+      cpu_ham_backend_initialized=.false.
    end subroutine cleanup_sparse_backend
 
    !----------------------------------------------------------------------------
@@ -162,7 +379,7 @@ contains
       implicit none
       integer, intent(in) :: Natom,Mensemble,start_atom,stop_atom
 
-      sparse_backend_can_apply = sparse_backend_ready .and. do_sparse == 'Y' .and. &
+      sparse_backend_can_apply = sparse_backend_ready .and. trim(cpu_ham_backend_resolved) == 'sparse' .and. &
          Natom == sparse_natom .and. Mensemble == sparse_mensemble .and. &
          start_atom == 1 .and. stop_atom == Natom
    end function sparse_backend_can_apply
@@ -240,27 +457,38 @@ contains
 
       integer, intent(in) :: Natom,Mensemble,do_ralloy,NA,N1,N2,N3,nHam
       character(len=1), intent(in) :: do_lsf,BC1,BC2,BC3,do_reduced
+      character(len=16) :: requested_backend
+      character(len=256) :: backend_diagnostic
+      logical :: backend_ok
 #ifdef USE_FFTW
       logical :: ok
       character(len=256) :: diagnostic
       real(dblprec) :: t_start,t_end
+#endif
 
       call cleanup_convolution_backend()
-      if (do_convolution /= 'Y') return
-      if (do_sparse == 'Y') then
-         write(*,'(2x,a)') 'Scalar-J convolution backend declined: do_sparse is also selected'
+      cpu_ham_backend_reason=''
+      call resolve_requested_cpu_ham_backend(requested_backend,backend_ok,backend_diagnostic)
+      if (.not.backend_ok) then
+         cpu_ham_backend_reason=trim(backend_diagnostic)
+         write(*,'(2x,a,a)') 'Scalar-J convolution backend declined: ',trim(backend_diagnostic)
          return
       endif
+      if (trim(requested_backend) /= 'convolution') return
+
+#ifdef USE_FFTW
       if (ham_inp%do_jtensor == 1 .or. &
             ham_inp%do_sa == 1 .or. ham_inp%do_pd == 1 .or. &
             ham_inp%do_biqdm == 1 .or. ham_inp%do_bq == 1 .or. &
             ham_inp%do_ring == 1 .or. ham_inp%do_chir == 1 .or. &
             ham_inp%exc_inter /= 'N' .or. do_ralloy /= 0 .or. do_lsf == 'Y') then
+         cpu_ham_backend_reason='convolution supports only periodic reduced scalar-J/DMI without tensor, onsite pair extensions, disorder or LSF'
          write(*,'(2x,a)') 'Scalar-J convolution backend declined: unsupported Hamiltonian variant'
          return
       endif
       if (.not.allocated(ham%reduced_stencil%record_start) .or. &
             .not.allocated(ham%reduced_stencil%record)) then
+         cpu_ham_backend_reason='convolution requires an eligible reduced translational stencil'
          write(*,'(2x,a)') 'Scalar-J convolution backend declined: eligible reduced stencil unavailable'
          return
       endif
@@ -268,6 +496,7 @@ contains
          if (.not.allocated(ham%dmlistsize) .or. .not.allocated(ham%dmlist) .or. &
                .not.allocated(ham%dm_vect) .or. &
                .not.allocated(ham%reduced_stencil%dmi_record_start)) then
+            cpu_ham_backend_reason='convolution DMI data is unavailable for the requested J+D Hamiltonian'
             write(*,'(2x,a)') 'Scalar-J/DMI convolution backend declined: DMI data unavailable'
             return
          endif
@@ -279,6 +508,7 @@ contains
             do_ralloy,nHam,ham%aHam,ham%nlistsize,ham%nlist,ham%ncoup,diagnostic)
       endif
       if (.not.ok) then
+         cpu_ham_backend_reason='convolution eligibility check failed: '//trim(diagnostic)
          write(*,'(2x,a,a)') 'Scalar-J convolution backend declined: ',trim(diagnostic)
          return
       endif
@@ -287,6 +517,7 @@ contains
       ok=cpu_convolution_init(convolution_backend,ham%reduced_stencil,Mensemble,diagnostic)
       if (ok) ok=cpu_convolution_build_kernel(convolution_backend,ham%reduced_stencil,diagnostic)
       if (.not.ok) then
+         cpu_ham_backend_reason='convolution setup failed: '//trim(diagnostic)
          write(*,'(2x,a,a)') 'Scalar-J convolution backend declined: ',trim(diagnostic)
          call cleanup_convolution_backend()
          return
@@ -296,14 +527,16 @@ contains
       call cpu_time(t_end)
       convolution_setup_seconds=t_end-t_start
       convolution_backend_ready=.true.
+      cpu_ham_backend_resolved='convolution'
+      cpu_ham_backend_initialized=.true.
+      cpu_ham_backend_reason='eligible periodic reduced scalar-J/DMI; persistent convolution backend initialized'
       write(*,'(2x,a,i0,a,i0,a,a,a,i0)') &
          'Persistent scalar-J CPU convolution ready: ',Natom,' atoms, ',NA, &
          ' basis, provider ',trim(cpu_fft_provider_name()),' threads=', &
          cpu_fft_provider_threads()
 #else
-      if (do_convolution == 'Y') then
-         write(*,'(2x,a)') 'Scalar-J convolution backend unavailable: build requires FFTW or MKL FFT support'
-      endif
+      cpu_ham_backend_reason='CPU convolution provider unavailable: this build has no FFTW CPU provider; MKL provider is not enabled'
+      write(*,'(2x,a)') 'Scalar-J convolution backend unavailable: build requires FFTW CPU support'
 #endif
    end subroutine setup_convolution_backend
 
@@ -316,6 +549,8 @@ contains
       if (allocated(convolution_field)) deallocate(convolution_field)
       convolution_backend_ready=.false.
       convolution_setup_seconds=0.0_dblprec
+      if (trim(cpu_ham_backend_resolved) == 'convolution') cpu_ham_backend_resolved='direct'
+      cpu_ham_backend_initialized=.false.
 #endif
    end subroutine cleanup_convolution_backend
 
@@ -326,7 +561,7 @@ contains
 
       convolution_backend_can_apply=.false.
 #ifdef USE_FFTW
-      convolution_backend_can_apply=convolution_backend_ready .and. do_convolution == 'Y' .and. &
+      convolution_backend_can_apply=convolution_backend_ready .and. trim(cpu_ham_backend_resolved) == 'convolution' .and. &
          Natom == convolution_backend%natom .and. Mensemble == convolution_backend%ensembles .and. &
          start_atom == 1 .and. stop_atom == Natom
 #endif

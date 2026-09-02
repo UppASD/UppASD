@@ -1503,6 +1503,19 @@ def get_compensate_drift():
 def set_compensate_drift(compensate_drift):
     _uppasd.f90wrap_inputdata__set__compensate_drift(compensate_drift)
 
+def get_cpu_ham_backend():
+    """
+    Element cpu_ham_backend ftype=character(len=16) pytype=str
+
+
+    Defined at /home/andersb/CrossPlatform/UppASD/source/Input/inputdata.f90
+
+    """
+    return _uppasd.f90wrap_inputdata__get__cpu_ham_backend()
+
+def set_cpu_ham_backend(cpu_ham_backend):
+    _uppasd.f90wrap_inputdata__set__cpu_ham_backend(cpu_ham_backend)
+
 def get_do_sparse():
     """
     Element do_sparse ftype=character(len=1) pytype=str
