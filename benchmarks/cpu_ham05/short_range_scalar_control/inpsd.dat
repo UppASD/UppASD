@@ -1,0 +1,27 @@
+simid cpuHam05Short
+ncell 16 16 16
+BC P P P
+cell 1.0 0.0 0.0
+     0.0 1.0 0.0
+     0.0 0.0 1.0
+Sym 0
+do_prnstruct 0
+posfile ./posfile
+exchange ./jij
+momfile ./momfile
+maptype 2
+SDEalgh 1
+Initmag 3
+Mensemble 1
+ip_mode N
+mode S
+temp 0.0
+damping 0.5
+nstep 20
+timestep 1.0e-15
+hfield 0.0 0.0 0.0
+do_avrg N
+do_tottraj N
+do_sc N
+plotenergy 0
+gpu_mode 0
