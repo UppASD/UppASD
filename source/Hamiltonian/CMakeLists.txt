@@ -12,3 +12,7 @@ neighbourmap.f90
 neighbourmap_sfc.f90
 targetorder.f90
 printhamiltonian.f90)
+
+if(USE_FFTW)
+   target_sources(${UppASD_LIB} PRIVATE cpu_fft_provider.f90 cpuconvolution.f90)
+endif()

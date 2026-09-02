@@ -932,6 +932,18 @@ if(BUILD_TESTING)
    target_link_libraries(reduced_stencil_tests PRIVATE ${UppASD_LIB})
    add_test(NAME cpu-ham-reduced-stencil COMMAND reduced_stencil_tests)
 
+   # CPU-HAM-04A: correctness-first scalar-J periodic convolution oracle.
+   # The reference exists only when the selected CPU FFT provider is available;
+   # it is not connected to the production timestep path.
+   if(USE_FFTW)
+      add_executable(cpu_convolution_tests
+         ${CMAKE_SOURCE_DIR}/tests/hamiltonian/test_cpu_convolution.f90)
+      set_target_properties(cpu_convolution_tests PROPERTIES
+         Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/cpu_convolution_tests)
+      target_link_libraries(cpu_convolution_tests PRIVATE ${UppASD_LIB})
+      add_test(NAME cpu-ham-convolution COMMAND cpu_convolution_tests)
+   endif()
+
    # RCG-09A.1: exact adaptive-setup predicates for reciprocal directed
    # exchange/DMI lists, periodic-image aliasing, and ensemble moments.
    add_executable(adaptive_hamiltonian_contract_tests
