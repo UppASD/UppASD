@@ -2,6 +2,7 @@
 program test_cpu_convolution
 
    use Parameters, only : dblprec
+   use Constants, only : mub,mry
    use HamiltonianData, only : ham
    use HamiltonianActions, only : effective_field, setup_convolution_backend, &
       setup_cpu_hamiltonian_backend, cleanup_convolution_backend, convolution_backend_can_apply, &
@@ -243,6 +244,16 @@ contains
          na,n1,n2,n3,measure_energy=.false.)
       call check(maxval(abs(beff1-direct)) < 2.0e-12_dblprec, &
          'field-only production convolution remains equal to DIRECT')
+      call check(.not. convolution_backend_can_apply(natom,ensembles,2,natom-1), &
+         'production convolution partial range is not reported as convolution-active')
+      call effective_field(natom,ensembles,2,natom-1,spin,mmom,external_field,time_field, &
+         beff,beff1,beff2,convolution_energy,1,cell_index,emomM_macro,macro_nlistsize, &
+         na,n1,n2,n3,measure_energy=.true.)
+      call check(maxval(abs(beff1(:,2:natom-1,:)-direct(:,2:natom-1,:))) < 2.0e-12_dblprec, &
+         'production convolution partial range intentionally falls back to DIRECT')
+      call check(abs(convolution_energy+0.5_dblprec*sum(spin(:,2:natom-1,:)* &
+         direct(:,2:natom-1,:))*mub/mry) < 2.0e-12_dblprec, &
+         'production convolution partial fallback energy matches DIRECT')
       call convolution_backend_get_stats(setup_seconds,pack_seconds,forward_seconds, &
          spectral_seconds,inverse_seconds,unpack_seconds,apply_seconds,apply_count)
       write(*,'(a,es12.4,a,5(es12.4,1x),a,es12.4)') 'CPU-HAM-04B setup=',setup_seconds, &

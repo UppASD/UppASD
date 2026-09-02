@@ -1,18 +1,18 @@
 # CPU-HAM-05 — CPU pair-backend crossover campaign
 
 **Date:** 2026-09-02
-**Source revision:** `f6b28c09717c15eb53d456b8f3e9d423`
+**Source revision:** `f6b28c09717c15b3662f13eb53d456b8f3e9d423`
 **Status:** complete for the measured workload and size ranges; no automatic backend policy added.
 
 ## Decision summary
 
 - **bcc Fe, medium range (`z = 96`, `N_A = 2`):** retain **DIRECT** as the measured default. Portable **SPARSE** did not produce a robust win; its 20³ result is an isolated high-residual fit and is not treated as a crossover.
 - **dhcp Nd, long range (`z = 1338`, `N_A = 4`):** **CONVOLUTION** is the clear steady-state winner at every measured size. With FFTW it is about 8–11× faster than DIRECT on the 16³–25³ ladder and amortizes its fixed cost within approximately 0–14 production steps against the measured alternatives.
-- **Short-range scalar-J control (`z = 6`, `N_A = 1`):** retain **DIRECT** for the measured 16³–64³ range. CONVOLUTION is slower in steady state at every size; REDUCED-DIRECT is close to DIRECT only at the largest size and remains experimental.
-- **REDUCED-DIRECT:** benchmarked where eligible, retained as an opt-in experimental backend. The campaign does not justify a global promotion.
+- **Short-range scalar-J control (`z = 6`, `N_A = 1`):** retain **DIRECT** for the measured 16³–64³ range. CONVOLUTION is slower in steady state at every size; the historical REDUCED-DIRECT oracle was close to DIRECT only at the largest size.
+- **REDUCED-DIRECT:** the rows below are historical correctness/performance evidence only. HAM-08 retains the representation for tests, but removes it from production backend selection.
 - **J+D skyrmions:** not included, as required; they remain DIRECT pending CPU-HAM-06.
 
-The machine-readable measurements are in [`CPU_HAM_05_BACKEND_CROSSOVER.json`](CPU_HAM_05_BACKEND_CROSSOVER.json). Values below are fitted from complete production-process wall time, using `T = setup + steady_step * nstep`.
+The machine-readable measurements are in [`CPU_HAM_05_BACKEND_CROSSOVER.json`](CPU_HAM_05_BACKEND_CROSSOVER.json). Values below are fitted from complete production-process wall time, using `T = setup + steady_step * nstep`. `Atom-steps/s` is `Natom/Tsteady`. `M directed interactions/ASD-step/s` is `2 × Ndirected × Nensemble/Tsteady`, because the timed ASD step performs two Hamiltonian field evaluations.
 
 ## Host, build, and method
 
@@ -34,7 +34,7 @@ The production executable does not export a pair-only timer or convolution stage
 
 ## Eligibility and coverage
 
-| Workload | DIRECT | REDUCED-DIRECT | SPARSE | CONVOLUTION | Measured sizes |
+| Workload | DIRECT | REDUCED-DIRECT (historical) | SPARSE | CONVOLUTION | Measured sizes |
 |---|---:|---:|---:|---:|---|
 | bcc Fe | yes | no — non-scalar-J control is ineligible | yes | no — non-scalar-J control is ineligible | 13³, 20³, 32³ |
 | dhcp Nd | yes | yes | yes | yes | 16³, 20³, 25³ |
@@ -44,37 +44,37 @@ The production executable does not export a pair-only timer or convolution stage
 
 ## Backend-BEST results
 
-Setup is the fitted fixed cost in seconds. `Tsteady` is the fitted complete production timestep in seconds. Throughput is directed pair interactions per second, including the campaign ensemble factor where applicable.
+Setup is the fitted fixed cost in seconds. `Tsteady` is the fitted complete production timestep in seconds. `Atom-steps/s` counts atoms advanced per second. The interaction metric includes two field evaluations and the campaign ensemble factor where applicable.
 
 ### bcc Fe, medium range
 
-| Size | Natom | z | Backend (best threads) | Setup s | Tsteady s | Spin-steps/s | M directed interactions/s |
+| Size | Natom | z | Backend (best threads) | Setup s | Tsteady s | Atom-steps/s | M directed interactions/ASD-step/s |
 |---|---:|---:|---|---:|---:|---:|---:|
-| 13³ | 4,394 | 96 | DIRECT (8) | 0.1417 | 0.005722 | 174.8 | 1,474.4 |
-| 13³ | 4,394 | 96 | SPARSE (4) | 0.2177 | 0.009787 | 102.2 | 862.0 |
-| 20³ | 16,000 | 96 | DIRECT (4) | 0.4644 | 0.026471 | 37.8 | 1,160.5 |
-| 20³ | 16,000 | 96 | SPARSE (4) | 1.0222 | 0.021954 | 45.6 | 1,399.3 |
-| 32³ | 65,536 | 96 | DIRECT (8) | 1.9908 | 0.087556 | 11.4 | 1,437.1 |
-| 32³ | 65,536 | 96 | SPARSE (8) | 2.1792 | 0.174921 | 5.7 | 719.3 |
+| 13³ | 4,394 | 96 | DIRECT (8) | 0.1417 | 0.005722 | 767913.3 | 1,474.4 |
+| 13³ | 4,394 | 96 | SPARSE (4) | 0.2177 | 0.009787 | 448962.9 | 862.0 |
+| 20³ | 16,000 | 96 | DIRECT (4) | 0.4644 | 0.026471 | 604435.0 | 1,160.5 |
+| 20³ | 16,000 | 96 | SPARSE (4) | 1.0222 | 0.021954 | 728796.6 | 1,399.3 |
+| 32³ | 65,536 | 96 | DIRECT (8) | 1.9908 | 0.087556 | 748503.8 | 1,437.1 |
+| 32³ | 65,536 | 96 | SPARSE (8) | 2.1792 | 0.174921 | 374660.6 | 719.3 |
 
 The 20³ SPARSE slope is numerically lower than DIRECT, but its fit RMSE is 0.1032 s, larger than the fitted slope itself. With one sample per cell and no repeatable trend across the ladder, this is not sufficient evidence for a crossover.
 
 ### dhcp Nd, long range
 
-| Size | Natom | z | Backend (best threads) | Setup s | Tsteady s | Spin-steps/s | M directed interactions/s |
+| Size | Natom | z | Backend (best threads) | Setup s | Tsteady s | Atom-steps/s | M directed interactions/ASD-step/s |
 |---|---:|---:|---|---:|---:|---:|---:|
-| 16³ | 16,384 | 1,338 | CONVOLUTION (1) | 0.7973 | 0.001652 | 605.2 | 26,533.5 |
-| 16³ | 16,384 | 1,338 | DIRECT (8) | 0.6514 | 0.013875 | 72.1 | 3,159.9 |
-| 16³ | 16,384 | 1,338 | REDUCED-DIRECT (8) | 0.5943 | 0.016760 | 59.7 | 2,616.0 |
-| 16³ | 16,384 | 1,338 | SPARSE (8) | 0.6696 | 0.039862 | 25.1 | 1,099.9 |
-| 20³ | 32,000 | 1,338 | CONVOLUTION (4) | 0.8156 | 0.002664 | 375.4 | 32,146.8 |
-| 20³ | 32,000 | 1,338 | DIRECT (4) | 0.9472 | 0.030388 | 32.9 | 2,818.0 |
-| 20³ | 32,000 | 1,338 | REDUCED-DIRECT (8) | 0.7379 | 0.042283 | 23.7 | 2,025.2 |
-| 20³ | 32,000 | 1,338 | SPARSE (8) | 0.9646 | 0.069134 | 14.5 | 1,238.6 |
-| 25³ | 62,500 | 1,338 | CONVOLUTION (4) | 1.5778 | 0.005972 | 167.5 | 28,006.1 |
-| 25³ | 62,500 | 1,338 | DIRECT (8) | 1.3678 | 0.051022 | 19.6 | 3,278.0 |
-| 25³ | 62,500 | 1,338 | REDUCED-DIRECT (8) | 1.4108 | 0.065581 | 15.2 | 2,550.3 |
-| 25³ | 62,500 | 1,338 | SPARSE (8) | 1.7722 | 0.133348 | 7.5 | 1,254.2 |
+| 16³ | 16,384 | 1,338 | CONVOLUTION (1) | 0.7973 | 0.001652 | 9917675.5 | 26,533.5 |
+| 16³ | 16,384 | 1,338 | DIRECT (8) | 0.6514 | 0.013875 | 1180828.8 | 3,159.9 |
+| 16³ | 16,384 | 1,338 | REDUCED-DIRECT (8) | 0.5943 | 0.016760 | 977565.6 | 2,616.0 |
+| 16³ | 16,384 | 1,338 | SPARSE (8) | 0.6696 | 0.039862 | 411018.0 | 1,099.9 |
+| 20³ | 32,000 | 1,338 | CONVOLUTION (4) | 0.8156 | 0.002664 | 12012012.0 | 32,146.8 |
+| 20³ | 32,000 | 1,338 | DIRECT (4) | 0.9472 | 0.030388 | 1053047.3 | 2,818.0 |
+| 20³ | 32,000 | 1,338 | REDUCED-DIRECT (8) | 0.7379 | 0.042283 | 756805.3 | 2,025.2 |
+| 20³ | 32,000 | 1,338 | SPARSE (8) | 0.9646 | 0.069134 | 462869.2 | 1,238.6 |
+| 25³ | 62,500 | 1,338 | CONVOLUTION (4) | 1.5778 | 0.005972 | 10465505.7 | 28,006.1 |
+| 25³ | 62,500 | 1,338 | DIRECT (8) | 1.3678 | 0.051022 | 1224961.8 | 3,278.0 |
+| 25³ | 62,500 | 1,338 | REDUCED-DIRECT (8) | 1.4108 | 0.065581 | 953019.9 | 2,550.3 |
+| 25³ | 62,500 | 1,338 | SPARSE (8) | 1.7722 | 0.133348 | 468698.4 | 1,254.2 |
 
 The 25³ non-convolution matrix is complete over 1/2/4/8 threads. Several lower-thread fits have high residuals; the backend-BEST rows use the measured eight-thread minima for DIRECT, REDUCED-DIRECT, and SPARSE. The convolution 25³ matrix is also complete over 1/2/4/8 threads.
 
@@ -82,22 +82,22 @@ For convolution, the FFT grid is the corresponding replicated periodic grid: 16�
 
 ### Short-range scalar-J control
 
-| Size | Natom | z | Backend (best threads) | Setup s | Tsteady s | Spin-steps/s | M directed interactions/s |
+| Size | Natom | z | Backend (best threads) | Setup s | Tsteady s | Atom-steps/s | M directed interactions/ASD-step/s |
 |---|---:|---:|---|---:|---:|---:|---:|
-| 16³ | 4,096 | 6 | DIRECT (1) | 0.0243 | 0.000222 | 4,513.2 | 221.8 |
-| 16³ | 4,096 | 6 | REDUCED-DIRECT (1) | 0.0326 | 0.000317 | 3,157.1 | 155.2 |
-| 16³ | 4,096 | 6 | SPARSE (1) | 0.0179 | 0.000401 | 2,494.1 | 122.6 |
-| 16³ | 4,096 | 6 | CONVOLUTION (1) | 0.0164 | 0.000420 | 2,381.9 | 117.1 |
-| 32³ | 32,768 | 6 | DIRECT (2) | 0.0832 | 0.001852 | 540.0 | 212.3 |
-| 32³ | 32,768 | 6 | REDUCED-DIRECT (8) | 0.0619 | 0.002035 | 491.4 | 193.2 |
-| 32³ | 32,768 | 6 | SPARSE (8) | 0.0628 | 0.002362 | 423.4 | 166.5 |
-| 32³ | 32,768 | 6 | CONVOLUTION (2) | 0.0687 | 0.002984 | 335.1 | 131.8 |
-| 64³ | 262,144 | 6 | REDUCED-DIRECT (8) | 0.4294 | 0.016069 | 62.2 | 195.8 |
-| 64³ | 262,144 | 6 | DIRECT (8) | 0.4012 | 0.016808 | 59.5 | 187.2 |
-| 64³ | 262,144 | 6 | SPARSE (4) | 0.4322 | 0.018747 | 53.3 | 167.8 |
-| 64³ | 262,144 | 6 | CONVOLUTION (8) | 0.4449 | 0.025265 | 39.6 | 124.5 |
+| 16³ | 4,096 | 6 | DIRECT (1) | 0.0243 | 0.000222 | 18450450.5 | 221.8 |
+| 16³ | 4,096 | 6 | REDUCED-DIRECT (1) | 0.0326 | 0.000317 | 12921135.6 | 155.2 |
+| 16³ | 4,096 | 6 | SPARSE (1) | 0.0179 | 0.000401 | 10214463.8 | 122.6 |
+| 16³ | 4,096 | 6 | CONVOLUTION (1) | 0.0164 | 0.000420 | 9752381.0 | 117.1 |
+| 32³ | 32,768 | 6 | DIRECT (2) | 0.0832 | 0.001852 | 17693304.5 | 212.3 |
+| 32³ | 32,768 | 6 | REDUCED-DIRECT (8) | 0.0619 | 0.002035 | 16102211.3 | 193.2 |
+| 32³ | 32,768 | 6 | SPARSE (8) | 0.0628 | 0.002362 | 13872989.0 | 166.5 |
+| 32³ | 32,768 | 6 | CONVOLUTION (2) | 0.0687 | 0.002984 | 10981233.2 | 131.8 |
+| 64³ | 262,144 | 6 | REDUCED-DIRECT (8) | 0.4294 | 0.016069 | 16313647.4 | 195.8 |
+| 64³ | 262,144 | 6 | DIRECT (8) | 0.4012 | 0.016808 | 15596382.7 | 187.2 |
+| 64³ | 262,144 | 6 | SPARSE (4) | 0.4322 | 0.018747 | 13983250.7 | 167.8 |
+| 64³ | 262,144 | 6 | CONVOLUTION (8) | 0.4449 | 0.025265 | 10375776.8 | 124.5 |
 
-The 64³ REDUCED-DIRECT versus DIRECT difference is only about 4.4% in a one-sample run, so it is a tie/workload-dependent result, not a production-policy recommendation.
+The historical 64³ REDUCED-DIRECT versus DIRECT difference is only about 4.4% in a one-sample run, so it is a tie/workload-dependent result, not a production-policy recommendation.
 
 ## Setup economics and measured crossovers
 

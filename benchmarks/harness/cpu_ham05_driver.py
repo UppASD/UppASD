@@ -11,6 +11,8 @@ The timed quantity is the complete production process wall time. Fixed cost
 and steady-state cost are fitted from two or more complete runs at different
 ``nstep`` values. The production executable does not export a pair-only
 timer, so this driver records that limitation and does not manufacture one.
+The campaign covers production backends only; REDUCED-DIRECT is an internal
+correctness oracle, not a selectable production benchmark backend.
 """
 
 from __future__ import annotations
@@ -31,8 +33,9 @@ import time
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 BACKEND_OVERRIDES = {
-    "DIRECT": {"do_sparse": "N", "do_convolution": "N", "do_reduced": "N"},
-    "REDUCED-DIRECT": {"do_sparse": "N", "do_convolution": "N", "do_reduced": "Y"},
+    # Preserve the template's reduced data representation.  HAM-08 verifies
+    # that this never changes the canonical DIRECT execution path.
+    "DIRECT": {"do_sparse": "N", "do_convolution": "N"},
     "SPARSE": {"do_sparse": "Y", "do_convolution": "N", "do_reduced": "N"},
     "CONVOLUTION": {"do_sparse": "N", "do_convolution": "Y", "do_reduced": "Y"},
 }
@@ -56,7 +59,7 @@ CASES = {
         # B01's anisotropy and symmetry-expanded input are a deliberate
         # negative control for the reduced/convolution eligibility gate.
         "backends": ("DIRECT", "SPARSE"),
-        "ineligible": {"REDUCED-DIRECT": "B01 is not an eligible reduced scalar-J Hamiltonian"},
+        "ineligible": {},
     },
     "B04_dhcpNd": {
         "template": ROOT / "benchmarks/cases/B04_dhcpNd/template",
@@ -71,7 +74,7 @@ CASES = {
         "mean_neighbors": 1338.0,
         "max_neighbors": 1340,
         "ensembles": 1,
-        "backends": ("DIRECT", "REDUCED-DIRECT", "SPARSE", "CONVOLUTION"),
+        "backends": ("DIRECT", "SPARSE", "CONVOLUTION"),
         "ineligible": {},
     },
     "B06_shortRangeScalarJ": {
@@ -87,7 +90,7 @@ CASES = {
         "mean_neighbors": 6.0,
         "max_neighbors": 6,
         "ensembles": 1,
-        "backends": ("DIRECT", "REDUCED-DIRECT", "SPARSE", "CONVOLUTION"),
+        "backends": ("DIRECT", "SPARSE", "CONVOLUTION"),
         "ineligible": {},
     },
 }
@@ -194,10 +197,8 @@ def _metadata(case, replication):
 
 def _active_backend(backend, stdout):
     if backend == "DIRECT":
-        return "DIRECT", True, None
-    if backend == "REDUCED-DIRECT":
-        active = "Validated reduced scalar-J stencil available" in stdout
-        return backend if active else "DIRECT", active, None if active else "reduced stencil declined"
+        active = "resolved=direct" in stdout
+        return "DIRECT", active, None if active else "direct backend resolution was not reported"
     if backend == "SPARSE":
         active = "Persistent scalar-J sparse backend ready:" in stdout
         return backend if active else "DIRECT", active, None if active else "sparse backend declined"
@@ -368,8 +369,8 @@ def run_campaign(args):
                             "pair_field_time_seconds": None,
                             "pair_field_time_status": "not exported by production executable; see full-step/2 estimate",
                             "full_effective_field_time_status": "estimate: two effective-field calls per production step",
-                            "spin_steps_per_second": 1.0 / steady,
-                            "interaction_million_per_second": (
+                            "atom_steps_per_second": metadata["natom"] / steady,
+                            "directed_interactions_processed_per_asd_step_million_per_second": (
                                 2.0 * metadata["directed_interactions"] * metadata["ensembles"] / steady
                             ) / 1.0e6,
                             "sample_fits": sample_fits,

@@ -27,12 +27,19 @@ crossover rule across machines and workloads.
 | Backend | Supported scope | Rejected scope |
 |---|---|---|
 | DIRECT | General current `HamiltonianActions` physics, periodic/nonperiodic, reduced/non-reduced, disorder, multi-basis, ensembles | None within the canonical production scope |
-| SPARSE | Static scalar isotropic J, periodic/nonperiodic, reduced/non-reduced, ensembles | DMI, tensor exchange, disorder/LSF; multi-basis remains not validated end-to-end |
+| SPARSE | Static scalar isotropic J, periodic/nonperiodic, reduced/non-reduced, multi-basis, ensembles | DMI, tensor exchange, disorder/LSF |
 | CONVOLUTION | Fully periodic reduced translational scalar J or validated J+D, multi-basis, ensembles | Nonperiodic/non-reduced, tensor exchange, disorder/LSF, unsupported onsite/pair extensions |
 
 The measured campaign retained DIRECT for general and short-range workloads,
 SPARSE as optional, and CONVOLUTION for the measured long-range dhcp Nd
 regime. These are likely regimes, not universal performance guarantees.
+
+HAM-08 keeps REDUCED-DIRECT as an internal correctness oracle only. A
+production `direct` request always uses the canonical neighbour-list loop,
+including when `do_reduced=Y`; reduced data remains available to the
+convolution backend and explicit test fixtures. SPARSE and CONVOLUTION are
+full-range operators; a partial-range request intentionally uses DIRECT and
+emits a diagnostic.
 
 ## Validation
 

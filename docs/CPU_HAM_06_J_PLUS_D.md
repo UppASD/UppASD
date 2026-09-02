@@ -2,16 +2,17 @@
 
 **Date:** 2026-09-02
 **Source revision:** `061f078` plus the CPU-HAM-06 changes
-**Status:** complete for the retained REDUCED-DIRECT and CONVOLUTION backends.
+**Status:** complete for the retained CONVOLUTION backend and the internal
+REDUCED-DIRECT correctness oracle.
 
 ## Decision
 
 CPU-HAM-05 did not show a robust SPARSE crossover: SPARSE lost on the long-
 range Nd workload and its isolated bcc-Fe result had a fit residual larger than
 the fitted slope. SPARSE therefore remains scalar-J-only and was not extended
-to DMI. REDUCED-DIRECT remains an explicit experimental backend, and
-CONVOLUTION remains the long-range periodic backend; both were extended to
-the canonical scalar `J+D` operator.
+to DMI. HAM-08 keeps REDUCED-DIRECT only as an internal correctness oracle;
+CONVOLUTION remains the long-range periodic backend. Both retained paths were
+extended to the canonical scalar `J+D` operator.
 
 ## Frozen production convention
 
@@ -60,7 +61,8 @@ including its analytic dimer and sign controls.
 
 - a periodic 2D radial Néel skyrmion-like fixture (`n3=1`) and a periodic 3D
   two-basis chiral fixture;
-- canonical DIRECT versus REDUCED-DIRECT field and energy parity;
+- canonical DIRECT versus the internal REDUCED-DIRECT oracle field and energy
+  parity;
 - direct CPU convolution versus the same stencil and production convolution
   dispatch;
 - field-derived pair-energy parity;

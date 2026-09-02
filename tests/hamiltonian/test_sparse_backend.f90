@@ -13,6 +13,7 @@ program test_sparse_backend
    failures=0
    call run_case(7,3,'Nd')
    call run_case(10,2,'Fe')
+   call run_multibasis_case()
    call check_fallback()
    call cleanup_sparse_backend()
 
@@ -87,6 +88,29 @@ contains
       call check(abs(energy_sparse-energy_direct) <= 1.0d-13, &
          trim(label)//' field-derived energy matches DIRECT')
 
+      ! Policy 2: an explicit sparse partial-range request intentionally uses
+      ! the canonical DIRECT loop, with a diagnostic emitted by the backend.
+      do_sparse='Y'
+      cpu_ham_backend='sparse'
+      call setup_cpu_hamiltonian_backend(natom,nensemble,0,'N',1,1,1,1,'P','P','P','N',1)
+      call check(.not. sparse_backend_can_apply(natom,nensemble,2,natom-1), &
+         trim(label)//' sparse partial range is not reported as sparse-active')
+      call effective_field(natom,nensemble,2,natom-1,emomM,mmom,external_field, &
+         time_external_field,beff_sparse,beff1_sparse,beff2_sparse,energy_sparse, &
+         nmacro,cell_index,emomM_macro,macro_nlistsize,1,1,1,1,measure_energy=.true.)
+      call cleanup_cpu_hamiltonian_backend()
+      do_sparse='N'
+      cpu_ham_backend='direct'
+      call effective_field(natom,nensemble,2,natom-1,emomM,mmom,external_field, &
+         time_external_field,beff_direct,beff1_direct,beff2_direct,energy_direct, &
+         nmacro,cell_index,emomM_macro,macro_nlistsize,1,1,1,1,measure_energy=.true.)
+      call check(maxval(abs(beff_sparse-beff_direct)) <= 1.0d-13, &
+         trim(label)//' sparse partial fallback matches DIRECT total field')
+      call check(maxval(abs(beff1_sparse-beff1_direct)) <= 1.0d-13, &
+         trim(label)//' sparse partial fallback matches DIRECT internal field')
+      call check(abs(energy_sparse-energy_direct) <= 1.0d-13, &
+         trim(label)//' sparse partial fallback matches DIRECT energy')
+
       ! Repeated setup must replace, not append to, the persistent structure.
       do_sparse='Y'
       cpu_ham_backend='sparse'
@@ -98,6 +122,112 @@ contains
          trim(label)//' cleanup releases sparse state')
       call clear_case()
    end subroutine run_case
+
+   subroutine run_multibasis_case()
+      integer, parameter :: natom=12,na=3,n1=4,n2=1,n3=1,max_neigh=4
+      integer, parameter :: nensemble=3,nmacro=1
+      integer :: i,j,k,b,nnz,seed_size
+      integer, allocatable :: seed(:)
+      integer :: cell_index(natom),macro_nlistsize(nmacro)
+      real(dblprec) :: emomM(3,natom,nensemble),mmom(natom,nensemble)
+      real(dblprec) :: external_field(3,natom,nensemble),time_external_field(3,natom,nensemble)
+      real(dblprec) :: emomM_macro(3,nmacro,nensemble)
+      real(dblprec) :: beff_sparse(3,natom,nensemble),beff_direct(3,natom,nensemble)
+      real(dblprec) :: beff1_sparse(3,natom,nensemble),beff1_direct(3,natom,nensemble)
+      real(dblprec) :: beff2_sparse(3,natom,nensemble),beff2_direct(3,natom,nensemble)
+      real(dblprec) :: energy_sparse,energy_direct
+
+      ham_inp%do_jtensor=0
+      ham_inp%exc_inter='N'
+      ham_inp%do_dm=0
+      ham_inp%do_sa=0
+      ham_inp%do_pd=0
+      ham_inp%do_biqdm=0
+      ham_inp%do_bq=0
+      ham_inp%do_ring=0
+      ham_inp%do_chir=0
+      ham_inp%do_anisotropy=0
+      ham_inp%do_dip=0
+      ham_inp%mult_axis='N'
+
+      call clear_case()
+      allocate(ham%aHam(natom),ham%nlistsize(na),ham%nlist(max_neigh,natom), &
+         ham%ncoup(max_neigh,na,1))
+      do i=1,natom
+         ham%aHam(i)=modulo(i-1,na)+1
+      end do
+      ham%nlistsize=(/1,3,2/)
+      ham%nlist=0
+      ham%ncoup=0.0_dblprec
+      do i=1,natom
+         b=ham%aHam(i)
+         do j=1,ham%nlistsize(b)
+            ham%nlist(j,i)=modulo(i+2*j-2,natom)+1
+         end do
+      end do
+      do b=1,na
+         do j=1,ham%nlistsize(b)
+            ham%ncoup(j,b,1)=0.04_dblprec*real(5*b-j,dblprec)
+         end do
+      end do
+      nnz=sum(ham%nlistsize(ham%aHam))
+
+      call random_seed(size=seed_size)
+      allocate(seed(seed_size))
+      do i=1,seed_size
+         seed(i)=37+11*i
+      end do
+      call random_seed(put=seed)
+      do k=1,nensemble
+         do i=1,natom
+            mmom(i,k)=1.0_dblprec+0.02_dblprec*real(modulo(i+k,4),dblprec)
+            call random_number(emomM(:,i,k))
+            emomM(:,i,k)=2.0_dblprec*emomM(:,i,k)-1.0_dblprec
+         end do
+      end do
+      external_field=0.0_dblprec
+      time_external_field=0.0_dblprec
+      emomM_macro=0.0_dblprec
+      cell_index=1
+      macro_nlistsize=natom
+
+      do_sparse='Y'
+      cpu_ham_backend='sparse'
+      call setup_cpu_hamiltonian_backend(natom,nensemble,0,'N',na,n1,n2,n3,'P','P','P','Y',na)
+      call check(sparse_backend_can_apply(natom,nensemble,1,natom), &
+         'multi-basis sparse backend is active')
+      call effective_field(natom,nensemble,1,natom,emomM,mmom,external_field, &
+         time_external_field,beff_sparse,beff1_sparse,beff2_sparse,energy_sparse, &
+         nmacro,cell_index,emomM_macro,macro_nlistsize,na,n1,n2,n3,measure_energy=.true.)
+      call sparse_backend_get_stats_dummy(nnz)
+
+      do_sparse='N'
+      cpu_ham_backend='direct'
+      call cleanup_cpu_hamiltonian_backend()
+      call effective_field(natom,nensemble,1,natom,emomM,mmom,external_field, &
+         time_external_field,beff_direct,beff1_direct,beff2_direct,energy_direct, &
+         nmacro,cell_index,emomM_macro,macro_nlistsize,na,n1,n2,n3,measure_energy=.true.)
+      call check(maxval(abs(beff_sparse-beff_direct)) <= 1.0d-13, &
+         'multi-basis sparse total field matches DIRECT')
+      call check(maxval(abs(beff1_sparse-beff1_direct)) <= 1.0d-13, &
+         'multi-basis sparse internal field matches DIRECT')
+      call check(maxval(abs(beff2_sparse-beff2_direct)) <= 1.0d-13, &
+         'multi-basis sparse external field matches DIRECT')
+      call check(abs(energy_sparse-energy_direct) <= 1.0d-13, &
+         'multi-basis sparse energy matches DIRECT')
+      deallocate(seed)
+      call clear_case()
+   end subroutine run_multibasis_case
+
+   subroutine sparse_backend_get_stats_dummy(expected_nnz)
+      integer, intent(in) :: expected_nnz
+      real(dblprec) :: setup_seconds,pack_seconds,apply_seconds
+      integer(kind=8) :: sparse_nnz
+
+      call sparse_backend_get_stats(setup_seconds,pack_seconds,apply_seconds,sparse_nnz)
+      call check(sparse_nnz == int(expected_nnz,kind=8), &
+         'multi-basis sparse CSR has exact directed nnz')
+   end subroutine sparse_backend_get_stats_dummy
 
    subroutine setup_case(natom,max_neigh)
       integer, intent(in) :: natom,max_neigh
@@ -183,6 +313,8 @@ contains
       if (allocated(ham%nlist)) deallocate(ham%nlist)
       if (allocated(ham%ncoup)) deallocate(ham%ncoup)
       if (allocated(ham%ncoupD)) deallocate(ham%ncoupD)
+      if (allocated(ham%target_order)) deallocate(ham%target_order)
+      if (allocated(ham%target_work_prefix)) deallocate(ham%target_work_prefix)
    end subroutine clear_case
 
    subroutine check(condition,label)

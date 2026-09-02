@@ -47,7 +47,7 @@ combination.
 | Backend | scalar J | DMI | tensor exchange | periodic | nonperiodic | reduced Hamiltonian | non-reduced Hamiltonian | disorder | multi-basis | multiple ensembles |
 |---|---|---|---|---|---|---|---|---|---|---|
 | DIRECT | SUPPORTED | SUPPORTED | SUPPORTED | SUPPORTED | SUPPORTED | SUPPORTED | SUPPORTED | SUPPORTED | SUPPORTED | SUPPORTED |
-| SPARSE | SUPPORTED | UNSUPPORTED | UNSUPPORTED | SUPPORTED | SUPPORTED | SUPPORTED | SUPPORTED | UNSUPPORTED | NOT_VALIDATED | SUPPORTED |
+| SPARSE | SUPPORTED | UNSUPPORTED | UNSUPPORTED | SUPPORTED | SUPPORTED | SUPPORTED | SUPPORTED | UNSUPPORTED | SUPPORTED | SUPPORTED |
 | CONVOLUTION | SUPPORTED | SUPPORTED | UNSUPPORTED | SUPPORTED* | UNSUPPORTED | SUPPORTED | UNSUPPORTED | UNSUPPORTED | SUPPORTED | SUPPORTED |
 
 `*` CONVOLUTION means fully periodic, regular replicated cells with a
@@ -84,7 +84,8 @@ Define explicit backend choices following UppASD style, conceptually:
 - `sparse`;
 - `convolution`.
 
-REDUCED-DIRECT may remain internal to DIRECT if evidence supports it.
+HAM-08 retains REDUCED-DIRECT as an internal correctness oracle only; it is not
+a production backend selection.
 
 Do not expose unnecessary implementation detail.
 

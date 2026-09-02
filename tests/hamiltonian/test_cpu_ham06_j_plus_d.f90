@@ -6,6 +6,7 @@ program test_cpu_ham06_j_plus_d
    use HamiltonianData, only : ham
    use HamiltonianActions, only : effective_field, setup_convolution_backend, &
       setup_cpu_hamiltonian_backend, cleanup_convolution_backend, convolution_backend_can_apply
+   use HamiltonianActions, only : set_reduced_direct_testing
    use InputData, only : ham_inp, cpu_ham_backend, do_sparse, do_convolution
    use ReducedStencil
    use CPUConvolution
@@ -157,6 +158,7 @@ contains
       endif
 
       ! Canonical production DIRECT is the physics oracle.
+      call set_reduced_direct_testing(.false.)
       call clear_reduced_stencil(ham%reduced_stencil)
       call effective_field(natom,ensembles,1,natom,spin,mmom,ext,text,beff,beff1,beff2, &
          direct_energy,1,cell_index,emomM_macro,macro_nlistsize,na,n1,n2,n3, &
@@ -166,9 +168,10 @@ contains
       call check(abs(direct_energy-pair_energy*mub/mry) < 2.0d-12, &
          trim(label)//': DIRECT uses field-derived pair energy',failures)
 
-      ! The production reduced target path applies J and D separately but from
+      ! The internal reduced target oracle applies J and D separately but from
       ! one validated periodic representation.
       ham%reduced_stencil=stencil
+      call set_reduced_direct_testing(.true.)
       call effective_field(natom,ensembles,1,natom,spin,mmom,ext,text,beff,beff1,beff2, &
          reduced_energy,1,cell_index,emomM_macro,macro_nlistsize,na,n1,n2,n3, &
          measure_energy=.true.)
@@ -209,6 +212,7 @@ contains
       call clear_reduced_stencil(transposed_stencil)
 
       ! Restore the accepted stencil before exercising convolution.
+      call set_reduced_direct_testing(.false.)
       ham%reduced_stencil=stencil
       ok=cpu_convolution_init(convolution,stencil,ensembles,diagnostic)
       call check(ok,trim(label)//': J+D convolution object initialized',failures)

@@ -32,6 +32,8 @@ module HamiltonianActions
    character(len=16) :: cpu_ham_backend_resolved = 'direct'
    character(len=256) :: cpu_ham_backend_reason = 'not configured'
    logical :: cpu_ham_backend_initialized = .false.
+   logical :: reduced_direct_testing = .false.
+   logical :: partial_backend_fallback_reported = .false.
 
    ! Persistent CPU sparse-backend state. The matrix is a directed CSR
    ! representation of the canonical neighbour-list operator; physical atom
@@ -60,7 +62,18 @@ module HamiltonianActions
       module procedure effective_field_bare, effective_field_full
    end interface
 
+   ! REDUCED-DIRECT is retained as an internal oracle/testing path only.  The
+   ! production selector never enables this switch; do_reduced controls the
+   ! data representation and remains useful to the convolution backend.
+   public :: set_reduced_direct_testing
+
 contains
+
+   subroutine set_reduced_direct_testing(enabled)
+      logical, intent(in) :: enabled
+
+      reduced_direct_testing=enabled
+   end subroutine set_reduced_direct_testing
 
    !----------------------------------------------------------------------------
    !> Normalize a backend name without making input spelling significant.
@@ -258,6 +271,8 @@ contains
       cpu_ham_backend_resolved='direct'
       cpu_ham_backend_reason='not configured'
       cpu_ham_backend_initialized=.false.
+      reduced_direct_testing=.false.
+      partial_backend_fallback_reported=.false.
    end subroutine cleanup_cpu_hamiltonian_backend
 
    !----------------------------------------------------------------------------
@@ -301,9 +316,21 @@ contains
          write(*,'(2x,a)') 'Scalar-J sparse backend declined: exchange data unavailable'
          return
       endif
-      if (size(ham%aHam) /= Natom .or. size(ham%nlistsize) < Natom) then
-         cpu_ham_backend_reason='sparse exchange dimensions are incompatible with the requested atom count'
-         write(*,'(2x,a)') 'Scalar-J sparse backend declined: incompatible exchange dimensions'
+      if (size(ham%aHam) /= Natom .or. size(ham%nlist,2) < Natom) then
+         cpu_ham_backend_reason='sparse exchange dimensions do not cover all physical atoms'
+         write(*,'(2x,a)') 'Scalar-J sparse backend declined: physical atom dimensions unavailable'
+         return
+      endif
+
+      if (any(ham%aHam(1:Natom) < 1) .or. any(ham%aHam(1:Natom) > size(ham%nlistsize))) then
+         cpu_ham_backend_reason='sparse Hamiltonian map leaves the available scalar-J rows'
+         write(*,'(2x,a)') 'Scalar-J sparse backend declined: invalid reduced/non-reduced row map'
+         return
+      endif
+      if (size(ham%ncoup,1) < maxval(ham%nlistsize(ham%aHam(1:Natom))) .or. &
+            size(ham%ncoup,2) < maxval(ham%aHam(1:Natom)) .or. size(ham%ncoup,3) < 1) then
+         cpu_ham_backend_reason='sparse coupling dimensions do not cover the selected Hamiltonian rows'
+         write(*,'(2x,a)') 'Scalar-J sparse backend declined: coupling dimensions unavailable'
          return
       endif
 
@@ -314,6 +341,12 @@ contains
          if (ih < 1 .or. ih > size(ham%nlistsize)) then
             cpu_ham_backend_reason='sparse Hamiltonian map contains an invalid exchange index'
             write(*,'(2x,a)') 'Scalar-J sparse backend declined: invalid Hamiltonian map'
+            return
+         endif
+         if (ham%nlistsize(ih) < 0 .or. ham%nlistsize(ih) > size(ham%nlist,1) .or. &
+               ham%nlistsize(ih) > size(ham%ncoup,1)) then
+            cpu_ham_backend_reason='sparse Hamiltonian row has an invalid neighbour count'
+            write(*,'(2x,a)') 'Scalar-J sparse backend declined: invalid neighbour count'
             return
          endif
          nnz=nnz+ham%nlistsize(ih)
@@ -331,6 +364,11 @@ contains
       do i=1,Natom
          ih=ham%aHam(i)
          do j=1,ham%nlistsize(ih)
+            if (ham%nlist(j,i) < 1 .or. ham%nlist(j,i) > Natom) then
+               cpu_ham_backend_reason='sparse Hamiltonian map contains an invalid physical neighbour index'
+               write(*,'(2x,a)') 'Scalar-J sparse backend declined: invalid physical neighbour index'
+               return
+            endif
             pos=pos+1
             sparse_columns(pos)=ham%nlist(j,i)
             sparse_values(pos)=ham%ncoup(j,ih,1)
@@ -698,6 +736,15 @@ contains
          call timing(0,'Dipolar Int.  ','OF')
          call timing(0,'Hamiltonian   ','ON')
       endif
+      if ((start_atom /= 1 .or. stop_atom /= Natom) .and. cpu_ham_backend_initialized .and. &
+            (trim(cpu_ham_backend_resolved) == 'sparse' .or. trim(cpu_ham_backend_resolved) == 'convolution')) then
+         if (.not.partial_backend_fallback_reported) then
+            write(*,'(2x,a,a,a,i0,a,i0,a)') 'CPU Hamiltonian backend: partial range ', &
+               trim(cpu_ham_backend_resolved),' request [',start_atom,',',stop_atom, &
+               '] uses intentional DIRECT fallback'
+            partial_backend_fallback_reported=.true.
+         endif
+      endif
       sparse_active=sparse_backend_can_apply(Natom,Mensemble,start_atom,stop_atom)
       if (sparse_active) call apply_sparse_exchange(Mensemble,emomM)
       convolution_active=convolution_backend_can_apply(Natom,Mensemble,start_atom,stop_atom)
@@ -707,7 +754,8 @@ contains
       ! generally a contiguous interval in the permutation.
       ordered_targets=.false.
       if (allocated(ham%target_order)) then
-         ordered_targets=(size(ham%target_order)==Natom .and. start_atom==1 .and. stop_atom==Natom)
+         ordered_targets=(ham%target_order_sfc .and. size(ham%target_order)==Natom .and. &
+            start_atom==1 .and. stop_atom==Natom)
       endif
       weighted_targets=.false.
       if (ordered_targets .and. allocated(ham%target_work_prefix)) then
@@ -883,7 +931,7 @@ contains
 
       ! Dzyaloshinskii-Moriya term
       if(ham_inp%do_dm==1 .and. .not.complete_pair) then
-         if (allocated(ham%reduced_stencil%dmi_record_start)) then
+         if (reduced_direct_testing .and. allocated(ham%reduced_stencil%dmi_record_start)) then
             call apply_reduced_stencil_dmi_target(ham%reduced_stencil,i,k,emomM,beff_s)
          else
             call dzyaloshinskii_moriya_field(i, k, beff_s,Natom,Mensemble,emomM)
@@ -950,7 +998,7 @@ contains
          integer :: j, ih, x, n_neigh
          real(dblprec) :: bx, by, bz, coup
 
-         if (allocated(ham%reduced_stencil%record_start)) then
+         if (reduced_direct_testing .and. allocated(ham%reduced_stencil%record_start)) then
             call apply_reduced_stencil_target(ham%reduced_stencil,i,k,emomM,field)
             return
          endif

@@ -4,7 +4,7 @@ program test_reduced_stencil
    use Parameters, only : dblprec
    use Constants, only : mub,mry
    use HamiltonianData, only : ham
-   use HamiltonianActions, only : effective_field
+   use HamiltonianActions, only : effective_field, set_reduced_direct_testing
    use InputData, only : ham_inp
    use ReducedStencil
 
@@ -175,14 +175,27 @@ contains
 
       ! First call with no reduced representation: this is the canonical
       ! production DIRECT result used as the physics oracle.
+      call set_reduced_direct_testing(.false.)
       call clear_reduced_stencil(ham%reduced_stencil)
       call effective_field(natom,1,1,natom,spin3d,mmom,external_field,time_field, &
          beff,beff1,beff2,direct_energy,1,cell_index,emomM_macro,macro_nlistsize, &
          na,n1,n2,n3,measure_energy=.true.)
       direct_field=beff1(:,:,1)
-      ! Install the validated compact object and exercise the production
-      ! reduced-DIRECT dispatch through HamiltonianActions.
+      ! An allocated but deliberately corrupted compact object must not alter
+      ! ordinary DIRECT execution.
       ham%reduced_stencil=stencil
+      ham%reduced_stencil%record(1)%j=ham%reduced_stencil%record(1)%j+1.0_dblprec
+      call set_reduced_direct_testing(.false.)
+      call effective_field(natom,1,1,natom,spin3d,mmom,external_field,time_field, &
+         beff,beff1,beff2,stencil_energy,1,cell_index,emomM_macro,macro_nlistsize, &
+         na,n1,n2,n3,measure_energy=.true.)
+      call check(maxval(abs(beff1(:,:,1)-direct_field)) < 1.0d-14, &
+         trim(label)//': DIRECT ignores allocated reduced stencil')
+      call clear_reduced_stencil(ham%reduced_stencil)
+      ! Install the validated compact object and exercise the internal
+      ! reduced-DIRECT oracle through HamiltonianActions.
+      ham%reduced_stencil=stencil
+      call set_reduced_direct_testing(.true.)
       call effective_field(natom,1,1,natom,spin3d,mmom,external_field,time_field, &
          beff,beff1,beff2,stencil_energy,1,cell_index,emomM_macro,macro_nlistsize, &
          na,n1,n2,n3,measure_energy=.true.)
@@ -194,6 +207,7 @@ contains
       call check(abs(direct_energy-stencil_energy) < 1.0d-12 .and. &
          abs(stencil_energy-(-0.5_dblprec*sum(spin*beff1(:,:,1))*mub/mry)) < 1.0d-12, &
          trim(label)//': pair energy matches field-derived oracle')
+      call set_reduced_direct_testing(.false.)
 
       deallocate(ham_index,nlistsize,nlist,ncoup,spin,spin3d,stencil_field,mmom, &
          direct_field,external_field,time_field,beff,beff1,beff2,emomM_macro, &
