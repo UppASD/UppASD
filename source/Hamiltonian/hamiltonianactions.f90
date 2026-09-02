@@ -64,6 +64,10 @@ contains
       !
       use Constants, only : mry,mub
       use DipoleManager, only : dipole_field_calculation
+      use HamiltonianTargetOrder, only : target_order_range
+#ifdef _OPENMP
+      use omp_lib, only : omp_get_num_threads, omp_get_thread_num
+#endif
       !.. Implicit declarations
       implicit none
 
@@ -91,8 +95,8 @@ contains
       logical, intent(in), optional :: measure_energy !< Request the canonical energy reduction
 
       !.. Local scalars
-      integer :: i,k
-      logical :: calculate_energy
+      integer :: i,k,q,thread_id,nthreads,q_start,q_stop
+      logical :: calculate_energy,ordered_targets,weighted_targets
       real(dblprec) :: atom_energy
 
       !.. Executable statements
@@ -116,9 +120,85 @@ contains
          call timing(0,'Dipolar Int.  ','OF')
          call timing(0,'Hamiltonian   ','ON')
       endif
-      ! The per-atom field implementation is shared by both execution modes.
-      ! Only the energy-enabled loop carries an OpenMP reduction.
-      if (calculate_energy) then
+      ! The target order is a permutation of physical atom IDs.  Partial
+      ! callers retain the historical natural loop because their range is not
+      ! generally a contiguous interval in the permutation.
+      ordered_targets=.false.
+      if (allocated(ham%target_order)) then
+         ordered_targets=(size(ham%target_order)==Natom .and. start_atom==1 .and. stop_atom==Natom)
+      endif
+      weighted_targets=.false.
+      if (ordered_targets .and. allocated(ham%target_work_prefix)) then
+         weighted_targets=ham%target_order_weighted
+      endif
+
+      if (ordered_targets) then
+         if (weighted_targets) then
+            ! One contiguous target-order interval per thread, cut by the
+            ! persistent cumulative neighbour-work array.
+            if (calculate_energy) then
+               !$omp parallel default(shared) private(i,k,q,thread_id,nthreads,q_start,q_stop,atom_energy) reduction(+:energy)
+#ifdef _OPENMP
+               thread_id=omp_get_thread_num()
+               nthreads=omp_get_num_threads()
+#else
+               thread_id=0
+               nthreads=1
+#endif
+               call target_order_range(ham%target_work_prefix,ham%target_total_work, &
+                  nthreads,thread_id,q_start,q_stop)
+               do q=q_start,q_stop
+                  i=ham%target_order(q)
+                  do k=1,Mensemble
+                     call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
+                        time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.true.)
+                     energy=energy+atom_energy
+                  end do
+               end do
+               !$omp end parallel
+            else
+               !$omp parallel default(shared) private(i,k,q,thread_id,nthreads,q_start,q_stop,atom_energy)
+#ifdef _OPENMP
+               thread_id=omp_get_thread_num()
+               nthreads=omp_get_num_threads()
+#else
+               thread_id=0
+               nthreads=1
+#endif
+               call target_order_range(ham%target_work_prefix,ham%target_total_work, &
+                  nthreads,thread_id,q_start,q_stop)
+               do q=q_start,q_stop
+                  i=ham%target_order(q)
+                  do k=1,Mensemble
+                     call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
+                        time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.false.)
+                  end do
+               end do
+               !$omp end parallel
+            endif
+         else if (calculate_energy) then
+            !$omp parallel do default(shared) schedule(static) private(i,k,q,atom_energy) reduction(+:energy)
+            do q=1,Natom
+               i=ham%target_order(q)
+               do k=1,Mensemble
+                  call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
+                     time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.true.)
+                  energy=energy+atom_energy
+               end do
+            end do
+            !$omp end parallel do
+         else
+            !$omp parallel do default(shared) schedule(static) private(i,k,q,atom_energy)
+            do q=1,Natom
+               i=ham%target_order(q)
+               do k=1,Mensemble
+                  call effective_field_atom(i,k,Natom,Mensemble,emomM,mmom,external_field, &
+                     time_external_field,beff(:,i,k),beff1(:,i,k),beff2(:,i,k),atom_energy,.false.)
+               end do
+            end do
+            !$omp end parallel do
+         endif
+      else if (calculate_energy) then
          !$omp parallel do default(shared) schedule(static) private(i,k,atom_energy) collapse(2) reduction(+:energy)
          do k=1, Mensemble
             do i=start_atom, stop_atom
@@ -128,7 +208,6 @@ contains
             end do
          end do
          !$omp end parallel do
-         energy = energy * mub / mry
       else
          !$omp parallel do default(shared) schedule(static) private(i,k,atom_energy) collapse(2)
          do k=1, Mensemble
@@ -139,6 +218,7 @@ contains
          end do
          !$omp end parallel do
       endif
+      if (calculate_energy) energy = energy * mub / mry
 
    end subroutine effective_field_full
 

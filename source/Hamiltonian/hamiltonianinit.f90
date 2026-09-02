@@ -14,6 +14,7 @@ module HamiltonianInit
    use InputData, only : do_sfc
    use NeighbourMap, only : setup_nm
    use NeighbourMapSFC, only : setup_nm_sfc
+   use HamiltonianTargetOrder, only : setup_target_order
 
    implicit none
 
@@ -450,6 +451,15 @@ contains
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! End of tensor if
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      ! Build the optional CPU traversal permutation after the canonical
+      ! neighbour lists exist.  This changes only target visitation order;
+      ! physical atom IDs, site-indexed arrays, and each inner list remain
+      ! untouched.
+      call setup_target_order(coord,ham%nlistsize,ham%aHam,ham%target_order, &
+         ham%target_work_prefix,ham%target_total_work, &
+         do_sfc=='Y' .and. do_ralloy==0,ham%target_order_weighted)
+      ham%target_order_sfc=(do_sfc=='Y' .and. do_ralloy==0)
+
       ! Anisotropies
       if (ham_inp%do_anisotropy==1) then
          write(*,'(2x,a)',advance='no') "Set up anisotropies"

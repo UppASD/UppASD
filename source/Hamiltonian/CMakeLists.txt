@@ -9,4 +9,5 @@ hamiltonianactions_lite.f90
 hamiltonianinit.f90
 neighbourmap.f90
 neighbourmap_sfc.f90
+targetorder.f90
 printhamiltonian.f90)

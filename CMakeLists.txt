@@ -905,6 +905,14 @@ if(BUILD_TESTING)
    target_link_libraries(field_energy_contract_tests PRIVATE ${UppASD_LIB})
    add_test(NAME cpu-ham-field-energy-contract COMMAND field_energy_contract_tests)
 
+   # CPU-HAM-02A: target-order permutation and weighted-static cut oracle.
+   add_executable(target_order_tests
+      ${CMAKE_SOURCE_DIR}/tests/hamiltonian/test_target_order.f90)
+   set_target_properties(target_order_tests PROPERTIES
+      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/target_order_tests)
+   target_link_libraries(target_order_tests PRIVATE ${UppASD_LIB})
+   add_test(NAME cpu-ham-target-order COMMAND target_order_tests)
+
    # RCG-09A.1: exact adaptive-setup predicates for reciprocal directed
    # exchange/DMI lists, periodic-image aliasing, and ensemble moments.
    add_executable(adaptive_hamiltonian_contract_tests

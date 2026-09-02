@@ -13,6 +13,14 @@ module HamiltonianDataType
    ! From setup
    type ham_t
       integer, dimension(:), allocatable :: aHam !< Lookup-table for Hamiltonian
+      ! CPU-only traversal metadata.  These are permutations/weights over the
+      ! existing physical atom IDs; they never renumber or reorder canonical
+      ! site-indexed arrays.
+      integer, dimension(:), allocatable :: target_order
+      integer(kind=8), dimension(:), allocatable :: target_work_prefix
+      integer(kind=8) :: target_total_work = 0_8
+      logical :: target_order_sfc = .false.
+      logical :: target_order_weighted = .false.
       ! Variables for Heisenberg exchange
       integer ::  max_no_neigh                                 !< Calculated maximum of neighbours for exchange
       integer, dimension(:), allocatable :: nlistsize          !< Size of neighbour list for Heisenberg exchange couplings

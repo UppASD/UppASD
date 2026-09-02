@@ -97,7 +97,7 @@ contains
       character(len=1), intent(in) :: exc_inter    !< Flag for interpolations of exchange
       integer, intent(in) :: flag  !< Allocate or deallocate (1/-1)
 
-      integer :: i_all, i_stat
+      integer :: i, i_all, i_stat
       ! Exchange
       if(flag>0) then
          allocate(ham%nlistsize(nHam),stat=i_stat)
@@ -112,6 +112,17 @@ contains
          allocate(ham%aHam(Natom),stat=i_stat)
          call memocc(i_stat,product(shape(ham%aHam))*kind(ham%aHam),'aHam','allocate_hamiltoniandata')
          ham%aHam=0
+         allocate(ham%target_order(Natom),stat=i_stat)
+         call memocc(i_stat,product(shape(ham%target_order))*kind(ham%target_order), &
+            'target_order','allocate_hamiltoniandata')
+         ham%target_order=[(i,i=1,Natom)]
+         allocate(ham%target_work_prefix(Natom),stat=i_stat)
+         call memocc(i_stat,product(shape(ham%target_work_prefix))*kind(ham%target_work_prefix), &
+            'target_work_prefix','allocate_hamiltoniandata')
+         ham%target_work_prefix=0_8
+         ham%target_total_work=0_8
+         ham%target_order_sfc=.false.
+         ham%target_order_weighted=.false.
          if(do_lsf=='Y' .and. lsf_field=='L') then
             allocate(ham%fs_nlistsize(Natom),stat=i_stat)
             call memocc(i_stat,product(shape(ham%fs_nlistsize))*kind(ham%fs_nlistsize),'fs_nlistsize','allocate_hamiltoniandata')
@@ -149,6 +160,16 @@ contains
          i_all=-product(shape(ham%aHam))*kind(ham%aHam)
          deallocate(ham%aHam,stat=i_stat)
          call memocc(i_stat,i_all,'aHam','allocate_hamiltoniandata')
+         if (allocated(ham%target_order)) then
+            i_all=-product(shape(ham%target_order))*kind(ham%target_order)
+            deallocate(ham%target_order,stat=i_stat)
+            call memocc(i_stat,i_all,'target_order','allocate_hamiltoniandata')
+         endif
+         if (allocated(ham%target_work_prefix)) then
+            i_all=-product(shape(ham%target_work_prefix))*kind(ham%target_work_prefix)
+            deallocate(ham%target_work_prefix,stat=i_stat)
+            call memocc(i_stat,i_all,'target_work_prefix','allocate_hamiltoniandata')
+         endif
          if(do_lsf=='Y' .and. lsf_field=='L') then
             i_all=-product(shape(ham%fs_nlistsize))*kind(ham%fs_nlistsize)
             deallocate(ham%fs_nlistsize,stat=i_stat)
