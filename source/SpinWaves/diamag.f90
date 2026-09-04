@@ -45,7 +45,7 @@ module diamag
    public :: do_diamag, do_helicity, read_parameters_diamag,clone_q,diagonalize_quad_hamiltonian,&
              find_uv,setup_ektij,setup_jtens2_q,setup_jtens_q,sJs
    public :: setup_tensor_hamiltonian, nc_evec_complex, nc_eval_complex
-   public :: boson_overlap, boson_paraunitarity_error
+   public :: boson_overlap, boson_paraunitarity_error, release_complex_eigensystem
    public :: diamag_qvect, nc_eval_q, nc_evec_q
 
 contains
@@ -82,6 +82,20 @@ contains
       end do
       boson_paraunitarity_error=maxval(abs(metric-expected))
    end function boson_paraunitarity_error
+
+   !> Release the complex eigensystem retained by a flag=1 calculation.
+   !> This is used when a caller performs several independent q meshes.
+   subroutine release_complex_eigensystem()
+      implicit none
+      integer :: i_stat
+
+      if (allocated(nc_eval_complex)) then
+         deallocate(nc_eval_complex,stat=i_stat)
+      end if
+      if (allocated(nc_evec_complex)) then
+         deallocate(nc_evec_complex,stat=i_stat)
+      end if
+   end subroutine release_complex_eigensystem
 
    subroutine setup_diamag()
 

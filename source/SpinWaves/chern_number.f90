@@ -17,7 +17,8 @@ module Chern_number
    use InputData,   only : ham_inp
   use Diamag ,     only : clone_q,diagonalize_quad_hamiltonian,find_uv,setup_ektij,&
                    setup_jtens2_q,setup_jtens_q,sJs, setup_tensor_hamiltonian,&
-                   nc_eval_complex,nc_evec_complex,boson_overlap
+                   nc_eval_complex,nc_evec_complex,boson_overlap,&
+                   boson_paraunitarity_error,release_complex_eigensystem
    !
    implicit none
    !
@@ -27,6 +28,9 @@ module Chern_number
    integer                                    :: Ny          !< Number of points of the grid in y direction
    integer                                    :: Nz          !< Number of points of the grid in z direction
    real(dblprec), dimension(3)                :: Chern_qvect !< Spin spiral ordering vector
+   integer                                    :: f_oam_nphi  !< Number of angular points for Fishman F_n(k)
+   integer                                    :: f_oam_nr    !< Number of radial points for Fishman F_n(k), including k=0
+   real(dblprec)                               :: f_oam_kmax !< Maximum physical |k|; zero selects the inscribed BZ radius
    !
    private
    ! public subroutines
@@ -45,6 +49,9 @@ contains
       Ny          = 100
       Nz          = 1
       Chern_qvect = 0.0_dblprec
+      f_oam_nphi  = 128
+      f_oam_nr    = 32
+      f_oam_kmax  = 0.0_dblprec
 
 
    end subroutine setup_chern_number
@@ -438,9 +445,11 @@ contains
          call prepare_oam_eigenvectors(NA,Nx,Ny,Nz,dimen,nc_evec_complex,oam_evec,oam_band)
          call calculate_fishman_oam(NA,Nx,Ny,Nz,dimen,q_vchern,oam_evec,oam_hbar)
 
-         oam_file='oam.'//trim(simid)//'.out'
+         ! Keep reciprocal-space magnon OAM separate from the existing
+         ! real-space triangulation OAM, which uses oam.<simid>.out.
+         oam_file='oam_k.'//trim(simid)//'.out'
          open(ofileno,file=oam_file)
-         write(ofileno,'(a)') '# Fishman reciprocal-space magnon OAM; primary units OAM/hbar'
+         write(ofileno,'(a)') '# OAM_k/hbar: Fishman reciprocal-space magnon OAM; primary units OAM/hbar'
          write(ofileno,'(a)') '# Pointwise values are gauge-fixed and gauge-dependent.'
          write(ofileno,'(a)') '# qx qy are Cartesian components of q_vchern; physical k=2*pi*q.'
          write(ofileno,'(a)') '# band qx qy energy(meV) OAM/hbar'
@@ -452,7 +461,7 @@ contains
          end do
          close(ofileno)
          print '(1x,a,a)', 'Fishman OAM written to ',trim(oam_file)
-         print '(1x,a)', 'Pointwise OAM is gauge-fixed; angular-average TODO for polar meshes.'
+         print '(1x,a)', 'Pointwise OAM is gauge-fixed; gauge-invariant F_OAM is evaluated on polar rings.'
       end if
 
       ! 2D grid or 3D grid
@@ -618,6 +627,9 @@ contains
          deallocate(oam_band,stat=i_stat)
          call memocc(i_stat,product(shape(oam_band))*kind(oam_band),'oam_band','calculate_chern_number')
       end if
+      if (do_magnon_oam == 'Y') then
+         call calculate_fishman_f_average(NA,Natom,Mensemble,simid,emomM,mmom,C1,C2,C3)
+      end if
       !
       print '(1x,a)', 'Chern calculation done.'
    !
@@ -669,12 +681,13 @@ contains
    !> Match a set of modes to a reference set and fix each phase so that the
    !> overlap with its reference mode is real and positive.  This is a
    !> deterministic spanning-tree gauge for the pointwise OAM diagnostic.
-   subroutine continue_boson_modes(reference,current,NA,mode_order)
+   subroutine continue_boson_modes(reference,current,NA,mode_order,minimum_overlap)
       implicit none
       integer, intent(in) :: NA
       complex(dblprec), intent(in) :: reference(2*NA,NA)
       complex(dblprec), intent(inout) :: current(2*NA,NA)
       integer, intent(out) :: mode_order(NA)
+      real(dblprec), intent(out), optional :: minimum_overlap
 
       complex(dblprec) :: raw_modes(2*NA,NA), reordered(2*NA,NA)
       complex(dblprec) :: overlap, phase_factor
@@ -685,6 +698,7 @@ contains
       raw_modes=current
       reordered=(0.0_dblprec,0.0_dblprec)
       used=.false.
+      if (present(minimum_overlap)) minimum_overlap=huge(1.0_dblprec)
       do i=1,NA
          best=0
          best_overlap=-1.0_dblprec
@@ -697,6 +711,7 @@ contains
                end if
             end if
          end do
+         if (present(minimum_overlap)) minimum_overlap=min(minimum_overlap,best_overlap)
          if (best == 0) error stop 'chern: failed boson band continuation'
          used(best)=.true.
          mode_order(i)=best
@@ -710,6 +725,310 @@ contains
       end do
       current=reordered
    end subroutine continue_boson_modes
+
+   !> Build a smooth, single-valued gauge on one polar k-space ring.
+   !> The closure phase is unwrapped against the preceding radial ring and
+   !> then distributed over all angular links.  Fishman F_n is evaluated
+   !> from the resulting pointwise derivative, never from the closure phase.
+   subroutine smooth_fishman_ring(NA,Nphi,raw_evec,raw_eval,k_is_zero,has_previous,&
+      previous_closure,gauge_evec,gauge_eval,closure_phase,min_overlap,min_gap,&
+      closure_error,branch_shifts,valid)
+      implicit none
+      integer, intent(in) :: NA,Nphi
+      complex(dblprec), intent(in) :: raw_evec(2*NA,NA,Nphi)
+      real(dblprec), intent(in) :: raw_eval(NA,Nphi)
+      logical, intent(in) :: k_is_zero,has_previous
+      real(dblprec), intent(in) :: previous_closure(NA)
+      complex(dblprec), intent(out) :: gauge_evec(2*NA,NA,Nphi)
+      real(dblprec), intent(out) :: gauge_eval(NA,Nphi)
+      real(dblprec), intent(out) :: closure_phase(NA),min_overlap,min_gap,closure_error
+      integer, intent(out) :: branch_shifts(NA)
+      logical, intent(out) :: valid
+
+      complex(dblprec) :: zclose,zlink
+      real(dblprec) :: energy_scale,gap_tol,overlap_tol,theta,theta_unwrapped
+      real(dblprec) :: local_min,phase_error
+      integer :: i,j,m,n,jp
+      integer :: mode_order(NA)
+      logical :: ring_valid
+      complex(dblprec), parameter :: im=(0.0_dblprec,1.0_dblprec)
+
+      overlap_tol=1.0d-6
+      energy_scale=max(1.0_dblprec,maxval(abs(raw_eval)))
+      gap_tol=1.0d-8*energy_scale
+      min_gap=huge(1.0_dblprec)
+      do j=1,Nphi
+         do m=1,NA-1
+            do n=m+1,NA
+               min_gap=min(min_gap,abs(raw_eval(m,j)-raw_eval(n,j)))
+            end do
+         end do
+      end do
+      if (NA == 1) min_gap=0.0_dblprec
+
+      if (NA == 1) then
+         ring_valid=.true.
+      else
+         ring_valid=(min_gap > gap_tol)
+      end if
+      gauge_evec(:,:,1)=raw_evec(:,:,1)
+      gauge_eval(:,1)=raw_eval(:,1)
+      min_overlap=huge(1.0_dblprec)
+      do j=2,Nphi
+         gauge_evec(:,:,j)=raw_evec(:,:,j)
+         call continue_boson_modes(gauge_evec(:,:,j-1),gauge_evec(:,:,j),NA,mode_order,local_min)
+         min_overlap=min(min_overlap,local_min)
+         do i=1,NA
+            gauge_eval(i,j)=raw_eval(mode_order(i),j)
+         end do
+         if (local_min <= overlap_tol) ring_valid=.false.
+      end do
+
+      closure_error=0.0_dblprec
+      branch_shifts=0
+      do i=1,NA
+         zclose=boson_overlap(gauge_evec(:,i,Nphi),gauge_evec(:,i,1),NA)
+         if (abs(zclose) <= overlap_tol) then
+            ring_valid=.false.
+            theta=0.0_dblprec
+         else
+            min_overlap=min(min_overlap,abs(zclose))
+            theta=atan2(aimag(zclose),real(zclose))
+         end if
+         if (k_is_zero) then
+            if (abs(theta) > 1.0d-8) ring_valid=.false.
+            theta_unwrapped=0.0_dblprec
+         else if (has_previous) then
+            branch_shifts(i)=nint((previous_closure(i)-theta)/(2.0_dblprec*pi))
+            theta_unwrapped=theta+2.0_dblprec*pi*real(branch_shifts(i),dblprec)
+         else
+            theta_unwrapped=theta
+         end if
+         closure_phase(i)=theta_unwrapped
+         do j=1,Nphi
+            gauge_evec(:,i,j)=gauge_evec(:,i,j)*exp(im*real(j-1,dblprec)*theta_unwrapped/&
+               real(Nphi,dblprec))
+         end do
+      end do
+
+      ! Check every link, including the wraparound link, after closure repair.
+      do i=1,NA
+         do j=1,Nphi
+            jp=j+1
+            if (jp > Nphi) jp=1
+            zlink=boson_overlap(gauge_evec(:,i,j),gauge_evec(:,i,jp),NA)
+            if (abs(zlink) <= overlap_tol) then
+               ring_valid=.false.
+            else
+               phase_error=atan2(sin(atan2(aimag(zlink),real(zlink))-closure_phase(i)/&
+                  real(Nphi,dblprec)),cos(atan2(aimag(zlink),real(zlink))-closure_phase(i)/&
+                  real(Nphi,dblprec)))
+               closure_error=max(closure_error,abs(phase_error))
+            end if
+         end do
+      end do
+      valid=ring_valid
+   end subroutine smooth_fishman_ring
+
+   !> Evaluate O_n/hbar at all points of a periodic angular ring and return
+   !> the uniform Riemann average F_n/hbar.
+   subroutine fishman_ring_oam(NA,Nphi,gauge_evec,f_oam)
+      implicit none
+      integer, intent(in) :: NA,Nphi
+      complex(dblprec), intent(in) :: gauge_evec(2*NA,NA,Nphi)
+      real(dblprec), intent(out) :: f_oam(NA)
+
+      complex(dblprec) :: dtdphi(2*NA)
+      integer :: i,j,jp,jm
+      real(dblprec) :: dphi
+
+      dphi=2.0_dblprec*pi/real(Nphi,dblprec)
+      f_oam=0.0_dblprec
+      do i=1,NA
+         do j=1,Nphi
+            jp=j+1
+            if (jp > Nphi) jp=1
+            jm=j-1
+            if (jm < 1) jm=Nphi
+            dtdphi=(gauge_evec(:,i,jp)-gauge_evec(:,i,jm))/(2.0_dblprec*dphi)
+            ! T=X^{-1}: O/hbar = -1/2 Im[T^dagger eta dT/dphi].
+            f_oam(i)=f_oam(i)-0.5_dblprec*aimag(&
+               boson_overlap(gauge_evec(:,i,j),dtdphi,NA))/real(Nphi,dblprec)
+         end do
+      end do
+   end subroutine fishman_ring_oam
+
+   !> Evaluate Fishman's gauge-invariant angular and disk averages on an
+   !> explicit polar mesh.  The Hamiltonian is sampled directly at every
+   !> polar point in reduced reciprocal coordinates.
+   subroutine calculate_fishman_f_average(NA,Natom,Mensemble,simid,emomM,mmom,C1,C2,C3)
+      use, intrinsic :: ieee_arithmetic, only : ieee_value,ieee_quiet_nan
+      implicit none
+      integer, intent(in) :: NA,Natom,Mensemble
+      character(len=8), intent(in) :: simid
+      real(dblprec), intent(in) :: emomM(3,Natom,Mensemble),mmom(Natom,Mensemble)
+      real(dblprec), intent(in) :: C1(3),C2(3),C3(3)
+
+      integer :: nphi,nrad,npoints,ir,j,iq,band,i_stat
+      integer :: start_index
+      real(dblprec) :: k_in,kmax,kr,phi,dphi,zero_tol
+      real(dblprec) :: max_zero_f,integral
+      real(dblprec) :: nan_value
+      real(dblprec), allocatable :: polar_q(:,:),polar_k(:)
+      real(dblprec), allocatable :: polar_eval(:,:),raw_eval(:,:),ring_eval(:,:)
+      real(dblprec), allocatable :: f_oam(:,:),disk_oam(:,:),ring_f(:)
+      real(dblprec), allocatable :: previous_closure(:),closure_phase(:)
+      real(dblprec), allocatable :: min_overlap(:),min_gap(:),closure_error(:)
+      real(dblprec), allocatable :: max_para_ring(:)
+      integer, allocatable :: branch_shifts(:),branch_count_ring(:)
+      logical, allocatable :: valid_ring(:),disk_valid(:)
+      complex(dblprec), allocatable :: polar_evec(:,:,:),raw_evec(:,:,:),gauge_evec(:,:,:)
+      logical :: have_previous,ring_valid
+      character(len=32) :: f_file,diag_file
+
+      nphi=f_oam_nphi
+      nrad=f_oam_nr
+      if (nphi < 8 .or. mod(nphi,2) /= 0) then
+         error stop 'chern: f_oam_nphi must be an even integer >= 8'
+      end if
+      if (nrad < 2) error stop 'chern: f_oam_nr must be >= 2'
+      if (Nz /= 1) error stop 'chern: Fishman F_OAM requires a two-dimensional mesh'
+
+      call fishman_inscribed_radius(C1,C2,C3,k_in)
+      if (f_oam_kmax > 0.0_dblprec) then
+         kmax=f_oam_kmax
+      else
+         kmax=k_in
+      end if
+      if (kmax > k_in*(1.0_dblprec+1.0d-10)) then
+         print '(1x,a,2(1x,es12.5))', 'Warning: F_OAM rings extend beyond the inscribed BZ radius:',kmax,k_in
+      end if
+
+      npoints=nrad*nphi
+      dphi=2.0_dblprec*pi/real(nphi,dblprec)
+      allocate(polar_q(3,npoints),polar_k(nrad),stat=i_stat)
+      allocate(polar_eval(NA,npoints),polar_evec(2*NA,NA,npoints),stat=i_stat)
+      allocate(raw_evec(2*NA,NA,nphi),raw_eval(NA,nphi),stat=i_stat)
+      allocate(gauge_evec(2*NA,NA,nphi),ring_eval(NA,nphi),ring_f(NA),stat=i_stat)
+      allocate(f_oam(NA,nrad),disk_oam(NA,nrad),valid_ring(nrad),disk_valid(NA),stat=i_stat)
+      allocate(previous_closure(NA),closure_phase(NA),branch_shifts(NA),stat=i_stat)
+      allocate(min_overlap(nrad),min_gap(nrad),closure_error(nrad),max_para_ring(nrad),stat=i_stat)
+      allocate(branch_count_ring(nrad),stat=i_stat)
+      nan_value=ieee_value(0.0_dblprec,ieee_quiet_nan)
+      f_oam=nan_value
+      disk_oam=nan_value
+      valid_ring=.false.
+      disk_valid=.false.
+      previous_closure=0.0_dblprec
+      have_previous=.false.
+
+      do ir=1,nrad
+         kr=kmax*real(ir-1,dblprec)/real(nrad-1,dblprec)
+         polar_k(ir)=kr
+         do j=0,nphi-1
+            phi=dphi*real(j,dblprec)
+            iq=(ir-1)*nphi+j+1
+            call polar_cartesian_to_reduced(kr*cos(phi),kr*sin(phi),0.0_dblprec,C1,C2,C3,polar_q(:,iq))
+         end do
+      end do
+
+      ! Reuse the existing SpinWaves Hamiltonian and Colpa path.  The first
+      ! npoints entries are exactly the polar q points; the additional +/-q
+      ! entries are internal to setup_tensor_hamiltonian.
+      call setup_tensor_hamiltonian(NA,Natom,Mensemble,simid,emomM,mmom,polar_q,npoints,1)
+      max_para_ring=0.0_dblprec
+      do iq=1,npoints
+         polar_eval(:,iq)=nc_eval_complex(1:NA,iq)
+         polar_evec(:,:,iq)=nc_evec_complex(:,1:NA,iq)
+         ir=(iq-1)/nphi+1
+         max_para_ring(ir)=max(max_para_ring(ir),boson_paraunitarity_error(nc_evec_complex(:,:,iq),NA))
+      end do
+      call release_complex_eigensystem()
+
+      do ir=1,nrad
+         start_index=(ir-1)*nphi+1
+         raw_evec=polar_evec(:,:,start_index:start_index+nphi-1)
+         raw_eval=polar_eval(:,start_index:start_index+nphi-1)
+         call smooth_fishman_ring(NA,nphi,raw_evec,raw_eval,ir==1,have_previous,previous_closure,&
+            gauge_evec,ring_eval,closure_phase,min_overlap(ir),min_gap(ir),closure_error(ir),&
+            branch_shifts,ring_valid)
+         valid_ring(ir)=ring_valid
+         branch_count_ring(ir)=sum(abs(branch_shifts))
+         if (.not.ring_valid) then
+            print '(1x,a,es12.5,2(1x,es12.5))', 'Warning: invalid Fishman ring at k=',polar_k(ir),&
+               min_overlap(ir),min_gap(ir)
+         end if
+         if (ring_valid) then
+            call fishman_ring_oam(NA,nphi,gauge_evec,ring_f)
+            f_oam(:,ir)=ring_f
+            previous_closure=closure_phase
+            have_previous=.true.
+         end if
+         ! Preserve the band labels at phi=0 for the output energy column.
+         polar_eval(:,start_index)=ring_eval(:,1)
+      end do
+
+      ! Cumulative trapezoidal disk average O_av(k)=2/k^2 integral q F(q)dq.
+      disk_valid=.false.
+      do band=1,NA
+         if (valid_ring(1)) then
+            disk_oam(band,1)=0.0_dblprec
+            disk_valid(band)=.true.
+         end if
+         integral=0.0_dblprec
+         do ir=2,nrad
+            if (disk_valid(band) .and. valid_ring(ir)) then
+               integral=integral+0.5_dblprec*(polar_k(ir-1)*f_oam(band,ir-1)+&
+                  polar_k(ir)*f_oam(band,ir))*(polar_k(ir)-polar_k(ir-1))
+               if (polar_k(ir) > 0.0_dblprec) then
+                  disk_oam(band,ir)=2.0_dblprec*integral/(polar_k(ir)**2)
+               else
+                  disk_oam(band,ir)=0.0_dblprec
+               end if
+            else
+               disk_valid(band)=.false.
+               disk_oam(band,ir)=nan_value
+            end if
+         end do
+      end do
+
+      f_file='f_oam.'//trim(simid)//'.out'
+      open(ofileno,file=f_file)
+      write(ofileno,'(a)') '# Fishman gauge-invariant angularly averaged magnon OAM'
+      write(ofileno,'(a)') '# k is physical Cartesian |k|; rings are not folded back into the BZ.'
+      write(ofileno,'(a)') '# k band energy(meV) F_OAM/hbar O_OAM_av/hbar'
+      do ir=1,nrad
+         do band=1,NA
+            write(ofileno,'(es23.15,1x,i6,3(1x,es23.15))') polar_k(ir),band,&
+               polar_eval(band,(ir-1)*nphi+1),f_oam(band,ir),disk_oam(band,ir)
+         end do
+      end do
+      close(ofileno)
+
+      diag_file='f_oam_diagnostics.'//trim(simid)//'.out'
+      open(ofileno,file=diag_file)
+      write(ofileno,'(a)') '# k min_adjacent_overlap min_band_gap(meV) max_paraunitarity closure_error branch_shifts valid'
+      do ir=1,nrad
+         write(ofileno,'(es23.15,4(1x,es23.15),1x,i8,1x,i2)') polar_k(ir),min_overlap(ir),&
+            min_gap(ir),max_para_ring(ir),closure_error(ir),branch_count_ring(ir),merge(1,0,valid_ring(ir))
+      end do
+      close(ofileno)
+
+      zero_tol=1.0d-8
+      max_zero_f=0.0_dblprec
+      if (valid_ring(1)) max_zero_f=maxval(abs(f_oam(:,1)))
+      if (valid_ring(1) .and. max_zero_f > zero_tol) then
+         print '(1x,a,es12.5)', 'Warning: F_OAM(k=0) is not numerically zero: ',max_zero_f
+      end if
+      print '(1x,a,2(1x,i6),2(1x,es12.5))', 'Fishman F_OAM polar mesh (Nphi,Nr,kmax,k_in):',&
+         nphi,nrad,kmax,k_in
+      print '(1x,a,a)', 'Fishman F_OAM written to ',trim(f_file)
+      print '(1x,a,a)', 'Fishman F_OAM diagnostics written to ',trim(diag_file)
+
+      deallocate(polar_q,polar_k,polar_eval,polar_evec,raw_evec,raw_eval,gauge_evec,ring_eval,ring_f)
+      deallocate(f_oam,disk_oam,valid_ring,disk_valid,previous_closure,closure_phase,branch_shifts)
+      deallocate(min_overlap,min_gap,closure_error,max_para_ring,branch_count_ring)
+   end subroutine calculate_fishman_f_average
 
    !> Evaluate Fishman's pointwise magnon OAM in units of hbar.
    !> The reciprocal grid is expressed in the same coordinates as q_vchern;
@@ -777,16 +1096,104 @@ contains
                dtdy=(-dq2(1)*d1+dq1(1)*d2)/detq
                angular_derivative=qx*dtdy-qy*dtdx
 
-               ! UppASD uses exp(-i*k.R) in setup_ektij.  Thus l_z is
-               ! -i(k_x d_y-k_y d_x), and with the
-               ! eta-normalized bosonic vector this is the Fishman value
-               ! Lz/hbar = 1/2 Im[T^dagger eta D T].
-               oam_hbar(band,iq)=0.5_dblprec*aimag(&
+               ! For T=X^{-1}, Fishman's convention is
+               ! O/hbar = -1/2 Im[T^dagger eta D T].  UppASD uses
+               ! exp(-i*k.R) in setup_ektij; the minus sign is therefore
+               ! retained explicitly here and in the polar-ring evaluator.
+               oam_hbar(band,iq)=-0.5_dblprec*aimag(&
                   boson_overlap(oam_evec(:,band,iq),angular_derivative,NA))
             end do
          end do
       end do
    end subroutine calculate_fishman_oam
+
+   !> Reciprocal basis without the 2*pi factor.  UppASD passes q in this
+   !> basis and setup_ektij supplies the physical 2*pi factor later.
+   subroutine fishman_reciprocal_basis(C1,C2,C3,b1,b2,b3)
+      implicit none
+      real(dblprec), intent(in) :: C1(3),C2(3),C3(3)
+      real(dblprec), intent(out) :: b1(3),b2(3),b3(3)
+      real(dblprec) :: r1(3),r2(3),r3(3),volume
+
+      r1(1)=C2(2)*C3(3)-C2(3)*C3(2)
+      r1(2)=C2(3)*C3(1)-C2(1)*C3(3)
+      r1(3)=C2(1)*C3(2)-C2(2)*C3(1)
+      r2(1)=C3(2)*C1(3)-C3(3)*C1(2)
+      r2(2)=C3(3)*C1(1)-C3(1)*C1(3)
+      r2(3)=C3(1)*C1(2)-C3(2)*C1(1)
+      r3(1)=C1(2)*C2(3)-C1(3)*C2(2)
+      r3(2)=C1(3)*C2(1)-C1(1)*C2(3)
+      r3(3)=C1(1)*C2(2)-C1(2)*C2(1)
+      volume=dot_product(C1,r1)
+      if (abs(volume) <= 1000.0_dblprec*epsilon(1.0_dblprec)) then
+         error stop 'chern: singular direct lattice for Fishman polar mesh'
+      end if
+      b1=r1/volume
+      b2=r2/volume
+      b3=r3/volume
+   end subroutine fishman_reciprocal_basis
+
+   !> Convert physical Cartesian k to UppASD reduced reciprocal coordinates.
+   !> This is q such that k=2*pi*(q1*b1+q2*b2+q3*b3), with no orthogonality
+   !> assumption: q_i=(k.C_i)/(2*pi).
+   subroutine fishman_cartesian_to_reduced(kcart,C1,C2,C3,qred)
+      implicit none
+      real(dblprec), intent(in) :: kcart(3),C1(3),C2(3),C3(3)
+      real(dblprec), intent(out) :: qred(3)
+
+      qred(1)=dot_product(kcart,C1)/(2.0_dblprec*pi)
+      qred(2)=dot_product(kcart,C2)/(2.0_dblprec*pi)
+      qred(3)=dot_product(kcart,C3)/(2.0_dblprec*pi)
+   end subroutine fishman_cartesian_to_reduced
+
+   !> Convenience wrapper for a Cartesian polar point.
+   subroutine polar_cartesian_to_reduced(kx,ky,kz,C1,C2,C3,qred)
+      implicit none
+      real(dblprec), intent(in) :: kx,ky,kz,C1(3),C2(3),C3(3)
+      real(dblprec), intent(out) :: qred(3)
+      real(dblprec) :: kcart(3)
+
+      kcart=(/ kx,ky,kz /)
+      call fishman_cartesian_to_reduced(kcart,C1,C2,C3,qred)
+   end subroutine polar_cartesian_to_reduced
+
+   !> Convert UppASD reduced reciprocal coordinates back to physical k.
+   subroutine fishman_reduced_to_cartesian(qred,C1,C2,C3,kcart)
+      implicit none
+      real(dblprec), intent(in) :: qred(3),C1(3),C2(3),C3(3)
+      real(dblprec), intent(out) :: kcart(3)
+      real(dblprec) :: b1(3),b2(3),b3(3)
+
+      call fishman_reciprocal_basis(C1,C2,C3,b1,b2,b3)
+      kcart=2.0_dblprec*pi*(qred(1)*b1+qred(2)*b2+qred(3)*b3)
+   end subroutine fishman_reduced_to_cartesian
+
+   !> Conservative inscribed-circle radius of the 2D first BZ.  The search
+   !> is over nonzero reciprocal vectors G=2*pi*(n1*b1+n2*b2), so polar
+   !> rings at k<=this radius are wholly inside the Wigner-Seitz BZ.
+   subroutine fishman_inscribed_radius(C1,C2,C3,k_in)
+      implicit none
+      real(dblprec), intent(in) :: C1(3),C2(3),C3(3)
+      real(dblprec), intent(out) :: k_in
+      real(dblprec) :: b1(3),b2(3),g(3),min_g,tol
+      integer :: n1,n2
+
+      call fishman_reciprocal_basis(C1,C2,C3,b1,b2,g)
+      min_g=huge(1.0_dblprec)
+      tol=1000.0_dblprec*epsilon(1.0_dblprec)
+      do n1=-8,8
+         do n2=-8,8
+            if (n1 /= 0 .or. n2 /= 0) then
+               g=2.0_dblprec*pi*(real(n1,dblprec)*b1+real(n2,dblprec)*b2)
+               if (norm2(g) > tol) min_g=min(min_g,norm2(g))
+            end if
+         end do
+      end do
+      if (min_g == huge(1.0_dblprec)) then
+         error stop 'chern: failed to find a reciprocal vector for Fishman polar mesh'
+      end if
+      k_in=0.5_dblprec*min_g
+   end subroutine fishman_inscribed_radius
 
    subroutine setup_grid(Nx,Ny,Nz,C1,C2,C3,dimen,q_vchern)
       ! Set up grid in reciprocal space (1st BZ)
@@ -903,6 +1310,18 @@ contains
               read(ifile,*,iostat=i_err) do_magnon_oam
               if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
 
+            case('f_oam_nphi','oam_nphi') ! Angular points on each Fishman polar ring
+              read(ifile,*,iostat=i_err) f_oam_nphi
+              if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
+
+            case('f_oam_nr','oam_nr') ! Radial points, including k=0
+              read(ifile,*,iostat=i_err) f_oam_nr
+              if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
+
+            case('f_oam_kmax','oam_kmax') ! Maximum physical Cartesian |k|; <=0 uses inscribed BZ radius
+              read(ifile,*,iostat=i_err) f_oam_kmax
+              if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
+
             case('kgrid') ! Read the size of the grid
               read(ifile,*,iostat=i_err) Nx, Ny, Nz
               if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
@@ -932,6 +1351,12 @@ contains
 
    if (do_magnon_oam=='Y' .and. do_chern/='Y') then
       error stop 'do_magnon_oam requires do_chern Y'
+   end if
+   if (do_magnon_oam=='Y') then
+      if (f_oam_nphi < 8 .or. mod(f_oam_nphi,2) /= 0) then
+         error stop 'f_oam_nphi must be an even integer >= 8'
+      end if
+      if (f_oam_nr < 2) error stop 'f_oam_nr must be >= 2'
    end if
 
    return

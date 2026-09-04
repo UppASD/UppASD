@@ -96,10 +96,107 @@ def test_raw_pointwise_oam_changes_under_a_gauge_phase():
     assert abs(gauged_oam) > 1.0e-3
 
 
+def ring_oam(eigenvectors):
+    """Return the pointwise Fishman OAM for a periodic ring."""
+
+    n_phi = len(eigenvectors)
+    dphi = 2.0 * math.pi / n_phi
+    values = []
+    for j, vector in enumerate(eigenvectors):
+        plus = eigenvectors[(j + 1) % n_phi]
+        minus = eigenvectors[(j - 1) % n_phi]
+        derivative = [(a - b) / (2.0 * dphi) for a, b in zip(plus, minus)]
+        values.append(-0.5 * boson_overlap(vector, derivative, 1).imag)
+    return values
+
+
+def parallel_transport_ring(raw_vectors):
+    """Mirror the production spanning-ring gauge for one isolated band."""
+
+    n_phi = len(raw_vectors)
+    fixed = [list(raw_vectors[0])]
+    for j in range(1, n_phi):
+        current = list(raw_vectors[j])
+        overlap = boson_overlap(fixed[-1], current, 1)
+        assert abs(overlap) > 1.0e-8
+        phase = overlap.conjugate() / abs(overlap)
+        fixed.append([phase * value for value in current])
+    closure = boson_overlap(fixed[-1], fixed[0], 1)
+    theta = cmath.phase(closure)
+    return [
+        [value * cmath.exp(1j * j * theta / n_phi) for value in vector]
+        for j, vector in enumerate(fixed)
+    ]
+
+
+def test_fishman_minus_sign_and_periodic_gauge_invariance():
+    """The corrected T=X^-1 sign and periodic-gauge average are checked."""
+
+    n_phi = 256
+    squeeze = 0.4
+    mode = [math.cosh(squeeze) + 0j, math.sinh(squeeze) + 0j]
+    winding_mode = [
+        [mode[0], mode[1] * cmath.exp(1j * 1.0 * 2.0 * math.pi * j / n_phi)]
+        for j in range(n_phi)
+    ]
+    pointwise = ring_oam(winding_mode)
+    expected = 0.5 * math.sinh(squeeze) ** 2
+    assert math.isclose(sum(pointwise) / n_phi, expected, rel_tol=0.0, abs_tol=5.0e-5)
+
+    phases = [
+        0.7 * math.sin(2.0 * math.pi * j / n_phi)
+        + 0.2 * math.cos(4.0 * math.pi * j / n_phi)
+        + 0.1 * math.sin(6.0 * math.pi * j / n_phi)
+        for j in range(n_phi)
+    ]
+    gauged = [
+        [value * cmath.exp(-1j * phase) for value in vector]
+        for vector, phase in zip(winding_mode, phases)
+    ]
+    gauged_pointwise = ring_oam(gauged)
+    assert max(abs(a - b) for a, b in zip(pointwise, gauged_pointwise)) > 1.0e-3
+    phase_derivative = [
+        (phases[(j + 1) % n_phi] - phases[(j - 1) % n_phi])
+        / (4.0 * math.pi / n_phi)
+        for j in range(n_phi)
+    ]
+    # The phase convention above is exp(-i lambda): O' - O = +1/2 d(lambda)
+    # for the hole weight of this squeezed mode.
+    expected_shift = [0.5 * value for value in phase_derivative]
+    assert max(
+        abs((after - before) - shift)
+        for before, after, shift in zip(pointwise, gauged_pointwise, expected_shift)
+    ) < 2.0e-4
+    # lambda=m*phi is intentionally not used here: it is not single-valued
+    # on the ring and changes the allowed absolute Fishman branch.
+    assert abs(sum(pointwise) / n_phi - sum(gauged_pointwise) / n_phi) < 2.0e-5
+
+
+def test_random_raw_phases_are_removed_by_ring_gauge():
+    n_phi = 128
+    squeeze = 0.31
+    raw = [
+        [
+            math.cosh(squeeze) + 0j,
+            math.sinh(squeeze) * cmath.exp(1j * 2.0 * math.pi * j / n_phi),
+        ]
+        for j in range(n_phi)
+    ]
+    reference = sum(ring_oam(parallel_transport_ring(raw))) / n_phi
+    randomized = [
+        [value * cmath.exp(1j * phase) for value in vector]
+        for vector, phase in zip(raw, [0.1 * (j + 1) ** 2 for j in range(n_phi)])
+    ]
+    recovered = sum(ring_oam(parallel_transport_ring(randomized))) / n_phi
+    assert math.isclose(reference, recovered, rel_tol=0.0, abs_tol=2.0e-5)
+
+
 def test_fortran_oam_is_not_the_berry_flux_proxy():
     source = (Path(__file__).parents[2] / "source" / "SpinWaves" / "chern_number.f90").read_text()
     assert "aimag( Berry_cuv ) * dkx * dky" not in source
     assert "Lz_band" not in source
+    assert "f_oam(i)=f_oam(i)-0.5_dblprec*aimag" in source
+    assert "f_oam_nphi must be an even integer >= 8" in source
 
 
 def test_oblique_directional_derivatives_recover_cartesian_derivative():
@@ -118,11 +215,49 @@ def test_oblique_directional_derivatives_recover_cartesian_derivative():
     assert math.isclose(recovered_y, derivative_y, rel_tol=0.0, abs_tol=1.0e-14)
 
 
+def reciprocal_basis(c1, c2, c3):
+    r1 = (
+        c2[1] * c3[2] - c2[2] * c3[1],
+        c2[2] * c3[0] - c2[0] * c3[2],
+        c2[0] * c3[1] - c2[1] * c3[0],
+    )
+    volume = sum(a * b for a, b in zip(c1, r1))
+    r2 = (
+        c3[1] * c1[2] - c3[2] * c1[1],
+        c3[2] * c1[0] - c3[0] * c1[2],
+        c3[0] * c1[1] - c3[1] * c1[0],
+    )
+    r3 = (
+        c1[1] * c2[2] - c1[2] * c2[1],
+        c1[2] * c2[0] - c1[0] * c2[2],
+        c1[0] * c2[1] - c1[1] * c2[0],
+    )
+    return [tuple(x / volume for x in r) for r in (r1, r2, r3)]
+
+
+def test_cartesian_reduced_round_trip_for_oblique_cell():
+    c1 = (2.0, 0.0, 0.0)
+    c2 = (1.0, math.sqrt(3.0), 0.0)
+    c3 = (0.0, 0.0, 1.0)
+    b1, b2, b3 = reciprocal_basis(c1, c2, c3)
+    basis = (b1, b2, b3)
+    k = (0.37, -0.51, 0.0)
+    q = tuple(sum(k[i] * c[i] for i in range(3)) / (2.0 * math.pi) for c in (c1, c2, c3))
+    recovered = tuple(
+        2.0 * math.pi * sum(q[j] * basis[j][i] for j in range(3))
+        for i in range(3)
+    )
+    assert max(abs(a - b) for a, b in zip(k, recovered)) < 1.0e-14
+
+
 if __name__ == "__main__":
     test_bosonic_wilson_loop_is_phase_invariant()
     test_metric_overlap_includes_hole_sector()
     test_paraunitary_squeeze_has_the_bosonic_metric()
     test_raw_pointwise_oam_changes_under_a_gauge_phase()
+    test_fishman_minus_sign_and_periodic_gauge_invariance()
+    test_random_raw_phases_are_removed_by_ring_gauge()
     test_fortran_oam_is_not_the_berry_flux_proxy()
     test_oblique_directional_derivatives_recover_cartesian_derivative()
+    test_cartesian_reduced_round_trip_for_oblique_cell()
     print("Fishman OAM algebra regressions passed")
