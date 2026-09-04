@@ -33,7 +33,7 @@ module Topology
    integer :: n_chi_cavg = 0 !< Number of times the average scalar chirality has been calculated
 
    ! Variables for OAM 
-   character(len=1) :: do_oam = 'N' !< Perform OAM measurement
+   character(len=1) :: do_oam = 'N' !< Perform real-space triangulation OAM measurement (not magnon OAM)
    integer :: oam_step !< Interval for sampling OAM
    integer :: oam_buff !< Buffer size for the sampling of OAM
    character(len=1) :: print_mesh = 'N' !< Print triangulation mesh to file

@@ -17,11 +17,12 @@ module Chern_number
    use InputData,   only : ham_inp
   use Diamag ,     only : clone_q,diagonalize_quad_hamiltonian,find_uv,setup_ektij,&
                    setup_jtens2_q,setup_jtens_q,sJs, setup_tensor_hamiltonian,&
-                   nc_eval_complex,nc_evec_complex
+                   nc_eval_complex,nc_evec_complex,boson_overlap
    !
    implicit none
    !
    character(len=1)                           :: do_chern    !< Calculate the Chern number of the bands (Y/N)
+   character(len=1)                           :: do_magnon_oam !< Fishman reciprocal-space magnon OAM (Y/N)
    integer                                    :: Nx          !< Number of points of the grid in x direction
    integer                                    :: Ny          !< Number of points of the grid in y direction
    integer                                    :: Nz          !< Number of points of the grid in z direction
@@ -29,7 +30,7 @@ module Chern_number
    !
    private
    ! public subroutines
-   public :: do_chern,Nx,Ny,Nz, Chern_qvect
+   public :: do_chern,do_magnon_oam,Nx,Ny,Nz, Chern_qvect
    public :: read_parameters_chern_number,calculate_chern_number
    !
 contains
@@ -39,6 +40,7 @@ contains
       implicit none
 
       do_chern    = 'N'
+      do_magnon_oam = 'N'
       Nx          = 100
       Ny          = 100
       Nz          = 1
@@ -49,12 +51,12 @@ contains
 
    subroutine calculate_chern_number(NA,Natom,Mensemble,simid,emomM,mmom,Nx,Ny,Nz,C1,C2,C3)
       ! Calculate the Chern number of the bands in the 1st BZ.
-    use Topology, only : do_oam
       !
       implicit none
       !
       character(LEN = 25) :: bphase_file
       character(LEN = 25) :: chern_file
+      character(LEN = 25) :: oam_file
       integer, intent(in) :: NA  !< Number of atoms in one cell
       integer, intent(in) :: Natom     !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles
@@ -84,10 +86,10 @@ contains
       integer, dimension(:), allocatable              :: indx                           !< index along x
       integer, dimension(:), allocatable              :: indy                           !< index along y
       integer, dimension(:), allocatable              :: indz                           !< index along z
-      ! OAM
-      real(dblprec), dimension(:,:), allocatable   ::  Lz_k !< Angular momentum in k-space
-      real(dblprec), dimension(:), allocatable     ::  Lz_band !< Angular momentum in band space
-      real(dblprec)                                   :: dkx,dky                     !< kx and ky spacing
+      ! Fishman OAM, stored band- and k-resolved in units of hbar.
+      real(dblprec), dimension(:,:), allocatable      :: oam_hbar
+      complex(dblprec), dimension(:,:,:), allocatable  :: oam_evec
+      integer, dimension(:,:), allocatable             :: oam_band
 
       real(dblprec)                                   :: therm_conduc              !< Thermal conductivity
       integer                                         :: iq,i,j,k,l,m,i_stat,nqred,icount,jcount,kcount,counter,kx,ky,kz, nmx
@@ -167,12 +169,6 @@ contains
       call memocc(i_stat,product(shape(c2_func))*kind(c2_func),'c2_func','calculate_chern_number')
       allocate(therm_conduc_band(2*NA),stat=i_stat)
       call memocc(i_stat,product(shape(therm_conduc_band))*kind(therm_conduc_band),'therm_conduc_band','calculate_chern_number')
-      ! AOM
-      allocate(Lz_k(NA,3*nqred),stat=i_stat)
-      call memocc(i_stat,product(shape(Lz_k))*kind(Lz_k),'Lz_k','calculate_chern_number')
-      allocate(Lz_band(NA),stat=i_stat)
-      call memocc(i_stat,product(shape(Lz_band))*kind(Lz_band),'Lz_band','calculate_chern_number')
-
       !Calculate the grid in the reciprocal space
       call setup_grid(Nx,Ny,Nz,C1,C2,C3,dimen,q_vchern)
       !Calculate eigenvectors and eigenvalues
@@ -288,42 +284,42 @@ contains
           if ( indx(iq).eq.1 .and. indy(iq).eq.1 .and. indz(iq).eq.1 ) then
             j=j+1
             do i=1,NA !band index
-                u1(i,j)=dot_product(nc_evec_complex(1:NA,i,iq),nc_evec_complex(1:NA,i,iq+1))
+                u1(i,j)=boson_overlap(nc_evec_complex(:,i,iq),nc_evec_complex(:,i,iq+1),NA)
               if (abs(u1(i,j))== 0.0_dblprec) then
                 u1norm(i,j)=(1.0_dblprec,0.0_dblprec)
               else
                 u1norm(i,j)=u1(i,j)/abs(u1(i,j))
               end if
 
-                u2(i,j)=dot_product(nc_evec_complex(1:NA,i,iq+1),nc_evec_complex(1:NA,i,iq+1+kx))
+                u2(i,j)=boson_overlap(nc_evec_complex(:,i,iq+1),nc_evec_complex(:,i,iq+1+kx),NA)
               if (abs(u2(i,j))== 0.0_dblprec) then
                 u2norm(i,j)=(1.0_dblprec,0.0_dblprec)
               else
                 u2norm(i,j)=u2(i,j)/abs(u2(i,j))
               end if
 
-                u3(i,j)=dot_product(nc_evec_complex(1:NA,i,iq+1+kx),nc_evec_complex(1:NA,i,iq+1+kx+kz))
+                u3(i,j)=boson_overlap(nc_evec_complex(:,i,iq+1+kx),nc_evec_complex(:,i,iq+1+kx+kz),NA)
               if (abs(u3(i,j))== 0.0_dblprec) then
                 u3norm(i,j)=(1.0_dblprec,0.0_dblprec)
               else
                 u3norm(i,j)=u3(i,j)/abs(u3(i,j))
               end if
 
-                u1inv(i,j)=1.0_dblprec/dot_product(nc_evec_complex(1:NA,i,iq+kx+kz),nc_evec_complex(1:NA,i,iq+1+kx+kz))
+                u1inv(i,j)=1.0_dblprec/boson_overlap(nc_evec_complex(:,i,iq+kx+kz),nc_evec_complex(:,i,iq+1+kx+kz),NA)
               if (abs(u1inv(i,j))== 0.0_dblprec) then
                 u1invnorm(i,j)=(1.0_dblprec,0.0_dblprec)
               else
                 u1invnorm(i,j)=u1inv(i,j)/abs(u1inv(i,j))
               end if
 
-                u2inv(i,j)=1.0_dblprec/dot_product(nc_evec_complex(1:NA,i,iq+kz),nc_evec_complex(1:NA,i,iq+kx+kz))
+                u2inv(i,j)=1.0_dblprec/boson_overlap(nc_evec_complex(:,i,iq+kz),nc_evec_complex(:,i,iq+kx+kz),NA)
               if (abs(u2inv(i,j))== 0.0_dblprec) then
                 u2invnorm(i,j)=(1.0_dblprec,0.0_dblprec)
               else
                 u2invnorm(i,j)=u2inv(i,j)/abs(u2inv(i,j))
               end if
 
-                u3inv(i,j)=1.0_dblprec/dot_product(nc_evec_complex(1:NA,i,iq),nc_evec_complex(1:NA,i,iq+kz))
+                u3inv(i,j)=1.0_dblprec/boson_overlap(nc_evec_complex(:,i,iq),nc_evec_complex(:,i,iq+kz),NA)
               if (abs(u3inv(i,j))== 0.0_dblprec) then
                 u3invnorm(i,j)=(1.0_dblprec,0.0_dblprec)
               else
@@ -335,42 +331,42 @@ contains
           if ( indx(iq).eq.2 .and. indy(iq).eq.2 .and. indz(iq).eq.2 ) then
             k=k+1
             do i=1,NA !band index
-              u1(i,j+k)=dot_product(nc_evec_complex(1:NA,i,iq),nc_evec_complex(1:NA,i,iq+1))
+              u1(i,j+k)=boson_overlap(nc_evec_complex(:,i,iq),nc_evec_complex(:,i,iq+1),NA)
               if (abs(u1(i,j+k))== 0.0_dblprec) then
               u1norm(i,j+k)=(1.0_dblprec,0.0_dblprec)
               else
               u1norm(i,j+k)=u1(i,j+k)/abs(u1(i,j+k))
               end if
 
-              u2(i,j+k)=dot_product(nc_evec_complex(1:NA,i,iq+1),nc_evec_complex(1:NA,i,iq+1+kx))
+              u2(i,j+k)=boson_overlap(nc_evec_complex(:,i,iq+1),nc_evec_complex(:,i,iq+1+kx),NA)
               if (abs(u2(i,j+k))== 0.0_dblprec) then
               u2norm(i,j+k)=(1.0_dblprec,0.0_dblprec)
               else
               u2norm(i,j+k)=u2(i,j+k)/abs(u2(i,j+k))
               end if
 
-              u3(i,j+k)=dot_product(nc_evec_complex(1:NA,i,iq+1+kx),nc_evec_complex(1:NA,i,iq+1+kx+kz))
+              u3(i,j+k)=boson_overlap(nc_evec_complex(:,i,iq+1+kx),nc_evec_complex(:,i,iq+1+kx+kz),NA)
               if (abs(u3(i,j+k))== 0.0_dblprec) then
                 u3norm(i,j+k)=(1.0_dblprec,0.0_dblprec)
               else
                 u3norm(i,j+k)=u3(i,j+k)/abs(u3(i,j+k))
               end if
 
-              u1inv(i,j+k)=1.0_dblprec/dot_product(nc_evec_complex(1:NA,i,iq+kx+kz),nc_evec_complex(1:NA,i,iq+1+kx+kz))
+              u1inv(i,j+k)=1.0_dblprec/boson_overlap(nc_evec_complex(:,i,iq+kx+kz),nc_evec_complex(:,i,iq+1+kx+kz),NA)
               if (abs(u1inv(i,j+k))== 0.0_dblprec) then
               u1invnorm(i,j+k)=(1.0_dblprec,0.0_dblprec)
               else
               u1invnorm(i,j+k)=u1inv(i,j+k)/abs(u1inv(i,j+k))
               end if
 
-              u2inv(i,j+k)=1.0_dblprec/dot_product(nc_evec_complex(1:NA,i,iq+kz),nc_evec_complex(1:NA,i,iq+kx+kz))
+              u2inv(i,j+k)=1.0_dblprec/boson_overlap(nc_evec_complex(:,i,iq+kz),nc_evec_complex(:,i,iq+kx+kz),NA)
               if (abs(u2inv(i,j+k))== 0.0_dblprec) then
               u2invnorm(i,j+k)=(1.0_dblprec,0.0_dblprec)
               else
               u2invnorm(i,j+k)=u2inv(i,j+k)/abs(u2inv(i,j+k))
               end if
 
-              u3inv(i,j+k)=1.0_dblprec/dot_product(nc_evec_complex(1:NA,i,iq),nc_evec_complex(1:NA,i,iq+kz))
+              u3inv(i,j+k)=1.0_dblprec/boson_overlap(nc_evec_complex(:,i,iq),nc_evec_complex(:,i,iq+kz),NA)
               if (abs(u3inv(i,j+k))== 0.0_dblprec) then
                 u3invnorm(i,j+k)=(1.0_dblprec,0.0_dblprec)
               else
@@ -382,42 +378,42 @@ contains
           if ( indx(iq).eq.3 .and. indy(iq).eq.3 .and. indz(iq).eq.3 ) then
             l=l+1
             do i=1,NA !band index
-              u1(i,j+k+l)=dot_product(nc_evec_complex(1:NA,i,iq),nc_evec_complex(1:NA,i,iq+1))
+              u1(i,j+k+l)=boson_overlap(nc_evec_complex(:,i,iq),nc_evec_complex(:,i,iq+1),NA)
               if (abs(u1(i,j+k+l))== 0.0_dblprec) then
               u1norm(i,j+k+l)=(1.0_dblprec,0.0_dblprec)
               else
               u1norm(i,j+k+l)=u1(i,j+k+l)/abs(u1(i,j+k+l))
               end if
 
-              u2(i,j+k+l)=dot_product(nc_evec_complex(1:NA,i,iq+1),nc_evec_complex(1:NA,i,iq+1+kx))
+              u2(i,j+k+l)=boson_overlap(nc_evec_complex(:,i,iq+1),nc_evec_complex(:,i,iq+1+kx),NA)
               if (abs(u2(i,j+k+l))== 0.0_dblprec) then
               u2norm(i,j+k+l)=(1.0_dblprec,0.0_dblprec)
               else
               u2norm(i,j+k+l)=u2(i,j+k+l)/abs(u2(i,j+k+l))
               end if
 
-              u3(i,j+k+l)=dot_product(nc_evec_complex(1:NA,i,iq+1+kx),nc_evec_complex(1:NA,i,iq+1+kx+kz))
+              u3(i,j+k+l)=boson_overlap(nc_evec_complex(:,i,iq+1+kx),nc_evec_complex(:,i,iq+1+kx+kz),NA)
               if (abs(u3(i,j+k+l))== 0.0_dblprec) then
                 u3norm(i,j+k+l)=(1.0_dblprec,0.0_dblprec)
               else
                 u3norm(i,j+k+l)=u3(i,j+k+l)/abs(u3(i,j+k+l))
               end if
 
-              u1inv(i,j+k+l)=1.0_dblprec/dot_product(nc_evec_complex(1:NA,i,iq+kx+kz),nc_evec_complex(1:NA,i,iq+1+kx+kz))
+              u1inv(i,j+k+l)=1.0_dblprec/boson_overlap(nc_evec_complex(:,i,iq+kx+kz),nc_evec_complex(:,i,iq+1+kx+kz),NA)
               if (abs(u1inv(i,j+k+l))== 0.0_dblprec) then
               u1invnorm(i,j+k+l)=(1.0_dblprec,0.0_dblprec)
               else
               u1invnorm(i,j+k+l)=u1inv(i,j+k+l)/abs(u1inv(i,j+k+l))
               end if
 
-              u2inv(i,j+k+l)=1.0_dblprec/dot_product(nc_evec_complex(1:NA,i,iq+kz),nc_evec_complex(1:NA,i,iq+kx+kz))
+              u2inv(i,j+k+l)=1.0_dblprec/boson_overlap(nc_evec_complex(:,i,iq+kz),nc_evec_complex(:,i,iq+kx+kz),NA)
               if (abs(u2inv(i,j+k+l))== 0.0_dblprec) then
               u2invnorm(i,j+k+l)=(1.0_dblprec,0.0_dblprec)
               else
               u2invnorm(i,j+k+l)=u2inv(i,j+k+l)/abs(u2inv(i,j+k+l))
               end if
 
-              u3inv(i,j+k+l)=1.0_dblprec/dot_product(nc_evec_complex(1:NA,i,iq),nc_evec_complex(1:NA,i,iq+kz))
+              u3inv(i,j+k+l)=1.0_dblprec/boson_overlap(nc_evec_complex(:,i,iq),nc_evec_complex(:,i,iq+kz),NA)
               if (abs(u3inv(i,j+k+l))== 0.0_dblprec) then
                 u3invnorm(i,j+k+l)=(1.0_dblprec,0.0_dblprec)
               else
@@ -429,17 +425,34 @@ contains
 
       Berry_cuv=log(u1norm*u2norm*u3norm*u1invnorm*u2invnorm*u3invnorm)
 
-      if (do_oam == 'Y') then
-        ! OAM calculation a la Fishman
-        dkx = 2.0_dblprec * pi / Nx  ! kx spacing
-        dky = 2.0_dblprec * pi / Ny  ! ky spacing
-        Lz_k   = aimag( Berry_cuv ) * dkx * dky
-        Lz_band = sum( Lz_k, dim=2 )                           ! (nBands)
-        
-        print *, 'Angular orbital moment per band:'
-        do m = 1, NA
-           write(*,'(i4,2x,es12.5)') m, Lz_band(m)
-        end do
+      if (do_magnon_oam == 'Y') then
+         ! Chern number uses Berry flux.  Fishman OAM is a separate,
+         ! gauge-fixed expectation value of the momentum-space angular
+         ! momentum operator and is kept k- and band-resolved.
+         allocate(oam_evec(2*NA,NA,dimen),stat=i_stat)
+         call memocc(i_stat,product(shape(oam_evec))*kind(oam_evec),'oam_evec','calculate_chern_number')
+         allocate(oam_hbar(NA,dimen),stat=i_stat)
+         call memocc(i_stat,product(shape(oam_hbar))*kind(oam_hbar),'oam_hbar','calculate_chern_number')
+         allocate(oam_band(NA,dimen),stat=i_stat)
+         call memocc(i_stat,product(shape(oam_band))*kind(oam_band),'oam_band','calculate_chern_number')
+         call prepare_oam_eigenvectors(NA,Nx,Ny,Nz,dimen,nc_evec_complex,oam_evec,oam_band)
+         call calculate_fishman_oam(NA,Nx,Ny,Nz,dimen,q_vchern,oam_evec,oam_hbar)
+
+         oam_file='oam.'//trim(simid)//'.out'
+         open(ofileno,file=oam_file)
+         write(ofileno,'(a)') '# Fishman reciprocal-space magnon OAM; primary units OAM/hbar'
+         write(ofileno,'(a)') '# Pointwise values are gauge-fixed and gauge-dependent.'
+         write(ofileno,'(a)') '# qx qy are Cartesian components of q_vchern; physical k=2*pi*q.'
+         write(ofileno,'(a)') '# band qx qy energy(meV) OAM/hbar'
+         do iq=1,dimen
+            do i=1,NA
+               write(ofileno,'(i6,4(1x,es23.15))') i,q_vchern(1,iq),q_vchern(2,iq), &
+                  nc_eval_complex(oam_band(i,iq),iq),oam_hbar(i,iq)
+            end do
+         end do
+         close(ofileno)
+         print '(1x,a,a)', 'Fishman OAM written to ',trim(oam_file)
+         print '(1x,a)', 'Pointwise OAM is gauge-fixed; angular-average TODO for polar meshes.'
       end if
 
       ! 2D grid or 3D grid
@@ -593,17 +606,187 @@ contains
       call memocc(i_stat,product(shape(nc_eval_complex))*kind(nc_eval_complex),'nc_eval_complex','calculate_chern_number')
       deallocate(nc_evec_complex,stat=i_stat)
       call memocc(i_stat,product(shape(nc_evec_complex))*kind(nc_evec_complex),'nc_evec_complex','calculate_chern_number')
-      ! OAM
-      deallocate(Lz_k,stat=i_stat)
-      call memocc(i_stat,product(shape(Lz_k))*kind(Lz_k),'Lz_k','calculate_chern_number')
-      deallocate(Lz_band,stat=i_stat)
-      call memocc(i_stat,product(shape(Lz_band))*kind(Lz_band),'Lz_band','calculate_chern_number')
+      if (allocated(oam_evec)) then
+         deallocate(oam_evec,stat=i_stat)
+         call memocc(i_stat,product(shape(oam_evec))*kind(oam_evec),'oam_evec','calculate_chern_number')
+      end if
+      if (allocated(oam_hbar)) then
+         deallocate(oam_hbar,stat=i_stat)
+         call memocc(i_stat,product(shape(oam_hbar))*kind(oam_hbar),'oam_hbar','calculate_chern_number')
+      end if
+      if (allocated(oam_band)) then
+         deallocate(oam_band,stat=i_stat)
+         call memocc(i_stat,product(shape(oam_band))*kind(oam_band),'oam_band','calculate_chern_number')
+      end if
       !
       print '(1x,a)', 'Chern calculation done.'
    !
    return
    !
    end subroutine calculate_chern_number
+
+   !> Continue positive-energy modes over the reciprocal grid.  The first
+   !> point is an arbitrary anchor; every later point is matched to the
+   !> previous point in the row, or to the previous row at a row boundary.
+   !> The matching and phase rotation use the bosonic metric overlap.
+   subroutine prepare_oam_eigenvectors(NA,Nx,Ny,Nz,dimen,eigenvectors,oam_evec,oam_band)
+      implicit none
+      integer, intent(in) :: NA,Nx,Ny,Nz,dimen
+      complex(dblprec), intent(in) :: eigenvectors(2*NA,2*NA,*)
+      complex(dblprec), intent(out) :: oam_evec(2*NA,NA,dimen)
+      integer, intent(out) :: oam_band(NA,dimen)
+
+      complex(dblprec) :: reference(2*NA,NA)
+      integer :: icount,jcount,kcount,iq,band
+      integer :: mode_order(NA),raw_order(NA)
+
+      oam_evec=eigenvectors(:,1:NA,1:dimen)
+      do iq=1,dimen
+         do band=1,NA
+            oam_band(band,iq)=band
+         end do
+      end do
+      do kcount=1,Nz
+         do jcount=1,Ny
+            do icount=1,Nx
+               iq=(kcount-1)*Nx*Ny+(jcount-1)*Nx+icount
+               if (iq == 1) cycle
+               if (icount > 1) then
+                  reference=oam_evec(:,:,iq-1)
+               else
+                  reference=oam_evec(:,:,iq-Nx)
+               end if
+               call continue_boson_modes(reference,oam_evec(:,:,iq),NA,mode_order)
+               raw_order=oam_band(:,iq)
+               do band=1,NA
+                  oam_band(band,iq)=raw_order(mode_order(band))
+               end do
+            end do
+         end do
+      end do
+   end subroutine prepare_oam_eigenvectors
+
+   !> Match a set of modes to a reference set and fix each phase so that the
+   !> overlap with its reference mode is real and positive.  This is a
+   !> deterministic spanning-tree gauge for the pointwise OAM diagnostic.
+   subroutine continue_boson_modes(reference,current,NA,mode_order)
+      implicit none
+      integer, intent(in) :: NA
+      complex(dblprec), intent(in) :: reference(2*NA,NA)
+      complex(dblprec), intent(inout) :: current(2*NA,NA)
+      integer, intent(out) :: mode_order(NA)
+
+      complex(dblprec) :: raw_modes(2*NA,NA), reordered(2*NA,NA)
+      complex(dblprec) :: overlap, phase_factor
+      real(dblprec) :: best_overlap
+      logical :: used(NA)
+      integer :: i,j,best
+
+      raw_modes=current
+      reordered=(0.0_dblprec,0.0_dblprec)
+      used=.false.
+      do i=1,NA
+         best=0
+         best_overlap=-1.0_dblprec
+         do j=1,NA
+            if (.not.used(j)) then
+               overlap=boson_overlap(reference(:,i),raw_modes(:,j),NA)
+               if (abs(overlap) > best_overlap) then
+                  best_overlap=abs(overlap)
+                  best=j
+               end if
+            end if
+         end do
+         if (best == 0) error stop 'chern: failed boson band continuation'
+         used(best)=.true.
+         mode_order(i)=best
+         overlap=boson_overlap(reference(:,i),raw_modes(:,best),NA)
+         if (abs(overlap) > 1000.0_dblprec*epsilon(1.0_dblprec)) then
+            phase_factor=conjg(overlap)/abs(overlap)
+         else
+            phase_factor=(1.0_dblprec,0.0_dblprec)
+         end if
+         reordered(:,i)=raw_modes(:,best)*phase_factor
+      end do
+      current=reordered
+   end subroutine continue_boson_modes
+
+   !> Evaluate Fishman's pointwise magnon OAM in units of hbar.
+   !> The reciprocal grid is expressed in the same coordinates as q_vchern;
+   !> the common 2*pi factor used by setup_ektij cancels between k and d/dk.
+   subroutine calculate_fishman_oam(NA,Nx,Ny,Nz,dimen,q_vchern,oam_evec,oam_hbar)
+      implicit none
+      integer, intent(in) :: NA,Nx,Ny,Nz,dimen
+      real(dblprec), intent(in) :: q_vchern(3,dimen)
+      complex(dblprec), intent(in) :: oam_evec(2*NA,NA,dimen)
+      real(dblprec), intent(out) :: oam_hbar(NA,dimen)
+
+      real(dblprec) :: dq1(3),dq2(3),detq,qx,qy
+      complex(dblprec) :: d1(2*NA),d2(2*NA),dtdx(2*NA),dtdy(2*NA)
+      complex(dblprec) :: angular_derivative(2*NA)
+      integer :: icount,jcount,iq,iqp,iqm,band
+
+      if (Nx < 2 .or. Ny < 2 .or. Nz /= 1) then
+         error stop 'chern: Fishman OAM requires a two-dimensional k mesh'
+      end if
+
+      ! The grid is q=x*b1/Nx+y*b2/Ny, so these are the two directional
+      ! increments even for oblique reciprocal lattices.
+      dq1=q_vchern(:,2)-q_vchern(:,1)
+      dq2=q_vchern(:,Nx+1)-q_vchern(:,1)
+      detq=dq1(1)*dq2(2)-dq1(2)*dq2(1)
+      if (abs(detq) <= 1000.0_dblprec*epsilon(1.0_dblprec)) then
+         error stop 'chern: singular reciprocal directions for Fishman OAM'
+      end if
+
+      do jcount=1,Ny
+         do icount=1,Nx
+            iq=(jcount-1)*Nx+icount
+            qx=q_vchern(1,iq)
+            qy=q_vchern(2,iq)
+            do band=1,NA
+               ! Central differences in the interior.  The two boundary
+               ! rows use first-order differences because Fishman's OAM is
+               ! not periodic in k; no Berry-flux quantity is substituted.
+               if (icount == 1) then
+                  iqp=iq+1
+                  d1=oam_evec(:,band,iqp)-oam_evec(:,band,iq)
+               else if (icount == Nx) then
+                  iqm=iq-1
+                  d1=oam_evec(:,band,iq)-oam_evec(:,band,iqm)
+               else
+                  iqp=iq+1
+                  iqm=iq-1
+                  d1=0.5_dblprec*(oam_evec(:,band,iqp)-oam_evec(:,band,iqm))
+               end if
+
+               if (jcount == 1) then
+                  iqp=iq+Nx
+                  d2=oam_evec(:,band,iqp)-oam_evec(:,band,iq)
+               else if (jcount == Ny) then
+                  iqm=iq-Nx
+                  d2=oam_evec(:,band,iq)-oam_evec(:,band,iqm)
+               else
+                  iqp=iq+Nx
+                  iqm=iq-Nx
+                  d2=0.5_dblprec*(oam_evec(:,band,iqp)-oam_evec(:,band,iqm))
+               end if
+
+               ! D1 = dq1_x*dT/dx + dq1_y*dT/dy and likewise for D2.
+               dtdx=(dq2(2)*d1-dq1(2)*d2)/detq
+               dtdy=(-dq2(1)*d1+dq1(1)*d2)/detq
+               angular_derivative=qx*dtdy-qy*dtdx
+
+               ! UppASD uses exp(-i*k.R) in setup_ektij.  Thus l_z is
+               ! -i(k_x d_y-k_y d_x), and with the
+               ! eta-normalized bosonic vector this is the Fishman value
+               ! Lz/hbar = 1/2 Im[T^dagger eta D T].
+               oam_hbar(band,iq)=0.5_dblprec*aimag(&
+                  boson_overlap(oam_evec(:,band,iq),angular_derivative,NA))
+            end do
+         end do
+      end do
+   end subroutine calculate_fishman_oam
 
    subroutine setup_grid(Nx,Ny,Nz,C1,C2,C3,dimen,q_vchern)
       ! Set up grid in reciprocal space (1st BZ)
@@ -716,6 +899,10 @@ contains
               read(ifile,*,iostat=i_err) do_chern
               if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
 
+            case('do_magnon_oam') ! Fishman reciprocal-space magnon OAM (requires do_chern Y)
+              read(ifile,*,iostat=i_err) do_magnon_oam
+              if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
+
             case('kgrid') ! Read the size of the grid
               read(ifile,*,iostat=i_err) Nx, Ny, Nz
               if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
@@ -742,6 +929,10 @@ contains
    end do
 
    20  continue
+
+   if (do_magnon_oam=='Y' .and. do_chern/='Y') then
+      error stop 'do_magnon_oam requires do_chern Y'
+   end if
 
    return
    end subroutine read_parameters_chern_number

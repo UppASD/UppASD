@@ -45,9 +45,43 @@ module diamag
    public :: do_diamag, do_helicity, read_parameters_diamag,clone_q,diagonalize_quad_hamiltonian,&
              find_uv,setup_ektij,setup_jtens2_q,setup_jtens_q,sJs
    public :: setup_tensor_hamiltonian, nc_evec_complex, nc_eval_complex
+   public :: boson_overlap, boson_paraunitarity_error
    public :: diamag_qvect, nc_eval_q, nc_evec_q
 
 contains
+
+   !> Bosonic (paraunitary) inner product.  The minus sign in the hole
+   !> sector is required by the canonical boson commutation relations.
+   complex(dblprec) function boson_overlap(v1,v2,NA)
+      implicit none
+      integer, intent(in) :: NA
+      complex(dblprec), intent(in) :: v1(2*NA), v2(2*NA)
+
+      boson_overlap = sum(conjg(v1(1:NA))*v2(1:NA)) &
+         - sum(conjg(v1(NA+1:2*NA))*v2(NA+1:2*NA))
+   end function boson_overlap
+
+   !> Maximum elementwise error in T^dagger eta T = eta.
+   real(dblprec) function boson_paraunitarity_error(T_mat,NA)
+      implicit none
+      integer, intent(in) :: NA
+      complex(dblprec), intent(in) :: T_mat(2*NA,2*NA)
+      complex(dblprec) :: metric(2*NA,2*NA), expected(2*NA,2*NA)
+      integer :: i,j
+
+      metric=(0.0_dblprec,0.0_dblprec)
+      expected=(0.0_dblprec,0.0_dblprec)
+      do i=1,2*NA
+         do j=1,2*NA
+            metric(i,j)=boson_overlap(T_mat(:,i),T_mat(:,j),NA)
+         end do
+      end do
+      do i=1,NA
+         expected(i,i)=(1.0_dblprec,0.0_dblprec)
+         expected(NA+i,NA+i)=(-1.0_dblprec,0.0_dblprec)
+      end do
+      boson_paraunitarity_error=maxval(abs(metric-expected))
+   end function boson_paraunitarity_error
 
    subroutine setup_diamag()
 
@@ -97,6 +131,7 @@ contains
       real(dblprec), dimension(:,:), allocatable :: q_ext
       !
       real(dblprec) :: msat,tcmfa,tcrpa
+      real(dblprec) :: para_err_q,max_para_err
       !
       character(LEN = 25) :: ncams_file
       !
@@ -160,6 +195,7 @@ contains
       !call setup_diamag()
 
       im=(0.0_dblprec,1.0_dblprec)
+      max_para_err=0.0_dblprec
 
       call clone_q(nq,q_vect,nq_ext,q_ext,diamag_qvect)
 
@@ -172,7 +208,7 @@ contains
          call setup_Jtens_q(Natom,Mensemble,NA,emomM,q_ext,nq_ext,Jtens_q)
       end if
 
-      ! Create array of exp(i*k*(ri-rj))
+      ! Create array using UppASD's exp(-i*k.R) Fourier convention.
       call setup_ektij(Natom,NA,q_ext,nq_ext,ektij)
 
       !Toth and Lake loop over k-vectors 
@@ -263,7 +299,9 @@ contains
          !end if
 
          ! Diagonalize Hamiltonian 
-         call diagonalize_quad_hamiltonian(NA,h_k,eig_val,eig_vec,iq,nq_ext,S_prime)
+         call diagonalize_quad_hamiltonian(NA,h_k,eig_val,eig_vec,iq,nq_ext,S_prime, &
+            flag /= 0 .or. do_helicity == 'Y',para_err_q)
+         max_para_err=max(max_para_err,para_err_q)
 
          ! Store eigenvalues and vectors (eigenvalues in meV)
              if (flag==0) then
@@ -277,6 +315,10 @@ contains
                 nc_evec_complex(:,:,iq)=eig_vec
              end if
       end do
+
+      if (flag /= 0 .or. do_helicity == 'Y') then
+         write(*,'(1x,a,es12.5)') 'Maximum paraunitarity error: ',max_para_err
+      end if
 
       if (flag==0) then
         ncams_file = 'ncams.'//trim(simid)//'.out'
@@ -389,7 +431,7 @@ contains
    end subroutine setup_tensor_hamiltonian
 
 
-   subroutine diagonalize_quad_hamiltonian(NA,h_in,eig_val,eig_vec,iq,nq_ext,S_prime)
+   subroutine diagonalize_quad_hamiltonian(NA,h_in,eig_val,eig_vec,iq,nq_ext,S_prime,require_paraunitary,paraunitarity_error)
       !
       use Constants
       !
@@ -404,6 +446,8 @@ contains
       integer, intent(in)  :: iq    !< Current q-point index
       integer, intent(in)  :: nq_ext    !< Number of qpoints
       complex(dblprec), dimension(2*NA,2*NA,3,3,nq_ext), intent(inout) :: S_prime
+      logical, intent(in), optional :: require_paraunitary
+      real(dblprec), intent(out), optional :: paraunitarity_error
       !
       !real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom     !< Current magnetic moment magnitude
       !integer, intent(in) :: Mensemble !< Number of ensembles
@@ -419,12 +463,13 @@ contains
       complex(dblprec), dimension(2*NA,2*NA) :: KgK_mat
       complex(dblprec), dimension(2*NA,2*NA) :: iK_mat
       complex(dblprec), dimension(2*NA,2*NA) :: dum_mat
-      complex(dblprec), dimension(2*NA,2*NA) :: x_mat
       complex(dblprec), dimension(:), allocatable :: cwork
       real(dblprec), dimension(:), allocatable :: rwork
       !
       integer :: info, lwork, hdim, ia, ja
       integer :: alfa, beta
+      logical :: colpa_ok, require_check
+      real(dblprec) :: para_err, para_tol, energy_tol
 
       complex(dblprec) :: cone, czero, fcinv, im, dia_eps
 
@@ -436,6 +481,8 @@ contains
       czero=(0.0_dblprec,0.0_dblprec)
       cone=(1.0_dblprec,0.0_dblprec)
       im=(0.0_dblprec,1.0_dblprec)
+      require_check=.false.
+      if (present(require_paraunitary)) require_check=require_paraunitary
       ! Add offset to ensure positive definiteness, if needed.
       ! Can be controlled by input parameter `nc_eps`
       if (diamag_eps>-1.0_dblprec) then
@@ -468,6 +515,7 @@ contains
       eig_vec=K_mat
       ! Pre-diagonalization to estimate eigenvalues (not used for final eigenvalues)
       call zheev('V','U',hdim,eig_vec,hdim,eig_val, cwork, lwork, rwork, info)
+      if (info /= 0) error stop 'diamag: failed to diagonalize Colpa input'
       !dia_eps=0.0_dblprec
       !dia_eps=1.0e-6_dblprec
       !if(minval(eig_val)<0.0_dblprec) print *,'zheev',info,dia_eps,minval(eig_val)
@@ -497,7 +545,8 @@ contains
          enddo
       enddo
 
-      if(info==0) then  ! Positive-definit matrix, Colpa diagonalization ok
+      colpa_ok=(info==0)
+      if(colpa_ok) then  ! Positive-definite matrix, Colpa diagonalization ok
          do ia=1,hdim
             do ja=ia+1,hdim
                K_mat(ja,ia)=0.0_dblprec
@@ -507,65 +556,62 @@ contains
          call zgemm('N','N',hdim,hdim,hdim,cone,K_mat,hdim,dum_mat,hdim,czero,eig_vec,hdim)
       else
          print *,' Warning in diamag: non-positive definite matrix in zpotrf', iq, info
-         ! print '(12f10.6)',real(h_in)
+         ! The fallback must return physical bosonic vectors.  It is checked below;
+         ! a failed check is fatal for Chern/OAM callers.
          call fallback_bosonic_diag(NA, h_in, eig_val, eig_vec, iq)
-         ! print *,'eig_val',eig_val
       end if
 
-      allocate(cwork(lwork))
-      allocate(rwork(6*NA-2))
-      ! Symmetrization of K (from SpinW code, not TothLake)
-      ! do ia=1,hdim
-      !    do ja=1,hdim
-      !       eig_vec(ia,ja)=0.5_dblprec*(eig_vec(ia,ja)+conjg(eig_vec(ja,ia)))
-      !       eig_vec(ja,ia)=eig_vec(ia,ja)
-      !    end do
-      ! end do
-      ! Eigenvaluesolver for HgH´
-      KgK_mat=eig_vec
-      call zheev('V','U', hdim, eig_vec, hdim, eig_val, cwork, lwork, rwork, info)
-      deallocate(cwork)
-      deallocate(rwork)
-      !!!      else
-      !!!         print *,' Warning in diamag: non-positive definite matrix in zpotrf', iq, info
-      !!!      end if
-      !print *,'zheeev',info
-      call shuffle_eig(eig_val,eig_vec,hdim)
-      !eig_val=eig_val/(ry_ev*4.0_dblprec)
-      !call dlasrt( 'I', hdim, eig_val, info )
-      !
-      !ABs
-      x_mat=eig_vec
-      !do ia=1,NA
-      !   do ja=1,NA
-      !      call find_uv(ul,vl,emomM(:,ja,1))
-      !      bigS(:,ia,ja)=sqrt(mmom(ia,1))*sqrt(0.5_dblprec)*(conjg(ul)*x_mat(ia,ja)+ul*x_mat(ia+NA,ja))+vl*(mmom(ia,1)-x_mat(ia+NA,ja)*x_mat(ia,ja))
-      !   end do
-      !end do
+      if (colpa_ok) then
+         allocate(cwork(lwork))
+         allocate(rwork(6*NA-2))
+         ! Eigenvectors of K*g*K^dagger are auxiliary Colpa vectors.  They
+         ! are used only to construct T_mat below and are never exported.
+         KgK_mat=eig_vec
+         call zheev('V','U', hdim, eig_vec, hdim, eig_val, cwork, lwork, rwork, info)
+         deallocate(cwork)
+         deallocate(rwork)
+         if (info /= 0) error stop 'diamag: Colpa eigensolver failed'
+         call shuffle_eig(eig_val,eig_vec,hdim)
 
-      ! Calculate L
-      call zgemm('C','N',hdim,hdim,hdim,cone,eig_vec,hdim,KgK_mat,hdim,czero,dum_mat,hdim)
-      call zgemm('N','N',hdim,hdim,hdim,cone,dum_mat,hdim,eig_vec,hdim,czero,L_mat,hdim)
-      
-      ! Eigensolve E=g*L
-      call zgemm('N','N',hdim,hdim,hdim,cone,g_mat,hdim,L_mat,hdim,czero,E_mat,hdim)
-      ! Calculate K^-1
-      iK_mat=K_mat
-      call ztrtri('U','N',hdim,iK_mat,hdim,info)
-      ! E^1/2
-      sqE_mat=sqrt(abs(E_mat))
-      ! U*E^1/2
-      call zgemm('N','N',hdim,hdim,hdim,cone,eig_vec,hdim,sqE_mat,hdim,czero,dum_mat,hdim)
-      ! T=K^-1*U*E^1/2
-      call zgemm('N','N',hdim,hdim,hdim,cone,iK_mat,hdim,dum_mat,hdim,czero,T_mat,hdim)
+         ! Calculate L and E=g*L.
+         call zgemm('C','N',hdim,hdim,hdim,cone,eig_vec,hdim,KgK_mat,hdim,czero,dum_mat,hdim)
+         call zgemm('N','N',hdim,hdim,hdim,cone,dum_mat,hdim,eig_vec,hdim,czero,L_mat,hdim)
+         call zgemm('N','N',hdim,hdim,hdim,cone,g_mat,hdim,L_mat,hdim,czero,E_mat,hdim)
 
-      x_mat=0.0_dblprec
-      do ia=1,hdim
-         call zgemv('N',hdim,hdim,cone,T_mat,hdim,eig_vec(ia,1:hdim),1,cone,x_mat(ia,1:hdim),1)
-         call zgemv('N',hdim,hdim,cone,T_mat,hdim,eig_vec(ia,1:hdim),1,cone,x_mat(1:hdim,ia),1)
-         call zgemv('N',hdim,hdim,cone,T_mat,hdim,eig_vec(1:hdim,ia),1,cone,x_mat(1:hdim,ia),1)
-      end do
-      !x_mat=T_mat
+         ! Calculate K^-1 and construct the physical paraunitary vectors.
+         iK_mat=K_mat
+         call ztrtri('U','N',hdim,iK_mat,hdim,info)
+         if (info /= 0) error stop 'diamag: Cholesky inverse failed'
+         ! L is diagonal up to diagonalization roundoff.  Taking an
+         ! elementwise square root of its small off-diagonal noise would
+         ! amplify that noise and destroy paraunitarity, so construct the
+         ! diagonal square-root explicitly.
+         sqE_mat=(0.0_dblprec,0.0_dblprec)
+         do ia=1,hdim
+            sqE_mat(ia,ia)=sqrt(abs(real(E_mat(ia,ia))))
+         end do
+         call zgemm('N','N',hdim,hdim,hdim,cone,eig_vec,hdim,sqE_mat,hdim,czero,dum_mat,hdim)
+         call zgemm('N','N',hdim,hdim,hdim,cone,iK_mat,hdim,dum_mat,hdim,czero,T_mat,hdim)
+      else
+         ! The fallback has already produced physical generalized eigenvectors.
+         T_mat=eig_vec
+      end if
+
+      para_err=boson_paraunitarity_error(T_mat,NA)
+      if (present(paraunitarity_error)) paraunitarity_error=para_err
+      para_tol=1000.0_dblprec*epsilon(1.0_dblprec)*real(hdim*hdim,dblprec)
+      if (para_err > para_tol) then
+         write(*,'(1x,a,i8,a,es12.5)') 'Warning: paraunitarity error at q=',iq,': ',para_err
+         if (require_check) error stop 'diamag: invalid paraunitary eigenvectors'
+      end if
+
+      ! Colpa sorts descending, so stable nonnegative-energy modes must be
+      ! first.  Allow an exact Goldstone zero within the numerical tolerance.
+      energy_tol=1000.0_dblprec*epsilon(1.0_dblprec)*max(1.0_dblprec,maxval(abs(eig_val)))
+      if (minval(eig_val(1:NA)) < -energy_tol .or. maxval(eig_val(NA+1:hdim)) > energy_tol) then
+         write(*,'(1x,a,i8)') 'Warning: positive/negative boson branch ordering failed at q=',iq
+         if (require_check) error stop 'diamag: invalid positive-energy branch ordering'
+      end if
 
       do alfa=1,3
          do beta=1,3
@@ -574,6 +620,9 @@ contains
             call zgemm('C','N',hdim,hdim,hdim,cone,T_mat,hdim,dum_mat,hdim,czero,S_prime(:,:,alfa,beta,iq),hdim)
          end do
       end do
+      ! Export the physical paraunitary transformation, not the auxiliary
+      ! Hermitian Colpa eigenvectors.  Its positive-energy columns are 1:NA.
+      eig_vec=T_mat
       !
       !print *,'Re x_mat'
       !open(ofileno,file='diaval.simid.out')
@@ -597,7 +646,7 @@ contains
       implicit none
 
       integer, intent(in) :: NA, iq
-      integer :: hdim, ia, info, lwork
+      integer :: hdim, ia, info
       complex(dblprec), intent(in)  :: h_in(2*NA, 2*NA)
       real(dblprec),    intent(out) :: eig_val(2*NA)
       complex(dblprec), intent(out) :: eig_vec(2*NA, 2*NA)
@@ -606,6 +655,7 @@ contains
       complex(dblprec), allocatable :: eta(:,:), A_copy(:,:)
       real(dblprec),    allocatable :: rwork(:)
       complex(dblprec) :: czero
+      real(dblprec) :: metric_norm, metric_tol
       complex(dblprec) :: dummy_vl(1,1)
 
       czero = (0.0_dblprec, 0.0_dblprec)
@@ -670,6 +720,21 @@ contains
             else
                eig_val(ia) = 0.0_dblprec
             end if
+         end do
+
+         ! ZGGEV does not normalize generalized eigenvectors.  Normalize
+         ! them with eta and put positive-energy modes first, as required by
+         ! the physical paraunitary convention used by the main path.
+         call shuffle_eig(eig_val,eig_vec,hdim)
+         metric_tol=1000.0_dblprec*epsilon(1.0_dblprec)
+         do ia=1,hdim
+            metric_norm=real(boson_overlap(eig_vec(:,ia),eig_vec(:,ia),NA))
+            if (abs(metric_norm) <= metric_tol) then
+               print *, 'ERROR: zero bosonic norm in fallback at iq=',iq,' band=',ia
+               eig_vec=czero
+               exit
+            end if
+            eig_vec(:,ia)=eig_vec(:,ia)/sqrt(abs(metric_norm))
          end do
       end if
 
@@ -1930,5 +1995,3 @@ end subroutine setup_Jtens2_q
    end function diamag_compute_helicity
 
 end module diamag
-
-
