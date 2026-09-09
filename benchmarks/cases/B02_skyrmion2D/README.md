@@ -49,7 +49,7 @@ examples-tree copy, which remains untouched).
 | Damping | `0.50` | `inpsd.dat` |
 | Initial phase | `ip_mode Y` -> `qminimizer_wrapper('Y')` -> `sweep_q3`: a genuine `O(129 x Natom)` triple-Q spin-spiral energy-minimization line search over the 129 candidate q-points in `qfile`, using `ip_hfield` (unset in this template, defaults to `(0,0,0)`) -- **not** the production `hfield`. Overwrites the `Initmag 3` state before the timed measurement phase. `qm_relax` unset -> default `'N'`, so no MC relaxation runs per candidate (bounded, predictable cost). See §D for measured cost and §E for a real consequence of this field-free search. | `inpsd.dat`, `source/MonteCarlo/qminimizer.f90:62-106,470-668`, `source/uppasd.f90:171-238` |
 | Diagnostics | `skyno T` (skyrmion number via triangulation), `do_avrg Y`. `qpoints F` (the reciprocal-space measurement diagnostic is off; `qfile`'s 129 points are consumed only by the `ip_mode Y` search above, a dual use of the same file for two different features) | `inpsd.dat` |
-| `do_prnstruct` | `2` in the maintainer template (cluster-oriented printing; does **not** emit `struct.<simid>.out`'s neighbour list -- only `1`/`4` do, `source/Hamiltonian/hamiltonianinit.f90:372` et al.) -- overridden to `1` for workload-metadata runs | `inpsd.dat`, `source/Hamiltonian/hamiltonianinit.f90` |
+| `do_prnstruct` | `2` in the maintainer template (cluster-oriented printing; does **not** emit `struct.<simid>.out`'s neighbour list); admission characterization used a separate structure-output run, while production campaigns force `0` | `inpsd.dat`, `source/Hamiltonian/hamiltonianinit.f90` |
 
 ### Backend dispatch (`gpu_mode`, `skyno`)
 
@@ -132,9 +132,9 @@ future WP can add a finite-T variant the moment the maintainer supplies one.
 ## D. Scaling validation
 
 Used `harness.cases.generate_run_directory` (not manual file edits) with
-`extra_overrides={"do_prnstruct": 1, "Nstep": 50}` on
-`build_cpu/bin/sd.f95` at three sizes spanning a 16x atom-count range, then
-read `struct.<simid>.out` (exchange) via the case's own
+`extra_overrides={"Nstep": 50}` on `build_cpu/bin/sd.f95` with structure
+output enabled for the admission characterization at three sizes spanning a
+16x atom-count range, then read `struct.<simid>.out` (exchange) via the case's own
 `neighbor_list_from_struct_output` and `dmdata.<simid>.out` (DM) directly:
 
 | `size_id` | `natom` | exchange directed / atom | DM directed / atom |
@@ -148,8 +148,8 @@ is bulk (no edge truncation), so per-atom interaction count does not depend
 on lattice size -- the same mechanism `B01_bccFe` found for its own
 (different) constant-96 result.
 
-**Known undercount in `directed_interactions`.** This case's
-`workload_metadata_method` (`neighbor_list_from_struct_output`) reads only
+**Known undercount in `directed_interactions`.** The admission-time
+`neighbor_list_from_struct_output` characterization reads only
 `struct.<simid>.out`, which `prn_exchange` writes for the *exchange* list
 only -- it has no knowledge of the separate DM neighbour list UppASD writes
 to `dmdata.<simid>.out` under the same `do_prnstruct` trigger. For this
@@ -199,8 +199,8 @@ confirmed scaling law, not independent measurements.
 
 ## E. Sanity runs
 
-All runs used `64x64` (4,096 atoms), `do_prnstruct 1`, `Nstep 50`, generated
-through `harness.cases.generate_run_directory` (not manual file edits); CPU
+All runs used `64x64` (4,096 atoms), structure output enabled, `Nstep 50`,
+generated through `harness.cases.generate_run_directory` (not manual file edits); CPU
 on `build_cpu/bin/sd.f95` (`UPPASD_GPU_BACKEND=OFF`,
 `UPPASD_PRECISION=DOUBLE`), GPU on `build_gpu/bin/sd.f95.cuda`
 (`UPPASD_GPU_BACKEND=CUDA`, `UPPASD_PRECISION=DOUBLE`,

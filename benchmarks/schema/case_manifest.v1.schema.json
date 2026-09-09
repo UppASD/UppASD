@@ -191,6 +191,35 @@
       "description": "Name of the registered workload-metadata parser (benchmarks/harness/workload_metadata.py) used to determine natom/directed_interactions/mean_neighbors/max_neighbors (neighbour cases) or natom/fft_grid (dipole/FFT cases) for a generated run. Must not estimate from assumptions when production input/output can supply the real value.",
       "type": "string",
       "minLength": 1
+    },
+    "validated_workload_metadata": {
+      "description": "Independently characterized, size-invariant neighbour topology used by the input-only validated_neighbor_metadata parser. These values are admitted from direct UppASD characterization; they are not inferred by a timed campaign run.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "directed_interactions_per_atom",
+        "mean_neighbors",
+        "median_neighbors",
+        "max_neighbors"
+      ],
+      "properties": {
+        "directed_interactions_per_atom": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "mean_neighbors": {
+          "type": "number",
+          "minimum": 0
+        },
+        "median_neighbors": {
+          "type": ["number", "null"],
+          "minimum": 0
+        },
+        "max_neighbors": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
     }
   },
 
@@ -221,6 +250,16 @@
         "properties": {
           "workload_metadata_method": { "not": { "const": "" } }
         }
+      }
+    },
+    {
+      "$comment": "Input-only validated neighbour metadata carries its required topology fields.",
+      "if": {
+        "properties": { "workload_metadata_method": { "const": "validated_neighbor_metadata" } },
+        "required": ["workload_metadata_method"]
+      },
+      "then": {
+        "required": ["validated_workload_metadata"]
       }
     }
   ]

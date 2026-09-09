@@ -119,8 +119,8 @@ sizes:
                     # a confirmed result. Treat any benchmark at this size as
                     # methodologically interesting (anisotropic FFT convolution grid
                     # behaviour) but NOT as a validated physical measurement until a
-                    # duplicate-neighbour check (workload_metadata_method's own
-                    # struct-output parse, or a direct do_prnstruct=1 probe) confirms
+                    # duplicate-neighbour check (the admission-time
+                    # struct-output characterization) confirms
                     # the z-axis wrap is clean at this replication.
     replication: [100, 100, 3]
 allowed_input_overrides:
@@ -135,4 +135,9 @@ allowed_input_overrides:
   - ene_step
   - gpu_mode
   - do_gpu_convolution
-workload_metadata_method: neighbor_list_from_struct_output
+workload_metadata_method: validated_neighbor_metadata
+validated_workload_metadata:
+  directed_interactions_per_atom: 1338
+  mean_neighbors: 1338.0
+  median_neighbors: 1338.0
+  max_neighbors: 1340

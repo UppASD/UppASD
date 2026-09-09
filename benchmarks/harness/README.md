@@ -25,11 +25,12 @@ Present (WP-02):
   guard (`filter_cases_for_campaign`, `require_not_infrastructure_only`) that
   keeps `infrastructure_test_only` cases out of authoritative reports.
 * `workload_metadata.py` — the case-specific hook mechanism of section E:
-  `neighbor_list_from_struct_output` parses UppASD's own
-  `struct.<simid>.out` diagnostic dump for real neighbour-workload metadata;
-  `fft_grid_from_replication` derives the dipole-FFT grid from the case's own
-  supercell replication using UppASD's own padding formula. Neither estimates
-  a quantity real production input/output already supplies.
+  `validated_neighbor_metadata` supplies independently characterized,
+  size-invariant neighbour topology without executing a metadata probe;
+  `neighbor_list_from_struct_output` remains available for one-off admission
+  and revalidation runs; `fft_grid_from_replication` derives the dipole-FFT
+  grid from the case's own supercell replication using UppASD's own padding
+  formula. Production campaign paths never enable `do_prnstruct`.
 
 Present (WP-03):
 

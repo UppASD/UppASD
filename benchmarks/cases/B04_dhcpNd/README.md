@@ -115,8 +115,8 @@ This was verified directly, not assumed: `struct.<simid>.out`'s own
 `r_{ij}^x, r_{ij}^y, r_{ij}^z` columns give the real bond displacement
 vector per listed neighbour, so duplicate physical neighbours inside one
 atom's own listed neighbour set are directly countable (grouping atom 1's
-`struct.<simid>.out` rows by rounded displacement vector, `do_prnstruct 1`,
-`Nstep 2`, at each candidate `ncell n n n`):
+`struct.<simid>.out` rows by rounded displacement vector from a dedicated
+structure-output characterization, `Nstep 2`, at each candidate `ncell n n n`):
 
 | `n` | `natom` | neighbour-list entries (atom 1) | unique real neighbours | duplicate entries | max times one neighbour repeats |
 | --- | --- | --- | --- | --- | --- |
@@ -174,9 +174,10 @@ host -- a genuine resource limit, not an arbitrary stopping point.
 ## D. Interaction characterization (blueprint B04 section B / master blueprint section 5)
 
 Measured directly via `harness.cases.generate_run_directory` (not manual
-file edits) with `extra_overrides={"do_prnstruct": 1, "Nstep": 20}` on
-`build_cpu/bin/sd.f95`, reading `struct.<simid>.out` via this case's own
-`neighbor_list_from_struct_output`:
+file edits) with `extra_overrides={"Nstep": 20}` and structure output enabled
+for the admission characterization on `build_cpu/bin/sd.f95`, reading
+`struct.<simid>.out` via the admission-time
+`neighbor_list_from_struct_output` characterization:
 
 | `size_id` | `natom` | directed interactions | mean neighbours | median neighbours | max neighbours | interaction-list memory footprint (real, `do_meminfo`) |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -194,8 +195,8 @@ exactly 50/50 between the dhcp lattice's two crystallographic sites (8,192
 atoms at 1340, 8,192 at 1336, at `16x16x16`), so median and mean coincide
 exactly.
 
-Larger sizes were not directly `do_prnstruct`-measured: a single
-`do_prnstruct 1` dump at `natom=16,384` alone is a **2.4 GB**
+Larger sizes were not directly structure-output-measured: a single
+structure-output dump at `natom=16,384` alone is a **2.4 GB**
 `struct.<simid>.out` file (this case's very interaction density makes the
 diagnostic dump itself expensive -- a real, disclosed cost, not
 hand-waved), so tested sizes were kept to the two above, spanning a 1.95x
@@ -214,7 +215,7 @@ law (`natom * 1338`):
 
 ## E. Sanity runs
 
-All runs used `16x16x16` (16,384 atoms), `do_prnstruct 1`, `Nstep 50`;
+All runs used `16x16x16` (16,384 atoms), structure output enabled, `Nstep 50`;
 CPU on `build_cpu/bin/sd.f95` (`UPPASD_GPU_BACKEND=OFF`,
 `UPPASD_PRECISION=DOUBLE`), GPU on `build_gpu/bin/sd.f95.cuda`
 (`UPPASD_GPU_BACKEND=CUDA`, `UPPASD_PRECISION=DOUBLE`,

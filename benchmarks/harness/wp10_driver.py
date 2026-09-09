@@ -11,14 +11,10 @@ new measurement semantics.
 Per (case, variant, size) cell:
 
 1. Resolve workload metadata once (`runner.resolve_workload_metadata`),
-   using the CPU binary regardless of which backends the cell measures
-   (natom/directed_interactions/fft_grid_points are workload properties,
-   independent of backend) -- then immediately delete that probe's work
-   directory. B04_dhcpNd's long-range neighbour list makes the
-   `do_prnstruct=1` probe's `struct.<simid>.out` genuinely large (observed
-   >9 GiB and still growing at 131072 atoms on this host); every probe's
-   temporary output is removed as soon as its metadata has been extracted,
-   not just B04's.
+   using input-only case metadata for production neighbour-list cases and
+   the CPU-independent FFT-grid derivation for B05. No campaign metadata
+   probe enables `do_prnstruct`, so no campaign-launched process emits a
+   structure dump whose size scales with the full interaction list.
 2. Pick a fixed multi-nstep triple from the measured fixed-cost/natom
    relationship (see NSTEP_TIERS) -- not `steady_state.calibrate_step_span`,
    to avoid spending additional pilot runs recalibrating per cell; this is a
@@ -205,26 +201,25 @@ def run_fit_family(
     is the union of any GPU contamination flags observed across every
     sample's before/after bracket (empty for CPU).
 
-    Every sample forces `do_prnstruct=0`, overriding whatever each case's
-    own template defaults to -- B01_bccFe's template is `do_prnstruct 1`
-    (B02/B03/B04/B05 are `do_prnstruct 2`; the harness-wide allow-list
-    exists for exactly this kind of runtime diagnostic toggle, never a
-    physics parameter). `do_prnstruct==1` triggers a real, potentially very
-    large `struct.<simid>.out` write during Hamiltonian setup
-    (`source/Hamiltonian/hamiltonianinit.f90`'s `do_prnstruct==1.or.==4`
-    branches -- proportional to directed-interaction count, not atom
-    count); `==2` only writes a small, natom-proportional `coord.<simid>.out`
-    (`source/System/geometry.f90`). Only the one-time workload-metadata
-    probe (`resolve_metadata`, not this function) legitimately needs
-    `do_prnstruct=1` -- every timed sample here must never write either
-    file, since a real disk write folded into `process_wall_seconds` would
-    contaminate the very quantity this harness exists to measure.
+    Every sample forces `do_prnstruct=0`, overriding whatever diagnostic
+    default each case template carries. Structure-dump modes can trigger a
+    real, potentially very large `struct.<simid>.out` write during
+    Hamiltonian setup (`source/Hamiltonian/hamiltonianinit.f90`),
+    proportional to directed-interaction count rather than atom count.
+    Production metadata is resolved input-only, so every timed sample must
+    keep structure printing off: a real diagnostic write folded into
+    `process_wall_seconds` would contaminate the very quantity this harness
+    exists to measure.
     """
     fits = []
     fit_run_ids = []
     completed_records = []
     contamination_flags = set()
-    extra_overrides = {"do_prnstruct": 0, **(extra_overrides or {})}
+    extra_overrides = dict(extra_overrides or {})
+    # This is a campaign invariant, not a caller preference. The case
+    # templates retain their historical diagnostic defaults for admission
+    # work, but every timed WP-10 sample must keep structure printing off.
+    extra_overrides["do_prnstruct"] = 0
 
     for sample_index in range(sample_count):
         points = []

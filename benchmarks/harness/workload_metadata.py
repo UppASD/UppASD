@@ -11,9 +11,17 @@ real UppASD production input or output already supplies it:
 * `neighbor_list_from_struct_output` reads UppASD's own
   ``struct.<simid>.out`` diagnostic dump, written by
   ``prn_exchange`` (source/Hamiltonian/printhamiltonian.f90) whenever a run
-  enables ``do_prnstruct`` (1 or 4). The header carries the true `Natom` and
+  enables a structure-printing mode. The header carries the true `Natom` and
   maximum neighbour count directly; `directed_interactions` is the real
-  count of (iatom, jatom) body lines, not an estimate.
+  count of (iatom, jatom) body lines, not an estimate. It is retained only
+  for one-off characterization of an already-produced diagnostic file.
+* `validated_neighbor_metadata` uses the exact, independently characterized
+  per-atom topology recorded in a production case manifest. It is the
+  campaign-safe path: it needs only the generated input files and never asks
+  UppASD to emit a structure dump. The struct-output parser remains available
+  for one-off admission/revalidation work, but is not suitable for large
+  production campaign probes because the diagnostic file scales with the
+  full directed interaction list.
 * `fft_grid_from_replication` computes the dipole-FFT grid from the case's
   own supercell replication (``ncell`` -- N1/N2/N3 in
   source/Hamiltonian/dipolemanager.f90 are exactly the ncell dimensions,
@@ -58,18 +66,18 @@ def count_basis_atoms(run_dir):
 def neighbor_list_from_struct_output(case, size, run_dir):
     """Parse ``struct.<simid>.out`` for real neighbour-workload metadata.
 
-    Requires the run to have been generated with ``do_prnstruct`` set to 1
-    or 4 and to have actually executed, so the struct file exists in
-    ``run_dir``. Raises :class:`WorkloadMetadataError` if it is missing --
-    it never falls back to guessing a neighbour count.
+    Requires the run to have been generated with structure printing enabled
+    and to have actually executed, so the struct file exists in ``run_dir``.
+    Raises :class:`WorkloadMetadataError` if it is missing -- it never falls
+    back to guessing a neighbour count.
     """
     run_dir = pathlib.Path(run_dir)
     simid = cases_mod.read_simid(run_dir)
     struct_path = run_dir / f"struct.{simid}.out"
     if not struct_path.is_file():
         raise WorkloadMetadataError(
-            f"{struct_path} does not exist -- rerun with do_prnstruct in "
-            "{1, 4} so UppASD writes it"
+            f"{struct_path} does not exist -- rerun with UppASD structure "
+            "printing enabled so UppASD writes it"
         )
 
     natom = None
@@ -113,6 +121,50 @@ def neighbor_list_from_struct_output(case, size, run_dir):
     }
 
 
+def validated_neighbor_metadata(case, size, run_dir):
+    """Build neighbour workload metadata without executing UppASD.
+
+    The case manifest carries topology values that were independently
+    characterized from UppASD's structure output during case admission. The
+    values are invariant across the case's admitted periodic size ladder;
+    only the atom count and total interaction count scale with replication.
+    Keeping this path input-only is important because a production campaign
+    must not enable ``do_prnstruct`` merely to discover metadata: the output
+    can be many gigabytes for a large neighbour-list case.
+    """
+    validated = case.manifest.get("validated_workload_metadata")
+    if not isinstance(validated, dict):
+        raise WorkloadMetadataError(
+            f"case {case.id!r} requires validated_workload_metadata for "
+            "validated_neighbor_metadata"
+        )
+
+    natom = expected_natom(case, size, run_dir)
+    interactions_per_atom = validated["directed_interactions_per_atom"]
+    directed_interactions = natom * interactions_per_atom
+    mean_neighbors = validated.get("mean_neighbors", directed_interactions / natom)
+    median_neighbors = validated.get("median_neighbors")
+    max_neighbors = validated["max_neighbors"]
+
+    if mean_neighbors != directed_interactions / natom:
+        raise WorkloadMetadataError(
+            f"case {case.id!r}: validated mean_neighbors does not match "
+            "directed_interactions_per_atom"
+        )
+    if mean_neighbors > max_neighbors:
+        raise WorkloadMetadataError(
+            f"case {case.id!r}: validated mean_neighbors exceeds max_neighbors"
+        )
+
+    return {
+        "natom": natom,
+        "directed_interactions": directed_interactions,
+        "mean_neighbors": mean_neighbors,
+        "median_neighbors": median_neighbors,
+        "max_neighbors": max_neighbors,
+    }
+
+
 def fft_grid_from_replication(case, size, run_dir):
     """Derive the dipole-FFT grid from the case's own supercell replication.
 
@@ -136,6 +188,7 @@ def fft_grid_from_replication(case, size, run_dir):
 
 PARSERS = {
     "neighbor_list_from_struct_output": neighbor_list_from_struct_output,
+    "validated_neighbor_metadata": validated_neighbor_metadata,
     "fft_grid_from_replication": fft_grid_from_replication,
 }
 

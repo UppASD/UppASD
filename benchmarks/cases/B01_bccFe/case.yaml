@@ -91,4 +91,9 @@ allowed_input_overrides:
   - tottraj_step
   - ene_step
   - gpu_mode
-workload_metadata_method: neighbor_list_from_struct_output
+workload_metadata_method: validated_neighbor_metadata
+validated_workload_metadata:
+  directed_interactions_per_atom: 96
+  mean_neighbors: 96.0
+  median_neighbors: null
+  max_neighbors: 96

@@ -32,6 +32,7 @@ import json
 import os
 import pathlib
 import re
+import shutil
 import subprocess
 import time
 
@@ -218,28 +219,32 @@ def resolve_workload_metadata(case, variant_id, size_id, work_root, binary_path,
     always carries real `natom`/workload fields, regardless of `run_status`).
     """
     size = case.resolve_size(size_id)
-    overrides = {"Nstep": probe_nstep}
     method = case.manifest["workload_metadata_method"]
-    if method == "neighbor_list_from_struct_output":
-        if "do_prnstruct" not in case.manifest["allowed_input_overrides"]:
-            raise RunnerError(
-                f"case {case.id!r} uses workload_metadata_method "
-                f"{method!r} but does not allow overriding do_prnstruct"
-            )
-        overrides["do_prnstruct"] = 1
-
     probe_run_id = run_id or f"probe__{case.id}__{variant_id}__{size_id}"
-    run_directory = cases_mod.generate_run_directory(
-        case, variant_id, size_id, work_root, run_id=probe_run_id, extra_overrides=overrides
-    )
-    execution = _execute_binary(binary_path, run_directory.path, env=env, timeout_seconds=timeout_seconds)
-    _write_raw_artifacts(run_directory.path, execution, "PROBE")
-    if execution.timed_out or execution.returncode != 0 or _COMPLETION_MARKER not in execution.stdout:
-        raise RunnerError(
-            f"workload-metadata probe failed for case={case.id!r} "
-            f"variant={variant_id!r} size={size_id!r}; see {run_directory.path}"
+
+    # These parsers consume generated input plus case-admission metadata and
+    # do not need an executable probe. In particular, never turn on
+    # do_prnstruct just to discover a neighbour count: struct.<simid>.out can
+    # be multi-gigabyte for a large production cell.
+    if method in {"validated_neighbor_metadata", "fft_grid_from_replication"}:
+        run_directory = cases_mod.generate_run_directory(
+            case, variant_id, size_id, work_root, run_id=probe_run_id,
+            extra_overrides={"Nstep": probe_nstep, "do_prnstruct": 0},
         )
-    return workload_metadata_mod.compute_workload_metadata(case, size, run_directory.path)
+        try:
+            return workload_metadata_mod.compute_workload_metadata(case, size, run_directory.path)
+        finally:
+            shutil.rmtree(run_directory.path, ignore_errors=True)
+
+    if method == "neighbor_list_from_struct_output":
+        raise RunnerError(
+            f"case {case.id!r} uses the legacy output-backed workload metadata "
+            "parser; benchmark campaigns must use validated_neighbor_metadata"
+        )
+
+    raise RunnerError(
+        f"case {case.id!r} uses unsupported workload_metadata_method {method!r}"
+    )
 
 
 def developer_context(binary_path, *, machine_id="dev-local", backend="CPU", omp_threads=None):

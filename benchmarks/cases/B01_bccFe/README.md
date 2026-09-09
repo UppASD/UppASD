@@ -31,7 +31,7 @@ see "Backend dispatch").
 | Damping | `0.50` | `inpsd.dat` |
 | Ensembles | `Mensemble 10` (ten independent replicas per run; fixed by the template, not in the override allow-list) | `inpsd.dat` |
 | Initial phase | `ip_mode N` — `'N'` matches none of the branches in `source/uppasd.f90::run_initial_phase`, so **no initial phase executes**; the `ip_mcanneal` block present in the file is dead input for this template | `inpsd.dat`, `source/uppasd.f90:176-235` |
-| `do_prnstruct` | `1` (already set in the maintainer template — required for the workload-metadata parser below) | `inpsd.dat` |
+| `do_prnstruct` | `0` in the benchmark template; admission characterization used a separate structure-output run when measuring the neighbour topology | `inpsd.dat` |
 
 ### Backend dispatch (`gpu_mode`)
 
@@ -79,9 +79,8 @@ exact atom count.
 
 ## D. Scaling validation
 
-Ran the real executable (`do_prnstruct 1`, `neighbor_list_from_struct_output`)
-at four sizes spanning a 60x atom-count range and read `struct.<simid>.out`
-directly — never estimated:
+Ran the real executable with structure output enabled at four sizes spanning a
+60x atom-count range and read `struct.<simid>.out` directly — never estimated:
 
 | `size_id` | `natom` | `directed_interactions` | `directed_interactions / natom` |
 | --- | --- | --- | --- |
@@ -111,7 +110,8 @@ confirmed scaling law, not an independent measurement.
 
 ## E. Sanity runs
 
-All four runs used `13x13x13` (4,394 atoms), `do_prnstruct 1`, `Nstep 200`;
+All four runs used `13x13x13` (4,394 atoms), structure output enabled,
+`Nstep 200`;
 CPU on `build_cpu/bin/sd.f95` (`UPPASD_GPU_BACKEND=OFF`, `UPPASD_PRECISION=DOUBLE`),
 GPU on `build_gpu/bin/sd.f95.cuda` (`UPPASD_GPU_BACKEND=CUDA`,
 `UPPASD_PRECISION=DOUBLE`, `extra_overrides={"gpu_mode": 1}`).

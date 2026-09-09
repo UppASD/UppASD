@@ -15,10 +15,9 @@
 # 100x100x3: CPU 1-8 thread sweep, GPU SINGLE/DOUBLE pair-interaction, GPU
 # SINGLE/DOUBLE convolution -- see
 # benchmarks/campaigns/dhcpnd_convolution_2026-08-31.yaml's description).
-# The one-time workload-metadata probe at 40x40x40 (do_prnstruct=1) writes
-# a real, observed ~36GiB struct.<simid>.out before this campaign's own
-# code deletes it -- confirm real headroom beyond this script's own
-# (deliberately conservative) disk check before walking away from it.
+# Workload metadata is resolved from B04's independently characterized,
+# input-only topology metadata; this campaign does not enable do_prnstruct and
+# therefore does not create a transient multi-gigabyte struct.<simid>.out.
 #
 # Usage:
 #   benchmarks/run_dhcpnd_convolution_campaign.sh

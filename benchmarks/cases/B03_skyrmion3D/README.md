@@ -184,9 +184,9 @@ a texture with an actively nonzero DM term throughout the trajectory).
 ## D. Scaling validation
 
 Used `harness.cases.generate_run_directory` (not manual file edits) with
-`extra_overrides={"do_prnstruct": 1, "Nstep": 20}` on
-`build_cpu/bin/sd.f95` at three sizes spanning a 15.6x atom-count range,
-then read `struct.<simid>.out` (exchange) via the case's own
+`extra_overrides={"Nstep": 20}` on `build_cpu/bin/sd.f95` with structure
+output enabled for the admission characterization at three sizes spanning a
+15.6x atom-count range, then read `struct.<simid>.out` (exchange) via the case's own
 `neighbor_list_from_struct_output` and `dmdata.<simid>.out` (DM) directly:
 
 | `size_id` | `natom` | exchange directed / atom | DM directed / atom |
@@ -206,8 +206,8 @@ confirmed scaling law, not independent measurements (same practice
 `B02_skyrmion2D` used for its own two largest, untested sizes).
 
 **Same known undercount in `directed_interactions` as `B02_skyrmion2D`.**
-This case's `workload_metadata_method` (`neighbor_list_from_struct_output`)
-reads only `struct.<simid>.out` (exchange list); it has no knowledge of the
+The admission-time `neighbor_list_from_struct_output` characterization reads
+only `struct.<simid>.out` (exchange list); it has no knowledge of the
 separate DM neighbour list written to `dmdata.<simid>.out`. The true
 per-atom neighbour workload driving the LLG effective-field sum is 12
 directed interactions (6 exchange + 6 DM), while the reported
@@ -237,8 +237,8 @@ workload.
 
 ## E. Sanity runs
 
-All runs used `16x16x16` (4,096 atoms), `do_prnstruct 1`, generated through
-`harness.cases.generate_run_directory` (not manual file edits); CPU on
+All runs used `16x16x16` (4,096 atoms), structure output enabled, generated
+through `harness.cases.generate_run_directory` (not manual file edits); CPU on
 `build_cpu/bin/sd.f95` (`UPPASD_GPU_BACKEND=OFF`, `UPPASD_PRECISION=DOUBLE`),
 GPU on `build_gpu/bin/sd.f95.cuda` (`UPPASD_GPU_BACKEND=CUDA`,
 `UPPASD_PRECISION=DOUBLE`, `extra_overrides={"gpu_mode": 1, "skyno": "Y"}`,

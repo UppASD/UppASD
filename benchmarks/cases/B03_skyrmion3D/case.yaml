@@ -117,4 +117,9 @@ allowed_input_overrides:
   - ene_step
   - gpu_mode
   - skyno
-workload_metadata_method: neighbor_list_from_struct_output
+workload_metadata_method: validated_neighbor_metadata
+validated_workload_metadata:
+  directed_interactions_per_atom: 6
+  mean_neighbors: 6.0
+  median_neighbors: null
+  max_neighbors: 6

@@ -324,6 +324,41 @@ def test_neighbor_list_parser_requires_struct_output(tmp_path):
         workload_metadata.neighbor_list_from_struct_output(None, None, tmp_path)
 
 
+def test_validated_neighbor_metadata_is_input_only_for_production_cases(tmp_path):
+    case = cases.load_case_manifest(CASES_DIR / "B01_bccFe" / "case.yaml")
+    run = cases.generate_run_directory(
+        case, "bcc_fe_t0", "13x13x13", tmp_path,
+        extra_overrides={"Nstep": 1, "do_prnstruct": 0},
+    )
+
+    metadata = workload_metadata.validated_neighbor_metadata(
+        case, case.resolve_size("13x13x13"), run.path
+    )
+
+    assert cases.read_keyword(run.path, "do_prnstruct") == "0"
+    assert metadata["natom"] == 4_394
+    assert metadata["directed_interactions"] == 4_394 * 96
+    assert metadata["mean_neighbors"] == pytest.approx(96.0)
+    assert metadata["max_neighbors"] == 96
+
+
+def test_validated_workload_metadata_resolution_does_not_execute_binary(tmp_path, monkeypatch):
+    from harness import runner
+
+    case = cases.load_case_manifest(CASES_DIR / "B05_dipoleFFT" / "case.yaml")
+
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("input-only workload metadata must not execute UppASD")
+
+    monkeypatch.setattr(runner, "_execute_binary", fail_if_called)
+    metadata = runner.resolve_workload_metadata(
+        case, "dipole_off", "thin_16x16x1", tmp_path, "/does/not/exist"
+    )
+
+    assert metadata["natom"] == 256
+    assert metadata["fft_grid_points"] == 31 * 31
+
+
 def test_fft_grid_parser_derives_padded_grid_from_replication(tmp_path):
     manifest = {
         "id": "FFT_synthetic",
