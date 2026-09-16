@@ -719,6 +719,8 @@ contains
       integer :: i_stat, i_all
       !
       if (flag>0) then
+         cc%sc_nensemble = Mensemble
+
          allocate(cc%SA_axis(3,Mensemble),stat=i_stat)
          call memocc(i_stat,product(shape(cc%SA_axis))*kind(cc%SA_axis),'cc%SA_axis','allocate_corr')
          cc%SA_axis=0.0_dblprec

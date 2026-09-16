@@ -29,6 +29,11 @@ contains
    !---------------------------------------------------------------------------------
    ! SUBROUTINE: calc_gk2
    !> @brief Calculate \f$\mathbf{S}\left(\mathbf{q},t\right)\f$ for obtaining \f$\mathbf{S}\left(\mathbf{q},\omega\right)\f$ after FT
+   !> @details For static correlations, each Fourier amplitude is normalized by
+   !> the number of atoms.  The accumulated amplitude is divided by the total
+   !> number of static samples and ensembles before it is squared.  With this
+   !> per-atom convention, a unit ferromagnet has Tr(S(q=0))=1 and
+   !> Tr(S(r))=1 for every lattice displacement when the q mesh is complete.
    !---------------------------------------------------------------------------------
    subroutine calc_gk2(Natom, Mensemble, NT,atype,Nchmax,achtype, cc, coord, simid, SA, flag)
       !
@@ -63,6 +68,7 @@ contains
       if(cc%gk_flag==0) then
 
          ! First call, allocate and clear arrays
+         cc%sc_nensemble=Mensemble
          allocate(cc%m_k(3,nq),stat=i_stat)
          call memocc(i_stat,product(shape(cc%m_k))*kind(cc%m_k),'m_k','calc_gk2')
          cc%m_k=0.0_dblprec
@@ -433,7 +439,10 @@ subroutine calc_gkw(NT, Nchmax, cc)
       !
       integer :: iatom,r,l,i_stat,i_all, c_idx
       character(len=30) :: filn
-      real(dblprec) :: nainv
+      integer :: nrbin, ibin, jbin
+      real(dblprec) :: radius, radial_eps, tmp_radius, tmp_weight
+      real(dblprec), allocatable :: radial_r(:), radial_weight(:)
+      real(dblprec), allocatable :: radial_corr(:,:)
 
       if(cr_flag==0) then
          ! First call, allocate and clear arrays
@@ -450,12 +459,11 @@ subroutine calc_gkw(NT, Nchmax, cc)
          call memocc(i_stat,product(shape(cc%cr_hist))*kind(cc%cr_hist),'cc%cr_hist','calc_sr')
 
          cc%corr_sr=0.0_dblprec
+         cc%cr_hist=0.0_dblprec
          cr_flag=1
          cc%sc_samp_done_sr=0
       
       end if
-
-      nainv=1.0_dblprec/Natom
 
       if (cr_flag==1) then
          ! Calculate s(k) for the current iteration and add to average of G(k)
@@ -481,6 +489,7 @@ subroutine calc_gkw(NT, Nchmax, cc)
                do r=1,cc%cr_list(1,iatom)
                   c_idx = cc%cr_lut(r,iatom)
                   cc%corr_sr(:,c_idx) = cc%corr_sr(:,c_idx) + emomM(:,iatom,l) * emomM(:,cc%cr_list(r+1,iatom),l)  
+                  cc%cr_hist(c_idx) = cc%cr_hist(c_idx) + 1.0_dblprec
                   !cc%corr_sr(1,iatom)=cc%corr_sr(1,iatom)+emomM(1,iatom,l)*emomM(1,r,l)*nainv-connected(1,iatom)*connected(1,r)/Mensemble
                   !cc%corr_sr(2,iatom)=cc%corr_sr(2,iatom)+emomM(2,iatom,l)*emomM(2,r,l)*nainv-connected(2,iatom)*connected(2,r)/Mensemble
                   !cc%corr_sr(3,iatom)=cc%corr_sr(3,iatom)+emomM(3,iatom,l)*emomM(3,r,l)*nainv-connected(3,iatom)*connected(3,r)/Mensemble
@@ -493,13 +502,21 @@ subroutine calc_gkw(NT, Nchmax, cc)
       end if
 
       if (cr_flag==2) then
-         ! Finish sampling and write S(q)
-         !cc%corr_sr=cc%corr_sr/(cc%sc_samp_done_sr)
-         cc%corr_sr=cc%corr_sr/(cc%sc_samp_done_sr*Mensemble*Natom)
+         ! Finish sampling.  Each displacement is normalized by the number of
+         ! pairs that contributed to that displacement.  This gives a true
+         ! conditional pair average, independent of boundary multiplicities.
+         do r=1,cc%cr_nhist
+            if (cc%cr_hist(r)>0.0_dblprec) then
+               cc%corr_sr(:,r)=cc%corr_sr(:,r)/cc%cr_hist(r)
+            else
+               cc%corr_sr(:,r)=0.0_dblprec
+            end if
+         end do
 
          ! Write G(r)
          write (filn,'(''dir_sr.'',a,''.out'')') trim(simid)
          open(ofileno,file=filn,status='replace')
+         write(ofileno,'(a)') '#       ir     r_x        r_y        r_z              S_xx              S_yy              S_zz       ||S_diag||_2          Tr(S)'
          do r=1,cc%cr_nhist
             write(ofileno,'(i10,3f10.4,5f18.8)') r,cc%cr_uniq_vect(:,r),cc%corr_sr(:,r),&
                norm2(cc%corr_sr(:,r)),sum(cc%corr_sr(:,r))
@@ -513,15 +530,70 @@ subroutine calc_gkw(NT, Nchmax, cc)
          ! Write G(|r|)
          write (filn,'(''dir_sra.'',a,''.out'')') trim(simid)
          open(ofileno,file=filn,status='replace')
+         write(ofileno,'(a)') '# |r|              S_xx              S_yy              S_zz             |S_diag|          Tr(S)'
+
+         ! Radially average the vector-resolved correlation.  The pair count
+         ! is used as the weight so that this is an average over pairs, not an
+         ! unweighted average over displacement labels.
+         radial_eps=1.0e-10_dblprec
+         nrbin=0
+         allocate(radial_r(cc%cr_nhist),radial_weight(cc%cr_nhist),radial_corr(3,cc%cr_nhist))
+         radial_r=0.0_dblprec
+         radial_weight=0.0_dblprec
+         radial_corr=0.0_dblprec
+
          do r=1,cc%cr_nhist
-            write(ofileno,'(7f18.8)') norm2(cc%cr_uniq_vect(:,r)),cc%corr_sr(:,r),norm2(cc%corr_sr(:,r))
+            if (cc%cr_hist(r)<=0.0_dblprec) cycle
+            radius=norm2(cc%cr_uniq_vect(:,r))
+            ibin=0
+            do jbin=1,nrbin
+               if (abs(radial_r(jbin)-radius)<=radial_eps*max(1.0_dblprec,abs(radius),abs(radial_r(jbin)))) then
+                  ibin=jbin
+                  exit
+               end if
+            end do
+            if (ibin==0) then
+               nrbin=nrbin+1
+               ibin=nrbin
+               radial_r(ibin)=radius
+            end if
+            radial_corr(:,ibin)=radial_corr(:,ibin)+cc%cr_hist(r)*cc%corr_sr(:,r)
+            radial_weight(ibin)=radial_weight(ibin)+cc%cr_hist(r)
          end do
-         !do r=1,Natom
-         !   write(ofileno,'(7f18.8)') sqrt((coord(1,r)-coord(1,1))**2+(coord(2,r)-coord(2,1))**2+(coord(3,r)-coord(3,1))**2),&
-         !      (((cc%corr_sr(l,r))),l=1,3),&
-         !      sqrt(cc%corr_sr(1,r)**2+cc%corr_sr(2,r)**2+cc%corr_sr(3,r)**2),cc%corr_sr(1,r)+cc%corr_sr(2,r)+cc%corr_sr(3,r)
-         !end do
+
+         do ibin=1,nrbin
+            radial_corr(:,ibin)=radial_corr(:,ibin)/radial_weight(ibin)
+         end do
+
+         ! Keep the radial output ordered by distance.
+         do ibin=1,nrbin-1
+            jbin=minloc(radial_r(ibin:nrbin),1)+ibin-1
+            if (jbin/=ibin) then
+               tmp_radius=radial_r(ibin)
+               radial_r(ibin)=radial_r(jbin)
+               radial_r(jbin)=tmp_radius
+               tmp_weight=radial_weight(ibin)
+               radial_weight(ibin)=radial_weight(jbin)
+               radial_weight(jbin)=tmp_weight
+               tmp_radius=radial_corr(1,ibin)
+               radial_corr(1,ibin)=radial_corr(1,jbin)
+               radial_corr(1,jbin)=tmp_radius
+               tmp_radius=radial_corr(2,ibin)
+               radial_corr(2,ibin)=radial_corr(2,jbin)
+               radial_corr(2,jbin)=tmp_radius
+               tmp_radius=radial_corr(3,ibin)
+               radial_corr(3,ibin)=radial_corr(3,jbin)
+               radial_corr(3,jbin)=tmp_radius
+            end if
+         end do
+
+         do ibin=1,nrbin
+            write(ofileno,'(f18.8,3x,3f18.8,2x,2f18.8)') radial_r(ibin),radial_corr(:,ibin), &
+               norm2(radial_corr(:,ibin)),sum(radial_corr(:,ibin))
+         end do
          close(ofileno)
+
+         deallocate(radial_r,radial_weight,radial_corr)
 
          ! Deallocate arrays
          i_all=-product(shape(cc%corr_sr))*kind(cc%corr_sr)

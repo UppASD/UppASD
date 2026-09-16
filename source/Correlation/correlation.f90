@@ -237,6 +237,7 @@ contains
       cc%sc_sep       = 100
       cc%sc_step      = 1
       cc%sc_nstep     = 1
+      cc%sc_nensemble = 1
       cc%do_sc_local_axis   = 'N'
       cc%do_sc_dosonly   = 'N'
       cc%do_sc_complex   = 'N'

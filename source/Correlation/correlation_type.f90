@@ -23,6 +23,7 @@ module Correlation_type
       character(len=2) :: label        !< Label for the correlation type (sc, uc)
       integer :: sc_sep                !< Separation between sampling of C(q)
       integer :: sc_nsamp              !< Number of C(q) samples
+      integer :: sc_nensemble           !< Number of independent ensembles in each static sample
       integer :: sc_step               !< Separation between sampling steps of C(q,t)
       integer :: sc_nstep              !< Number of steps to sample C(q,t)
       integer :: sc_max_nstep          !< Max number of sampling opportunities of C(q,t)

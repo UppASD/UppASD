@@ -388,6 +388,7 @@ contains
       complex(dblprec)  :: i
       real(dblprec), dimension(3,3) :: unit3
       real(dblprec) :: qnorm, qnorm2, polfac
+      real(dblprec) :: static_norm_cc, static_norm_dc
       !
       !
       complex(dblprec), dimension(:,:),     allocatable :: c_k                ! Correlation for G(k,w)
@@ -398,6 +399,12 @@ contains
       complex(dblprec), dimension(:),   allocatable :: sqintensity
 
       i=(0.0_dblprec,1.0_dblprec)
+
+      ! m_k contains sums of atom-normalized Fourier amplitudes over all
+      ! static samples and ensembles.  The reported static structure factor
+      ! is therefore normalized by (number of samples * number of ensembles)^2.
+      static_norm_cc=1.0_dblprec
+      static_norm_dc=1.0_dblprec
 
       ! DEBUG: Print cc%m_k at entry to print_gk
       write(*,*) '[FORTRAN-DEBUG] print_gk ENTRY: cc%sc_nsamp=', cc%sc_nsamp
@@ -425,12 +432,16 @@ contains
       write(*,'(A,I4,A,I4)') '[FORTRAN-DEBUG] cc%sc_nsamp=', cc%sc_nsamp, ', dc%sc_nsamp=', dc%sc_nsamp
       
       ! Guard against division by zero when using GPU correlations
-      if (cc%sc_nsamp <= 0 .or. dc%sc_nsamp <= 0) then
-         write(*,*) 'WARNING: sc_nsamp invalid in print_gk: cc%sc_nsamp=', cc%sc_nsamp, ' dc%sc_nsamp=', dc%sc_nsamp
+      if (cc%sc_nsamp <= 0 .or. cc%sc_nensemble <= 0 .or. &
+         dc%sc_nsamp <= 0 .or. dc%sc_nensemble <= 0) then
+         write(*,*) 'WARNING: static sample count invalid in print_gk: cc=', cc%sc_nsamp, cc%sc_nensemble, &
+            ' dc=', dc%sc_nsamp, dc%sc_nensemble
          write(*,*) 'Setting c_k to zero to avoid NaN'
          c_k = (0.0_dblprec, 0.0_dblprec)
       else
-         c_k = c_k / cc%sc_nsamp / dc%sc_nsamp
+         static_norm_cc=real(cc%sc_nsamp,dblprec)*real(cc%sc_nensemble,dblprec)
+         static_norm_dc=real(dc%sc_nsamp,dblprec)*real(dc%sc_nensemble,dblprec)
+         c_k = c_k / static_norm_cc / static_norm_dc
       end if
       
       ! Debug: print after normalization
@@ -458,11 +469,13 @@ contains
 
          call combine_corr_proj_scalar(nt, nq, 3, 1, cc%m_k_proj, cc%m_k_proj, c_k_proj)
          
-         if (cc%sc_nsamp <= 0 .or. dc%sc_nsamp <= 0) then
-            write(*,*) 'WARNING: sc_nsamp invalid in print_gk (proj): cc%sc_nsamp=', cc%sc_nsamp, ' dc%sc_nsamp=', dc%sc_nsamp
+         if (cc%sc_nsamp <= 0 .or. cc%sc_nensemble <= 0 .or. &
+            dc%sc_nsamp <= 0 .or. dc%sc_nensemble <= 0) then
+            write(*,*) 'WARNING: static sample count invalid in print_gk (proj): cc=', cc%sc_nsamp, cc%sc_nensemble, &
+               ' dc=', dc%sc_nsamp, dc%sc_nensemble
             c_k_proj = (0.0_dblprec, 0.0_dblprec)
          else
-            c_k_proj = c_k_proj / cc%sc_nsamp / dc%sc_nsamp
+            c_k_proj = c_k_proj / static_norm_cc / static_norm_dc
          end if
 
          ! Write S(q)
@@ -492,11 +505,13 @@ contains
 
          call combine_corr_proj_scalar(Nchmax, nq, 3, 1, dc%m_k_projch, dc%m_k_projch, c_k_projch)
          
-         if (cc%sc_nsamp <= 0 .or. dc%sc_nsamp <= 0) then
-            write(*,*) 'WARNING: sc_nsamp invalid in print_gk (projch): cc%sc_nsamp=', cc%sc_nsamp, ' dc%sc_nsamp=', dc%sc_nsamp
+         if (cc%sc_nsamp <= 0 .or. cc%sc_nensemble <= 0 .or. &
+            dc%sc_nsamp <= 0 .or. dc%sc_nensemble <= 0) then
+            write(*,*) 'WARNING: static sample count invalid in print_gk (projch): cc=', cc%sc_nsamp, cc%sc_nensemble, &
+               ' dc=', dc%sc_nsamp, dc%sc_nensemble
             c_k_projch = (0.0_dblprec, 0.0_dblprec)
          else
-            c_k_projch = c_k_projch / cc%sc_nsamp / dc%sc_nsamp
+            c_k_projch = c_k_projch / static_norm_cc / static_norm_dc
          end if
 
          ! Write S(q,w)
@@ -527,7 +542,14 @@ contains
          c_k_tens=0.0_dblprec
 
          call combine_corr_tensor(nq, 3, 1, cc%m_k, dc%m_k, c_k_tens)
-         c_k_tens = c_k_tens / cc%sc_nsamp / dc%sc_nsamp
+         if (cc%sc_nsamp <= 0 .or. cc%sc_nensemble <= 0 .or. &
+            dc%sc_nsamp <= 0 .or. dc%sc_nensemble <= 0) then
+            write(*,*) 'WARNING: static sample count invalid in print_gk (tensor): cc=', cc%sc_nsamp, cc%sc_nensemble, &
+               ' dc=', dc%sc_nsamp, dc%sc_nensemble
+            c_k_tens = (0.0_dblprec, 0.0_dblprec)
+         else
+            c_k_tens = c_k_tens / static_norm_cc / static_norm_dc
+         end if
 
 
          ! Write absolute values of the elements of tensorial S(q,w)
@@ -613,20 +635,30 @@ contains
 
       !
       integer  :: iq, r, i_all, i_stat
-      integer :: l
+      integer :: l, nrbin, ibin, jbin
       character(len=30) :: filn
       complex(dblprec)  :: i, epowqr, iqfac
       real(dblprec), dimension(3) :: cl
       complex(dblprec), dimension(3) :: cl_step, s0, sp
-      real(dblprec) :: qdr, k_min, qfac
+      real(dblprec) :: qdr, k_min, qfac, static_norm, radius, radial_eps, tmp_radius
       !
       !
       complex(dblprec), dimension(:,:),     allocatable :: c_r                ! Correlation for G(k,w)
+      real(dblprec), dimension(:), allocatable :: radial_r
+      real(dblprec), dimension(:), allocatable :: radial_count
+      complex(dblprec), dimension(:,:), allocatable :: radial_corr
+      complex(dblprec), dimension(3) :: tmp_corr
 
       !-- local 
       qfac=2._dblprec*pi
       iqfac=-2._dblprec*pi*(0.0_dblprec,1.0_dblprec)
       i=(0.0_dblprec,1.0_dblprec)
+
+      if (cc%sc_nsamp > 0 .and. cc%sc_nensemble > 0) then
+         static_norm=(real(cc%sc_nsamp,dblprec)*real(cc%sc_nensemble,dblprec))**2
+      else
+         static_norm=1.0_dblprec
+      end if
 
       ! Calculate the correlation length following the Katzgraber recipe
       s0=cc%m_k(:,qmin(1))*conjg(cc%m_k(:,qmin(1)))
@@ -636,7 +668,9 @@ contains
       cl=real(sqrt(cl_step))
       write(*,'(2x,a20,2x,f11.5,2x,f11.5,2x,g15.5)')'Correlation lengths:',cl(1),cl(2),cl(3)
 
-      ! Transform G(k) to G(r)
+      ! Transform G(k) to G(r).  Use the same normalized S(q) as print_gk;
+      ! applying a q-window here would change the FM limit and is not part of
+      ! the static inverse transform.
 
       allocate(c_r(3,Natom),stat=i_stat)
       call memocc(i_stat,product(shape(c_r))*kind(c_r),'c_r','print_gr')
@@ -646,8 +680,10 @@ contains
       do r=1,Natom
          do iq=1,nq
             qdr=q(1,iq)*(coord(1,r)-r_mid(1))+q(2,iq)*(coord(2,r)-r_mid(2))+q(3,iq)*(coord(3,r)-r_mid(3))
-            epowqr=exp(-iqfac*qdr)*sc_window_fac(sc_window_fun,iq,nq)
-            c_r(:,r)=c_r(:,r)+epowqr*cc%m_k(:,iq)*conjg(cc%m_k(:,iq))
+            epowqr=exp(-iqfac*qdr)
+            if (cc%sc_nsamp > 0 .and. cc%sc_nensemble > 0) then
+               c_r(:,r)=c_r(:,r)+epowqr*cc%m_k(:,iq)*conjg(cc%m_k(:,iq))/static_norm
+            end if
          end do
       end do
       !$omp end parallel do
@@ -657,10 +693,10 @@ contains
       write (filn,'(a,''r.'',a,''.out'')') trim(cc%label),trim(simid)
       open(ofileno,file=filn,status='replace')
       write (ofileno,'(a)') &
-      "#       ir     r_x        r_y      r_x         Re(S(r)_xx)      Re(S(r)_yy)       Re(S(r)_zz)        |S(r)|        Sx+Sy+Sz    "
+      "#       ir     r_x        r_y        r_z       Re(S(r)_xx)      Re(S(r)_yy)       Re(S(r)_zz)       ||S_diag||_2          Tr(S)    "
       do r=1,Natom
          write(ofileno,'(i10,3f10.4,5f18.8)') r,(coord(l,r)-r_mid(l),l=1,3),((real(c_r(l,r))),l=1,3),&
-            real(sqrt(c_r(1,r)**2+c_r(2,r)**2+c_r(3,r)**2)),real(c_r(1,r)+c_r(2,r)+c_r(3,r))
+            sqrt(real(sum(conjg(c_r(:,r))*c_r(:,r)))),real(sum(c_r(:,r)))
       end do
       close(ofileno)
 
@@ -668,15 +704,62 @@ contains
       write (filn,'(a,''ra.'',a,''.out'')') trim(cc%label),trim(simid)
       open(ofileno,file=filn,status='replace')
       write (ofileno,'(a)') &
-      "#        |r|                Re(S(r)_xx)      Re(S(r)_yy)       Re(S(r)_zz)           |S(r)|            Sx+Sy+Sz      "
+      "#        |r|                Re(S(r)_xx)      Re(S(r)_yy)       Re(S(r)_zz)       ||S_diag||_2          Tr(S)      "
+
+      ! Radially average the real-space correlation over all sites at the
+      ! same radius.  The unbinned r.* file remains available above.
+      radial_eps=1.0e-10_dblprec
+      nrbin=0
+      allocate(radial_r(Natom),radial_count(Natom),radial_corr(3,Natom))
+      radial_r=0.0_dblprec
+      radial_count=0.0_dblprec
+      radial_corr=0.0_dblprec
+
       do r=1,Natom
-         !write(ofileno,'(7f18.8)') sqrt( (coord(1,r)-r_mid(1))**2+(coord(2,r)-r_mid(2))**2+(coord(3,r)-r_mid(3))**2),&
-         !   (((c_r(l,r))),l=1,3),&
-         !   sqrt(c_r(1,r)**2+c_r(2,r)**2+c_r(3,r)**2),c_r(1,r)+c_r(2,r)+c_r(3,r)
-         write(ofileno,'(f18.8,3x,3f18.8,2x,2f18.8)') norm2(coord(:,r)-r_mid), real(c_r(:,r)), & 
-            sqrt(real(sum(conjg(c_r(:,r))*(c_r(:,r))))),real(sum(c_r(:,r)))
+         radius=norm2(coord(:,r)-r_mid)
+         ibin=0
+         do jbin=1,nrbin
+            if (abs(radial_r(jbin)-radius)<=radial_eps*max(1.0_dblprec,abs(radius),abs(radial_r(jbin)))) then
+               ibin=jbin
+               exit
+            end if
+         end do
+         if (ibin==0) then
+            nrbin=nrbin+1
+            ibin=nrbin
+            radial_r(ibin)=radius
+         end if
+         radial_corr(:,ibin)=radial_corr(:,ibin)+c_r(:,r)
+         radial_count(ibin)=radial_count(ibin)+1.0_dblprec
+      end do
+
+      do ibin=1,nrbin
+         radial_corr(:,ibin)=radial_corr(:,ibin)/radial_count(ibin)
+      end do
+
+      ! Keep the radial output ordered by distance.
+      do ibin=1,nrbin-1
+         jbin=minloc(radial_r(ibin:nrbin),1)+ibin-1
+         if (jbin/=ibin) then
+            tmp_radius=radial_r(ibin)
+            radial_r(ibin)=radial_r(jbin)
+            radial_r(jbin)=tmp_radius
+            tmp_radius=radial_count(ibin)
+            radial_count(ibin)=radial_count(jbin)
+            radial_count(jbin)=tmp_radius
+            tmp_corr=radial_corr(:,ibin)
+            radial_corr(:,ibin)=radial_corr(:,jbin)
+            radial_corr(:,jbin)=tmp_corr
+         end if
+      end do
+
+      do ibin=1,nrbin
+         write(ofileno,'(f18.8,3x,3f18.8,2x,2f18.8)') radial_r(ibin), real(radial_corr(:,ibin)), &
+            sqrt(real(sum(conjg(radial_corr(:,ibin))*radial_corr(:,ibin)))),real(sum(radial_corr(:,ibin)))
       end do
       close(ofileno)
+
+      deallocate(radial_r,radial_count,radial_corr)
 
       ! Deallocate arrays
       i_all=-product(shape(c_r))*kind(c_r)
@@ -755,20 +838,22 @@ contains
       open(ofileno, file=filn)
       if (print_real_w .and. present(w_arr))  then
          write (ofileno,'(a)') &
-            "#    iq    q_x        q_y      q_x              w(Hz)           Re(S_xx)        Re(S_yy)        Re(S_zz)        |S|      "
+            "#    iq    q_x        q_y        q_z            w(Hz)           Re(S_xx)        Re(S_yy)        Re(S_zz)       ||S_diag||_2          Tr(S)"
          do iq=1,Nq
             do iw=1,max(Nw/2,1)
                write (ofileno,10015) iq,q(1,iq), q(2,iq),q(3,iq),w_arr(iw), &
-                  real(corr_out(:,iq,iw)),abs(sum(conjg(corr_out(:,iq,iw))*corr_out(:,iq,iw))**0.5_dblprec)
+                  real(corr_out(:,iq,iw)),abs(sum(conjg(corr_out(:,iq,iw))*corr_out(:,iq,iw))**0.5_dblprec), &
+                  real(sum(corr_out(:,iq,iw)))
             end do
          end do
       else
          write (ofileno,'(a)') &
-            "#    iq    q_x        q_y      q_x          qw       Re(S_xx)        Re(S_yy)        Re(S_zz)         |S|      "
+            "#    iq    q_x        q_y        q_z        qw       Re(S_xx)        Re(S_yy)        Re(S_zz)       ||S_diag||_2          Tr(S)"
          do iq=1,Nq
             do iw=1,max(Nw/2,1)
                write (ofileno,10005) iq,q(1,iq), q(2,iq),q(3,iq),iw, &
-                  real(corr_out(:,iq,iw)),abs(sum(conjg(corr_out(:,iq,iw))*corr_out(:,iq,iw))**0.5_dblprec)
+                  real(corr_out(:,iq,iw)),abs(sum(conjg(corr_out(:,iq,iw))*corr_out(:,iq,iw))**0.5_dblprec), &
+                  real(sum(corr_out(:,iq,iw)))
             end do
          end do
       end if
