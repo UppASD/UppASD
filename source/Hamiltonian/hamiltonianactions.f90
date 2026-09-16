@@ -217,9 +217,14 @@ contains
 
       resolved_name='unresolved'
       if (present(resolved)) resolved_name=trim(resolved)
-      write(*,'(1x,a,a,a,a,a,a,a,a)') 'ERROR: CPU Hamiltonian backend request rejected: requested=', &
-         trim(cpu_ham_backend),' resolved=',trim(resolved_name),' eligible=F reason=',trim(reason)
-      error stop 1
+      write(*,'(/,1x,a)') 'ERROR: CPU Hamiltonian backend request rejected.'
+      write(*,'(3x,a,a)') 'requested = ',trim(cpu_ham_backend)
+      write(*,'(3x,a,a)') 'resolved  = ',trim(resolved_name)
+      write(*,'(3x,a,a)') 'reason    = ',trim(reason)
+      ! This is a user-facing configuration failure.  Keep the non-zero exit
+      ! status, but avoid turning it into a compiler/runtime backtrace that
+      ! obscures the actionable diagnostic above.
+      stop 1
    end subroutine reject_cpu_ham_backend
 
 
@@ -525,7 +530,6 @@ contains
       call resolve_requested_cpu_ham_backend(requested_backend,backend_ok,backend_diagnostic)
       if (.not.backend_ok) then
          cpu_ham_backend_reason=trim(backend_diagnostic)
-         write(*,'(2x,a,a)') 'Scalar-J convolution backend declined: ',trim(backend_diagnostic)
          return
       endif
       if (trim(requested_backend) /= 'convolution') return
@@ -537,13 +541,11 @@ contains
             ham_inp%do_ring == 1 .or. ham_inp%do_chir == 1 .or. &
             ham_inp%exc_inter /= 'N' .or. do_ralloy /= 0 .or. do_lsf == 'Y') then
          cpu_ham_backend_reason='convolution supports only periodic reduced scalar-J/DMI without tensor, onsite pair extensions, disorder or LSF'
-         write(*,'(2x,a)') 'Scalar-J convolution backend declined: unsupported Hamiltonian variant'
          return
       endif
       if (.not.allocated(ham%reduced_stencil%record_start) .or. &
             .not.allocated(ham%reduced_stencil%record)) then
          cpu_ham_backend_reason='convolution requires an eligible reduced translational stencil'
-         write(*,'(2x,a)') 'Scalar-J convolution backend declined: eligible reduced stencil unavailable'
          return
       endif
       if (ham_inp%do_dm == 1) then
@@ -551,7 +553,6 @@ contains
                .not.allocated(ham%dm_vect) .or. &
                .not.allocated(ham%reduced_stencil%dmi_record_start)) then
             cpu_ham_backend_reason='convolution DMI data is unavailable for the requested J+D Hamiltonian'
-            write(*,'(2x,a)') 'Scalar-J/DMI convolution backend declined: DMI data unavailable'
             return
          endif
          ok=cpu_convolution_eligible(Natom,NA,N1,N2,N3,BC1,BC2,BC3,do_reduced, &
@@ -563,7 +564,6 @@ contains
       endif
       if (.not.ok) then
          cpu_ham_backend_reason='convolution eligibility check failed: '//trim(diagnostic)
-         write(*,'(2x,a,a)') 'Scalar-J convolution backend declined: ',trim(diagnostic)
          return
       endif
 
@@ -572,7 +572,6 @@ contains
       if (ok) ok=cpu_convolution_build_kernel(convolution_backend,ham%reduced_stencil,diagnostic)
       if (.not.ok) then
          cpu_ham_backend_reason='convolution setup failed: '//trim(diagnostic)
-         write(*,'(2x,a,a)') 'Scalar-J convolution backend declined: ',trim(diagnostic)
          call cleanup_convolution_backend()
          return
       endif
@@ -589,8 +588,7 @@ contains
          ' basis, provider ',trim(cpu_fft_provider_name()),' threads=', &
          cpu_fft_provider_threads()
 #else
-      cpu_ham_backend_reason='CPU convolution provider unavailable: this build has no FFTW CPU provider; MKL provider is not enabled'
-      write(*,'(2x,a)') 'Scalar-J convolution backend unavailable: build requires FFTW CPU support'
+      cpu_ham_backend_reason='CPU convolution support is not compiled into this executable; rebuild with FFTW CPU support (-DUSE_FFTW=ON), or select cpu_ham_backend direct'
 #endif
    end subroutine setup_convolution_backend
 
