@@ -153,10 +153,10 @@ namespace kernels::measurement
 
     // Projected stuff.
     __global__ void sumOverAtomsProj_partial(const GpuTensor<real, 3> in_tensor,
-                                         GpuTensor<real, 3> block_parts);
-    __global__ void sumOverAtomsProj_finalize(const GpuTensor<real, 3> block_parts,
+                                         GpuTensor<real, 4> block_parts, GpuVector<int> atype, bool do_ralloy);
+    __global__ void sumOverAtomsProj_finalize(const GpuTensor<real, 4> block_parts,
                                           uint nblocks,
-                                          GpuTensor<real, 2> emomMEnsembleSums);
+                                          GpuTensor<real, 3> emomMEnsembleSums);
 
     // ----------------------------- small helpers (host) -----------------------------
     template<class T>

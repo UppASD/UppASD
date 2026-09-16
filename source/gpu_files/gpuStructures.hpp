@@ -143,7 +143,15 @@ struct hostEnergies {
    Tensor<real, 1> pair;
 };
 
-struct hostCorrelations {    
+// Projection index arrays shared between measurements and correlations
+struct hostProj {
+   Vector<int> atype;    // Atom type index (type-projected measurements and correlations)
+   Vector<int> achtype;  // Chemical type index (chem-type-projected correlations)
+   Vector<int> asite_ch; // Site channel (site-projected measurements)
+   Vector<int> achem_ch; // Chemical channel (chem-projected measurements)
+};
+
+struct hostCorrelations {
    Tensor<real, 2> coord;
    Tensor<real, 1> r_mid;
    Tensor<real, 2> q;
@@ -155,8 +163,6 @@ struct hostCorrelations {
    Tensor<real, 1> scstep_arr;   // Per-sample sc_step array
    int sc_nsamp;  // Number of samples from GPU correlations
    int sc_tidx;   // Number of time steps accumulated in GPU correlations
-   Vector<int> atype;
-   Vector<int> achtype;
    Tensor<cpu_complex, 3> m_k_proj;//TODO: check dimentions
    Tensor<cpu_complex, 4> m_kt_proj;
    Tensor<cpu_complex, 4> m_kw_proj;
@@ -229,4 +235,10 @@ struct deviceEnergies {
 
 };
 
-   
+struct deviceProj {
+   GpuVector<int> atype;    // Atom type index (type-projected measurements and correlations)
+   GpuVector<int> achtype;  // Chemical type index (chem-type-projected correlations)
+   GpuVector<int> asite_ch; // Site channel (site-projected measurements)
+   GpuVector<int> achem_ch; // Chemical channel (chem-projected measurements)
+};
+

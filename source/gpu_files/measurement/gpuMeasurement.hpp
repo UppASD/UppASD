@@ -25,12 +25,13 @@ class GpuMeasurement : public Measurable
 public:
    GpuMeasurement(const deviceLattice& gpuLattice,
                     const deviceEnergies& gpuEnergies,
-                    Tensor<real, 3>& f_emomM, 
+                    Tensor<real, 3>& f_emomM,
                     Tensor<real, 3>& f_emom,
                     Tensor<real, 2>& f_mmom,
                     Tensor<real, 3>& f_beff,
                     MeasurementQueue& mq,
                     bool p_do_jtensor,
+                    const hostProj& cpuProj,
                     bool alwaysCopy = false
                     );
     ~GpuMeasurement() override;
@@ -99,9 +100,6 @@ private:
     GpuVector<int> achem_ch_gpu;
     GpuVector<int> asite_ch_gpu;
     GpuVector<int> atype_gpu;
-    Vector<int> achem_ch_cpu;
-    Vector<int> asite_ch_cpu;
-    Vector<int> atype_cpu;
 
 
     // Energy

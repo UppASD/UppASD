@@ -19,7 +19,7 @@
 
 
 // Constructor
-GpuCorrelations::GpuCorrelations(const Flag Flags, const SimulationParameters SimParam, const deviceLattice& gpuLattice, const hostCorrelations& cpuCorrelations)
+GpuCorrelations::GpuCorrelations(const Flag Flags, const SimulationParameters SimParam, const deviceLattice& gpuLattice, const hostCorrelations& cpuCorrelations, const hostProj& cpuProj)
 : emomM(gpuLattice.emomM)
 , emom(gpuLattice.emom)
 , mmom(gpuLattice.mmom)
@@ -51,8 +51,8 @@ GpuCorrelations::GpuCorrelations(const Flag Flags, const SimulationParameters Si
 , blQprojch(N, M, nq, Nchmax, numThreads, maxBlocks)
 , blWprojch(N, M, nq, sc_max_nstep, nw, Nchmax, numThreads, maxBlocks)
 , sc(do_sc, nw, nq, sc_max_nstep, numThreads, blQ, blW)
-, sc_proj(do_proj, nw, nq, sc_max_nstep, NT, cpuCorrelations.atype, numThreads, blQproj, blWproj)
-, sc_projch(do_projch, nw, nq, sc_max_nstep, Nchmax, cpuCorrelations.achtype, numThreads, blQprojch, blWprojch)
+, sc_proj(do_proj, nw, nq, sc_max_nstep, NT, cpuProj.atype, numThreads, blQproj, blWproj)
+, sc_projch(do_projch, nw, nq, sc_max_nstep, Nchmax, cpuProj.achtype, numThreads, blQprojch, blWprojch)
 
 {
     isallocated = 0; 

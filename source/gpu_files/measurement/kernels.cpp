@@ -970,32 +970,90 @@ __global__ void kernels::measurement::averageEnergy_final(const EnePart* __restr
 // Projected stuff
 // ============================================================================
 __global__ void kernels::measurement::sumOverAtomsProj_partial(const GpuTensor<real, 3> in_tensor,
-        GpuTensor<real, 3> block_parts)
+        GpuTensor<real, 4> block_parts, GpuVector<int> asite_ch, bool do_ralloy, const unsigned int NA)
 {
+    auto block = cg::this_thread_block();
+    auto warp = cg::tiled_partition<WARPSIZE>(block);
+
     const uint N_atoms     = static_cast<uint>(in_tensor.extent(1));
     const uint M_ensembles = static_cast<uint>(in_tensor.extent(2));
 
-    const uint q = blockIdx.y;      // 0..(3*M-1)
-    const uint i = q % 3u;          // component
-    const uint k = q / 3u;          // ensemble
-    if (k >= M_ensembles) return;
+    uint mInd = blockIdx.y;      // 0..(M-1)
+    unsigned int naInd = blockIdx.z;
+   // const uint i = q % 3u;          // component
+    //const uint k = q / 3u;          // ensemble
+    if (mInd >= M_ensembles) return;
+    unsigned int i_na;
+    unsigned int stride = j += blockDim.x * gridDim.x;
+    unsigned int tasks = 3 * N_atoms;
+    unsigned int tid_x = blockIdx.x * blockDim.x + threadIdx.x;
+    unsigned int tid_in_block = threadIdx.x;
 
-    real local{};
-    for (uint j = blockIdx.x * blockDim.x + threadIdx.x; j < N_atoms; j += blockDim.x * gridDim.x)
-        local += in_tensor(i, j, k);
+    int lane = warp.thread_rank();
+    int wid = warp.meta_group_rank();
+    int wSize = WARPSIZE;
+    int wNum = warp.meta_group_size();
 
 
-    extern __shared__ real s[];
-    real block_sum = block_reduce_sum_1d(local, s);
+    real local_NA[3] = {0.0, 0.0, 0.0};
+    real local_N[3] = {0.0, 0.0, 0.0};
+    for (uint j = tid_x; j < tasks;  j += stride){
+        unsigned int cInd = j % 3;
+        unsigned int nInd = j / 3;
+        if(do_ralloy) i_na = asite_ch[nInd] - 1;
+        else i_na = nInd % NA;
+       // local_N[cInd] += in_tensor(cInd, nInd, mInd);
+        if (i_na != naInd) continue;
+        local_NA[cInd] += in_tensor(cInd, nInd, mInd);
+    }
 
-    if (threadIdx.x == 0)
-        block_parts(blockIdx.x, i, k) = block_sum;
+    __shared__ real sh_NA[3][32];
+    __shared__ real sh_N[3][32];
+    //real block_sum = block_reduce_sum_1d(local, s);
+
+    warp_reduce_sum(local_NA[0]);
+    warp_reduce_sum(local_NA[1]);
+    warp_reduce_sum(local_NA[2]);
+
+        // Store warp results to shared memory
+    if (lane == 0) {
+        sh_NA[0][wid] = local_NA[0];
+        sh_NA[1][wid] = local_NA[1];
+        sh_NA[2][wid] = local_NA[2];
+    }
+/////////////////////////////////////////////////////////////////////
+    __syncthreads();              // Wait for all partial reductions
+    
+    // Load results from shared memory for final warp reduction
+    local_NA[0] = (tid_in_block < wNum) ? sh_NA[0][lane] : 0;
+    local_NA[1] = (tid_in_block < wNum) ? sh_NA[1][lane] : 0;
+    local_NA[2] = (tid_in_block < wNum) ? sh_NA[2][lane] : 0;
+
+
+
+    // Final reduction in first warp
+    if (wid == 0) {
+            warp_reduce_sum(local_NA[0]);
+            warp_reduce_sum(local_NA[1]);
+            warp_reduce_sum(local_NA[2]);
+    }
+
+    // Reconstruct complex objects and write only at final step
+    if (tid_in_block == 0) {
+        block_parts(block.group_index().x, 0, naInd, mInd) = local_NA[0];
+        block_parts(block.group_index().x, 1, naInd, mInd) = local_NA[1];
+        block_parts(block.group_index().x, 2, naInd, mInd) = local_NA[2];
+
+    }
+
+    //if (threadIdx.x == 0)
+     //   block_parts(blockIdx.x, i, k) = block_sum;
 }
 
 
-__global__ void kernels::measurement::sumOverAtomsProj_finalize(const GpuTensor<real, 3> block_parts,
+__global__ void kernels::measurement::sumOverAtomsProj_finalize(const GpuTensor<real, 4> block_parts,
                                                             uint nblocks,
-                                                            GpuTensor<real, 2> emomMEnsembleSums)
+                                                            GpuTensor<real, 3> emomMEnsembleSums)
 {
     const uint M_ensembles = static_cast<uint>(emomMEnsembleSums.extent(1));
 

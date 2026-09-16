@@ -22,13 +22,14 @@ class CorrelationFactory
 public:
     // could be moved to a .cu file, but the function was so short, so I implemented it
     // directly in the header
-    static std::unique_ptr<Correlation> create(const deviceLattice& gpuLattice, hostLattice& cpuLattice, const Flag Flags, 
-                                            const SimulationParameters SimParam, const hostCorrelations& cpuCorrelations, MeasurementQueue& mq)
+    static std::unique_ptr<Correlation> create(const deviceLattice& gpuLattice, hostLattice& cpuLattice, const Flag Flags,
+                                            const SimulationParameters SimParam, const hostCorrelations& cpuCorrelations,
+                                            const hostProj& cpuProj, MeasurementQueue& mq)
     {
         if (*FortranData::do_gpu_correlations == 'Y')
         {
             std::cout << "GpuCorrelation used" << std::endl;
-            return std::make_unique<GpuCorrelations>(Flags, SimParam, gpuLattice, cpuCorrelations);
+            return std::make_unique<GpuCorrelations>(Flags, SimParam, gpuLattice, cpuCorrelations, cpuProj);
         }
         else
         {

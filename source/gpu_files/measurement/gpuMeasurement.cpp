@@ -11,12 +11,13 @@ namespace mm = kernels::measurement;
 
 GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
                                 const deviceEnergies& gpuEnergies,
-                                 Tensor<real, 3>& f_emomM, 
+                                 Tensor<real, 3>& f_emomM,
                                  Tensor<real, 3>& f_emom,
                                  Tensor<real, 2>& f_mmom,
                                  Tensor<real, 3>& f_beff,
                                  MeasurementQueue& mq,
                                  bool p_do_jtensor,
+                                 const hostProj& cpuProj,
                                  bool alwaysCopy
                                )
 : gpuLattice(gpuLattice)
@@ -198,13 +199,11 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             emomMEnsembleNTSums_partial.Allocate(sumOverAtoms_NT_kernel_blocks.x, 3, NT, M);
             emomMEnsembleNTSums_partial.zeros();
             atype_gpu.Allocate(N);
-            atype_cpu.set(FortranData::atype, static_cast<long int>(N));
-            atype_gpu.copy_sync(atype_cpu);
+            atype_gpu.copy_sync(cpuProj.atype);
 
             if((!asitealloc)&&(!do_ralloy)){
                 asite_ch_gpu.Allocate(Natom_full);
-                asite_ch_cpu.set(FortranData::asite_ch, static_cast<long int>(Natom_full));
-                asite_ch_gpu.copy_sync(asite_ch_cpu);
+                asite_ch_gpu.copy_sync(cpuProj.asite_ch);
                 asitealloc = true;
             }
 
@@ -216,8 +215,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             emomMEnsembleNASums_partial.zeros();
             if((!asitealloc)&&(!do_ralloy)){
                 asite_ch_gpu.Allocate(Natom_full);
-                asite_ch_cpu.set(FortranData::asite_ch, static_cast<long int>(Natom_full));
-                asite_ch_gpu.copy_sync(asite_ch_cpu);
+                asite_ch_gpu.copy_sync(cpuProj.asite_ch);
                 asitealloc = true;
             }
 
@@ -228,9 +226,8 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             emomMEnsembleNCSums_partial.Allocate(sumOverAtoms_NC_kernel_blocks.x, 3, Nchmax, M);
             emomMEnsembleNCSums_partial.zeros();
             achem_ch_gpu.Allocate(N);
-            achem_ch_cpu.set(FortranData::achem_ch, static_cast<long int>(N));
-            achem_ch_gpu.copy_sync(achem_ch_cpu);
-            
+            achem_ch_gpu.copy_sync(cpuProj.achem_ch);
+
         }
     }
 

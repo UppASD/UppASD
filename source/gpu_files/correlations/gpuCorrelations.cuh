@@ -76,7 +76,7 @@ private:
 
 public:
     // Constructor
-    GpuCorrelations(const Flag Flags, const SimulationParameters SimParam, const deviceLattice& gpuLattice, const hostCorrelations& cpuCorrelations);
+    GpuCorrelations(const Flag Flags, const SimulationParameters SimParam, const deviceLattice& gpuLattice, const hostCorrelations& cpuCorrelations, const hostProj& cpuProj);
     // Destructor
     ~GpuCorrelations() override;;
 

@@ -188,6 +188,34 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
     cpuLattice.ipnstep.set(FortranData::ipnstep, ipnphase);
     cpuLattice.ipdelta_t.set(FortranData::ipdelta_t, ipnphase);
     cpuLattice.iplambda1.set(FortranData::iplambda1, ipnphase);
+    // atype: needed by type-projected correlations OR type-projected measurements
+    const bool need_atype_corr = Flags.do_gpu_correlations &&
+        ((Flags.do_sc_proj=='C')||(Flags.do_sc_proj=='Q')||(Flags.do_sc_proj=='Y'));
+    const bool need_atype_meas = Flags.do_gpu_measurements &&
+        ((*FortranData::do_avrg_proj=='Y')||(*FortranData::do_cumu_proj=='Y'));
+    if(need_atype_corr || need_atype_meas) {
+        cpuProj.atype.set(FortranData::atype, N);
+    }
+
+    // achtype: needed by chem-type-projected correlations
+    const bool need_achtype = Flags.do_gpu_correlations &&
+        ((Flags.do_sc_projch=='C')||(Flags.do_sc_projch=='Q')||(Flags.do_sc_projch=='Y'));
+    if(need_achtype) {
+        cpuProj.achtype.set(FortranData::achtype, N);
+    }
+
+    // asite_ch: needed by site-projected measurements (not applicable for alloy models)
+    if(Flags.do_gpu_measurements && !(*FortranData::do_ralloy) &&
+       ((*FortranData::do_avrg_proj=='Y')||(*FortranData::do_avrg_proj=='A')||
+        (*FortranData::do_cumu_proj=='Y')||(*FortranData::do_cumu_proj=='A'))) {
+        cpuProj.asite_ch.set(FortranData::asite_ch, static_cast<long int>(*FortranData::Natom_full));
+    }
+
+    // achem_ch: needed by chem-projected measurements
+    if(Flags.do_gpu_measurements && (*FortranData::do_avrg_projch=='Y')) {
+        cpuProj.achem_ch.set(FortranData::achem_ch, N);
+    }
+
     if(Flags.do_gpu_correlations){
         cpuCorrelations.r_mid.set(FortranData::r_mid, static_cast <long int>(3));
         cpuCorrelations.q.set(FortranData::q, static_cast <long int>(3), nq);
@@ -199,19 +227,16 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
         cpuCorrelations.m_kw.set(FortranData::m_kw, static_cast <long int>(3), nq, nw);
         cpuCorrelations.deltat_corr.set(FortranData::deltat_corr, static_cast <long int>(SimParam.sc_max_nstep + 1));
         cpuCorrelations.scstep_arr.set(FortranData::scstep_arr, static_cast <long int>(SimParam.sc_max_nstep + 1));
-        if((Flags.do_sc_proj=='C')||(Flags.do_sc_proj=='Q')||(Flags.do_sc_proj=='Y')){          
-        cpuCorrelations.atype.set(FortranData::atype, N);
-        cpuCorrelations.m_k_proj.set(FortranData::m_k_proj, static_cast <long int>(3), NT, nq);
-        cpuCorrelations.m_kt_proj.set(FortranData::m_kt_proj, static_cast <long int>(3), NT, nq, static_cast <long int>(SimParam.sc_max_nstep));
-        cpuCorrelations.m_kw_proj.set(FortranData::m_kw_proj, static_cast <long int>(3), NT, nq, nw);
+        if(need_atype_corr) {
+            cpuCorrelations.m_k_proj.set(FortranData::m_k_proj, static_cast <long int>(3), NT, nq);
+            cpuCorrelations.m_kt_proj.set(FortranData::m_kt_proj, static_cast <long int>(3), NT, nq, static_cast <long int>(SimParam.sc_max_nstep));
+            cpuCorrelations.m_kw_proj.set(FortranData::m_kw_proj, static_cast <long int>(3), NT, nq, nw);
         }
-        if((Flags.do_sc_projch=='C')||(Flags.do_sc_projch=='Q')||(Flags.do_sc_projch=='Y')){   
-        cpuCorrelations.achtype.set(FortranData::achtype, N);
-        cpuCorrelations.m_k_projch.set(FortranData::m_k_projch, static_cast <long int>(3), Nchmax, nq);
-        cpuCorrelations.m_kt_projch.set(FortranData::m_kt_projch, static_cast <long int>(3), Nchmax, nq, static_cast <long int>(SimParam.sc_max_nstep));
-        cpuCorrelations.m_kw_projch.set(FortranData::m_kw_projch, static_cast <long int>(3), Nchmax, nq, nw);
+        if(need_achtype) {
+            cpuCorrelations.m_k_projch.set(FortranData::m_k_projch, static_cast <long int>(3), Nchmax, nq);
+            cpuCorrelations.m_kt_projch.set(FortranData::m_kt_projch, static_cast <long int>(3), Nchmax, nq, static_cast <long int>(SimParam.sc_max_nstep));
+            cpuCorrelations.m_kw_projch.set(FortranData::m_kw_projch, static_cast <long int>(3), Nchmax, nq, nw);
         }
-
     }
   // printf("HERE - 2\n");
 
