@@ -115,9 +115,7 @@ contains
       ! Sample S(r) through S(q)
       if(do_cc=='C'.or.do_cc=='Y') then
 
-         ! AB TODO: Reinstate projected functionality
-         !if(mod(mstep-1,cc%sc_sep)==0.or.flag==2) call calc_gk2(Natom, Mensemble, cc, coord, simid, idata,  mstep, flag)
-         if(mod(mstep-1,cc%sc_sep)==0.or.flag==2)   call calc_gk2(Natom, Mensemble,NT,atype,Nchmax,achtype, cc, coord, simid, idata, gk_flag)
+         if(mod(mstep-1,cc%sc_sep)==0.or.flag==2) call calc_gk2(Natom, Mensemble,NT,atype,Nchmax,achtype, cc, coord, simid, idata, gk_flag)
 
       end if
       !else if(do_cc=='Q') then

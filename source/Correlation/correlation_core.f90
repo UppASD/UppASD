@@ -38,6 +38,7 @@ contains
    subroutine calc_gk2(Natom, Mensemble, NT,atype,Nchmax,achtype, cc, coord, simid, SA, flag)
       !
       use Constants
+      use InputData, only : do_ralloy
       use Math_functions, only : gramms
       !
       implicit none
@@ -79,10 +80,12 @@ contains
             cc%m_k_proj=0.0_dblprec
          end if
 
-         if(cc%do_projch=='C'.or.cc%do_projch=='Y') then
+         if((cc%do_projch=='C'.or.cc%do_projch=='Y') .and. do_ralloy /= 0 .and. Nchmax > 0) then
             allocate(cc%m_k_projch(3,Nchmax,nq),stat=i_stat)
             call memocc(i_stat,product(shape(cc%m_k_projch))*kind(cc%m_k_projch),'m_k_projch','calc_gk2')
             cc%m_k_projch=0.0_dblprec
+         else if (cc%do_projch=='C'.or.cc%do_projch=='Y') then
+            write(*,*) 'WARNING: chemical static projection disabled: random-alloy data not enabled.'
          end if
 
          if (cc%do_sc_local_axis=='Y'.or.cc%do_sc_local_axis=='B') then
@@ -138,7 +141,7 @@ contains
             call corr_kernel_proj(Natom,NT,Mensemble,nq,coord,r_mid,atype,iqfac,win_fac,cc%m_loc,cc%m_k_proj(:,:,1:nq))
          end if
 
-         if(cc%do_projch=='C'.or.cc%do_projch=='Y') then
+         if((cc%do_projch=='C'.or.cc%do_projch=='Y') .and. allocated(cc%m_k_projch)) then
             call corr_kernel_proj(Natom,Nchmax,Mensemble,nq,coord,r_mid,achtype,iqfac,win_fac,cc%m_loc,cc%m_k_projch(:,:,1:nq))
          end if
 
@@ -153,7 +156,7 @@ contains
 
          call print_gk(NT, Nchmax, cc, cc, simid, cc%label)
 
-         call print_gr(Natom, cc,  coord, simid)
+         call print_gr(Natom, NT, Nchmax, cc, coord, simid)
 
          i_all=-product(shape(cc%m_k))*kind(cc%m_k)
          deallocate(cc%m_k,stat=i_stat)
@@ -165,7 +168,7 @@ contains
             call memocc(i_stat,i_all,'m_k_proj','calc_gk2')
          end if
 
-         if(cc%do_projch=='C'.or.cc%do_projch=='Y') then
+         if((cc%do_projch=='C'.or.cc%do_projch=='Y') .and. allocated(cc%m_k_projch)) then
             i_all=-product(shape(cc%m_k_projch))*kind(cc%m_k_projch)
             deallocate(cc%m_k_projch,stat=i_stat)
             call memocc(i_stat,i_all,'m_k_projch','calc_gk2')

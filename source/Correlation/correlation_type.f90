@@ -9,8 +9,8 @@ module Correlation_type
       !!! !Spin-spin correlation parameters from input file
       !!! character(len=1) :: do_sc        !< Perform spin-correlation sampling (Y/N/C)
       !!! character(len=1) :: do_sr        !< Perform spin-correlation sampling in real space direclty (Y/N)
-      character(len=1) :: do_proj   !< Measure sublattice projection of S(q,w) (Y/N/C)
-      character(len=1) :: do_projch   !< Measure chemical sublattice projection of S(q,w) (Y/N/C)
+      character(len=1) :: do_proj   !< Measure sublattice projection of S(q), S(r), and S(q,w) (Y/N/C)
+      character(len=1) :: do_projch   !< Measure chemical sublattice projection of S(q), S(r), and S(q,w) (Y/N/C)
       character(len=1) :: do_sc_local_axis   !< Perform SQW along local quantization axis (Y/N)
       character(len=1) :: do_sc_dosonly !< Do not print s(q,w), only Magnon DOS (Y/N)
       character(len=1) :: do_sc_complex !< Print the complex values s(q,w) (Y/N)

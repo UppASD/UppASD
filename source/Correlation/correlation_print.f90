@@ -496,7 +496,7 @@ contains
 
       end if
 
-      if(cc%do_projch=='C'.or.cc%do_projch=='Y') then
+      if((cc%do_projch=='C'.or.cc%do_projch=='Y') .and. allocated(cc%m_k_projch)) then
 
          ! Allocate arrays
          allocate(c_k_projch(3,Nchmax,Nchmax,nq),stat=i_stat)
@@ -620,13 +620,15 @@ contains
       !
    end subroutine print_gk
 
-   subroutine print_gr(Natom,  cc,  coord, simid)
+   subroutine print_gr(Natom, NT, Nchmax, cc, coord, simid)
 
       use Constants
       !
       implicit none
       !
       integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: NT           !< Number of atom types
+      integer, intent(in) :: Nchmax       !< Number of chemical types
 
       type(corr_t), intent(inout) :: cc !< Derived type for correlation data
 
@@ -759,6 +761,18 @@ contains
       end do
       close(ofileno)
 
+      ! The projected Fourier amplitudes are still available here because they
+      ! are deallocated by calc_gk2 only after both print_gk and print_gr have
+      ! returned.  Transform each projected pair separately to keep the peak
+      ! memory use independent of NT**2*Natom.
+      if ((cc%do_proj=='C'.or.cc%do_proj=='Y') .and. allocated(cc%m_k_proj)) then
+         call print_gr_projected(Natom, NT, cc%m_k_proj, cc, coord, simid, 'proj')
+      end if
+
+      if ((cc%do_projch=='C'.or.cc%do_projch=='Y') .and. allocated(cc%m_k_projch)) then
+         call print_gr_projected(Natom, Nchmax, cc%m_k_projch, cc, coord, simid, 'projch')
+      end if
+
       deallocate(radial_r,radial_count,radial_corr)
 
       ! Deallocate arrays
@@ -769,6 +783,145 @@ contains
       return
 
    end subroutine print_gr
+
+   subroutine print_gr_projected(Natom, nproj, m_k_proj, cc, coord, simid, suffix)
+
+      use Constants
+      !
+      implicit none
+      !
+      integer, intent(in) :: Natom
+      integer, intent(in) :: nproj
+      complex(dblprec), dimension(3,nproj,nq), intent(in) :: m_k_proj
+      type(corr_t), intent(in) :: cc
+      real(dblprec), dimension(3,Natom), intent(in) :: coord
+      character(len=8), intent(in) :: simid
+      character(len=*), intent(in) :: suffix
+
+      integer :: iq, r, it, jt, i_stat, i_all
+      integer :: l, nrbin, ibin, jbin
+      character(len=256) :: filn
+      complex(dblprec) :: epowqr, iqfac
+      real(dblprec) :: qdr, static_norm, radius, radial_eps, tmp_radius
+      logical :: have_static
+      complex(dblprec), dimension(:,:), allocatable :: c_r
+      real(dblprec), dimension(:), allocatable :: radial_r, radial_count
+      complex(dblprec), dimension(:,:), allocatable :: radial_corr
+      complex(dblprec), dimension(3) :: tmp_corr
+
+      iqfac=-2._dblprec*pi*(0.0_dblprec,1.0_dblprec)
+      have_static=(cc%sc_nsamp > 0 .and. cc%sc_nensemble > 0)
+      if (have_static) then
+         static_norm=(real(cc%sc_nsamp,dblprec)*real(cc%sc_nensemble,dblprec))**2
+      else
+         static_norm=1.0_dblprec
+      end if
+
+      allocate(c_r(3,Natom),stat=i_stat)
+      call memocc(i_stat,product(shape(c_r))*kind(c_r),'c_r_proj','print_gr_projected')
+
+      allocate(radial_r(Natom),radial_count(Natom),radial_corr(3,Natom),stat=i_stat)
+      call memocc(i_stat,(product(shape(radial_r))+product(shape(radial_count))+ &
+         product(shape(radial_corr)))*kind(radial_r),'radial_proj','print_gr_projected')
+
+      do it=1,nproj
+         do jt=1,nproj
+            c_r=0.0_dblprec
+
+            !$omp parallel do default(shared) private(r,iq,qdr,epowqr) schedule(static)
+            do r=1,Natom
+               do iq=1,nq
+                  if (have_static) then
+                     qdr=q(1,iq)*(coord(1,r)-r_mid(1))+q(2,iq)*(coord(2,r)-r_mid(2))+ &
+                        q(3,iq)*(coord(3,r)-r_mid(3))
+                     epowqr=exp(-iqfac*qdr)
+                     c_r(:,r)=c_r(:,r)+epowqr*m_k_proj(:,it,iq)*conjg(m_k_proj(:,jt,iq))/static_norm
+                  end if
+               end do
+            end do
+            !$omp end parallel do
+
+            write (filn,'(a,''r_'',a,''.'',i0,''.'',i0,''.'',a,''.out'')') &
+               trim(cc%label),trim(suffix),it,jt,trim(simid)
+            open(ofileno,file=filn,status='replace')
+            write (ofileno,'(a)') &
+               "#       ir     r_x        r_y        r_z       Re(S_ab(r)_xx)  Re(S_ab(r)_yy)  Re(S_ab(r)_zz)  ||S_ab,diag||_2      Tr(S_ab)"
+            do r=1,Natom
+               write(ofileno,'(i10,3f10.4,5f18.8)') r,(coord(l,r)-r_mid(l),l=1,3),real(c_r(:,r)), &
+                  sqrt(real(sum(conjg(c_r(:,r))*c_r(:,r)))),real(sum(c_r(:,r)))
+            end do
+            close(ofileno)
+
+            write (filn,'(a,''ra_'',a,''.'',i0,''.'',i0,''.'',a,''.out'')') &
+               trim(cc%label),trim(suffix),it,jt,trim(simid)
+            open(ofileno,file=filn,status='replace')
+            write (ofileno,'(a)') &
+               "#        |r|          Re(S_ab(r)_xx)  Re(S_ab(r)_yy)  Re(S_ab(r)_zz)  ||S_ab,diag||_2      Tr(S_ab)"
+
+            radial_eps=1.0e-10_dblprec
+            nrbin=0
+            radial_r=0.0_dblprec
+            radial_count=0.0_dblprec
+            radial_corr=0.0_dblprec
+
+            do r=1,Natom
+               radius=norm2(coord(:,r)-r_mid)
+               ibin=0
+               do jbin=1,nrbin
+                  if (abs(radial_r(jbin)-radius)<=radial_eps*max(1.0_dblprec,abs(radius), &
+                     abs(radial_r(jbin)))) then
+                     ibin=jbin
+                     exit
+                  end if
+               end do
+               if (ibin==0) then
+                  nrbin=nrbin+1
+                  ibin=nrbin
+                  radial_r(ibin)=radius
+               end if
+               radial_corr(:,ibin)=radial_corr(:,ibin)+c_r(:,r)
+               radial_count(ibin)=radial_count(ibin)+1.0_dblprec
+            end do
+
+            do ibin=1,nrbin
+               radial_corr(:,ibin)=radial_corr(:,ibin)/radial_count(ibin)
+            end do
+
+            do ibin=1,nrbin-1
+               jbin=minloc(radial_r(ibin:nrbin),1)+ibin-1
+               if (jbin/=ibin) then
+                  tmp_radius=radial_r(ibin)
+                  radial_r(ibin)=radial_r(jbin)
+                  radial_r(jbin)=tmp_radius
+                  tmp_radius=radial_count(ibin)
+                  radial_count(ibin)=radial_count(jbin)
+                  radial_count(jbin)=tmp_radius
+                  tmp_corr=radial_corr(:,ibin)
+                  radial_corr(:,ibin)=radial_corr(:,jbin)
+                  radial_corr(:,jbin)=tmp_corr
+               end if
+            end do
+
+            do ibin=1,nrbin
+               write(ofileno,'(f18.8,3x,3f18.8,2x,2f18.8)') radial_r(ibin),real(radial_corr(:,ibin)), &
+                  sqrt(real(sum(conjg(radial_corr(:,ibin))*radial_corr(:,ibin)))), &
+                  real(sum(radial_corr(:,ibin)))
+            end do
+            close(ofileno)
+         end do
+      end do
+
+      i_all=-product(shape(radial_corr))*kind(radial_corr)
+      deallocate(radial_corr,stat=i_stat)
+      call memocc(i_stat,i_all,'radial_corr_proj','print_gr_projected')
+      i_all=-(product(shape(radial_r))+product(shape(radial_count)))*kind(radial_r)
+      deallocate(radial_r,radial_count,stat=i_stat)
+      call memocc(i_stat,i_all,'radial_r_proj','print_gr_projected')
+      i_all=-product(shape(c_r))*kind(c_r)
+      deallocate(c_r,stat=i_stat)
+      call memocc(i_stat,i_all,'c_r_proj','print_gr_projected')
+
+   end subroutine print_gr_projected
 
    subroutine corr_write_abscorr(nq,nw,nelem,filn,corr_out,w_arr)
       !
