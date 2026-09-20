@@ -16,7 +16,6 @@ module Chelper
    use MicroWaveField,   only : mwffield
    use Constants,        only : gama, mub, k_bolt, mry
    use HamiltonianData,  only : ham
-   use AdaptiveCGProduction, only : adaptive_cg_state, adaptive_cg_is_enabled
 
    use prn_averages,  only : avrg_buff, avrg_step, avrgm2cum, avrgm4cum, avrgmcum, &
         binderc, calc_and_print_cumulant, cumu_buff, cumu_step, do_avrg, do_cumu, do_cumu_proj, do_proj_avrg, do_projch_avrg, &
@@ -202,69 +201,6 @@ module Chelper
       subroutine FortranData_clearPmeMacrocell() bind(C, name="fortrandata_clearpmemacrocell_")
       end subroutine FortranData_clearPmeMacrocell
 
-      ! CG-09 optional staging seam.  The canonical topology arrays retain
-      ! their Fortran ids; the GPU owner validates and copies them during the
-      ! normal GpuSimulation allocation lifecycle.
-      subroutine FortranData_setAdaptiveTopology(geometry_mode, atoms, blocks, basis, fft_channels, &
-            fft_grid_channels, dynamic_channels, ensembles, selector_criteria, repetition_shape, &
-            block_shape, block_grid, cell_vectors, block_vectors, atom_to_block, atom_to_basis, &
-            atom_to_dynamic_channel, atom_to_fft_channel, atom_to_fft_grid_index, &
-            basis_to_dynamic_channel, basis_to_fft_channel, block_atom_count, block_atom_offset, &
-            block_atoms, block_grid_coordinate, block_basis_population, block_fft_population, &
-            block_dynamic_population, block_center, block_volume, block_state, pending_state, &
-            state_age, transition_epoch, selector_scores, coarse_moment, coarse_direction, &
-            coarse_field, channel_moment_sum) bind(C, name="fortrandata_setadaptivetopology_")
-         import :: c_int, c_double
-         integer(c_int), intent(inout) :: geometry_mode, atoms, blocks, basis, fft_channels, fft_grid_channels
-         integer(c_int), intent(inout) :: dynamic_channels, ensembles, selector_criteria
-         integer(c_int), intent(inout) :: repetition_shape(*), block_shape(*), block_grid(*)
-         real(c_double), intent(inout) :: cell_vectors(*), block_vectors(*)
-         integer(c_int), intent(inout) :: atom_to_block(*), atom_to_basis(*)
-         integer(c_int), intent(inout) :: atom_to_dynamic_channel(*), atom_to_fft_channel(*)
-         integer(c_int), intent(inout) :: atom_to_fft_grid_index(*), basis_to_dynamic_channel(*)
-         integer(c_int), intent(inout) :: basis_to_fft_channel(*), block_atom_count(*)
-         integer(c_int), intent(inout) :: block_atom_offset(*), block_atoms(*)
-         integer(c_int), intent(inout) :: block_grid_coordinate(*), block_basis_population(*)
-         integer(c_int), intent(inout) :: block_fft_population(*), block_dynamic_population(*)
-         real(c_double), intent(inout) :: block_center(*), block_volume(*)
-         integer(c_int), intent(inout) :: block_state(*), pending_state(*)
-         integer(c_int), intent(inout) :: state_age(*), transition_epoch(*)
-         real(c_double), intent(inout) :: selector_scores(*), coarse_moment(*)
-         real(c_double), intent(inout) :: coarse_direction(*), coarse_field(*)
-         real(c_double), intent(inout) :: channel_moment_sum(*)
-      end subroutine FortranData_setAdaptiveTopology
-
-      subroutine FortranData_clearAdaptiveTopology() bind(C, name="fortrandata_clearadaptivetopology_")
-      end subroutine FortranData_clearAdaptiveTopology
-
-      subroutine FortranData_setAdaptiveKernels(atom_moment, atom_anisotropy_axis_count, &
-            atom_anisotropy_axis, atom_anisotropy_k1, atom_anisotropy_k2, &
-            projection_block, projection_weight, &
-            bonds, bond_atom, bond_matrix, selector_edges, selector_edge, inverse_block_transpose, &
-            exchange_stiffness, spiralization, anisotropy_axis_count, anisotropy_axis, &
-            anisotropy_k1, anisotropy_k2, normalization_floor, magnetic_moment_si, gamma_per_ts, &
-            damping, adaptive_mask, update_interval, refine_threshold, coarsen_threshold, &
-            polarization_threshold, minimum_dwell, buffer_dilation, reconstruction_scheme, &
-            cone_angle_rad, energy_jump_limit_j, diagnostics) &
-            bind(C, name="fortrandata_setadaptivekernels_")
-         import :: c_int, c_double
-         real(c_double), intent(inout) :: atom_moment(*), atom_anisotropy_axis(*)
-         real(c_double), intent(inout) :: atom_anisotropy_k1(*), atom_anisotropy_k2(*)
-         real(c_double), intent(inout) :: projection_weight(*), bond_matrix(*)
-         real(c_double), intent(inout) :: inverse_block_transpose(*), exchange_stiffness(*)
-         real(c_double), intent(inout) :: spiralization(*), anisotropy_axis(*)
-         real(c_double), intent(inout) :: anisotropy_k1(*), anisotropy_k2(*)
-         real(c_double), intent(inout) :: normalization_floor, magnetic_moment_si, gamma_per_ts, damping
-         real(c_double), intent(inout) :: refine_threshold, coarsen_threshold, cone_angle_rad
-         real(c_double), intent(inout) :: polarization_threshold
-         real(c_double), intent(inout) :: energy_jump_limit_j
-         integer(c_int), intent(inout) :: atom_anisotropy_axis_count(*)
-         integer(c_int), intent(inout) :: projection_block(*), bonds, bond_atom(*)
-         integer(c_int), intent(inout) :: selector_edges, selector_edge(*), anisotropy_axis_count(*)
-         integer(c_int), intent(inout) :: adaptive_mask, update_interval, minimum_dwell
-         integer(c_int), intent(inout) :: buffer_dilation(*)
-         integer(c_int), intent(inout) :: reconstruction_scheme, diagnostics
-      end subroutine FortranData_setAdaptiveKernels
    end interface
 
 
@@ -275,7 +211,6 @@ module Chelper
       fortran_calc_simulation_status_variables, fortran_print_measurables,          &
       fortran_print_correlations, fortran_measure_correlations,                     &
       fortran_measure_rest, fortran_do_correlations
-   public :: FortranData_setAdaptiveTopology, FortranData_clearAdaptiveTopology
 
 contains
 
@@ -721,44 +656,6 @@ contains
       call FortranData_setCorrelations(q, r_mid, coord, cc%w, cc%m_k, cc%m_kw, cc%m_kt, cc%deltat_corr, &
           cc%scstep_arr, cc%sc_nsamp, cc%sc_tidx, atype_meta, achtype, cc%m_k_proj, cc%m_k_projch, &
           cc%m_kt_proj, cc%m_kt_projch, cc%m_kw_proj, cc%m_kw_projch)
-
-      ! Feature-off is an explicit null sentinel.  Enabled GPU runs stage the
-      ! complete production topology/runtime/kernel inventory here, before
-      ! GpuSimulation performs memory preflight and copies it to owned storage.
-      call FortranData_clearAdaptiveTopology()
-      if (adaptive_cg_is_enabled() .and. adaptive_cg_state%gpu_requested) then
-         call FortranData_setAdaptiveTopology( &
-            adaptive_cg_state%topology%geometry_mode,adaptive_cg_state%topology%n_atoms, &
-            adaptive_cg_state%topology%n_spatial_blocks,adaptive_cg_state%topology%n_basis, &
-            adaptive_cg_state%topology%n_fft_channels_per_block, &
-            adaptive_cg_state%topology%n_fft_grid_channels, &
-            adaptive_cg_state%topology%n_dynamic_channels,Mensemble, &
-            adaptive_cg_state%gpu_selector_criteria,adaptive_cg_state%topology%repetition_shape, &
-            adaptive_cg_state%topology%block_shape,adaptive_cg_state%topology%block_grid, &
-            adaptive_cg_state%topology%cell_vectors,adaptive_cg_state%topology%block_vectors, &
-            adaptive_cg_state%topology%atom_to_block,adaptive_cg_state%topology%atom_to_basis, &
-            adaptive_cg_state%topology%atom_to_dynamic_channel, &
-            adaptive_cg_state%topology%atom_to_fft_channel, &
-            adaptive_cg_state%topology%atom_to_fft_grid_index, &
-            adaptive_cg_state%topology%basis_to_dynamic_channel, &
-            adaptive_cg_state%topology%basis_to_fft_channel, &
-            adaptive_cg_state%topology%block_atom_count, &
-            adaptive_cg_state%topology%block_atom_offset,adaptive_cg_state%topology%block_atoms, &
-            adaptive_cg_state%topology%block_grid_coordinate, &
-            adaptive_cg_state%topology%block_basis_population, &
-            adaptive_cg_state%topology%block_fft_channel_population, &
-            adaptive_cg_state%topology%block_dynamic_channel_population, &
-            adaptive_cg_state%topology%block_center,adaptive_cg_state%topology%block_volume, &
-            adaptive_cg_state%runtime%hybrid%block_state, &
-            adaptive_cg_state%gpu_pending_state,adaptive_cg_state%gpu_state_age, &
-            adaptive_cg_state%gpu_transition_epoch,adaptive_cg_state%gpu_selector_scores, &
-            adaptive_cg_state%runtime%coarse_resultant_mub,adaptive_cg_state%coarse_direction, &
-            adaptive_cg_state%gpu_coarse_field,adaptive_cg_state%runtime%channel_moment_sum_mub)
-         ! PURGE-02: the adaptive kernel staging call also consumed the
-         ! removed InputData%adaptive_cg configuration object. The remaining
-         ! adaptive bridge declarations and topology staging are retained for
-         ! the dedicated PURGE-03 bridge cleanup.
-      endif
 
       call FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed)
 

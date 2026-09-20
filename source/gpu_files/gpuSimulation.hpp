@@ -93,7 +93,6 @@ public:
     void copyFromFortran();    // device to host 
     void copyToFortran();      // host to device
     void release();            // frees gpu matrices
-    void updateAdaptiveBlockState(const int* blockState, std::size_t count);
     bool adaptiveEnabled() const { return gpuAdaptiveRuntime.ready(); }
     void advanceAdaptiveStep(std::size_t step,
                              GpuHamiltonianCalculations* hamiltonian,

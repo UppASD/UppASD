@@ -106,85 +106,6 @@ public:
    static real* pme_macro_min_coord;
    static real* pme_macro_max_coord;
 
-   // Optional CG-09 staging contract.  A null geometry-mode pointer is the
-   // feature-off sentinel and therefore adds no GPU allocation or execution.
-   static int* adaptive_geometry_mode;
-   static unsigned int* adaptive_atoms;
-   static unsigned int* adaptive_blocks;
-   static unsigned int* adaptive_basis;
-   static unsigned int* adaptive_fft_channels;
-   static unsigned int* adaptive_fft_grid_channels;
-   static unsigned int* adaptive_dynamic_channels;
-   static unsigned int* adaptive_ensembles;
-   static unsigned int* adaptive_selector_criteria;
-   static int* adaptive_repetition_shape;
-   static int* adaptive_block_shape;
-   static int* adaptive_block_grid;
-   static real* adaptive_cell_vectors;
-   static real* adaptive_block_vectors;
-   static int* adaptive_atom_to_block;
-   static int* adaptive_atom_to_basis;
-   static int* adaptive_atom_to_dynamic_channel;
-   static int* adaptive_atom_to_fft_channel;
-   static int* adaptive_atom_to_fft_grid_index;
-   static int* adaptive_basis_to_dynamic_channel;
-   static int* adaptive_basis_to_fft_channel;
-   static int* adaptive_block_atom_count;
-   static int* adaptive_block_atom_offset;
-   static int* adaptive_block_atoms;
-   static int* adaptive_block_grid_coordinate;
-   static int* adaptive_block_basis_population;
-   static int* adaptive_block_fft_population;
-   static int* adaptive_block_dynamic_population;
-   static real* adaptive_block_center;
-   static real* adaptive_block_volume;
-   static int* adaptive_block_state;
-   static int* adaptive_pending_state;
-   static unsigned int* adaptive_state_age;
-   static unsigned int* adaptive_transition_epoch;
-   static real* adaptive_selector_scores;
-   static real* adaptive_coarse_moment;
-   static real* adaptive_coarse_direction;
-   static real* adaptive_coarse_field;
-   static real* adaptive_channel_moment_sum;
-   static real* adaptive_atom_moment;
-   static int* adaptive_atom_anisotropy_axis_count;
-   static real* adaptive_atom_anisotropy_axis;
-   static real* adaptive_atom_anisotropy_k1;
-   static real* adaptive_atom_anisotropy_k2;
-   static int* adaptive_projection_block;
-   static real* adaptive_projection_weight;
-   static unsigned int* adaptive_bonds;
-   static int* adaptive_bond_atom;
-   static real* adaptive_bond_matrix;
-   static unsigned int* adaptive_selector_edges;
-   static int* adaptive_selector_edge;
-   static real* adaptive_inverse_block_transpose;
-   static real* adaptive_exchange_stiffness;
-   static real* adaptive_spiralization;
-   static int* adaptive_anisotropy_axis_count;
-   static real* adaptive_anisotropy_axis;
-   static real* adaptive_anisotropy_k1;
-   static real* adaptive_anisotropy_k2;
-   static real* adaptive_normalization_floor;
-   static real* adaptive_magnetic_moment_si;
-   static real* adaptive_gamma_per_ts;
-   static real* adaptive_damping;
-   static int* adaptive_mask_mode;
-   static unsigned int* adaptive_update_interval;
-   static real* adaptive_refine_threshold;
-   static real* adaptive_coarsen_threshold;
-   static real* adaptive_polarization_threshold;
-   static unsigned int* adaptive_minimum_dwell;
-   // Points to a contiguous 3-element per-axis (x,y,z) buffer dilation
-   // width in blocks (RCG-05D); previously a single scalar.
-   static unsigned int* adaptive_buffer_dilation;
-   static int* adaptive_reconstruction_scheme;
-   static real* adaptive_cone_angle_rad;
-   static real* adaptive_energy_jump_limit_j;
-   static int* adaptive_diagnostics;
-   
-
    static unsigned int* nq;
    static unsigned int* sc_step;
    static unsigned int* sc_sep;
@@ -371,42 +292,6 @@ public:
                                        unsigned int* p_cell_index, unsigned int* p_macro_nlistsize,
                                        real* p_macro_center, real* p_macro_min_coord, real* p_macro_max_coord);
    static void clearPmeMacrocellPointers();
-   static void setAdaptivePointers(
-      int* geometry_mode, unsigned int* atoms, unsigned int* blocks,
-      unsigned int* basis, unsigned int* fft_channels,
-      unsigned int* fft_grid_channels,
-      unsigned int* dynamic_channels, unsigned int* ensembles,
-      unsigned int* selector_criteria, int* repetition_shape, int* block_shape,
-      int* block_grid, real* cell_vectors, real* block_vectors,
-      int* atom_to_block, int* atom_to_basis,
-      int* atom_to_dynamic_channel, int* atom_to_fft_channel,
-      int* atom_to_fft_grid_index, int* basis_to_dynamic_channel,
-      int* basis_to_fft_channel, int* block_atom_count, int* block_atom_offset,
-      int* block_atoms, int* block_grid_coordinate, int* block_basis_population,
-      int* block_fft_population, int* block_dynamic_population,
-      real* block_center, real* block_volume, int* block_state,
-      int* pending_state, unsigned int* state_age,
-      unsigned int* transition_epoch, real* selector_scores,
-      real* coarse_moment, real* coarse_direction, real* coarse_field,
-      real* channel_moment_sum);
-   static void clearAdaptivePointers();
-   static void setAdaptiveKernelPointers(
-      real* atom_moment, int* atom_anisotropy_axis_count,
-      real* atom_anisotropy_axis, real* atom_anisotropy_k1, real* atom_anisotropy_k2,
-      int* projection_block, real* projection_weight,
-      unsigned int* bonds, int* bond_atom, real* bond_matrix,
-      unsigned int* selector_edges, int* selector_edge,
-      real* inverse_block_transpose, real* exchange_stiffness,
-      real* spiralization, int* anisotropy_axis_count,
-      real* anisotropy_axis, real* anisotropy_k1, real* anisotropy_k2,
-      real* normalization_floor, real* magnetic_moment_si,
-      real* gamma_per_ts, real* damping, int* mask_mode,
-      unsigned int* update_interval, real* refine_threshold,
-      real* coarsen_threshold, real* polarization_threshold,
-      unsigned int* minimum_dwell,
-      // 3-element per-axis (x,y,z) buffer dilation width in blocks (RCG-05D).
-      unsigned int* buffer_dilation, int* reconstruction_scheme,
-      real* cone_angle_rad, real* energy_jump_limit_j, int* diagnostics);
     static void clearMacrocellPointers();
 
     static void setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
