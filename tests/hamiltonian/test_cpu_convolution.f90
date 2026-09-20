@@ -6,9 +6,9 @@ program test_cpu_convolution
    use Parameters, only : dblprec
    use Constants, only : mub,mry
    use HamiltonianData, only : ham
-   use HamiltonianActions, only : effective_field, setup_convolution_backend, &
-      setup_cpu_hamiltonian_backend, cleanup_convolution_backend, convolution_backend_can_apply, &
-      convolution_backend_get_stats, HAM_TERM_COUNT
+   use HamiltonianActions, only : effective_field, HAM_TERM_COUNT
+   use HamiltonianBackend, only : setup_convolution_backend, setup_cpu_hamiltonian_backend, &
+      cleanup_convolution_backend, convolution_backend_can_apply, convolution_backend_get_stats
    use InputData, only : ham_inp, cpu_ham_backend, do_convolution, do_sparse
    use ReducedStencil
    use CPUConvolution

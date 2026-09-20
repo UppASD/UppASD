@@ -1,7 +1,7 @@
 ! CPU-HAM-07: explicit CPU pair-backend policy and compatibility aliases.
 program test_cpu_ham07_backend_policy
 
-   use HamiltonianActions, only : resolve_cpu_ham_backend, &
+   use HamiltonianBackend, only : resolve_cpu_ham_backend, &
       resolve_requested_cpu_ham_backend
    use InputData, only : cpu_ham_backend, do_sparse, do_convolution
 

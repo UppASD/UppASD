@@ -57,7 +57,7 @@ OBJS=   parameters.o constants.o profiling.o stdtypes.o mtprng.o inputdata.o ran
 	latticeinit.o latticeprinthamiltonian.o latticehamiltonianinit.o latticefielddata.o \
 	latticehamiltonianactions.o latticespectra.o verlet.o \
 	hamiltonianinit.o updatemoments.o energy.o calculatefields.o evolution.o applyhamiltonian.o \
-	damping.o printinput.o hamiltonianactions.o qminimizer.o tools.o vpo.o pathinit.o energyminima.o gneb.o hermitelib.o \
+	damping.o printinput.o hamiltonianbackend.o hamiltonianactions.o qminimizer.o tools.o vpo.o pathinit.o energyminima.o gneb.o hermitelib.o \
 	CoarseGraining/blocktopology.o CoarseGraining/macrocells.o \
 	CoarseGraining/hamiltonianmacroblocks.o 0sd.o
 

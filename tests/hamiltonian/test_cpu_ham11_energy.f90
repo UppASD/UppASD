@@ -5,7 +5,8 @@ program test_cpu_ham11_energy
    use HamiltonianData, only : ham
    use HamiltonianActions, only : effective_field, canonical_field_energy, &
       canonical_onsite_energy, HAM_TERM_EXCHANGE, HAM_TERM_DMI, HAM_TERM_ANISOTROPY, &
-      HAM_TERM_COUNT, set_reduced_direct_testing
+      HAM_TERM_COUNT
+   use HamiltonianBackend, only : set_reduced_direct_testing
    use InputData, only : ham_inp, cpu_ham_backend, do_sparse, do_convolution
    use montecarlo_common, only : calculate_energy => calculate_energy
    implicit none

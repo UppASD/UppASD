@@ -6,9 +6,9 @@ program test_cpu_ham06_j_plus_d
    use Parameters, only : dblprec
    use Constants, only : mub,mry
    use HamiltonianData, only : ham
-   use HamiltonianActions, only : effective_field, setup_convolution_backend, &
-      setup_cpu_hamiltonian_backend, cleanup_convolution_backend, convolution_backend_can_apply
-   use HamiltonianActions, only : set_reduced_direct_testing
+   use HamiltonianActions, only : effective_field
+   use HamiltonianBackend, only : setup_convolution_backend, setup_cpu_hamiltonian_backend, &
+      cleanup_convolution_backend, convolution_backend_can_apply, set_reduced_direct_testing
    use InputData, only : ham_inp, cpu_ham_backend, do_sparse, do_convolution
    use ReducedStencil
    use CPUConvolution

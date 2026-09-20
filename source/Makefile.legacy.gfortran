@@ -53,10 +53,10 @@ OBJS=   parameters.o constants.o profiling.o stdtypes.o mtprng.o inputdata.o ran
 	heun_single.o heun_proper.o midpoint.o sphmidpoint.o llgi.o magnetizationinit.o neighbourmap.o geometry.o printhamiltonian.o \
         bls.o ErrorHandling.o stiffness.o inputhandler.o ams.o setupspinice.o nocuda.o \
 	hamiltonianinit.o updatemoments.o energy.o calculatefields.o evolution.o applyhamiltonian.o \
-	damping.o printinput.o hamiltonianactions.o qminimizer.o temperature.o tools.o vpo.o pathinit.o energyminima.o gneb.o hermitelib.o \
+	damping.o printinput.o hamiltonianbackend.o hamiltonianactions.o qminimizer.o temperature.o tools.o vpo.o pathinit.o energyminima.o gneb.o hermitelib.o \
 	CoarseGraining/blocktopology.o CoarseGraining/macrocells.o \
 	CoarseGraining/hamiltonianmacroblocks.o 0sd.o
-#filehandler.o printinput.o bls.o hamiltonianparts.o hamiltonianactions.o temperature.o tools.o 0sd.o
+#filehandler.o printinput.o bls.o hamiltonianparts.o hamiltonianbackend.o hamiltonianactions.o temperature.o tools.o 0sd.o
 
 
 $(PROG): $(OBJS) 

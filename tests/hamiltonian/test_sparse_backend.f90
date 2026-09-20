@@ -2,9 +2,10 @@
 program test_sparse_backend
    use Parameters, only : dblprec
    use HamiltonianData, only : ham
-   use HamiltonianActions, only : effective_field, setup_sparse_backend, &
-      setup_cpu_hamiltonian_backend, cleanup_cpu_hamiltonian_backend, cleanup_sparse_backend, &
-      sparse_backend_can_apply, sparse_backend_get_stats, HAM_TERM_COUNT
+   use HamiltonianActions, only : effective_field, HAM_TERM_COUNT
+   use HamiltonianBackend, only : setup_sparse_backend, setup_cpu_hamiltonian_backend, &
+      cleanup_cpu_hamiltonian_backend, cleanup_sparse_backend, sparse_backend_can_apply, &
+      sparse_backend_get_stats
    use InputData, only : ham_inp, cpu_ham_backend, do_sparse
    implicit none
 

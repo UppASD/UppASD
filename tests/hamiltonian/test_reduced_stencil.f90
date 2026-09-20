@@ -4,7 +4,8 @@ program test_reduced_stencil
    use Parameters, only : dblprec
    use Constants, only : mub,mry
    use HamiltonianData, only : ham
-   use HamiltonianActions, only : effective_field, set_reduced_direct_testing
+   use HamiltonianActions, only : effective_field
+   use HamiltonianBackend, only : set_reduced_direct_testing
    use InputData, only : ham_inp
    use ReducedStencil
 
