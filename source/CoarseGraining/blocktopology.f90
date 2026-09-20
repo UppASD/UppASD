@@ -1,6 +1,6 @@
 !-------------------------------------------------------------------------------
 ! MODULE: BlockTopology
-!> @brief Immutable regular spatial-block metadata for adaptive coarse graining.
+!> @brief Immutable regular spatial-block metadata for regular block topology.
 !>
 !> Construction is explicit: declaring a topology does not allocate anything.
 !> A successfully built topology contains only scalar descriptors and plain
@@ -158,24 +158,24 @@ contains
       if (geometry_mode == EXPLICIT_DEVICE) then
          if (Natom > 0 .and. NA == Natom) then
             call fail(BLOCK_TOPOLOGY_INVALID_GEOMETRY, &
-               'Adaptive coarse graining rejects EXPLICIT_DEVICE geometry with NA=Natom; '// &
+               'Block topology rejects EXPLICIT_DEVICE geometry with NA=Natom; '// &
                'coordinate-binned magnetic channels are not implemented and no NA-sized channel arrays were allocated')
          else
             call fail(BLOCK_TOPOLOGY_INVALID_GEOMETRY, &
-               'Adaptive coarse graining rejects EXPLICIT_DEVICE geometry; coordinate-binned magnetic channels '// &
+               'Block topology rejects EXPLICIT_DEVICE geometry; coordinate-binned magnetic channels '// &
                'are not implemented and no topology channel arrays were allocated')
          end if
          return
       end if
       if (Natom > 1 .and. NA == Natom) then
          call fail(BLOCK_TOPOLOGY_INVALID_GEOMETRY, &
-            'Adaptive coarse graining identifies NA=Natom as EXPLICIT_DEVICE geometry and rejects it; '// &
+            'Block topology identifies NA=Natom as EXPLICIT_DEVICE geometry and rejects it; '// &
             'coordinate-binned magnetic channels are not implemented and no NA-sized channel arrays were allocated')
          return
       end if
       if (geometry_mode /= REGULAR_REPLICATED_CELL) then
          call fail(BLOCK_TOPOLOGY_INVALID_GEOMETRY, &
-            'Adaptive coarse graining supports REGULAR_REPLICATED_CELL geometry only')
+            'Block topology supports REGULAR_REPLICATED_CELL geometry only')
          return
       end if
       if (NA <= 0 .or. Natom <= 0 .or. any(repetitions <= 0)) then
@@ -193,12 +193,12 @@ contains
       end if
       if (any(block_shape <= 0)) then
          call fail(BLOCK_TOPOLOGY_INVALID_BLOCK_SHAPE, &
-            'Adaptive coarse graining requires positive block dimensions')
+            'Block topology requires positive block dimensions')
          return
       end if
       if (any(mod(repetitions, block_shape) /= 0)) then
          call fail(BLOCK_TOPOLOGY_INVALID_BLOCK_SHAPE, &
-            'Adaptive coarse graining requires block dimensions that divide N1, N2, and N3 exactly')
+            'Block topology requires block dimensions that divide N1, N2, and N3 exactly')
          return
       end if
       if (size(basis_dynamic_channel) /= NA) then
@@ -214,7 +214,7 @@ contains
       n_dynamic_channels = maxval(basis_dynamic_channel)
       if (n_dynamic_channels <= 0) then
          call fail(BLOCK_TOPOLOGY_INVALID_CHANNEL_MAP, &
-            'Adaptive coarse graining requires at least one nonempty magnetic dynamical channel')
+            'Block topology requires at least one nonempty magnetic dynamical channel')
          return
       end if
       do channel = 1, n_dynamic_channels
@@ -292,7 +292,7 @@ contains
       ! I3*N2*N1*NA, basis fastest then I1, I2, I3 slowest -- see
       ! magnetizationinit.f90's identical loop nesting), NOT a block-major
       ! traversal counter: atom_to_block is queried downstream (selector
-      ! misalignment, polarization-gate channel restriction, static/adaptive
+      ! misalignment, polarization-gate channel restriction, and block
       ! ownership) using real atom indices taken from emom/bond lists, which
       ! are always in this canonical order, with no translation layer. A
       ! block-major counter here silently mislabels which physical atom

@@ -41,7 +41,7 @@ jobs:
             -DRUN_REG_TESTS=OFF \
             -DUSE_OPENMP=ON \
             -DUSE_MKL=OFF \
-            -DUSE_FFTW=OFF
+            -DUSE_FFTW=ON
 
       - name: Build from tracked source
         env:
