@@ -8,14 +8,12 @@ gpuHamiltonianCalculations.cpp
 gpuDipoleConvolution.cpp
 gpuLatticeConvolutionHamiltonian.cpp
 gpuMomentUpdater.cpp
-gpuAdaptiveMomentUpdater.cpp
 gpuSDSimulation.cpp
 gpuMCSimulation.cpp
 gpuSimulation.cpp
 gpuParallelizationHelper.cpp
 gpuMetropolis.cpp
 gpuMetropolis_bruteforce.cpp
-gpuAdaptiveRuntime.cpp
 )
 uppasd_mark_gpu_sources(${GPU_KERNEL_SOURCES})
 
@@ -34,14 +32,12 @@ gpuDipoleConvolution.hpp
 dipoleEwaldKernel.hpp
 dipoleOpenKernel.hpp
 gpuHamiltonianDeviceOps.hpp
-gpuAdaptiveRuntime.hpp
 gpuFftWrapper.hpp
 gpuLatticeConvolutionHamiltonian.hpp
 gpuSimulation.hpp
 gpuMetropolis.hpp
 gpuMetropolis_bruteforce.hpp
 gpuMomentUpdater.hpp
-gpuAdaptiveMomentUpdater.hpp
 gpuMultiscaleField.cpp
 gpuMultiscaleField.hpp
 gpuParallelizationHelper.hpp

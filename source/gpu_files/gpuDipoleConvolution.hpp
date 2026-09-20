@@ -167,10 +167,6 @@ public:
    bool kernelReady() const;
    const GpuDipoleConvolutionDescriptor& descriptor() const;
    const GpuDipoleFftLayout& fftLayout() const;
-   // Borrowed device view used by the adaptive owner after evaluate().
-   // The pointer remains owned by this convolution object.
-   const real* devicePaddedField() const;
-
    // Upload the complete Builder A displacement tensor, transform every
    // kernel batch, and store FFT(K)/Ngrid.  The input layout is
    // [cell + Ngrid*kernel_batch], with n1 fastest and

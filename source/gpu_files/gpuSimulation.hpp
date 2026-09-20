@@ -8,11 +8,7 @@
 #include "c_headers.hpp"
 #include "tensor.hpp"
 #include "gpuStructures.hpp"
-#include "gpuAdaptiveRuntime.hpp"
 #include "real_type.h"
-
-class GpuHamiltonianCalculations;
-class GpuDepondtIntegrator;
 
 class GpuSimulation {
 private:
@@ -30,14 +26,6 @@ private:
     deviceMeasurables gpuMeasurebles;//those are device matrices
     deviceHamiltonian gpuHamiltonian;//those are device matrices
     deviceEnergies gpuEnergies;
-    GpuAdaptiveRuntime gpuAdaptiveRuntime;
-    bool adaptiveMaskEnabled = false;
-    unsigned int adaptiveUpdateInterval = 1;
-    GpuAdaptiveSelectorPolicy adaptiveSelectorPolicy{};
-    GpuAdaptiveReconstructionPolicy adaptiveReconstructionPolicy{};
-    real adaptivePolarizationThreshold = real(0.9);
-    int adaptiveDiagnostics = 0;
-    double adaptiveEnergyJumpLimitJ = 0.0;
 
     const unsigned int maxThreads;
     const unsigned int maxBlocks;
@@ -93,11 +81,6 @@ public:
     void copyFromFortran();    // device to host 
     void copyToFortran();      // host to device
     void release();            // frees gpu matrices
-    bool adaptiveEnabled() const { return gpuAdaptiveRuntime.ready(); }
-    void advanceAdaptiveStep(std::size_t step,
-                             GpuHamiltonianCalculations* hamiltonian,
-                             GpuDepondtIntegrator* integrator,
-                             bool nextStepNeedsFullMaterialization);
 
     void gpuRunSimulation(const int whichsim, const int whichphase, const char bf);
 

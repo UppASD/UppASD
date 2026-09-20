@@ -4,9 +4,7 @@
 #include "gpuDepondtIntegrator.hpp"
 //#include "cudaGPUErrchk.hpp"
 #include "gpuHamiltonianCalculations.hpp"
-#include "gpuMeasurement.hpp"
 #include "gpuMomentUpdater.hpp"
-#include "gpuAdaptiveMomentUpdater.hpp"
 #include "gpuSimulation.hpp"
 #include "gpuStructures.hpp"
 #include "gpuStructures.hpp"
@@ -219,25 +217,10 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
 
    // Moment updater
    GpuMomentUpdater momUpdater(gpuSim.gpuLattice, gpuSim.SimParam.mompar, gpuSim.SimParam.initexc);
-   // CGP-03B: adaptive runs own their moment update end to end through a
-   // dedicated updater instead of GpuMomentUpdater, so GpuMomentUpdater's
-   // non-adaptive contract (used by momUpdater above whenever
-   // !gpuSim.adaptiveEnabled()) stays completely untouched. Constructed
-   // unconditionally, matching every other object in this scope, but its
-   // update method is only invoked in the adaptiveEnabled() branch below.
-   // See docs/CGP-03B_ADAPTIVE_MOMENT_UPDATER_EVIDENCE.md.
-   GpuAdaptiveMomentUpdater adaptiveMomUpdater(gpuSim.gpuLattice, gpuSim.SimParam.mompar,
-                                               gpuSim.SimParam.initexc);
    //Queue
    MeasurementQueue mqueue;
    // Measurement
    const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, gpuSim.gpuEnergies, mqueue, gpuSim.Flags.do_jtensor);
-   // CGP-03C: non-owning; null when MeasurementFactory chose FortranMeasurement
-   // (do_cuda_measurements != 'Y'), in which case adaptiveMomentUpdateNeedsFullLattice
-   // relies solely on the Fortran do_measurements oracle for that backend's own
-   // existing freshness guarantee -- see docs/CGP-03C_MOMENT_UPDATE_LOOKAHEAD_EVIDENCE.md.
-   GpuMeasurement* const gpuMeasurementForLookahead =
-      dynamic_cast<GpuMeasurement*>(measurement.get());
    //CPU residing measurements
    //CpuRestMeasurement cpuMeas(gpuSim.gpuLattice.emomM, gpuSim.gpuLattice.emom, gpuSim.gpuLattice.mmom, 
    //                gpuSim.gpuLattice.beff, gpuSim.cpuLattice.emomM, gpuSim.cpuLattice.emom,
@@ -288,12 +271,8 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
             (((mstep - 1) % gpuSim.SimParam.ene_step == 0) ||
              (gpuSim.Flags.do_cumu && ((mstep - 1) % gpuSim.SimParam.cumu_step == 0))));
 
-      // Adaptive CG owns the complete accepted short-range field path.  Do
-      // not run the ordinary all-atom Hamiltonian behind it.
-      if(!gpuSim.adaptiveEnabled()) {
-         hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
-         stopwatch.add("hamiltonian");
-      }
+      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
+      stopwatch.add("hamiltonian");
 
       // Measure
       measurement->measure(mstep);
@@ -304,62 +283,19 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
       // Print simulation status for each 5% of the simulation length
       printMdStatus(mstep, gpuSim);
 
-      // CGP-03D: computed once, before advanceAdaptiveStep, and reused both
-      // to gate its own OrdinaryStep atom-direction commit and, below, the
-      // moment update -- one decision, not two independently-derived ones
-      // that could silently drift apart. See
-      // docs/CGP-03D_ORDINARY_STEP_GATING_EVIDENCE.md.
-      const bool adaptiveNeedsFullMaterialization = gpuSim.adaptiveEnabled() &&
-         adaptiveMomentUpdateNeedsFullLattice(gpuMeasurementForLookahead, mstep,
-                                              rstep + nstep, nstep, rstep);
-      if(gpuSim.adaptiveEnabled()) {
-         gpuSim.advanceAdaptiveStep(mstep, &hamCalc, &integrator,
-                                    adaptiveNeedsFullMaterialization);
-         stopwatch.add("adaptive coarse graining");
-      } else {
-         // Perform first step of SDE solver
-         integrator.evolveFirst(gpuSim.gpuLattice);
-         stopwatch.add("evolution");
+      // Perform first step of SDE solver
+      integrator.evolveFirst(gpuSim.gpuLattice);
+      stopwatch.add("evolution");
 
-         // Apply the predictor field needed by the corrector without measuring it.
-         hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
-         stopwatch.add("hamiltonian");
+      // Apply the predictor field needed by the corrector without measuring it.
+      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
+      stopwatch.add("hamiltonian");
 
-         // Perform second (corrector) step of SDE solver
-         integrator.evolveSecond(gpuSim.gpuLattice);
-         stopwatch.add("evolution");
-      }
+      // Perform second (corrector) step of SDE solver
+      integrator.evolveSecond(gpuSim.gpuLattice);
+      stopwatch.add("evolution");
       // Update magnetic moments after time evolution step.
-      // CGP-03B/CGP-03C: adaptive runs use their own updater, never
-      // GpuMomentUpdater::update(). CGP-03C wires in the touched-only
-      // updateActiveOnly() (scoped to the freshly-refreshed, post-transition
-      // active list -- see docs/CGP-03C_MOMENT_UPDATE_LOOKAHEAD_EVIDENCE.md
-      // for why re-fetching activeAtomList()/activeAtomCount() here, rather
-      // than reusing advanceAdaptiveStep's pre-transition snapshot, is
-      // required and sufficient for both transition directions), falling
-      // back to a full updateFull() whenever adaptiveMomentUpdateNeedsFullLattice
-      // determines the next step's measurement/output traffic needs every
-      // atom's mmom/mmomi/emomM fresh.
-      if(gpuSim.adaptiveEnabled()) {
-         // CGP-05: advanceAdaptiveStep() used to end with a host-blocking
-         // GPU_STREAM_SYNC(gpuAdaptiveRuntime.stream()), which incidentally
-         // also guaranteed this moment update (production work stream)
-         // would see stream()'s coarse-atom commit
-         // (materializeCoarseAtoms()/publishProposedState()) before reading
-         // gpuLattice.emom2. That function now only records an event
-         // (markProgress()); this wait is the explicit replacement -- a
-         // device-side fence, not a host wait. See
-         // docs/CGP-05_HOST_BARRIER_REMOVAL_EVIDENCE.md section 2.
-         gpuSim.gpuAdaptiveRuntime.waitForProgress(ParallelizationHelperInstance.getWorkStream());
-         if(adaptiveNeedsFullMaterialization) {
-            adaptiveMomUpdater.updateFull();
-         } else {
-            adaptiveMomUpdater.updateActiveOnly(gpuSim.gpuAdaptiveRuntime.activeAtomList(),
-                                                gpuSim.gpuAdaptiveRuntime.activeAtomCount());
-         }
-      } else {
-         momUpdater.update();
-      }
+      momUpdater.update();
       stopwatch.add("moments");
 
       measurement->updateAC(mstep);
@@ -382,8 +318,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    // Final measure and print remaining measurements to file
 
    measure_ene = ((gpuSim.Flags.do_ene > 0 ) && (gpuSim.Flags.do_gpu_measurements));
-   if(!gpuSim.adaptiveEnabled())
-      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
+   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
 
    measurement->measure(rstep + nstep + 1);    
    correlation->measure(rstep + nstep + 1);  // TODO
