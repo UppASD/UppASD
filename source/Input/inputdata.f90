@@ -14,7 +14,6 @@ module InputData
 
    ! Derived type for Hamiltonian input data (see InputDataType module)
    type(ham_inp_t) :: ham_inp
-   type(adaptive_cg_config_t) :: adaptive_cg
 
    !---------------------------------------------------------------------------------
    ! Geometry and composition
@@ -567,10 +566,6 @@ contains
       gpu_dipole_mesh = 0
       gpu_dipole_mode_id = 0
       gpu_dipole_surface_id = 0
-
-      ! Feature-off is the canonical default and owns no auxiliary storage.
-      adaptive_cg = adaptive_cg_config_t()
-
 
       ! I/O OVF
       prn_ovf           = 'N'

@@ -754,30 +754,10 @@ contains
             adaptive_cg_state%gpu_transition_epoch,adaptive_cg_state%gpu_selector_scores, &
             adaptive_cg_state%runtime%coarse_resultant_mub,adaptive_cg_state%coarse_direction, &
             adaptive_cg_state%gpu_coarse_field,adaptive_cg_state%runtime%channel_moment_sum_mub)
-         call FortranData_setAdaptiveKernels( &
-            adaptive_cg_state%atom_moment_mub,adaptive_cg_state%atom_anisotropy_axis_count, &
-            adaptive_cg_state%atom_anisotropy_axis,adaptive_cg_state%atom_anisotropy_k1_j, &
-            adaptive_cg_state%atom_anisotropy_k2_j,adaptive_cg_state%projection%stencil_block, &
-            adaptive_cg_state%projection%shape_weight,adaptive_cg_state%gpu_bonds, &
-            adaptive_cg_state%bond_atom,adaptive_cg_state%bond_matrix_j, &
-            adaptive_cg_state%gpu_selector_edges, &
-            adaptive_cg_state%bond_atom,adaptive_cg_state%tensor%inverse_block_transpose_m1, &
-            adaptive_cg_state%tensor%exchange_stiffness_j_per_m, &
-            adaptive_cg_state%tensor%spiralization_j_per_m2, &
-            adaptive_cg_state%gpu_anisotropy_axis_count,adaptive_cg_state%gpu_anisotropy_axis, &
-            adaptive_cg_state%gpu_anisotropy_k1,adaptive_cg_state%gpu_anisotropy_k2, &
-            adaptive_cg_state%projection%normalization_floor, &
-            adaptive_cg_state%gpu_magnetic_moment_si, &
-            adaptive_cg_state%tensor%channel_gamma_per_t_s, &
-            adaptive_cg_state%tensor%channel_damping,adaptive_cg_state%gpu_adaptive_mask, &
-            adaptive_cg%update_interval,adaptive_cg%refine_threshold, &
-            adaptive_cg%coarsen_threshold,adaptive_cg%polarization_threshold, &
-            adaptive_cg%minimum_dwell_updates, &
-            adaptive_cg_state%gpu_buffer_dilation, &
-            adaptive_cg_state%gpu_reconstruction_scheme, &
-            adaptive_cg_state%reconstruction%cone_angle_rad, &
-            adaptive_cg_state%reconstruction%energy_jump_limit_j, &
-            adaptive_cg_state%gpu_diagnostics)
+         ! PURGE-02: the adaptive kernel staging call also consumed the
+         ! removed InputData%adaptive_cg configuration object. The remaining
+         ! adaptive bridge declarations and topology staging are retained for
+         ! the dedicated PURGE-03 bridge cleanup.
       endif
 
       call FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed)
