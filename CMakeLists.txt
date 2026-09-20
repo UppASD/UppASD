@@ -872,33 +872,24 @@ if (RUN_CUDA_TESTS)
 add_test(NAME cuda-tests  COMMAND python3 -u bergtest.py --file cudatests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
 endif (RUN_CUDA_TESTS)
 if(BUILD_TESTING)
-   # Canonical adaptive coarse-graining topology tests are deliberately
-   # independent of the dipole numerical kernels and the UppASD executable.
+   # BlockTopology is shared by surviving macrocell/coarse-block and dipole
+   # infrastructure; keep its focused geometry oracle under a neutral identity.
    add_executable(block_topology_tests
       ${CMAKE_SOURCE_DIR}/source/CoarseGraining/blocktopology.f90
-      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_block_topology.f90)
+      ${CMAKE_SOURCE_DIR}/tests/geometry/test_block_topology.f90)
    set_target_properties(block_topology_tests PROPERTIES
       Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/block_topology_tests)
-   add_test(NAME coarse-graining-block-topology COMMAND block_topology_tests)
+   add_test(NAME block-topology COMMAND block_topology_tests)
 
-   # CG-03 material extraction fixtures exercise the production stiffness
-   # module while keeping all calculation and validation I/O inside the test.
-   add_executable(stiffness_material_tests
-      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_stiffness_material.f90)
-   set_target_properties(stiffness_material_tests PROPERTIES
-      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/stiffness_material_tests)
-   target_link_libraries(stiffness_material_tests PRIVATE ${UppASD_LIB})
-   add_test(NAME coarse-graining-stiffness-material COMMAND stiffness_material_tests)
-
-   # RCG-02 analytic source-of-truth for the directed-pair DMI energy and
-   # both dimer fields.  It calls the independent CPU field entrypoints.
+   # Analytic directed-pair DMI convention oracle across the independent CPU
+   # field and energy entry points.
    add_executable(dmi_dimer_energy_tests
       ${CMAKE_SOURCE_DIR}/source/Hamiltonian/applyhamiltonian.f90
-      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_dmi_dimer_energy.f90)
+      ${CMAKE_SOURCE_DIR}/tests/hamiltonian/test_dmi_dimer_energy.f90)
    set_target_properties(dmi_dimer_energy_tests PROPERTIES
       Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/dmi_dimer_energy_tests)
    target_link_libraries(dmi_dimer_energy_tests PRIVATE ${UppASD_LIB})
-   add_test(NAME coarse-graining-dmi-dimer-energy COMMAND dmi_dimer_energy_tests)
+   add_test(NAME dmi-dimer-energy COMMAND dmi_dimer_energy_tests)
 
    # CPU-HAM-01A: the canonical production field path must produce identical
    # fields with energy enabled/disabled, while the energy reduction is gated.
@@ -983,565 +974,11 @@ if(BUILD_TESTING)
       add_test(NAME cpu-ham-j-plus-d COMMAND cpu_ham06_j_plus_d_tests)
    endif()
 
-   # RCG-09A.1: exact adaptive-setup predicates for reciprocal directed
-   # exchange/DMI lists, periodic-image aliasing, and ensemble moments.
-   add_executable(adaptive_hamiltonian_contract_tests
-      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_adaptive_hamiltonian_contract.f90)
-   set_target_properties(adaptive_hamiltonian_contract_tests PROPERTIES
-      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/adaptive_hamiltonian_contract_tests)
-   target_link_libraries(adaptive_hamiltonian_contract_tests PRIVATE ${UppASD_LIB})
-   add_test(NAME coarse-graining-adaptive-hamiltonian-contract
-      COMMAND adaptive_hamiltonian_contract_tests)
-
-   # CG-04 CPU reference tensor operator: explicit energy/field fixtures on
-   # cubic and skew canonical grids, independent of adaptive and GPU paths.
-   add_executable(coarse_tensor_operator_tests
-      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_coarse_tensor_operator.f90)
-   set_target_properties(coarse_tensor_operator_tests PROPERTIES
-      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/coarse_tensor_operator_tests)
-   target_link_libraries(coarse_tensor_operator_tests PRIVATE ${UppASD_LIB})
-   add_test(NAME coarse-graining-tensor-operator COMMAND coarse_tensor_operator_tests)
-
-   # RCG-04-FU4: production all-coarse exchange/DMI Fourier-mode sweep.
-   # The executable reports energy and linearized field-curvature ratios
-   # versus qh for several physical block sizes; its oracle is the exact
-   # symbol of physical_forward_gradient and its discrete transpose.
-   add_executable(coarse_dispersion_tests
-      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_coarse_dispersion.f90)
-   set_target_properties(coarse_dispersion_tests PROPERTIES
-      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/coarse_dispersion_tests)
-   target_link_libraries(coarse_dispersion_tests PRIVATE ${UppASD_LIB})
-   add_test(NAME coarse-graining-dispersion COMMAND coarse_dispersion_tests)
-
-   # CG-11 controlled two-sublattice CPU reference.  This target intentionally
-   # has no GPU dependency: GPU enablement remains blocked on this diagnostic
-   # gate and an independent physics review.
-   add_executable(multichannel_coarse_tensor_operator_tests
-      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_multichannel_coarse_tensor_operator.f90)
-   set_target_properties(multichannel_coarse_tensor_operator_tests PROPERTIES
-      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/multichannel_coarse_tensor_operator_tests)
-   target_link_libraries(multichannel_coarse_tensor_operator_tests PRIVATE ${UppASD_LIB})
-   add_test(NAME coarse-graining-multichannel-tensor-operator
-      COMMAND multichannel_coarse_tensor_operator_tests)
-
-   # CG-05 CPU smooth projection: normalized trilinear prolongation, exact
-   # adjoint restriction, read-only atomistic bilinear bonds, and spiral checks.
-   add_executable(smooth_projected_operator_tests
-      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_smooth_projected_operator.f90)
-   set_target_properties(smooth_projected_operator_tests PROPERTIES
-      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/smooth_projected_operator_tests)
-   target_link_libraries(smooth_projected_operator_tests PRIVATE ${UppASD_LIB})
-   add_test(NAME coarse-graining-smooth-projected-operator
-      COMMAND smooth_projected_operator_tests)
-
-   # CG-06 static CPU hybrid: limiting masks, conservative buffer ownership,
-   # normalized ghost reactions, patch/texture tests, and mesh refinement.
-   add_executable(static_hybrid_operator_tests
-      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_static_hybrid_operator.f90)
-   set_target_properties(static_hybrid_operator_tests PROPERTIES
-      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/static_hybrid_operator_tests)
-   target_link_libraries(static_hybrid_operator_tests PRIVATE ${UppASD_LIB})
-   add_test(NAME coarse-graining-static-hybrid-operator
-      COMMAND static_hybrid_operator_tests)
-
-   # RCG-07 (F-08): local directional-stencil dilation correctness (brute-
-   # force reference cross-check) and a wall-clock scaling negative control
-   # discriminating the fixed local algorithm from the previous
-   # all-block-by-all-seed quadratic scan.
-   add_executable(static_hybrid_dilation_scaling_tests
-      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_static_hybrid_dilation_scaling.f90)
-   set_target_properties(static_hybrid_dilation_scaling_tests PROPERTIES
-      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/static_hybrid_dilation_scaling_tests)
-   target_link_libraries(static_hybrid_dilation_scaling_tests PRIVATE ${UppASD_LIB})
-   add_test(NAME coarse-graining-static-hybrid-dilation-scaling
-      COMMAND static_hybrid_dilation_scaling_tests)
-
-   # RCG-09D: adaptive setup constructions that were sparse in storage but
-   # quadratic in work.  Bitwise equivalence against transcribed brute-force
-   # references for the unique-bond fold and the macro-block connectivity,
-   # plus wall-clock scaling negative controls discriminating the linearized
-   # constructions from the previous discovered-list and dense-scan ones.
-   add_executable(adaptive_setup_scaling_tests
-      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_adaptive_setup_scaling.f90)
-   set_target_properties(adaptive_setup_scaling_tests PROPERTIES
-      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/adaptive_setup_scaling_tests)
-   target_link_libraries(adaptive_setup_scaling_tests PRIVATE ${UppASD_LIB})
-   add_test(NAME coarse-graining-adaptive-setup-scaling
-      COMMAND adaptive_setup_scaling_tests)
-
-   # CG-07 is deliberately independent of field operators and reconstruction:
-   # criteria only produce requests, while the explicit state-machine sync
-   # point is solely responsible for changing block resolution.
-   add_executable(block_selector_tests
-      ${CMAKE_SOURCE_DIR}/source/CoarseGraining/blockselector.f90
-      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_block_selector.f90)
-   set_target_properties(block_selector_tests PROPERTIES
-      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/block_selector_tests)
-   add_test(NAME coarse-graining-block-selector COMMAND block_selector_tests)
-
-   # CG-08 transactional adaptive CPU orchestration: channel restriction,
-   # deterministic reconstruction, energy-gated rollback, safe compaction,
-   # complete-step timing, and representative texture transitions.
-   add_executable(adaptive_hybrid_solver_tests
-      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_adaptive_hybrid_solver.f90)
-   set_target_properties(adaptive_hybrid_solver_tests PROPERTIES
-      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/adaptive_hybrid_solver_tests)
-   target_link_libraries(adaptive_hybrid_solver_tests PRIVATE ${UppASD_LIB})
-   add_test(NAME coarse-graining-adaptive-hybrid-solver
-      COMMAND adaptive_hybrid_solver_tests)
-
-   # RCG-03 polarization safety gate (F-14): a single-channel block whose
-   # channel-resolved resultant/moment-sum ratio is below the accepted
-   # threshold, or whose resultant is undefined (near-zero, never
-   # normalized), must never be judged safe to coarsen.
-   add_executable(polarization_gate_tests
-      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_polarization_gate.f90)
-   set_target_properties(polarization_gate_tests PROPERTIES
-      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/polarization_gate_tests)
-   target_link_libraries(polarization_gate_tests PRIVATE ${UppASD_LIB})
-   add_test(NAME coarse-graining-polarization-gate
-      COMMAND polarization_gate_tests)
-
-   # RCG-04B deterministic moving-state generators (conical spiral, +-q
-   # chiral partner, periodic domain-wall pair). Host-only Python, no
-   # UppASD/FFT/CUDA/HIP dependency -- generator-level unit tests only, no
-   # production dynamics is run or claimed (see
-   # docs/RCG-04_MOVING_E2E_EVIDENCE.md, RCG-04B section).
-   add_test(NAME coarse-graining-moving-state-generator
-      COMMAND python3
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_moving_state_generator.py -v)
-
-   # RCG-04C reusable trajectory parsing/validation/comparison infrastructure
-   # (strict moment/restart-file parser, component/angular error, spin
-   # displacement, named energy/field series comparison, adaptive transition
-   # and resolution-state history parsing, conical-mode amplitude/phase/
-   # frequency, signed chirality, domain-wall centre/crossing tracking).
-   # Host-only Python, no UppASD/FFT/CUDA/HIP dependency -- parser/metric
-   # unit tests against synthetic records only; see
-   # docs/RCG-04_MOVING_E2E_EVIDENCE.md (RCG-04C section) for the separate
-   # manual production-output parsing evidence.
-   add_test(NAME coarse-graining-trajectory-evidence
-      COMMAND python3
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_trajectory_evidence.py -v)
-
-   # RCG-04D independent initial effective-field/torque oracle, calibrated
-   # against two real production runs (see torque_oracle.py's module
-   # docstring) but not deriving the RCG-04D moving-state acceptance gate
-   # from the diagnostic it gates. Host-only Python, no UppASD/CUDA/HIP
-   # dependency; see docs/RCG-04_MOVING_E2E_EVIDENCE.md (RCG-04D section).
-   add_test(NAME coarse-graining-torque-oracle
-      COMMAND python3
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_torque_oracle.py -v)
-
-   # RCG-04E independent structural nontriviality oracle for the all-coarse
-   # block state (uncalibrated against production's regularized stiffness
-   # fit -- see coarse_torque_oracle.py's module docstring for scope). Used
-   # only as a pre-acceptance gate; the RCG-04E accuracy oracle is the
-   # accepted all-fine atomistic trajectory. Host-only Python, no
-   # UppASD/CUDA/HIP dependency.
-   add_test(NAME coarse-graining-coarse-torque-oracle
-      COMMAND python3
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_coarse_torque_oracle.py -v)
-
-   # RCG-04F independent static fine/interface(buffer)/coarse block-ownership
-   # oracle, re-deriving StaticHybridOperator's periodic dilation algorithm
-   # from source (never reading production's own ownership arrays back).
-   # Host-only Python, no UppASD/CUDA/HIP dependency.
-   add_test(NAME coarse-graining-static-topology-oracle
-      COMMAND python3
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_static_topology_oracle.py -v)
-
-   # RCG-05C independent unit tests for the CPU/GPU ownership-map comparator
-   # itself (parsing, index-set comparison, self-consistency oracle
-   # cross-checks, bond coverage) against real captured stdout excerpts.
-   # Host-only Python, no UppASD/CUDA/HIP dependency; the e2e comparator run
-   # against the real executable is registered separately below
-   # (adaptive-cg-ownership-map-comparator, GPU-configured builds only).
-   add_test(NAME coarse-graining-ownership-map-comparator
-      COMMAND python3
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_ownership_map_comparator.py -v)
-
-   # RCG-06A MEM-LARGE-HOST (F-13/F-17): a minimal standalone reproduction of
-   # the automatic-array pattern eliminated from
-   # evaluate_static_hybrid_operator, deliberately NOT linked against
-   # asdlib -- it must remain valid fault-injection evidence independent of
-   # further production source changes. Driven only by
-   # run_mem_large_host.py, never registered as its own passing ctest target
-   # (it is expected to crash under the driver's constrained ulimit).
-   add_executable(stack_overflow_fault_injection_tests
-      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_stack_overflow_fault_injection.f90)
-   set_target_properties(stack_overflow_fault_injection_tests PROPERTIES
-      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/stack_overflow_fault_injection_tests)
-
-   # RCG-06A MEM-LARGE-HOST: the ordinary UppASD executable on a Natom=8000
-   # adaptive-CG host under a constrained process stack limit, paired with
-   # the fault-injection negative control above. See
-   # tests/coarse_graining/e2e/mem_large_host/README.md.
-   add_test(NAME adaptive-cg-mem-large-host
-      COMMAND python3
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_mem_large_host.py
-         --binary $<TARGET_FILE:${UppASD_EXE}>
-         --fault-injection-binary $<TARGET_FILE:stack_overflow_fault_injection_tests>)
-   set_tests_properties(adaptive-cg-mem-large-host
-      PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu"
-                 ENVIRONMENT "OMP_NUM_THREADS=1")
-
-   # RCG-06D RECONSTRUCTION-RNG-SPATIAL-STATS (F-20): standalone driver that
-   # emits raw draws from the literal tuple-seeded MINSTD reconstruction RNG
-   # (deterministic_reconstruction_seed + next_uniform, AdaptiveHybridSolver)
-   # over a sweep of block indices, so run_reconstruction_rng_spatial_stats.py
-   # can measure the spatial-correlation statistics F-20 asks for. See
-   # docs/RCG-06_MEMORY_TIMING_PRECISION_EVIDENCE.md (RCG-06D section) for
-   # the measured numbers and the zero-cone-vs-nonzero-cone scope decision.
-   add_executable(reconstruction_rng_spatial_stats_tests
-      ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_reconstruction_rng_spatial_stats.f90)
-   set_target_properties(reconstruction_rng_spatial_stats_tests PROPERTIES
-      Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/modules/reconstruction_rng_spatial_stats_tests)
-   target_link_libraries(reconstruction_rng_spatial_stats_tests PRIVATE ${UppASD_LIB})
-
-   set(RCG06D_GPU_BINARY_ARGS)
-   if(USE_CUDA OR USE_HIP)
-      list(APPEND RCG06D_GPU_BINARY_ARGS
-         --gpu-binary $<TARGET_FILE:reconstruction_rng_gpu_parity_tests>)
-   endif()
-   add_test(NAME adaptive-cg-reconstruction-rng-spatial-stats
-      COMMAND python3
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_reconstruction_rng_spatial_stats.py
-         --cpu-binary $<TARGET_FILE:reconstruction_rng_spatial_stats_tests>
-         ${RCG06D_GPU_BINARY_ARGS})
-   set_tests_properties(adaptive-cg-reconstruction-rng-spatial-stats
-      PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu")
-   if(USE_CUDA)
-      set_property(TEST adaptive-cg-reconstruction-rng-spatial-stats APPEND PROPERTY LABELS cg13-cuda)
-   elseif(USE_HIP)
-      set_property(TEST adaptive-cg-reconstruction-rng-spatial-stats APPEND PROPERTY LABELS cg13-hip)
-   endif()
-
-   # CG-13 labels are the repeatable suite interface.  Keep the focused
-   # analytic/reference tests in the CPU suite even in a GPU build; the
-   # production and backend tests below add the matching CUDA/HIP label.
-   set_tests_properties(
-      coarse-graining-block-topology
-      coarse-graining-dmi-dimer-energy
-      coarse-graining-stiffness-material
-      coarse-graining-tensor-operator
-      coarse-graining-multichannel-tensor-operator
-      coarse-graining-smooth-projected-operator
-      coarse-graining-static-hybrid-operator
-      coarse-graining-static-hybrid-dilation-scaling
-      coarse-graining-adaptive-setup-scaling
-      coarse-graining-block-selector
-      coarse-graining-adaptive-hybrid-solver
-      coarse-graining-polarization-gate
-      coarse-graining-moving-state-generator
-      coarse-graining-trajectory-evidence
-      coarse-graining-torque-oracle
-      coarse-graining-coarse-torque-oracle
-      coarse-graining-static-topology-oracle
-      coarse-graining-ownership-map-comparator
-      PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;reference")
-   if(USE_CUDA)
-      set_property(TEST
-         coarse-graining-block-topology
-         coarse-graining-stiffness-material
-         coarse-graining-tensor-operator
-         coarse-graining-multichannel-tensor-operator
-         coarse-graining-smooth-projected-operator
-         coarse-graining-static-hybrid-operator
-         coarse-graining-static-hybrid-dilation-scaling
-         coarse-graining-adaptive-setup-scaling
-         coarse-graining-block-selector
-         coarse-graining-adaptive-hybrid-solver
-         coarse-graining-polarization-gate
-         coarse-graining-moving-state-generator
-         coarse-graining-trajectory-evidence
-         coarse-graining-torque-oracle
-         coarse-graining-coarse-torque-oracle
-         coarse-graining-static-topology-oracle
-         coarse-graining-ownership-map-comparator
-         APPEND PROPERTY LABELS cg13-cuda)
-   elseif(USE_HIP)
-      set_property(TEST
-         coarse-graining-block-topology
-         coarse-graining-stiffness-material
-         coarse-graining-tensor-operator
-         coarse-graining-multichannel-tensor-operator
-         coarse-graining-smooth-projected-operator
-         coarse-graining-static-hybrid-operator
-         coarse-graining-static-hybrid-dilation-scaling
-         coarse-graining-adaptive-setup-scaling
-         coarse-graining-block-selector
-         coarse-graining-adaptive-hybrid-solver
-         coarse-graining-polarization-gate
-         coarse-graining-moving-state-generator
-         coarse-graining-trajectory-evidence
-         coarse-graining-torque-oracle
-         coarse-graining-coarse-torque-oracle
-         coarse-graining-static-topology-oracle
-         coarse-graining-ownership-map-comparator
-         APPEND PROPERTY LABELS cg13-hip)
-   endif()
-
-   # CG-10.5 must be exercised through the ordinary executable and ordinary
-   # inpsd.dat files; focused operator calls are insufficient evidence.
-   set(ADAPTIVE_CG_GPU_TEST_ARGS)
-   if(USE_CUDA OR USE_HIP)
-      list(APPEND ADAPTIVE_CG_GPU_TEST_ARGS
-         --gpu-binary $<TARGET_FILE:${UppASD_EXE}>)
-   endif()
-   add_test(NAME adaptive-cg-production-e2e
-      COMMAND python3
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_production_e2e.py
-         --binary $<TARGET_FILE:${UppASD_EXE}>
-         ${ADAPTIVE_CG_GPU_TEST_ARGS})
-   add_test(NAME adaptive-cg-setup-rejection-matrix
-      COMMAND python3
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_setup_rejection_matrix.py
-         --binary $<TARGET_FILE:${UppASD_EXE}>)
-   # RCG-04D E2E-MOVING-OFF-FINE: genuinely nonstationary feature-off/all-fine
-   # parity, independent-oracle nontriviality gate, and defect-sensitivity
-   # negative controls. CPU-only in this slice; CPU/GPU backend parity for
-   # this fixture is RCG-04I's responsibility, not claimed here.
-   add_test(NAME adaptive-cg-moving-off-fine
-      COMMAND python3
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_moving_off_fine.py
-         --binary $<TARGET_FILE:${UppASD_EXE}>)
-   set_tests_properties(adaptive-cg-moving-off-fine
-      PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;moving-parity"
-                 ENVIRONMENT "OMP_NUM_THREADS=1")
-   # RCG-04E E2E-MOVING-ALL-COARSE: all-coarse long-wavelength dynamics at
-   # multiple physical block sizes, validated against the accepted all-fine
-   # atomistic reference (re-verified at this fixture's own wide geometry),
-   # plus independent nontriviality gates and defect-sensitivity negative
-   # controls. CPU-only in this slice; CPU/GPU backend parity is RCG-04I's
-   # responsibility, not claimed here.
-   add_test(NAME adaptive-cg-moving-all-coarse
-      COMMAND python3
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_moving_all_coarse.py
-         --binary $<TARGET_FILE:${UppASD_EXE}>)
-   set_tests_properties(adaptive-cg-moving-all-coarse
-      PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;moving-parity"
-                 ENVIRONMENT "OMP_NUM_THREADS=1")
-   # RCG-04F E2E-MOVING-STATIC: static fine/interface(buffer)/coarse mixed-mask
-   # decomposition of the RCG-04E wide conical spiral, with independent
-   # ownership-topology verification, a fixed-physical-partition spatial-
-   # refinement pair, and shifted-interface sensitivity. CPU-only in this
-   # slice; CPU/GPU backend parity is RCG-04I's responsibility, not claimed
-   # here.
-   add_test(NAME adaptive-cg-moving-static-mixed
-      COMMAND python3
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_moving_static_mixed.py
-         --binary $<TARGET_FILE:${UppASD_EXE}>)
-   set_tests_properties(adaptive-cg-moving-static-mixed
-      PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;moving-parity"
-                 ENVIRONMENT "OMP_NUM_THREADS=1")
-   # RCG-04G E2E-MOVING-ADAPTIVE: accepted adaptive-resolution transitions
-   # during genuine domain-wall motion (a deterministic periodic Neel
-   # wall-pair, RCG-04B's domain_wall_pair_state), with independent
-   # nontriviality gates, wall-centre/block-boundary-crossing tracking, full
-   # transition-history and RCG-03 polarization-safety assertions, and
-   # defect-sensitivity negative controls. CPU-only in this slice; CPU/GPU
-   # backend parity is RCG-04I's responsibility, not claimed here.
-   add_test(NAME adaptive-cg-moving-adaptive-wall
-      COMMAND python3
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_moving_adaptive_wall.py
-         --binary $<TARGET_FILE:${UppASD_EXE}>)
-   set_tests_properties(adaptive-cg-moving-adaptive-wall
-      PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;moving-parity"
-                 ENVIRONMENT "OMP_NUM_THREADS=1")
-   # RCG-04H DMI-HYBRID-CROSSING: RCG-04B's deterministic +q/-q chiral-partner
-   # pair on the RCG-04F fine/interface/coarse partition, with DMI and
-   # uniaxial anisotropy both enabled, asserting signed chirality, +q/-q DMI
-   # energy ordering, named DMI/anisotropy energy series, a complete
-   # mixed-vs-all-fine trajectory comparison, a spatial-refinement pair, and
-   # DMI-specific interface ownership -- plus a sign-reversed-DMI negative
-   # control against a fixed handedness oracle anchored to RCG-02. CPU-only
-   # in this slice; CPU/GPU backend parity is RCG-04I's responsibility, not
-   # claimed here.
-   add_test(NAME adaptive-cg-moving-dmi-chiral
-      COMMAND python3
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_moving_dmi_chiral.py
-         --binary $<TARGET_FILE:${UppASD_EXE}>)
-   set_tests_properties(adaptive-cg-moving-dmi-chiral
-      PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;moving-parity"
-                 ENVIRONMENT "OMP_NUM_THREADS=1")
-   # RCG-04I: CPU/GPU backend precision parity for every RCG-04D-H accepted
-   # moving fixture (this build's own executable run twice per fixture --
-   # once as-is for the CPU path, once with an appended do_gpu/do_gpu_llg
-   # block for the GPU path -- see run_moving_backend_parity.py's module
-   # docstring for why one CUDA/HIP-enabled binary suffices for both legs).
-   # Only meaningful, and only registered, in a GPU-enabled configuration;
-   # a plain CPU build has no second backend to compare against and does
-   # not register this test (matching adaptive-cg-production-e2e's
-   # existing --gpu-binary-only-if-GPU-configured pattern).
-   set(RCG04I_GPU_BINARY_ARGS)
-   if(USE_CUDA)
-      set(RCG04I_BACKEND_LABEL cg13-cuda)
-      if(UPPASD_PRECISION STREQUAL "SINGLE")
-         list(APPEND RCG04I_GPU_BINARY_ARGS --cuda-fp32-binary $<TARGET_FILE:${UppASD_EXE}>)
-      else()
-         list(APPEND RCG04I_GPU_BINARY_ARGS --cuda-fp64-binary $<TARGET_FILE:${UppASD_EXE}>)
-      endif()
-   elseif(USE_HIP)
-      set(RCG04I_BACKEND_LABEL cg13-hip)
-      if(UPPASD_PRECISION STREQUAL "SINGLE")
-         list(APPEND RCG04I_GPU_BINARY_ARGS --hip-fp32-binary $<TARGET_FILE:${UppASD_EXE}>)
-      else()
-         list(APPEND RCG04I_GPU_BINARY_ARGS --hip-fp64-binary $<TARGET_FILE:${UppASD_EXE}>)
-      endif()
-   endif()
-   if(USE_CUDA OR USE_HIP)
-      add_test(NAME adaptive-cg-moving-backend-parity
-         COMMAND python3
-            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_moving_backend_parity.py
-            --cpu-binary $<TARGET_FILE:${UppASD_EXE}>
-            ${RCG04I_GPU_BINARY_ARGS}
-            --workspace-root ${CMAKE_CURRENT_BINARY_DIR}/rcg04i_backend_parity_workspace)
-      set_tests_properties(adaptive-cg-moving-backend-parity
-         PROPERTIES LABELS "coarse-graining;cg13;${RCG04I_BACKEND_LABEL};moving-parity;backend-parity"
-                    ENVIRONMENT "OMP_NUM_THREADS=1")
-   endif()
-   # RCG-06C (F-18): CPU/GPU adaptive-CG phase-timing reconciliation.  Reuses
-   # RCG-04I's fixture list, workspace preparation, and single-fixture
-   # runner (run_moving_backend_parity.py) rather than a new mechanism.  Runs
-   # moving_wall_adaptive (the only tracked fixture exercising every phase,
-   # including the selector/transition path) and asserts the printed
-   # wall/phase_sum/unaccounted reconciliation lines are internally
-   # consistent and phase_sum never materially exceeds wall time.  The GPU
-   # leg only runs, and is only registered, in a GPU-enabled configuration
-   # (the same UppASD_EXE binary runs both legs, matching RCG-04I's
-   # mechanism); a plain CPU build still runs and asserts the CPU leg.
-   set(RCG06C_GPU_BINARY_ARGS)
-   if(USE_CUDA OR USE_HIP)
-      list(APPEND RCG06C_GPU_BINARY_ARGS --gpu-binary $<TARGET_FILE:${UppASD_EXE}>)
-   endif()
-   add_test(NAME adaptive-cg-timing-reconciliation
-      COMMAND python3
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_timing_reconciliation.py
-         --cpu-binary $<TARGET_FILE:${UppASD_EXE}>
-         ${RCG06C_GPU_BINARY_ARGS}
-         --workspace-root ${CMAKE_CURRENT_BINARY_DIR}/rcg06c_timing_reconciliation_workspace)
-   set_tests_properties(adaptive-cg-timing-reconciliation
-      PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;moving-parity"
-                 ENVIRONMENT "OMP_NUM_THREADS=1")
-   if(USE_CUDA)
-      set_property(TEST adaptive-cg-timing-reconciliation APPEND PROPERTY LABELS cg13-cuda)
-   elseif(USE_HIP)
-      set_property(TEST adaptive-cg-timing-reconciliation APPEND PROPERTY LABELS cg13-hip)
-   endif()
-   # RCG-05C: CPU/GPU ownership-map comparator run against the real
-   # executable -- every RCG-04I adaptive_cg=True moving fixture (regression,
-   # must match exactly) plus the new e2e/ownership_aniso_buffer fixture
-   # (defect demonstration: CPU matches the correct per-axis dilation
-   # oracle, GPU matches the isotropic-collapsed one). Same
-   # GPU-binary-only-if-GPU-configured pattern as RCG-04I immediately above.
-   set(RCG05C_GPU_BINARY_ARGS)
-   if(USE_CUDA)
-      set(RCG05C_BACKEND_LABEL cg13-cuda)
-      if(UPPASD_PRECISION STREQUAL "SINGLE")
-         list(APPEND RCG05C_GPU_BINARY_ARGS --cuda-fp32-binary $<TARGET_FILE:${UppASD_EXE}>)
-      else()
-         list(APPEND RCG05C_GPU_BINARY_ARGS --cuda-fp64-binary $<TARGET_FILE:${UppASD_EXE}>)
-      endif()
-   elseif(USE_HIP)
-      set(RCG05C_BACKEND_LABEL cg13-hip)
-      if(UPPASD_PRECISION STREQUAL "SINGLE")
-         list(APPEND RCG05C_GPU_BINARY_ARGS --hip-fp32-binary $<TARGET_FILE:${UppASD_EXE}>)
-      else()
-         list(APPEND RCG05C_GPU_BINARY_ARGS --hip-fp64-binary $<TARGET_FILE:${UppASD_EXE}>)
-      endif()
-   endif()
-   # RCG-05D: the buffer-width scalarization defect RCG-05C demonstrated
-   # above is now fixed (per-axis dilation restored end to end). GPU's own
-   # reported map, re-dilated from GPU's own FINE seed set, must match the
-   # correct per-axis oracle and no longer the isotropic-collapsed one --
-   # --expect-buffer-width-fixed isolates that claim from a separate,
-   # already-documented seed-set gap (GPU's hardAtomisticBlockMask is
-   # sourced only from the polarization gate, not cg_static_mask_file) that
-   # keeps the full CPU/GPU maps from agreeing exactly on this fixture and
-   # is out of RCG-05D's authorized scope. This registration is also the
-   # permanent regression against the buffer-width defect being
-   # reintroduced: if bufferDilationBlocks were ever scalarized again, GPU
-   # would once more match the isotropic oracle and this assertion would
-   # fail.
-   if(USE_CUDA OR USE_HIP)
-      add_test(NAME adaptive-cg-ownership-map-comparator
-         COMMAND python3
-            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_ownership_map_comparator.py
-            --cpu-binary $<TARGET_FILE:${UppASD_EXE}>
-            ${RCG05C_GPU_BINARY_ARGS}
-            --expect-buffer-width-fixed
-            --workspace-root ${CMAKE_CURRENT_BINARY_DIR}/rcg05c_ownership_comparator_workspace)
-      set_tests_properties(adaptive-cg-ownership-map-comparator
-         PROPERTIES LABELS "coarse-graining;cg13;${RCG05C_BACKEND_LABEL};moving-parity;backend-parity;ownership"
-                    ENVIRONMENT "OMP_NUM_THREADS=1")
-   endif()
-   # RCG-05F: extends RCG-05C's ownership-map comparator (identical
-   # --cpu-binary/GPU-binary-args pattern, GPU-configured builds only, since
-   # this exercises gpu_dipole_mode EWALD3D_FFT which requires do_gpu=Y) to
-   # confirm the regular-grid FFT dipole does not perturb fine/buffer/coarse
-   # ownership: a genuinely anisotropic RCG-05B-generator fixture
-   # (ownership_dipole_unequal_width) plus the pre-existing RCG-04-era
-   # gpu_fft_static_mixed/parity_static_cpu dipole pair, both compared by
-   # RCG-05C's full per-block identity comparator rather than an aggregate
-   # count.
-   if(USE_CUDA OR USE_HIP)
-      add_test(NAME adaptive-cg-dipole-ownership-check
-         COMMAND python3
-            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/run_dipole_ownership_check.py
-            --cpu-binary $<TARGET_FILE:${UppASD_EXE}>
-            ${RCG05C_GPU_BINARY_ARGS}
-            --workspace-root ${CMAKE_CURRENT_BINARY_DIR}/rcg05f_dipole_ownership_workspace)
-      set_tests_properties(adaptive-cg-dipole-ownership-check
-         PROPERTIES LABELS "coarse-graining;cg13;${RCG05C_BACKEND_LABEL};backend-parity;ownership"
-                    ENVIRONMENT "OMP_NUM_THREADS=1")
-   endif()
-   add_test(NAME adaptive-cg-fixture-dependencies
-      COMMAND python3
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/audit_fixture_dependencies.py)
-   set_tests_properties(adaptive-cg-fixture-dependencies
-      PROPERTIES LABELS "coarse-graining;cg13;packaging")
-   set_tests_properties(adaptive-cg-setup-rejection-matrix
-      PROPERTIES LABELS "coarse-graining;cg13;cg13-cpu;rejection"
-                 ENVIRONMENT "OMP_NUM_THREADS=1")
-   if(USE_CUDA)
-      set(CG13_PRODUCTION_LABEL cg13-cuda)
-   elseif(USE_HIP)
-      set(CG13_PRODUCTION_LABEL cg13-hip)
-   else()
-      set(CG13_PRODUCTION_LABEL cg13-cpu)
-   endif()
-   set_tests_properties(adaptive-cg-setup-rejection-matrix
-      PROPERTIES LABELS "coarse-graining;cg13;${CG13_PRODUCTION_LABEL};rejection")
-   set_tests_properties(adaptive-cg-production-e2e
-      PROPERTIES LABELS "coarse-graining;cg13;${CG13_PRODUCTION_LABEL};production"
-                 ENVIRONMENT "OMP_NUM_THREADS=1")
-
-   # RCG-05F: reuses RCG-04G's transition-history infrastructure
-   # (trajectory_evidence.parse_transition_events/parse_resolution_state_history)
-   # to confirm ownership invariants (a complete, well-formed fine/buffer/
-   # coarse partition; no accepted transition silently dropped; no rejected
-   # transition silently applied) hold across every recorded mask-rebuild
-   # transition on ownership_aniso_buffer, not only at the final snapshot.
-   # CPU-only: trajectory_evidence.py's own module docstring already
-   # documents GPU stdout has no per-event transition log.
-   add_test(NAME adaptive-cg-transition-ownership-invariants
-      COMMAND python3
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/check_transition_ownership_invariants.py
-         --cpu-binary $<TARGET_FILE:${UppASD_EXE}>
-         --workspace-root ${CMAKE_CURRENT_BINARY_DIR}/rcg05f_transition_invariants_workspace)
-   set_tests_properties(adaptive-cg-transition-ownership-invariants
-      PROPERTIES LABELS "coarse-graining;cg13;${CG13_PRODUCTION_LABEL};ownership"
-                 ENVIRONMENT "OMP_NUM_THREADS=1")
-
    # Luna's host-only OPEN_FFT oracle has no UppASD, FFT, CUDA, or HIP
    # dependency.  Keep it runnable before the production open builder exists.
    add_test(NAME dipole-open-fft-oracle
       COMMAND python3 ${CMAKE_SOURCE_DIR}/tests/dipole_validation/test_open_fft_oracle.py -v)
 
-   # Backend-neutral host-fp64 OPEN_FFT builder tests.  These targets construct
-   # and apply only the finite padded tensor; they add no production selector,
-   # Fortran bridge, FFT backend, CUDA/HIP context, or periodic expected value.
    add_executable(dipole_open_host_tests
       ${CMAKE_SOURCE_DIR}/source/gpu_files/dipoleOpenKernel.cpp
       ${CMAKE_SOURCE_DIR}/tests/dipole_validation/test_host_open_dipole_kernel.cpp)
@@ -1563,365 +1000,32 @@ if(BUILD_TESTING)
    target_include_directories(dipole_ewald_host_tests PRIVATE ${CMAKE_SOURCE_DIR}/source/gpu_files)
    add_test(NAME dipole-ewald-host-builder COMMAND dipole_ewald_host_tests)
 
-   # This target is intentionally built by CMake with the active GPU backend;
-   # do not recompile a driver from Python/nvcc.  It exercises the complete
-   # Builder A tensor upload, batched kernel R2C, and stored-spectrum contract.
    if(USE_CUDA OR USE_HIP)
-      # RCG-02 device half of DMI-DIMER-CPU-GPU.  The test runs the actual
-      # hamdev::dm_field device helper, rather than reproducing it on host.
+      if(USE_CUDA)
+         set(DIPOLE_GPU_LABEL cuda)
+      else()
+         set(DIPOLE_GPU_LABEL hip)
+      endif()
+
+      # Independent GPU DMI dimer oracle; the helper is part of the ordinary
+      # GPU Hamiltonian device layer, independent of the removed runtime.
       add_executable(gpu_dmi_dimer_tests
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_dmi_dimer.cpp)
+         ${CMAKE_SOURCE_DIR}/tests/hamiltonian/test_gpu_dmi_dimer.cpp)
       target_include_directories(gpu_dmi_dimer_tests PRIVATE
          ${CMAKE_SOURCE_DIR}/source/gpu_files)
       if(USE_CUDA)
-         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_dmi_dimer.cpp
+         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/hamiltonian/test_gpu_dmi_dimer.cpp
             PROPERTIES LANGUAGE CUDA)
          target_compile_definitions(gpu_dmi_dimer_tests PRIVATE CUDA_V)
          target_link_libraries(gpu_dmi_dimer_tests PRIVATE CUDA::cudart)
       else()
-         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_dmi_dimer.cpp
+         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/hamiltonian/test_gpu_dmi_dimer.cpp
             PROPERTIES LANGUAGE HIP)
          target_compile_definitions(gpu_dmi_dimer_tests PRIVATE HIP_V)
       endif()
-      add_test(NAME coarse-graining-gpu-dmi-dimer COMMAND gpu_dmi_dimer_tests)
-      set_tests_properties(coarse-graining-gpu-dmi-dimer PROPERTIES SKIP_RETURN_CODE 77)
-      if(USE_CUDA)
-         set_tests_properties(coarse-graining-gpu-dmi-dimer
-            PROPERTIES LABELS "coarse-graining;cg13;cg13-cuda;reference")
-      else()
-         set_tests_properties(coarse-graining-gpu-dmi-dimer
-            PROPERTIES LABELS "coarse-graining;cg13;cg13-hip;reference")
-      endif()
-
-      # RCG-06B ENERGY-FP32-ACCUM (F-11): standalone microbenchmark isolating
-      # the atomicAdd accumulation-order defect class from the full adaptive
-      # CG physics pipeline. Deliberately NOT linked against asdlib, matching
-      # RCG-06A's stack_overflow_fault_injection precedent. Shares the exact
-      # atomicAddEnergyTerm CAS-loop helper (gpuAtomicDouble.hpp) that the
-      # production kernels in gpuAdaptiveRuntime.cpp use.
-      add_executable(energy_fp32_accum_tests
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_energy_fp32_accum.cpp)
-      target_include_directories(energy_fp32_accum_tests PRIVATE
-         ${CMAKE_SOURCE_DIR}/source/gpu_files)
-      if(USE_CUDA)
-         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_energy_fp32_accum.cpp
-            PROPERTIES LANGUAGE CUDA)
-         target_compile_definitions(energy_fp32_accum_tests PRIVATE CUDA_V)
-         target_link_libraries(energy_fp32_accum_tests PRIVATE CUDA::cudart)
-      else()
-         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_energy_fp32_accum.cpp
-            PROPERTIES LANGUAGE HIP)
-         target_compile_definitions(energy_fp32_accum_tests PRIVATE HIP_V)
-      endif()
-      add_test(NAME adaptive-cg-energy-fp32-accum COMMAND energy_fp32_accum_tests)
-      set_tests_properties(adaptive-cg-energy-fp32-accum PROPERTIES SKIP_RETURN_CODE 77)
-      if(USE_CUDA)
-         set_tests_properties(adaptive-cg-energy-fp32-accum
-            PROPERTIES LABELS "coarse-graining;cg13;cg13-cuda")
-      else()
-         set_tests_properties(adaptive-cg-energy-fp32-accum
-            PROPERTIES LABELS "coarse-graining;cg13;cg13-hip")
-      endif()
-
-      # CGP-00: standalone microbenchmark sweeping local/block/final
-      # accumulator precision through the literal RCG-09B block-tree
-      # reduction (reduceAdaptiveEnergyBlockT, gpuAtomicDouble.hpp), the
-      # question docs/CGP_work.md CGP-00 asks. Deliberately NOT linked
-      # against asdlib, matching RCG-06B's energy_fp32_accum precedent, and
-      # deliberately kept separate from that fixture rather than repurposing
-      # it: that one is protected historical evidence for the older,
-      # already-fixed flat-atomicAdd defect class.
-      add_executable(energy_hierarchical_precision_tests
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_energy_hierarchical_precision.cpp)
-      target_include_directories(energy_hierarchical_precision_tests PRIVATE
-         ${CMAKE_SOURCE_DIR}/source/gpu_files)
-      if(USE_CUDA)
-         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_energy_hierarchical_precision.cpp
-            PROPERTIES LANGUAGE CUDA)
-         target_compile_definitions(energy_hierarchical_precision_tests PRIVATE CUDA_V)
-         target_link_libraries(energy_hierarchical_precision_tests PRIVATE CUDA::cudart)
-      else()
-         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_energy_hierarchical_precision.cpp
-            PROPERTIES LANGUAGE HIP)
-         target_compile_definitions(energy_hierarchical_precision_tests PRIVATE HIP_V)
-      endif()
-      add_test(NAME adaptive-cg-energy-hierarchical-precision COMMAND energy_hierarchical_precision_tests)
-      set_tests_properties(adaptive-cg-energy-hierarchical-precision PROPERTIES SKIP_RETURN_CODE 77)
-      if(USE_CUDA)
-         set_tests_properties(adaptive-cg-energy-hierarchical-precision
-            PROPERTIES LABELS "coarse-graining;cg13;cg13-cuda")
-      else()
-         set_tests_properties(adaptive-cg-energy-hierarchical-precision
-            PROPERTIES LABELS "coarse-graining;cg13;cg13-hip")
-      endif()
-
-      # RCG-06D RECONSTRUCTION-RNG-SPATIAL-STATS GPU companion (F-20):
-      # standalone, deliberately NOT linked against asdlib, matching
-      # RCG-06B's energy_fp32_accum precedent. Shares the literal device
-      # generator (adaptiveTupleSeed/adaptiveNextUniform,
-      # gpuAdaptiveReconstructionRng.hpp) that gpuAdaptiveRuntime.cpp's
-      # production kernels use. Not registered as its own ctest target --
-      # only used as --gpu-binary by
-      # adaptive-cg-reconstruction-rng-spatial-stats (registered in the
-      # host-side block above), matching stack_overflow_fault_injection_tests'
-      # pairing pattern.
-      add_executable(reconstruction_rng_gpu_parity_tests
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_reconstruction_rng_gpu_parity.cpp)
-      target_include_directories(reconstruction_rng_gpu_parity_tests PRIVATE
-         ${CMAKE_SOURCE_DIR}/source/gpu_files)
-      if(USE_CUDA)
-         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_reconstruction_rng_gpu_parity.cpp
-            PROPERTIES LANGUAGE CUDA)
-         target_compile_definitions(reconstruction_rng_gpu_parity_tests PRIVATE CUDA_V)
-         target_link_libraries(reconstruction_rng_gpu_parity_tests PRIVATE CUDA::cudart)
-      else()
-         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_reconstruction_rng_gpu_parity.cpp
-            PROPERTIES LANGUAGE HIP)
-         target_compile_definitions(reconstruction_rng_gpu_parity_tests PRIVATE HIP_V)
-      endif()
-      if(UPPASD_PRECISION STREQUAL "SINGLE")
-         target_compile_definitions(reconstruction_rng_gpu_parity_tests PRIVATE SINGLE_PREC)
-      endif()
-
-      # CG-09/CG-10 immutable topology transfer, mutable block/channel
-      # storage, compact work scheduling, tensor/interface/adaptive parity,
-      # measured phase boundaries, and cleanup accounting on the active
-      # CUDA/HIP backend.
-      add_executable(gpu_adaptive_runtime_tests
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_adaptive_runtime.cpp)
-      target_include_directories(gpu_adaptive_runtime_tests PRIVATE
-         ${CMAKE_SOURCE_DIR}/source/gpu_files
-         ${CMAKE_SOURCE_DIR}/source/gpu_files/measurement)
-      target_link_libraries(gpu_adaptive_runtime_tests PRIVATE ${UppASD_LIB})
-      if(USE_CUDA)
-         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_adaptive_runtime.cpp
-            PROPERTIES LANGUAGE CUDA)
-         target_compile_definitions(gpu_adaptive_runtime_tests PRIVATE CUDA_V)
-         target_link_libraries(gpu_adaptive_runtime_tests PRIVATE CUDA::cudart)
-      else()
-         set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_adaptive_runtime.cpp
-            PROPERTIES LANGUAGE HIP)
-         target_compile_definitions(gpu_adaptive_runtime_tests PRIVATE HIP_V)
-      endif()
-      if(UPPASD_PRECISION STREQUAL "SINGLE")
-         target_compile_definitions(gpu_adaptive_runtime_tests PRIVATE SINGLE_PREC)
-      endif()
-      add_test(NAME coarse-graining-gpu-adaptive-runtime COMMAND gpu_adaptive_runtime_tests)
-      if(USE_CUDA)
-         set(CG13_GPU_LABEL cg13-cuda)
-      else()
-         set(CG13_GPU_LABEL cg13-hip)
-      endif()
-      set_tests_properties(coarse-graining-gpu-adaptive-runtime
-         PROPERTIES LABELS "coarse-graining;cg13;${CG13_GPU_LABEL};reference")
-
-      # RCG-09A.2: full natural active lists must be bitwise identical to the
-      # ordinary production Depondt predictor/corrector at T=0 and T>0.  The
-      # fixture also reverses a strict subset to prove compact-list position
-      # never becomes a physical atom or RNG identity.
-      # CGP-06B: additionally proves the active-scoped GpuThermfield::randomize()
-      # overload writes exactly the active list (poisoned-buffer scoping check)
-      # and carries two negative controls (slot-indexed write, skipped
-      # generator advancement) that must themselves fail to be discriminating.
-      add_executable(gpu_depondt_active_atoms_tests
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_depondt_active_atoms.cpp)
-      target_include_directories(gpu_depondt_active_atoms_tests PRIVATE
-         ${CMAKE_SOURCE_DIR}/source/gpu_files
-         ${CMAKE_SOURCE_DIR}/source/gpu_files/measurement)
-      target_link_libraries(gpu_depondt_active_atoms_tests PRIVATE ${UppASD_LIB})
-      if(USE_CUDA)
-         set_source_files_properties(
-            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_depondt_active_atoms.cpp
-            PROPERTIES LANGUAGE CUDA)
-         target_compile_definitions(gpu_depondt_active_atoms_tests PRIVATE CUDA_V)
-         target_link_libraries(gpu_depondt_active_atoms_tests PRIVATE CUDA::cudart)
-      else()
-         set_source_files_properties(
-            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_depondt_active_atoms.cpp
-            PROPERTIES LANGUAGE HIP)
-         target_compile_definitions(gpu_depondt_active_atoms_tests PRIVATE HIP_V)
-      endif()
-      if(UPPASD_PRECISION STREQUAL "SINGLE")
-         target_compile_definitions(gpu_depondt_active_atoms_tests PRIVATE SINGLE_PREC)
-      endif()
-      add_test(NAME gpu-depondt-active-atoms COMMAND gpu_depondt_active_atoms_tests)
-      set_tests_properties(gpu-depondt-active-atoms PROPERTIES SKIP_RETURN_CODE 77
-         LABELS "coarse-graining;cg13;${CG13_GPU_LABEL};reference")
-
-      # CGP-03B: GpuAdaptiveMomentUpdater must reproduce GpuMomentUpdater
-      # bitwise (updateFull(), and updateActiveOnly() given every atom), and
-      # must leave every atom outside a genuine active subset pinned at its
-      # pre-call value (negative control) -- see
-      # docs/CGP-03B_ADAPTIVE_MOMENT_UPDATER_EVIDENCE.md.
-      add_executable(gpu_adaptive_moment_updater_tests
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_adaptive_moment_updater.cpp)
-      target_include_directories(gpu_adaptive_moment_updater_tests PRIVATE
-         ${CMAKE_SOURCE_DIR}/source/gpu_files
-         ${CMAKE_SOURCE_DIR}/source/gpu_files/measurement)
-      target_link_libraries(gpu_adaptive_moment_updater_tests PRIVATE ${UppASD_LIB})
-      if(USE_CUDA)
-         set_source_files_properties(
-            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_adaptive_moment_updater.cpp
-            PROPERTIES LANGUAGE CUDA)
-         target_compile_definitions(gpu_adaptive_moment_updater_tests PRIVATE CUDA_V)
-         target_link_libraries(gpu_adaptive_moment_updater_tests PRIVATE CUDA::cudart)
-      else()
-         set_source_files_properties(
-            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/test_gpu_adaptive_moment_updater.cpp
-            PROPERTIES LANGUAGE HIP)
-         target_compile_definitions(gpu_adaptive_moment_updater_tests PRIVATE HIP_V)
-      endif()
-      if(UPPASD_PRECISION STREQUAL "SINGLE")
-         target_compile_definitions(gpu_adaptive_moment_updater_tests PRIVATE SINGLE_PREC)
-      endif()
-      add_test(NAME gpu-adaptive-moment-updater COMMAND gpu_adaptive_moment_updater_tests)
-      set_tests_properties(gpu-adaptive-moment-updater PROPERTIES SKIP_RETURN_CODE 77
-         LABELS "coarse-graining;cg13;${CG13_GPU_LABEL};reference")
-
-      # RCG-05E: compute-sanitizer racecheck/memcheck/synccheck/initcheck
-      # against dilateAdaptiveState specifically (--kernel-name), run through
-      # gpu_adaptive_runtime_tests above, which already launches it with a
-      # nonzero per-axis buffer width. Kept out of cg13-cuda/cg13-hip (a
-      # dedicated "sanitizer" label instead): sanitized runs carry real
-      # instrumentation overhead and an extra tool dependency neither of the
-      # baseline regression labels should require. compute-sanitizer ships
-      # alongside nvcc in every CUDA toolkit that can build USE_CUDA, so
-      # find_program only fails to register this test on a CUDA build whose
-      # toolkit installation was stripped of it. HIP's equivalent
-      # (rocprof/rocgdb-based race detection) is not wired here: this
-      # repository has no HIP toolchain to build or verify it against (see
-      # RCG-04-FU1's still-open deferral); recorded as a deferral, not
-      # attempted blind.
-      find_program(UPPASD_COMPUTE_SANITIZER NAMES compute-sanitizer)
-      if(USE_CUDA AND UPPASD_COMPUTE_SANITIZER)
-         add_test(NAME adaptive-cg-dilation-sanitizer
-            COMMAND python3
-               ${CMAKE_SOURCE_DIR}/tests/gpu_regression/sanitize.py
-               --dilation-kernel
-               --binary $<TARGET_FILE:gpu_adaptive_runtime_tests>
-               --sanitizer ${UPPASD_COMPUTE_SANITIZER}
-               --workdir ${CMAKE_CURRENT_BINARY_DIR}/rcg05e_dilation_sanitizer_workspace)
-         set_tests_properties(adaptive-cg-dilation-sanitizer
-            PROPERTIES LABELS "coarse-graining;cg13;sanitizer")
-      endif()
-
-      # RCG-09 PERF-ATOMISTIC-PROD / PERF-CG-SWEEP.  Hardware-dependent
-      # acceptance harness, intentionally not a CTest: it checks that the
-      # adaptive and production atomistic paths evaluate the same field, then
-      # times UppASD's real GpuHamiltonianCalculations + GpuDepondtIntegrator
-      # step against the adaptive step over a fine-fraction sweep, reporting
-      # active atom/block/interface/bond fractions, per-phase device times,
-      # launch counts, selector/compaction overhead, memory, and raw samples.
-      add_executable(gpu_adaptive_runtime_benchmark
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/benchmark_gpu_adaptive_runtime.cpp)
-      target_include_directories(gpu_adaptive_runtime_benchmark PRIVATE
-         ${CMAKE_SOURCE_DIR}/source/gpu_files
-         ${CMAKE_SOURCE_DIR}/source/gpu_files/measurement)
-      target_link_libraries(gpu_adaptive_runtime_benchmark PRIVATE ${UppASD_LIB})
-      if(USE_CUDA)
-         set_source_files_properties(
-            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/benchmark_gpu_adaptive_runtime.cpp
-            PROPERTIES LANGUAGE CUDA)
-         target_compile_definitions(gpu_adaptive_runtime_benchmark PRIVATE CUDA_V)
-         target_link_libraries(gpu_adaptive_runtime_benchmark PRIVATE CUDA::cudart)
-      else()
-         set_source_files_properties(
-            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/benchmark_gpu_adaptive_runtime.cpp
-            PROPERTIES LANGUAGE HIP)
-         target_compile_definitions(gpu_adaptive_runtime_benchmark PRIVATE HIP_V)
-      endif()
-      if(UPPASD_PRECISION STREQUAL "SINGLE")
-         target_compile_definitions(gpu_adaptive_runtime_benchmark PRIVATE SINGLE_PREC)
-      endif()
-      # Fault-injection builds for the RCG-09A.4 harness.  These options are
-      # deliberately off for the production target; each enabled variant must
-      # fail at the stage named by the parity report.
-      option(RCG09A_NEGATIVE_DMI_SIGN "Inject reversed adaptive DMI sign" OFF)
-      option(RCG09A_NEGATIVE_THERMAL_AMPLITUDE "Inject adaptive thermal amplitude error" OFF)
-      option(RCG09A_NEGATIVE_DAMPING "Inject adaptive Depondt damping error" OFF)
-      option(RCG09A_NEGATIVE_RNG_DISPLACEMENT "Inject adaptive thermal RNG displacement" OFF)
-      option(RCG09A_NEGATIVE_NO_TRANSPOSE "Remove adaptive DMI transpose endpoint" OFF)
-      foreach(RCG09A_MUTATION
-         RCG09A_NEGATIVE_DMI_SIGN
-         RCG09A_NEGATIVE_THERMAL_AMPLITUDE
-         RCG09A_NEGATIVE_DAMPING
-         RCG09A_NEGATIVE_RNG_DISPLACEMENT)
-         if(${RCG09A_MUTATION})
-            target_compile_definitions(gpu_adaptive_runtime_benchmark PRIVATE ${RCG09A_MUTATION})
-         endif()
-      endforeach()
-      if(RCG09A_NEGATIVE_NO_TRANSPOSE)
-         target_compile_definitions(gpu_adaptive_runtime_benchmark PRIVATE RCG09A_NEGATIVE_NO_TRANSPOSE)
-         target_compile_definitions(${UppASD_LIB} PRIVATE RCG09A_NEGATIVE_NO_TRANSPOSE)
-      endif()
-      # RCG-09A.4: staged production feature-off versus adaptive all-fine ASD
-      # parity.  The benchmark executable owns the production oracle fixture;
-      # this CTest entry runs only its deterministic correctness hierarchy.
-      add_test(NAME coarse-graining-adaptive-asd-parity
-         COMMAND gpu_adaptive_runtime_benchmark --parity-only --require-acceptance
-         --blocks 8 --atoms-per-block 2 --warmup 1 --iterations 1 --repetitions 3)
-      set_tests_properties(coarse-graining-adaptive-asd-parity
-         PROPERTIES SKIP_RETURN_CODE 77
-         LABELS "coarse-graining;cg13;${CG13_GPU_LABEL};rcg09a4;reference")
-
-      # RCG-09 (F-10): the synthetic fused-multiply-add control, separated out
-      # of the benchmark above so it can never again be read as a production
-      # baseline.  It measures only whether an inactive adaptive runtime costs
-      # anything; it contains no UppASD physics.
-      add_executable(gpu_adaptive_inactive_overhead_microbenchmark
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/benchmark_gpu_inactive_runtime_overhead.cpp)
-      target_include_directories(gpu_adaptive_inactive_overhead_microbenchmark PRIVATE
-         ${CMAKE_SOURCE_DIR}/source/gpu_files
-         ${CMAKE_SOURCE_DIR}/source/gpu_files/measurement)
-      target_link_libraries(gpu_adaptive_inactive_overhead_microbenchmark PRIVATE ${UppASD_LIB})
-      if(USE_CUDA)
-         set_source_files_properties(
-            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/benchmark_gpu_inactive_runtime_overhead.cpp
-            PROPERTIES LANGUAGE CUDA)
-         target_compile_definitions(gpu_adaptive_inactive_overhead_microbenchmark PRIVATE CUDA_V)
-         target_link_libraries(gpu_adaptive_inactive_overhead_microbenchmark PRIVATE CUDA::cudart)
-      else()
-         set_source_files_properties(
-            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/benchmark_gpu_inactive_runtime_overhead.cpp
-            PROPERTIES LANGUAGE HIP)
-         target_compile_definitions(gpu_adaptive_inactive_overhead_microbenchmark PRIVATE HIP_V)
-      endif()
-      if(UPPASD_PRECISION STREQUAL "SINGLE")
-         target_compile_definitions(gpu_adaptive_inactive_overhead_microbenchmark PRIVATE SINGLE_PREC)
-      endif()
-
-      # CGP-06A: evidence-only harness isolating GpuThermfield::randomize()'s
-      # real production cost (curand/hiprand generate + SetupField write) from
-      # the rest of the Depondt predictor, across total atom count, ensemble
-      # count, and temperature. A build target, not a CTest: timings are
-      # hardware-dependent, same rationale as gpu_adaptive_runtime_benchmark
-      # and dipole_gpu_fft_benchmark above.
-      # CGP-06B: --active-fraction F additionally exercises the real
-      # active-scoped randomize(mmom, oneBasedAtoms, activeCount) overload
-      # this task added, superseding CGP-06A's smaller-full-lattice
-      # projection with a real measurement of the same kernel production
-      # uses.
-      add_executable(gpu_thermfield_rng_benchmark
-         ${CMAKE_SOURCE_DIR}/tests/coarse_graining/benchmark_gpu_thermfield_rng.cpp)
-      target_include_directories(gpu_thermfield_rng_benchmark PRIVATE
-         ${CMAKE_SOURCE_DIR}/source/gpu_files
-         ${CMAKE_SOURCE_DIR}/source/gpu_files/measurement)
-      target_link_libraries(gpu_thermfield_rng_benchmark PRIVATE ${UppASD_LIB})
-      if(USE_CUDA)
-         set_source_files_properties(
-            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/benchmark_gpu_thermfield_rng.cpp
-            PROPERTIES LANGUAGE CUDA)
-         target_compile_definitions(gpu_thermfield_rng_benchmark PRIVATE CUDA_V)
-         target_link_libraries(gpu_thermfield_rng_benchmark PRIVATE CUDA::cudart)
-      else()
-         set_source_files_properties(
-            ${CMAKE_SOURCE_DIR}/tests/coarse_graining/benchmark_gpu_thermfield_rng.cpp
-            PROPERTIES LANGUAGE HIP)
-         target_compile_definitions(gpu_thermfield_rng_benchmark PRIVATE HIP_V)
-      endif()
-      if(UPPASD_PRECISION STREQUAL "SINGLE")
-         target_compile_definitions(gpu_thermfield_rng_benchmark PRIVATE SINGLE_PREC)
-      endif()
+      add_test(NAME gpu-dmi-dimer COMMAND gpu_dmi_dimer_tests)
+      set_tests_properties(gpu-dmi-dimer PROPERTIES SKIP_RETURN_CODE 77
+         LABELS "gpu;hamiltonian;dmi")
 
       add_executable(dipole_gpu_fft_tests
          ${CMAKE_SOURCE_DIR}/tests/dipole_validation/test_gpu_dipole_fft.cpp)
@@ -1942,7 +1046,8 @@ if(BUILD_TESTING)
       endif()
       add_test(NAME dipole-gpu-fft-convolution COMMAND dipole_gpu_fft_tests)
       set_tests_properties(dipole-gpu-fft-convolution
-         PROPERTIES LABELS "coarse-graining;cg13;${CG13_GPU_LABEL};dipole")
+         PROPERTIES LABELS "gpu;${DIPOLE_GPU_LABEL};dipole")
+
       # Test-only OPEN_FFT E2E seam.  It has no production selector, but
       # exercises both the explicit-tensor diagnostics and the production
       # finite-kernel construction/upload through active-to-padded field and
@@ -1971,7 +1076,8 @@ if(BUILD_TESTING)
       endif()
       add_test(NAME dipole-open-fft-layout COMMAND dipole_open_fft_layout_tests)
       set_tests_properties(dipole-open-fft-layout
-         PROPERTIES LABELS "coarse-graining;cg13;${CG13_GPU_LABEL};dipole")
+         PROPERTIES LABELS "gpu;${DIPOLE_GPU_LABEL};dipole")
+
       # Explicit performance harness.  It is a build target rather than a
       # CTest because timings are hardware-dependent and are recorded by WP9
       # sweep jobs, not used as pass/fail correctness expectations.
@@ -1992,13 +1098,14 @@ if(BUILD_TESTING)
          target_compile_definitions(dipole_gpu_fft_benchmark PRIVATE HIP_V)
          target_link_libraries(dipole_gpu_fft_benchmark PRIVATE ${HIPFFT_LIBRARY})
       endif()
-      # real_type.h is consumed directly by these standalone targets, while
-      # SINGLE_PREC is private to asdlib.  Mirror the selected storage type so
-      # an fp32 validation build cannot accidentally link a fp64 test object.
       if(UPPASD_PRECISION STREQUAL "SINGLE")
          target_compile_definitions(dipole_gpu_fft_tests PRIVATE SINGLE_PREC)
          target_compile_definitions(dipole_gpu_fft_benchmark PRIVATE SINGLE_PREC)
       endif()
+
+      # real_type.h is consumed directly by these standalone targets, while
+      # SINGLE_PREC is private to asdlib.  Mirror the selected storage type so
+      # an fp32 validation build cannot accidentally link a fp64 test object.
       # This invokes the real UppASD GPU SD executable: descriptor/kernel
       # construction, macro-moment refresh, predictor/corrector dispatch, and
       # the GPU measurement writer are checked against the independent oracle.
@@ -2010,6 +1117,7 @@ if(BUILD_TESTING)
          COMMAND python3 ${CMAKE_SOURCE_DIR}/tests/dipole_validation/run_wp5_e2e.py
                  --binary ${TestBinary} ${WP5_E2E_PRECISION_ARGUMENT})
       set_property(TEST dipole-gpu-wp5-e2e PROPERTY ENVIRONMENT "OMP_NUM_THREADS=1")
+
       set(OPEN_FFT_E2E_PRECISION_ARGUMENT)
       if(UPPASD_PRECISION STREQUAL "SINGLE")
          set(OPEN_FFT_E2E_PRECISION_ARGUMENT --fp32)
