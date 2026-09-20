@@ -1,4 +1,4 @@
-name: Adaptive CG clean CPU build
+name: Clean CPU build and dipole regression
 
 on:
   push:
@@ -29,7 +29,7 @@ jobs:
 
       - name: Configure in a per-commit out-of-tree directory
         env:
-          CLEAN_BUILD_DIR: ${{ runner.temp }}/uppasd-cg-${{ github.sha }}
+          CLEAN_BUILD_DIR: ${{ runner.temp }}/uppasd-clean-cpu-${{ github.sha }}
         run: |
           rm -rf "$CLEAN_BUILD_DIR"
           cmake -S . -B "$CLEAN_BUILD_DIR" -G "Unix Makefiles" \
@@ -45,12 +45,12 @@ jobs:
 
       - name: Build from tracked source
         env:
-          CLEAN_BUILD_DIR: ${{ runner.temp }}/uppasd-cg-${{ github.sha }}
+          CLEAN_BUILD_DIR: ${{ runner.temp }}/uppasd-clean-cpu-${{ github.sha }}
         run: cmake --build "$CLEAN_BUILD_DIR" --parallel 2
 
       - name: Run packaging and feature-off production checks
         env:
-          CLEAN_BUILD_DIR: ${{ runner.temp }}/uppasd-cg-${{ github.sha }}
+          CLEAN_BUILD_DIR: ${{ runner.temp }}/uppasd-clean-cpu-${{ github.sha }}
         run: |
           ctest --test-dir "$CLEAN_BUILD_DIR" --output-on-failure \
-            -R 'adaptive-cg-fixture-dependencies|adaptive-cg-production-e2e'
+            -R '^(cpu-ham-|dmi-dimer-energy$|block-topology$|dipole-open-|dipole-ewald-)'
