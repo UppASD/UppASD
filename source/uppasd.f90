@@ -272,23 +272,6 @@ contains
       
       integer :: cflag
 
-      ! Capability preflight ran before the initial phase and before any
-      ! device allocation. Construct adaptive ownership only now, from the
-      ! completed atomistic handoff state, while Hamiltonian input remains
-      ! available for material extraction.
-      block
-         use AdaptiveCGProduction, only : setup_adaptive_cg_production, &
-            ADAPTIVE_CG_PRODUCTION_OK
-         integer :: adaptive_status
-         character(len=512) :: adaptive_diagnostic
-         call setup_adaptive_cg_production(adaptive_status,adaptive_diagnostic)
-         if (adaptive_status /= ADAPTIVE_CG_PRODUCTION_OK) then
-            write(*,'(a)') trim(adaptive_diagnostic)
-            error stop 1
-         end if
-      end block
-
-      ! The adaptive material descriptor has copied the required coefficients.
       call allocate_hamiltonianinput(ham_inp,flag=-1)
 
       if(do_diamag=='Y') then
@@ -505,7 +488,6 @@ contains
       use MultiscaleSetupSystem
       use MultiscaleDampingBand
       use HamiltonianActions, only : cleanup_cpu_hamiltonian_backend
-      use AdaptiveCGProduction, only : print_adaptive_cg_summary, cleanup_adaptive_cg_production
 
       call cleanup_cpu_hamiltonian_backend()
     if (do_multiscale) then
@@ -522,8 +504,6 @@ contains
    else
 
       write (*,'(1x,a)') "Simulation finished"
-      call print_adaptive_cg_summary()
-      call cleanup_adaptive_cg_production()
       call deallocate_q(do_sc) ! Deallocate spin correlation related arrays
       call allocate_mmoms(flag=-1)
       call deallocate_rest() ! Deallocate remaining arrays
@@ -1351,22 +1331,6 @@ contains
             ham%dm_vect,ham_inp%do_anisotropy,ham_inp%anisotropy,simid)
       end if
 
-      ! Adaptive CG preflight happens after geometry, moments, Hamiltonian,
-      ! damping, and solver setup, but before the optional atomistic initial
-      ! phase can allocate a device. Runtime construction is deferred until
-      ! that phase has produced its final handoff texture.
-      block
-         use AdaptiveCGProduction, only : preflight_adaptive_cg_production, &
-            ADAPTIVE_CG_PRODUCTION_OK
-         integer :: adaptive_status
-         character(len=512) :: adaptive_diagnostic
-         call preflight_adaptive_cg_production(adaptive_status,adaptive_diagnostic)
-         if (adaptive_status /= ADAPTIVE_CG_PRODUCTION_OK) then
-            write(*,'(a)') trim(adaptive_diagnostic)
-            error stop 1
-         end if
-      end block
-
       !------------------------------------------------------------------------------
       ! This is the initialization of the KMC particles
       !------------------------------------------------------------------------------
@@ -1455,7 +1419,6 @@ contains
       use macrocells, only : block_size_x,block_size_y,block_size_z
       implicit none
       logical, intent(in) :: geometry_ready
-      logical :: adaptive_atomistic_handoff, gpu_mc_handoff
 
       if (.not.ieee_is_finite(gpu_dipole_tol) .or. gpu_dipole_tol <= 0.0_dblprec) then
          error stop 'gpu_dipole_tol must be finite and positive'
@@ -1467,26 +1430,15 @@ contains
       if (trim(gpu_dipole_mode) /= 'EWALD3D_FFT' .and. trim(gpu_dipole_mode) /= 'OPEN_FFT') then
          error stop 'Only gpu_dipole_mode OFF, EWALD3D_FFT, or OPEN_FFT is supported'
       endif
-      ! This first production slice owns only the GPU spin-dynamics
-      ! measurement path. Adaptive CG may prepare the host moment state with a
-      ! supported atomistic runner before the FFT/device owner is constructed.
-      adaptive_atomistic_handoff = adaptive_cg%enabled == 'Y' .and. &
-         (trim(ipmode) == 'M' .or. trim(ipmode) == 'H' .or. &
-          trim(ipmode) == 'Q' .or. trim(ipmode) == 'Y' .or. &
-          trim(ipmode) == 'Z' .or. trim(ipmode) == 'G')
-      gpu_mc_handoff = (trim(ipmode) == 'M' .or. trim(ipmode) == 'H') .and. &
-         do_gpu == 'Y' .and. do_gpu_mc == 'Y'
-      if (trim(mode) /= 'S' .or. &
-          (trim(ipmode) /= 'N' .and. trim(ipmode) /= 'S' .and. &
-           .not. adaptive_atomistic_handoff)) then
+      ! This first production slice owns only the GPU spin-dynamics path.
+      ! Reject both a production MC mode and an MC-like initial phase before
+      ! any GPU dipole layout or device allocation is attempted.
+      if (trim(mode) /= 'S' .or. (trim(ipmode) /= 'N' .and. trim(ipmode) /= 'S')) then
          if (trim(gpu_dipole_mode) == 'EWALD3D_FFT') then
             error stop 'EWALD3D_FFT is available for GPU spin dynamics only; Monte Carlo and other modes are rejected'
          else
             error stop 'OPEN_FFT is available for GPU spin dynamics only; Monte Carlo and other modes are rejected'
          endif
-      endif
-      if (gpu_mc_handoff) then
-         error stop 'GPU MC initial phases do not own adaptive FFT dipoles; use do_gpu_mc=N for a host MC handoff'
       endif
       if (ham_inp%do_dip /= 0) then
          if (trim(gpu_dipole_mode) == 'EWALD3D_FFT') then
@@ -1619,7 +1571,7 @@ contains
       call allocate_fields(Natom,Mensemble,flag)
 
       if(locfield=='Y'.and.flag>0)  call read_local_field(NA,locfieldfile)
-      if(SDEalgh==5 .or. ipSDEalgh==5 .or. adaptive_cg%enabled=='Y') then
+      if(SDEalgh==5 .or. ipSDEalgh==5) then
          call allocate_depondtfields(Natom, Mensemble,flag)
       elseif(SDEalgh==11) then
          call allocate_llgifields(Natom, Mensemble,flag)

@@ -54,11 +54,8 @@ OBJS=   parameters.o constants.o profiling.o stdtypes.o mtprng.o inputdata.o ran
         bls.o ErrorHandling.o stiffness.o inputhandler.o ams.o setupspinice.o nocuda.o \
 	hamiltonianinit.o updatemoments.o energy.o calculatefields.o evolution.o applyhamiltonian.o \
 	damping.o printinput.o hamiltonianactions.o qminimizer.o temperature.o tools.o vpo.o pathinit.o energyminima.o gneb.o hermitelib.o \
-	CoarseGraining/blocktopology.o CoarseGraining/blockselector.o \
-	CoarseGraining/coarsetensoroperator.o CoarseGraining/multichannelcoarsetensoroperator.o \
-	CoarseGraining/smoothprojectedoperator.o CoarseGraining/statichybridoperator.o \
-	CoarseGraining/adaptivehybridsolver.o CoarseGraining/macrocells.o \
-	CoarseGraining/hamiltonianmacroblocks.o CoarseGraining/adaptivecgproduction.o 0sd.o
+	CoarseGraining/blocktopology.o CoarseGraining/macrocells.o \
+	CoarseGraining/hamiltonianmacroblocks.o 0sd.o
 #filehandler.o printinput.o bls.o hamiltonianparts.o hamiltonianactions.o temperature.o tools.o 0sd.o
 
 
