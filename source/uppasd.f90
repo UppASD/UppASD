@@ -144,11 +144,19 @@ contains
       integer :: nprocs
 
       !$omp parallel
+#if defined(_OPENMP) && _OPENMP >= 202011
+      !$omp masked
+#else
       !$omp master
+#endif
       nprocs=omp_get_num_threads()
       !write(*,'(1x,a18,i2,a16,i3,a10)') &
       !   "Using OpenMP with ",nprocs," threads out of",OMP_GET_NUM_PROCS(),"possible."
+#if defined(_OPENMP) && _OPENMP >= 202011
+      !$omp end masked
+#else
       !$omp end master
+#endif
       !$omp end parallel
    end function number_of_active_processors
 
@@ -487,7 +495,7 @@ contains
       use MultiscaleInterpolation
       use MultiscaleSetupSystem
       use MultiscaleDampingBand
-      use HamiltonianActions, only : cleanup_cpu_hamiltonian_backend
+      use HamiltonianBackend, only : cleanup_cpu_hamiltonian_backend
 
       call cleanup_cpu_hamiltonian_backend()
     if (do_multiscale) then
@@ -591,7 +599,7 @@ contains
       use KMC
       use BLS
       use LSF,             only : read_LSF,allocate_lsfdata
-      use HamiltonianActions, only : setup_cpu_hamiltonian_backend
+      use HamiltonianBackend, only : setup_cpu_hamiltonian_backend
       use Energy,          only: allocate_energies
       use Damping
       use KMCData
@@ -1673,11 +1681,19 @@ contains
 
       ! Print OpenMP information
       !$omp parallel
+#if defined(_OPENMP) && _OPENMP >= 202011
+      !$omp masked
+#else
       !$omp master
+#endif
       !nprocs=omp_get_num_threads()
       write(*,'(1x,a18,i2,a16,i3,a10)') &
          "Using OpenMP with ",omp_get_num_threads()," threads out of",OMP_GET_NUM_PROCS(),"possible."
+#if defined(_OPENMP) && _OPENMP >= 202011
+      !$omp end masked
+#else
       !$omp end master
+#endif
       !$omp end parallel
       write (*,'(1x, a)')    "--------------------------------------------------------------"
 

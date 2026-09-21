@@ -181,9 +181,17 @@ contains
          'Dipolar Int. '/)
          return ! An ugly return to resolve Mariia's issue temporarily
       !$omp parallel
+#if defined(_OPENMP) && _OPENMP >= 202011
+      !$omp masked
+#else
       !$omp master
+#endif
       nprocs=omp_get_num_threads()
+#if defined(_OPENMP) && _OPENMP >= 202011
+      !$omp end masked
+#else
       !$omp end master
+#endif
       !$omp end parallel
 
       if (action.eq.'IN') then ! INIT

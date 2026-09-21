@@ -193,6 +193,9 @@ contains
       integer :: cgk_flag, scount_pulse, bcgk_flag, cgk_flag_pc,wl_count, ii
       integer :: mcmstep, mcmstep_loc
       integer :: num_threads, ithread, i_stat
+#if defined(_OPENMP) && _OPENMP >= 201107
+      integer :: saved_max_active_levels
+#endif
       character(len=30) :: filn
       real(dblprec) :: totenergy, flatness, q_prefac, accrate
       real(dblprec) :: accrate_opt,a,b
@@ -282,10 +285,14 @@ contains
       wl_lhist_min=1
       wl_lhist_max=wl_nhist
 
+#if defined(_OPENMP) && _OPENMP >= 201107
+      saved_max_active_levels=omp_get_max_active_levels()
+      call omp_set_max_active_levels(1)
+#else
       call omp_set_nested(.false.)
+#endif
       !$omp parallel default(shared) firstprivate(totenergy,iflip_a,m_avg,wl_lhist_min,wl_lhist_max) private(mcmstep_loc,ithread)
       ithread=omp_get_thread_num()
-      call omp_set_nested(.false.)
 
       wl_emom=emom
       wl_emomM=emomM
@@ -326,7 +333,11 @@ contains
             call choose_random_atom_x(Natom,iflip_a)
          end if
 
+#if defined(_OPENMP) && _OPENMP >= 202011
+         !$omp masked
+#else
          !$omp master
+#endif
          if(mod(mcmstep_loc,10000/num_threads)==0) then
 
             !-----Adapt WL e-independent stepsize----------------------------------
@@ -368,7 +379,11 @@ contains
                !
             end if
          end if
+#if defined(_OPENMP) && _OPENMP >= 202011
+         !$omp end masked
+#else
          !$omp end master
+#endif
 
 
          mcmstep_loc=mcmstep_loc+1
@@ -377,7 +392,11 @@ contains
       enddo
 
       !$omp end parallel
+#if defined(_OPENMP) && _OPENMP >= 201107
+      call omp_set_max_active_levels(saved_max_active_levels)
+#else
       call omp_set_nested(.true.)
+#endif
 
       call timing(0,'MonteCarlo    ','OF')
 
