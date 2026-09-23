@@ -20,6 +20,7 @@ gpuSimulation.cpp
 gpuSimulation.hpp
 gpuSDSimulation.cpp
 gpuMCSimulation.cpp
+gpuMSSimulation.cpp
 #gpuMeasurement.cpp
 gpuMetropolis.hpp
 gpuMetropolis.cpp

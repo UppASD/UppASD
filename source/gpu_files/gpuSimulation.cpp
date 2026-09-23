@@ -372,6 +372,11 @@ bool GpuSimulation::initiateMatrices() {
    return true;
 }
 
+bool GpuSimulation::initiateMSMatreces(){
+
+    
+}
+
 bool GpuSimulation::gpuHasNoData(){
     bool check = (  gpuHamiltonian.aHam.empty() ||                             
                     (gpuHamiltonian.ncoup.empty() && (FortranData::j_tensor == nullptr))||            

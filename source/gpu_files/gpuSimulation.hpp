@@ -60,6 +60,21 @@ public:
    void MCmphase_bf(GpuSimulation& gpuSim);
 };
 
+class GpuMSSimulation {
+private:
+   bool isInitiatedSD;   GpuTensor<real, 1> exchangeM;
+
+   void printMdStatus(std::size_t mstep, GpuSimulation& gpuSim);
+
+public:
+   GpuMSSimulation();
+   ~GpuMSSimulation();
+
+   void MSmphase(GpuSimulation& gpuSim);
+   void MSiphase(GpuSimulation& gpuSim);
+};
+
+
     bool isInitiated;
     bool isFreed;
     //void printConstants();
@@ -73,6 +88,7 @@ public:
 
     void initiateConstants();  // initiates cpuFlags and cpuParameters
     bool initiateMatrices();   // allocates and initiates gpu matrices from cpu matrices using copyFromFortran, first calling initiate_fortran_cpu_matrices();
+    bool initiateMSMatreces(); // separate for initialisation of MS tensors
     void copyFromFortran();    // device to host 
     void copyToFortran();      // host to device
     void release();            // frees gpu matrices
