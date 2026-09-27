@@ -23,18 +23,19 @@ module Chern_number
    implicit none
    !
    character(len=1)                           :: do_chern    !< Calculate the Chern number of the bands (Y/N)
-   character(len=1)                           :: do_magnon_oam !< Fishman reciprocal-space magnon OAM (Y/N)
+   character(len=1)                           :: do_oam_lswt !< Fishman reciprocal-space magnon OAM (Y/N)
+   character(len=1)                           :: oam_lswt_pointwise !< Write gauge-dependent pointwise OAM diagnostics (Y/N)
    integer                                    :: Nx          !< Number of points of the grid in x direction
    integer                                    :: Ny          !< Number of points of the grid in y direction
    integer                                    :: Nz          !< Number of points of the grid in z direction
    real(dblprec), dimension(3)                :: Chern_qvect !< Spin spiral ordering vector
-   integer                                    :: f_oam_nphi  !< Number of angular points for Fishman F_n(k)
-   integer                                    :: f_oam_nr    !< Number of radial points for Fishman F_n(k), including k=0
-   real(dblprec)                               :: f_oam_kmax !< Maximum physical |k|; zero selects the inscribed BZ radius
+   integer                                    :: oam_nphi  !< Number of angular points for Fishman F_n(k)
+   integer                                    :: oam_nr    !< Number of radial points for Fishman F_n(k), including k=0
+   real(dblprec)                               :: oam_kmax !< Maximum physical |k|; zero selects the inscribed BZ radius
    !
    private
    ! public subroutines
-   public :: do_chern,do_magnon_oam,Nx,Ny,Nz, Chern_qvect
+   public :: do_chern,do_oam_lswt,Nx,Ny,Nz, Chern_qvect
    public :: read_parameters_chern_number,calculate_chern_number
    !
 contains
@@ -44,14 +45,15 @@ contains
       implicit none
 
       do_chern    = 'N'
-      do_magnon_oam = 'N'
+      do_oam_lswt = 'N'
+      oam_lswt_pointwise = 'N'
       Nx          = 100
       Ny          = 100
       Nz          = 1
       Chern_qvect = 0.0_dblprec
-      f_oam_nphi  = 128
-      f_oam_nr    = 32
-      f_oam_kmax  = 0.0_dblprec
+      oam_nphi  = 128
+      oam_nr    = 32
+      oam_kmax  = 0.0_dblprec
 
 
    end subroutine setup_chern_number
@@ -63,7 +65,6 @@ contains
       !
       character(LEN = 25) :: bphase_file
       character(LEN = 25) :: chern_file
-      character(LEN = 25) :: oam_file
       integer, intent(in) :: NA  !< Number of atoms in one cell
       integer, intent(in) :: Natom     !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles
@@ -95,6 +96,7 @@ contains
       integer, dimension(:), allocatable              :: indz                           !< index along z
       ! Fishman OAM, stored band- and k-resolved in units of hbar.
       real(dblprec), dimension(:,:), allocatable      :: oam_hbar
+      real(dblprec), dimension(:,:), allocatable      :: oam_energy
       complex(dblprec), dimension(:,:,:), allocatable  :: oam_evec
       integer, dimension(:,:), allocatable             :: oam_band
 
@@ -432,36 +434,26 @@ contains
 
       Berry_cuv=log(u1norm*u2norm*u3norm*u1invnorm*u2invnorm*u3invnorm)
 
-      if (do_magnon_oam == 'Y') then
-         ! Chern number uses Berry flux.  Fishman OAM is a separate,
-         ! gauge-fixed expectation value of the momentum-space angular
-         ! momentum operator and is kept k- and band-resolved.
+      if (do_oam_lswt == 'Y' .and. oam_lswt_pointwise == 'Y') then
+         ! Fishman OAM is a separate, gauge-fixed expectation value of the
+         ! momentum-space angular momentum operator.  The pointwise values
+         ! are retained only when explicitly requested because they are
+         ! gauge-dependent diagnostics.
          allocate(oam_evec(2*NA,NA,dimen),stat=i_stat)
          call memocc(i_stat,product(shape(oam_evec))*kind(oam_evec),'oam_evec','calculate_chern_number')
          allocate(oam_hbar(NA,dimen),stat=i_stat)
          call memocc(i_stat,product(shape(oam_hbar))*kind(oam_hbar),'oam_hbar','calculate_chern_number')
+         allocate(oam_energy(NA,dimen),stat=i_stat)
+         call memocc(i_stat,product(shape(oam_energy))*kind(oam_energy),'oam_energy','calculate_chern_number')
          allocate(oam_band(NA,dimen),stat=i_stat)
          call memocc(i_stat,product(shape(oam_band))*kind(oam_band),'oam_band','calculate_chern_number')
          call prepare_oam_eigenvectors(NA,Nx,Ny,Nz,dimen,nc_evec_complex,oam_evec,oam_band)
          call calculate_fishman_oam(NA,Nx,Ny,Nz,dimen,q_vchern,oam_evec,oam_hbar)
-
-         ! Keep reciprocal-space magnon OAM separate from the existing
-         ! real-space triangulation OAM, which uses oam.<simid>.out.
-         oam_file='oam_k.'//trim(simid)//'.out'
-         open(ofileno,file=oam_file)
-         write(ofileno,'(a)') '# OAM_k/hbar: Fishman reciprocal-space magnon OAM; primary units OAM/hbar'
-         write(ofileno,'(a)') '# Pointwise values are gauge-fixed and gauge-dependent.'
-         write(ofileno,'(a)') '# qx qy are Cartesian components of q_vchern; physical k=2*pi*q.'
-         write(ofileno,'(a)') '# band qx qy energy(meV) OAM/hbar'
          do iq=1,dimen
             do i=1,NA
-               write(ofileno,'(i6,4(1x,es23.15))') i,q_vchern(1,iq),q_vchern(2,iq), &
-                  nc_eval_complex(oam_band(i,iq),iq),oam_hbar(i,iq)
+               oam_energy(i,iq)=nc_eval_complex(oam_band(i,iq),iq)
             end do
          end do
-         close(ofileno)
-         print '(1x,a,a)', 'Fishman OAM written to ',trim(oam_file)
-         print '(1x,a)', 'Pointwise OAM is gauge-fixed; gauge-invariant F_OAM is evaluated on polar rings.'
       end if
 
       ! 2D grid or 3D grid
@@ -603,8 +595,10 @@ contains
       call memocc(i_stat,product(shape(Ch_numqplus))*kind(Ch_numqplus),'Ch_numqplus','calculate_chern_number')
       deallocate(Ch_numqminus,stat=i_stat)
       call memocc(i_stat,product(shape(Ch_numqminus))*kind(Ch_numqminus),'Ch_numqminus','calculate_chern_number')
-      deallocate(q_vchern,stat=i_stat)
-      call memocc(i_stat,product(shape(q_vchern))*kind(q_vchern),'q_vchern','calculate_chern_number')
+      if (.not.(do_oam_lswt == 'Y' .and. oam_lswt_pointwise == 'Y')) then
+         deallocate(q_vchern,stat=i_stat)
+         call memocc(i_stat,product(shape(q_vchern))*kind(q_vchern),'q_vchern','calculate_chern_number')
+      end if
       deallocate(rho,stat=i_stat)
       call memocc(i_stat,product(shape(rho))*kind(rho),'rho','calculate_chern_number')
       deallocate(c2_func,stat=i_stat)
@@ -619,16 +613,21 @@ contains
          deallocate(oam_evec,stat=i_stat)
          call memocc(i_stat,product(shape(oam_evec))*kind(oam_evec),'oam_evec','calculate_chern_number')
       end if
-      if (allocated(oam_hbar)) then
-         deallocate(oam_hbar,stat=i_stat)
-         call memocc(i_stat,product(shape(oam_hbar))*kind(oam_hbar),'oam_hbar','calculate_chern_number')
-      end if
       if (allocated(oam_band)) then
          deallocate(oam_band,stat=i_stat)
          call memocc(i_stat,product(shape(oam_band))*kind(oam_band),'oam_band','calculate_chern_number')
       end if
-      if (do_magnon_oam == 'Y') then
+      if (do_oam_lswt == 'Y') then
          call calculate_fishman_f_average(NA,Natom,Mensemble,simid,emomM,mmom,C1,C2,C3)
+      end if
+      if (oam_lswt_pointwise == 'Y' .and. allocated(oam_hbar)) then
+         call append_fishman_pointwise_diagnostics(NA,dimen,simid,q_vchern,oam_energy,oam_hbar)
+         deallocate(oam_hbar,stat=i_stat)
+         call memocc(i_stat,product(shape(oam_hbar))*kind(oam_hbar),'oam_hbar','calculate_chern_number')
+         deallocate(oam_energy,stat=i_stat)
+         call memocc(i_stat,product(shape(oam_energy))*kind(oam_energy),'oam_energy','calculate_chern_number')
+         deallocate(q_vchern,stat=i_stat)
+         call memocc(i_stat,product(shape(q_vchern))*kind(q_vchern),'q_vchern','calculate_chern_number')
       end if
       !
       print '(1x,a)', 'Chern calculation done.'
@@ -832,18 +831,18 @@ contains
 
    !> Evaluate O_n/hbar at all points of a periodic angular ring and return
    !> the uniform Riemann average F_n/hbar.
-   subroutine fishman_ring_oam(NA,Nphi,gauge_evec,f_oam)
+   subroutine fishman_ring_oam(NA,Nphi,gauge_evec,ring_oam)
       implicit none
       integer, intent(in) :: NA,Nphi
       complex(dblprec), intent(in) :: gauge_evec(2*NA,NA,Nphi)
-      real(dblprec), intent(out) :: f_oam(NA)
+      real(dblprec), intent(out) :: ring_oam(NA)
 
       complex(dblprec) :: dtdphi(2*NA)
       integer :: i,j,jp,jm
       real(dblprec) :: dphi
 
       dphi=2.0_dblprec*pi/real(Nphi,dblprec)
-      f_oam=0.0_dblprec
+      ring_oam=0.0_dblprec
       do i=1,NA
          do j=1,Nphi
             jp=j+1
@@ -851,16 +850,18 @@ contains
             jm=j-1
             if (jm < 1) jm=Nphi
             dtdphi=(gauge_evec(:,i,jp)-gauge_evec(:,i,jm))/(2.0_dblprec*dphi)
-            ! T=X^{-1}: O/hbar = -1/2 Im[T^dagger eta dT/dphi].
-            f_oam(i)=f_oam(i)-0.5_dblprec*aimag(&
+            ! T=X^{-1}: Fishman Eq. 11 gives
+            ! O/hbar = -1/2 Im[T^dagger eta dT/dphi].  The Fourier sign
+            ! does not change a two-dimensional ring average.
+            ring_oam(i)=ring_oam(i)-0.5_dblprec*aimag(&
                boson_overlap(gauge_evec(:,i,j),dtdphi,NA))/real(Nphi,dblprec)
          end do
       end do
    end subroutine fishman_ring_oam
 
    !> Evaluate Fishman's gauge-invariant angular and disk averages on an
-   !> explicit polar mesh.  The Hamiltonian is sampled directly at every
-   !> polar point in reduced reciprocal coordinates.
+   !> explicit polar mesh.  The Hamiltonian is sampled at Cartesian q=k/(2*pi)
+   !> points, in the units expected by the spin-wave Hamiltonian.
    subroutine calculate_fishman_f_average(NA,Natom,Mensemble,simid,emomM,mmom,C1,C2,C3)
       use, intrinsic :: ieee_arithmetic, only : ieee_value,ieee_quiet_nan
       implicit none
@@ -876,7 +877,7 @@ contains
       real(dblprec) :: nan_value
       real(dblprec), allocatable :: polar_q(:,:),polar_k(:)
       real(dblprec), allocatable :: polar_eval(:,:),raw_eval(:,:),ring_eval(:,:)
-      real(dblprec), allocatable :: f_oam(:,:),disk_oam(:,:),ring_f(:)
+      real(dblprec), allocatable :: radial_oam(:,:),disk_oam(:,:),ring_value(:)
       real(dblprec), allocatable :: previous_closure(:),closure_phase(:)
       real(dblprec), allocatable :: min_overlap(:),min_gap(:),closure_error(:)
       real(dblprec), allocatable :: max_para_ring(:)
@@ -886,22 +887,22 @@ contains
       logical :: have_previous,ring_valid
       character(len=32) :: f_file,diag_file
 
-      nphi=f_oam_nphi
-      nrad=f_oam_nr
+      nphi=oam_nphi
+      nrad=oam_nr
       if (nphi < 8 .or. mod(nphi,2) /= 0) then
-         error stop 'chern: f_oam_nphi must be an even integer >= 8'
+         error stop 'chern: oam_nphi must be an even integer >= 8'
       end if
-      if (nrad < 2) error stop 'chern: f_oam_nr must be >= 2'
-      if (Nz /= 1) error stop 'chern: Fishman F_OAM requires a two-dimensional mesh'
+      if (nrad < 2) error stop 'chern: oam_nr must be >= 2'
+      if (Nz /= 1) error stop 'chern: Fishman OAM requires a two-dimensional mesh'
 
       call fishman_inscribed_radius(C1,C2,C3,k_in)
-      if (f_oam_kmax > 0.0_dblprec) then
-         kmax=f_oam_kmax
+      if (oam_kmax > 0.0_dblprec) then
+         kmax=oam_kmax
       else
          kmax=k_in
       end if
       if (kmax > k_in*(1.0_dblprec+1.0d-10)) then
-         print '(1x,a,2(1x,es12.5))', 'Warning: F_OAM rings extend beyond the inscribed BZ radius:',kmax,k_in
+         print '(1x,a,2(1x,es12.5))', 'Warning: Fishman OAM rings extend beyond the inscribed BZ radius:',kmax,k_in
       end if
 
       npoints=nrad*nphi
@@ -909,13 +910,13 @@ contains
       allocate(polar_q(3,npoints),polar_k(nrad),stat=i_stat)
       allocate(polar_eval(NA,npoints),polar_evec(2*NA,NA,npoints),stat=i_stat)
       allocate(raw_evec(2*NA,NA,nphi),raw_eval(NA,nphi),stat=i_stat)
-      allocate(gauge_evec(2*NA,NA,nphi),ring_eval(NA,nphi),ring_f(NA),stat=i_stat)
-      allocate(f_oam(NA,nrad),disk_oam(NA,nrad),valid_ring(nrad),disk_valid(NA),stat=i_stat)
+      allocate(gauge_evec(2*NA,NA,nphi),ring_eval(NA,nphi),ring_value(NA),stat=i_stat)
+      allocate(radial_oam(NA,nrad),disk_oam(NA,nrad),valid_ring(nrad),disk_valid(NA),stat=i_stat)
       allocate(previous_closure(NA),closure_phase(NA),branch_shifts(NA),stat=i_stat)
       allocate(min_overlap(nrad),min_gap(nrad),closure_error(nrad),max_para_ring(nrad),stat=i_stat)
       allocate(branch_count_ring(nrad),stat=i_stat)
       nan_value=ieee_value(0.0_dblprec,ieee_quiet_nan)
-      f_oam=nan_value
+      radial_oam=nan_value
       disk_oam=nan_value
       valid_ring=.false.
       disk_valid=.false.
@@ -928,7 +929,7 @@ contains
          do j=0,nphi-1
             phi=dphi*real(j,dblprec)
             iq=(ir-1)*nphi+j+1
-            call polar_cartesian_to_reduced(kr*cos(phi),kr*sin(phi),0.0_dblprec,C1,C2,C3,polar_q(:,iq))
+            polar_q(:,iq)=(/ kr*cos(phi),kr*sin(phi),0.0_dblprec /)/(2.0_dblprec*pi)
          end do
       end do
 
@@ -959,8 +960,8 @@ contains
                min_overlap(ir),min_gap(ir)
          end if
          if (ring_valid) then
-            call fishman_ring_oam(NA,nphi,gauge_evec,ring_f)
-            f_oam(:,ir)=ring_f
+            call fishman_ring_oam(NA,nphi,gauge_evec,ring_value)
+            radial_oam(:,ir)=ring_value
             previous_closure=closure_phase
             have_previous=.true.
          end if
@@ -978,8 +979,8 @@ contains
          integral=0.0_dblprec
          do ir=2,nrad
             if (disk_valid(band) .and. valid_ring(ir)) then
-               integral=integral+0.5_dblprec*(polar_k(ir-1)*f_oam(band,ir-1)+&
-                  polar_k(ir)*f_oam(band,ir))*(polar_k(ir)-polar_k(ir-1))
+               integral=integral+0.5_dblprec*(polar_k(ir-1)*radial_oam(band,ir-1)+&
+                  polar_k(ir)*radial_oam(band,ir))*(polar_k(ir)-polar_k(ir-1))
                if (polar_k(ir) > 0.0_dblprec) then
                   disk_oam(band,ir)=2.0_dblprec*integral/(polar_k(ir)**2)
                else
@@ -992,20 +993,21 @@ contains
          end do
       end do
 
-      f_file='f_oam.'//trim(simid)//'.out'
+      f_file='oam_lswt.'//trim(simid)//'.out'
       open(ofileno,file=f_file)
       write(ofileno,'(a)') '# Fishman gauge-invariant angularly averaged magnon OAM'
       write(ofileno,'(a)') '# k is physical Cartesian |k|; rings are not folded back into the BZ.'
-      write(ofileno,'(a)') '# k band energy(meV) F_OAM/hbar O_OAM_av/hbar'
+      write(ofileno,'(a)') '# C13 absolute sign: convention: see OAM_QUESTIONS.md'
+      write(ofileno,'(a)') '# k band energy(meV) F_n(k)/hbar O_n,av(k)/hbar'
       do ir=1,nrad
          do band=1,NA
             write(ofileno,'(es23.15,1x,i6,3(1x,es23.15))') polar_k(ir),band,&
-               polar_eval(band,(ir-1)*nphi+1),f_oam(band,ir),disk_oam(band,ir)
+               polar_eval(band,(ir-1)*nphi+1),radial_oam(band,ir),disk_oam(band,ir)
          end do
       end do
       close(ofileno)
 
-      diag_file='f_oam_diagnostics.'//trim(simid)//'.out'
+      diag_file='oam_lswt_diagnostics.'//trim(simid)//'.out'
       open(ofileno,file=diag_file)
       write(ofileno,'(a)') '# k min_adjacent_overlap min_band_gap(meV) max_paraunitarity closure_error branch_shifts valid'
       do ir=1,nrad
@@ -1016,19 +1018,45 @@ contains
 
       zero_tol=1.0d-8
       max_zero_f=0.0_dblprec
-      if (valid_ring(1)) max_zero_f=maxval(abs(f_oam(:,1)))
+      if (valid_ring(1)) max_zero_f=maxval(abs(radial_oam(:,1)))
       if (valid_ring(1) .and. max_zero_f > zero_tol) then
-         print '(1x,a,es12.5)', 'Warning: F_OAM(k=0) is not numerically zero: ',max_zero_f
+         print '(1x,a,es12.5)', 'Warning: F_n(k=0) is not numerically zero: ',max_zero_f
       end if
-      print '(1x,a,2(1x,i6),2(1x,es12.5))', 'Fishman F_OAM polar mesh (Nphi,Nr,kmax,k_in):',&
+      print '(1x,a,2(1x,i6),2(1x,es12.5))', 'Fishman OAM polar mesh (Nphi,Nr,kmax,k_in):',&
          nphi,nrad,kmax,k_in
-      print '(1x,a,a)', 'Fishman F_OAM written to ',trim(f_file)
-      print '(1x,a,a)', 'Fishman F_OAM diagnostics written to ',trim(diag_file)
+      print '(1x,a,a)', 'Fishman OAM written to ',trim(f_file)
+      print '(1x,a,a)', 'Fishman OAM diagnostics written to ',trim(diag_file)
 
-      deallocate(polar_q,polar_k,polar_eval,polar_evec,raw_evec,raw_eval,gauge_evec,ring_eval,ring_f)
-      deallocate(f_oam,disk_oam,valid_ring,disk_valid,previous_closure,closure_phase,branch_shifts)
+      deallocate(polar_q,polar_k,polar_eval,polar_evec,raw_evec,raw_eval,gauge_evec,ring_eval,ring_value)
+      deallocate(radial_oam,disk_oam,valid_ring,disk_valid,previous_closure,closure_phase,branch_shifts)
       deallocate(min_overlap,min_gap,closure_error,max_para_ring,branch_count_ring)
    end subroutine calculate_fishman_f_average
+
+   !> Append the optional gauge-dependent pointwise diagnostic to the
+   !> gauge-invariant Fishman output diagnostics.
+   subroutine append_fishman_pointwise_diagnostics(NA,dimen,simid,q_vchern,oam_energy,oam_hbar)
+      implicit none
+      integer, intent(in) :: NA,dimen
+      character(len=8), intent(in) :: simid
+      real(dblprec), intent(in) :: q_vchern(3,dimen),oam_energy(NA,dimen),oam_hbar(NA,dimen)
+
+      character(len=32) :: diag_file
+      integer :: iq,band
+
+      diag_file='oam_lswt_diagnostics.'//trim(simid)//'.out'
+      open(ofileno,file=diag_file,status='old',position='append')
+      write(ofileno,'(a)') '# Pointwise O_n(k)/hbar: gauge-fixed and gauge-dependent diagnostic.'
+      write(ofileno,'(a)') '# qx qy are Cartesian q components; physical k=2*pi*q.'
+      write(ofileno,'(a)') '# band qx qy energy(meV) O_n(k)/hbar'
+      do iq=1,dimen
+         do band=1,NA
+            write(ofileno,'(i6,4(1x,es23.15))') band,q_vchern(1,iq),q_vchern(2,iq),&
+               oam_energy(band,iq),oam_hbar(band,iq)
+         end do
+      end do
+      close(ofileno)
+      print '(1x,a,a)', 'Pointwise Fishman OAM diagnostics appended to ',trim(diag_file)
+   end subroutine append_fishman_pointwise_diagnostics
 
    !> Evaluate Fishman's pointwise magnon OAM in units of hbar.
    !> The reciprocal grid is expressed in the same coordinates as q_vchern;
@@ -1096,10 +1124,10 @@ contains
                dtdy=(-dq2(1)*d1+dq1(1)*d2)/detq
                angular_derivative=qx*dtdy-qy*dtdx
 
-               ! For T=X^{-1}, Fishman's convention is
-               ! O/hbar = -1/2 Im[T^dagger eta D T].  UppASD uses
-               ! exp(-i*k.R) in setup_ektij; the minus sign is therefore
-               ! retained explicitly here and in the polar-ring evaluator.
+               ! For T=X^{-1}, Fishman Eq. 11 gives
+               ! O/hbar = -1/2 Im[T^dagger eta D T].  The Fourier sign in
+               ! setup_ektij does not determine this sign: k -> -k is a
+               ! pi rotation and leaves a two-dimensional ring average unchanged.
                oam_hbar(band,iq)=-0.5_dblprec*aimag(&
                   boson_overlap(oam_evec(:,band,iq),angular_derivative,NA))
             end do
@@ -1107,8 +1135,9 @@ contains
       end do
    end subroutine calculate_fishman_oam
 
-   !> Reciprocal basis without the 2*pi factor.  UppASD passes q in this
-   !> basis and setup_ektij supplies the physical 2*pi factor later.
+   !> Reciprocal basis without the 2*pi factor, used to find the conservative
+   !> inscribed radius of the first Brillouin zone.  Hamiltonian calls use
+   !> Cartesian q directly and do not consume this basis.
    subroutine fishman_reciprocal_basis(C1,C2,C3,b1,b2,b3)
       implicit none
       real(dblprec), intent(in) :: C1(3),C2(3),C3(3)
@@ -1132,41 +1161,6 @@ contains
       b2=r2/volume
       b3=r3/volume
    end subroutine fishman_reciprocal_basis
-
-   !> Convert physical Cartesian k to UppASD reduced reciprocal coordinates.
-   !> This is q such that k=2*pi*(q1*b1+q2*b2+q3*b3), with no orthogonality
-   !> assumption: q_i=(k.C_i)/(2*pi).
-   subroutine fishman_cartesian_to_reduced(kcart,C1,C2,C3,qred)
-      implicit none
-      real(dblprec), intent(in) :: kcart(3),C1(3),C2(3),C3(3)
-      real(dblprec), intent(out) :: qred(3)
-
-      qred(1)=dot_product(kcart,C1)/(2.0_dblprec*pi)
-      qred(2)=dot_product(kcart,C2)/(2.0_dblprec*pi)
-      qred(3)=dot_product(kcart,C3)/(2.0_dblprec*pi)
-   end subroutine fishman_cartesian_to_reduced
-
-   !> Convenience wrapper for a Cartesian polar point.
-   subroutine polar_cartesian_to_reduced(kx,ky,kz,C1,C2,C3,qred)
-      implicit none
-      real(dblprec), intent(in) :: kx,ky,kz,C1(3),C2(3),C3(3)
-      real(dblprec), intent(out) :: qred(3)
-      real(dblprec) :: kcart(3)
-
-      kcart=(/ kx,ky,kz /)
-      call fishman_cartesian_to_reduced(kcart,C1,C2,C3,qred)
-   end subroutine polar_cartesian_to_reduced
-
-   !> Convert UppASD reduced reciprocal coordinates back to physical k.
-   subroutine fishman_reduced_to_cartesian(qred,C1,C2,C3,kcart)
-      implicit none
-      real(dblprec), intent(in) :: qred(3),C1(3),C2(3),C3(3)
-      real(dblprec), intent(out) :: kcart(3)
-      real(dblprec) :: b1(3),b2(3),b3(3)
-
-      call fishman_reciprocal_basis(C1,C2,C3,b1,b2,b3)
-      kcart=2.0_dblprec*pi*(qred(1)*b1+qred(2)*b2+qred(3)*b3)
-   end subroutine fishman_reduced_to_cartesian
 
    !> Conservative inscribed-circle radius of the 2D first BZ.  The search
    !> is over nonzero reciprocal vectors G=2*pi*(n1*b1+n2*b2), so polar
@@ -1306,20 +1300,44 @@ contains
               read(ifile,*,iostat=i_err) do_chern
               if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
 
-            case('do_magnon_oam') ! Fishman reciprocal-space magnon OAM (requires do_chern Y)
-              read(ifile,*,iostat=i_err) do_magnon_oam
+            case('do_oam_lswt') ! Fishman reciprocal-space magnon OAM (requires do_chern Y)
+              read(ifile,*,iostat=i_err) do_oam_lswt
               if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
 
-            case('f_oam_nphi','oam_nphi') ! Angular points on each Fishman polar ring
-              read(ifile,*,iostat=i_err) f_oam_nphi
+            case('do_magnon_oam') ! Deprecated alias for do_oam_lswt
+              read(ifile,*,iostat=i_err) do_oam_lswt
+              if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
+              write(*,'(1x,a)') 'Deprecated input key do_magnon_oam; use do_oam_lswt'
+
+            case('oam_nphi') ! Angular points on each Fishman polar ring
+              read(ifile,*,iostat=i_err) oam_nphi
               if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
 
-            case('f_oam_nr','oam_nr') ! Radial points, including k=0
-              read(ifile,*,iostat=i_err) f_oam_nr
+            case('f_oam_nphi') ! Deprecated alias for oam_nphi
+              read(ifile,*,iostat=i_err) oam_nphi
+              if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
+              write(*,'(1x,a)') 'Deprecated input key f_oam_nphi; use oam_nphi'
+
+            case('oam_nr') ! Radial points, including k=0
+              read(ifile,*,iostat=i_err) oam_nr
               if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
 
-            case('f_oam_kmax','oam_kmax') ! Maximum physical Cartesian |k|; <=0 uses inscribed BZ radius
-              read(ifile,*,iostat=i_err) f_oam_kmax
+            case('f_oam_nr') ! Deprecated alias for oam_nr
+              read(ifile,*,iostat=i_err) oam_nr
+              if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
+              write(*,'(1x,a)') 'Deprecated input key f_oam_nr; use oam_nr'
+
+            case('oam_kmax') ! Maximum physical Cartesian |k|; <=0 uses inscribed BZ radius
+              read(ifile,*,iostat=i_err) oam_kmax
+              if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
+
+            case('f_oam_kmax') ! Deprecated alias for oam_kmax
+              read(ifile,*,iostat=i_err) oam_kmax
+              if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
+              write(*,'(1x,a)') 'Deprecated input key f_oam_kmax; use oam_kmax'
+
+            case('oam_lswt_pointwise') ! Write gauge-dependent pointwise OAM diagnostics
+              read(ifile,*,iostat=i_err) oam_lswt_pointwise
               if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
 
             case('kgrid') ! Read the size of the grid
@@ -1349,14 +1367,14 @@ contains
 
    20  continue
 
-   if (do_magnon_oam=='Y' .and. do_chern/='Y') then
-      error stop 'do_magnon_oam requires do_chern Y'
+   if (do_oam_lswt=='Y' .and. do_chern/='Y') then
+      error stop 'do_oam_lswt requires do_chern Y'
    end if
-   if (do_magnon_oam=='Y') then
-      if (f_oam_nphi < 8 .or. mod(f_oam_nphi,2) /= 0) then
-         error stop 'f_oam_nphi must be an even integer >= 8'
+   if (do_oam_lswt=='Y') then
+      if (oam_nphi < 8 .or. mod(oam_nphi,2) /= 0) then
+         error stop 'oam_nphi must be an even integer >= 8'
       end if
-      if (f_oam_nr < 2) error stop 'f_oam_nr must be >= 2'
+      if (oam_nr < 2) error stop 'oam_nr must be >= 2'
    end if
 
    return

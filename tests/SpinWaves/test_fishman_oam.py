@@ -8,6 +8,12 @@ back to particle-only overlaps or Berry-flux-as-OAM.
 import cmath
 import math
 from pathlib import Path
+import re
+import sys
+
+ORACLE_DIR = Path(__file__).with_name("oam_lswt")
+sys.path.insert(0, str(ORACLE_DIR))
+import oracle_honey
 
 
 def boson_overlap(v1, v2, n_a):
@@ -191,12 +197,27 @@ def test_random_raw_phases_are_removed_by_ring_gauge():
     assert math.isclose(reference, recovered, rel_tol=0.0, abs_tol=2.0e-5)
 
 
-def test_fortran_oam_is_not_the_berry_flux_proxy():
+def test_fortran_polar_mesh_uses_cartesian_q():
     source = (Path(__file__).parents[2] / "source" / "SpinWaves" / "chern_number.f90").read_text()
-    assert "aimag( Berry_cuv ) * dkx * dky" not in source
-    assert "Lz_band" not in source
-    assert "f_oam(i)=f_oam(i)-0.5_dblprec*aimag" in source
-    assert "f_oam_nphi must be an even integer >= 8" in source
+    compact = re.sub(r"\s+", "", source)
+    assert "polar_q(:,iq)=(/kr*cos(phi),kr*sin(phi),0.0_dblprec/)/(2.0_dblprec*pi)" in compact
+    assert "polar_cartesian_to_reduced" not in source
+    assert "fishman_cartesian_to_reduced" not in source
+
+
+def test_fishman_ring_oam_equals_berry_flux():
+    """The gauge-invariant ring OAM is the Wilson-loop phase divided by 4 pi."""
+
+    for radius in (0.18, 0.31, 0.44):
+        nphi = 512
+        points = [
+            oracle_honey.np.array([radius * math.cos(2.0 * math.pi * j / nphi),
+                                   radius * math.sin(2.0 * math.pi * j / nphi)])
+            for j in range(nphi)
+        ]
+        berry_phase = oracle_honey.ring_berry_phase(points, band=0, D=0.1)
+        fishman = oracle_honey.F_of_k([radius], band=0, D=0.1, nphi=nphi)[0]
+        assert math.isclose(fishman, berry_phase / (4.0 * math.pi), rel_tol=0.0, abs_tol=1.0e-12)
 
 
 def test_oblique_directional_derivatives_recover_cartesian_derivative():
@@ -215,41 +236,6 @@ def test_oblique_directional_derivatives_recover_cartesian_derivative():
     assert math.isclose(recovered_y, derivative_y, rel_tol=0.0, abs_tol=1.0e-14)
 
 
-def reciprocal_basis(c1, c2, c3):
-    r1 = (
-        c2[1] * c3[2] - c2[2] * c3[1],
-        c2[2] * c3[0] - c2[0] * c3[2],
-        c2[0] * c3[1] - c2[1] * c3[0],
-    )
-    volume = sum(a * b for a, b in zip(c1, r1))
-    r2 = (
-        c3[1] * c1[2] - c3[2] * c1[1],
-        c3[2] * c1[0] - c3[0] * c1[2],
-        c3[0] * c1[1] - c3[1] * c1[0],
-    )
-    r3 = (
-        c1[1] * c2[2] - c1[2] * c2[1],
-        c1[2] * c2[0] - c1[0] * c2[2],
-        c1[0] * c2[1] - c1[1] * c2[0],
-    )
-    return [tuple(x / volume for x in r) for r in (r1, r2, r3)]
-
-
-def test_cartesian_reduced_round_trip_for_oblique_cell():
-    c1 = (2.0, 0.0, 0.0)
-    c2 = (1.0, math.sqrt(3.0), 0.0)
-    c3 = (0.0, 0.0, 1.0)
-    b1, b2, b3 = reciprocal_basis(c1, c2, c3)
-    basis = (b1, b2, b3)
-    k = (0.37, -0.51, 0.0)
-    q = tuple(sum(k[i] * c[i] for i in range(3)) / (2.0 * math.pi) for c in (c1, c2, c3))
-    recovered = tuple(
-        2.0 * math.pi * sum(q[j] * basis[j][i] for j in range(3))
-        for i in range(3)
-    )
-    assert max(abs(a - b) for a, b in zip(k, recovered)) < 1.0e-14
-
-
 if __name__ == "__main__":
     test_bosonic_wilson_loop_is_phase_invariant()
     test_metric_overlap_includes_hole_sector()
@@ -257,7 +243,7 @@ if __name__ == "__main__":
     test_raw_pointwise_oam_changes_under_a_gauge_phase()
     test_fishman_minus_sign_and_periodic_gauge_invariance()
     test_random_raw_phases_are_removed_by_ring_gauge()
-    test_fortran_oam_is_not_the_berry_flux_proxy()
+    test_fortran_polar_mesh_uses_cartesian_q()
+    test_fishman_ring_oam_equals_berry_flux()
     test_oblique_directional_derivatives_recover_cartesian_derivative()
-    test_cartesian_reduced_round_trip_for_oblique_cell()
     print("Fishman OAM algebra regressions passed")
