@@ -1,5 +1,16 @@
 # OAM questions and decisions
 
+## 2026-09-28 — B5.4 held at GA
+
+B5.1–B5.3 are prepared, but B5.4 is not started because its prompt requires
+the maintainer's C13/GA sign decision before deriving the LSWT-to-trajectory
+bridge mapping. A5 found that the positive-D Fishman sign is internally
+consistent in UppASD, while neither tested sign reproduces the published
+magnitude (the positive-D result is about 19.1% below it). Starting B5.4 now
+would therefore bake an unresolved sign or normalization choice into the
+bridge. The required HP derivation and bridge run remain a G3 follow-up after
+GA.
+
 ## 2026-09-28 — B3
 
 - Restatement: C1 defines the transverse complex field as `psi = m_x + i*m_y` in the single frame fixed at `oam_init`. In the +z Holstein–Primakoff convention this is proportional to the magnon annihilation field, so positive `lambda_L` denotes magnon OAM pointing along +z. It is the conjugate of the `m_x - i*m_y` convention used in parts of the literature.

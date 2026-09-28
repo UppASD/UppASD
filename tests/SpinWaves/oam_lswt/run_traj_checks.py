@@ -12,13 +12,19 @@ Output contract parsed here (CONVENTIONS_OAM.md, C6): oam_traj.<simid>.out,
   step lambda_L_origin lambda_L_centroid N_m Lz_tot_hbar dSz_hbar balance R_x R_y sigma_psi
 Non-finite values are written as NaN.
 """
-import os, sys, shutil, subprocess
+import argparse, os, sys, shutil, subprocess
 import numpy as np
 import oracle_traj as O
 import mkfixture_traj as F
 
-EXE = os.environ.get("UPPASD", "uppasd")
-SELFTEST = "--selftest" in sys.argv
+_parser = argparse.ArgumentParser()
+_parser.add_argument("--binary", default=os.environ.get("UPPASD", "uppasd"),
+                     help="UppASD executable")
+_parser.add_argument("--selftest", action="store_true",
+                     help="write oracle outputs instead of running UppASD")
+_args = _parser.parse_args()
+EXE = _args.binary
+SELFTEST = _args.selftest
 WORK = os.path.abspath("traj_checks")
 COLS = ["step", "lambda_L_origin", "lambda_L_centroid", "N_m", "Lz_tot_hbar",
         "dSz_hbar", "balance", "R_x", "R_y", "sigma_psi"]
