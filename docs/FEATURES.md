@@ -117,6 +117,7 @@ An inventory of functionality and features currently contained in UppASD.
 - Support for simultaneous C(q) and S(q,w) with `do_sc Y`.
 - Custom type for Hamiltonian input data.
 - Magnon DOS printout for NC-AMS.
+- The LSWT Hamiltonian currently omits the static `hfield`; UppASD reports this when a nonzero field is configured.
 - Introduced two-time autocorrelation into `mc_driver`.
 - Edwards-Anderson model capability.
 - 1q and 3q spin-spiral minimizer.

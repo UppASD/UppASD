@@ -322,7 +322,7 @@ contains
          do j=1,ham%dmlistsize(ham%aham(mutemp))
             if (anumb(nutemp)==anumb(ham%dmlist(j,mutemp))) then
                !dist(:)=-redcoord(atype(mutemp),j,:)
-               call f_wrap_coord_diff(Natom,coord,mutemp,ham%nlist(j,mutemp),dist)
+               call f_wrap_coord_diff(Natom,coord,mutemp,ham%dmlist(j,mutemp),dist)
                !dist(:)=coord(1:3,mutemp)-coord(1:3,ham%nlist(j,mutemp))
                dmdot=sum(ham%dm_vect(:,j,ham%aham(mutemp))*q_hat)
                calc_j = calc_j+dmdot*sin(1.0_dblprec*( q_vect2pi(1)*dist(1)+q_vect2pi(2)*dist(2)+q_vect2pi(3)*dist(3)))
@@ -373,7 +373,7 @@ contains
       if(ham_inp%do_dm==1) then
          do j=1,ham%dmlistsize(ham%aham(iatom))
             if (achem_ch(ham%dmlist(j,iatom))==nu) then
-               call f_wrap_coord_diff(Natom,coord,iatom,ham%nlist(j,iatom),dist)
+               call f_wrap_coord_diff(Natom,coord,iatom,ham%dmlist(j,iatom),dist)
                dmdot=sum(ham%dm_vect(:,j,ham%aham(iatom))*q_hat)
                calc_jRA = calc_jRA+dmdot*sin(1.0_dblprec*( q_vect2pi(1)*dist(1)+q_vect2pi(2)*dist(2)+q_vect2pi(3)*dist(3)))
             end if
@@ -423,10 +423,10 @@ contains
       if(ham_inp%do_dm==1) then
          do j=1,ham%dmlistsize(ham%aham(iatom))
             if (asite_ch(ham%dmlist(j,iatom))==beta) then
-               call f_wrap_coord_diff(Natom,coord,iatom,ham%nlist(j,iatom),dist)
+               call f_wrap_coord_diff(Natom,coord,iatom,ham%dmlist(j,iatom),dist)
                dmdot=sum(ham%dm_vect(:,j,ham%aham(iatom))*q_hat)
                calc_jDRA = calc_jDRA+dmdot*sin(1.0_dblprec*( q_vect2pi(1)*dist(1)+q_vect2pi(2)*dist(2)+q_vect2pi(3)*dist(3)))* &
-                ammom_inp(asite_ch(ham%nlist(j,iatom)),achem_ch(ham%nlist(j,iatom)),gsconf_num)
+                ammom_inp(asite_ch(ham%dmlist(j,iatom)),achem_ch(ham%dmlist(j,iatom)),gsconf_num)
             end if
          end do
       end if

@@ -8,7 +8,7 @@ module diamag
    use Parameters
    use Profiling
    use Hamiltoniandata,    only : ham
-   use InputData,   only : ham_inp
+   use InputData,   only : ham_inp, hfield
    !
    implicit none
    !
@@ -29,6 +29,7 @@ module diamag
    !
    character(len=1) :: do_diamag       !< Perform frequency based spin-correlation sampling (Y/N/C)
    character(len=1) :: do_helicity     !< Perform helicity/chern analysis (Y/N)
+   character(len=1) :: nc_allow_unstable !< Allow unstable LSWT kernels in paraunitary calculations (Y/N)
    real(dblprec)    :: diamag_mix      !< Separation between sampling steps
    real(dblprec)    :: diamag_thresh   !< Separation between sampling steps
    real(dblprec)    :: diamag_eps      !< Diagonal offset for positive definitive diagonalization
@@ -42,7 +43,7 @@ module diamag
 
    private
    ! public subroutines
-   public :: do_diamag, do_helicity, read_parameters_diamag,clone_q,diagonalize_quad_hamiltonian,&
+   public :: do_diamag, do_helicity, setup_diamag, read_parameters_diamag,clone_q,diagonalize_quad_hamiltonian,&
              find_uv,setup_ektij,setup_jtens2_q,setup_jtens_q,sJs
    public :: setup_tensor_hamiltonian, nc_evec_complex, nc_eval_complex
    public :: boson_overlap, boson_paraunitarity_error, release_complex_eigensystem
@@ -107,7 +108,8 @@ contains
       diamag_mix=0.030_dblprec
       diamag_thresh=1.0d-8
       diamag_nfreq=200
-      !diamag_eps=-1.0_dblprec
+      diamag_eps=-1.0_dblprec
+      nc_allow_unstable='N'
       !diamag_qvect=0.0_dblprec
       !diamag_nvect(1:2)=0.0_dblprec;diamag_nvect(3)=1.0_dblprec
 
@@ -150,7 +152,11 @@ contains
       character(LEN = 25) :: ncams_file
       !
       if (flag == 0) then
-        print '(1x,a)', 'Calculating LSWT magnon dispersions'
+            print '(1x,a)', 'Calculating LSWT magnon dispersions'
+      end if
+      if (norm2(hfield)>0.0_dblprec) then
+         write(*,'(1x,a,3f12.6,2(a,1x,a1))') 'LSWT note: hfield is not included in the LSWT Hamiltonian; hfield=', &
+            hfield, 'do_diamag=', do_diamag, 'do_chern=', merge('Y','N',flag/=0)
       end if
 
       ! Hamiltonian dimension = 4x number of atoms
@@ -445,7 +451,7 @@ contains
    end subroutine setup_tensor_hamiltonian
 
 
-   subroutine diagonalize_quad_hamiltonian(NA,h_in,eig_val,eig_vec,iq,nq_ext,S_prime,require_paraunitary,paraunitarity_error)
+   subroutine diagonalize_quad_hamiltonian(NA,h_in,eig_val,eig_vec,iq,nq_ext,S_prime,require_paraunitary,paraunitarity_error,force_fallback)
       !
       use Constants
       !
@@ -462,6 +468,7 @@ contains
       complex(dblprec), dimension(2*NA,2*NA,3,3,nq_ext), intent(inout) :: S_prime
       logical, intent(in), optional :: require_paraunitary
       real(dblprec), intent(out), optional :: paraunitarity_error
+      logical, intent(in), optional :: force_fallback
       !
       !real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom     !< Current magnetic moment magnitude
       !integer, intent(in) :: Mensemble !< Number of ensembles
@@ -474,6 +481,7 @@ contains
       complex(dblprec), dimension(2*NA,2*NA) :: L_mat
       complex(dblprec), dimension(2*NA,2*NA) :: T_mat
       complex(dblprec), dimension(2*NA,2*NA) :: K_mat
+      complex(dblprec), dimension(2*NA,2*NA) :: K_fallback
       complex(dblprec), dimension(2*NA,2*NA) :: KgK_mat
       complex(dblprec), dimension(2*NA,2*NA) :: iK_mat
       complex(dblprec), dimension(2*NA,2*NA) :: dum_mat
@@ -482,8 +490,8 @@ contains
       !
       integer :: info, lwork, hdim, ia, ja
       integer :: alfa, beta
-      logical :: colpa_ok, require_check
-      real(dblprec) :: para_err, para_tol, energy_tol
+      logical :: colpa_ok, require_check, force_fallback_check
+      real(dblprec) :: para_err, para_tol, energy_tol, unstable_magnitude, k_scale
 
       complex(dblprec) :: cone, czero, fcinv, im, dia_eps
 
@@ -497,6 +505,8 @@ contains
       im=(0.0_dblprec,1.0_dblprec)
       require_check=.false.
       if (present(require_paraunitary)) require_check=require_paraunitary
+      force_fallback_check=.false.
+      if (present(force_fallback)) force_fallback_check=force_fallback
       ! Add offset to ensure positive definiteness, if needed.
       ! Can be controlled by input parameter `nc_eps`
       if (diamag_eps>-1.0_dblprec) then
@@ -538,6 +548,15 @@ contains
       !if(minval(eig_val)<0.0_dblprec) print *,'-----------------'
       !if(minval(eig_val)<0.0_dblprec) print '(2f10.6)',aimag(K_mat)
       !if(minval(eig_val)<0.0_dblprec) print *,'-----------------'
+      k_scale=maxval(abs(eig_val))
+      unstable_magnitude=max(0.0_dblprec,-minval(eig_val))
+      if (unstable_magnitude>1.0e-8_dblprec*k_scale) then
+         write(*,'(1x,a,i8,a,es12.5)') 'Warning: unstable LSWT kernel at q=',iq, &
+            ' negative eigenvalue magnitude=',unstable_magnitude
+         if (require_check .and. nc_allow_unstable/='Y') then
+            error stop 'diamag: unstable LSWT Hamiltonian'
+         end if
+      end if
       if(minval(eig_val)<0.0_dblprec) dia_eps=dia_eps-minval(eig_val)*1.0_dblprec
       deallocate(cwork)
       deallocate(rwork)
@@ -547,9 +566,14 @@ contains
          !K_mat(ia,ia)=K_mat(ia,ia)+dia_eps
          K_mat(ia,ia)=K_mat(ia,ia)+2.0_dblprec*dia_eps
       end do
+      K_fallback=K_mat
 
       ! Cholesky
-      call zpotrf('U',hdim,K_mat,hdim,info)
+      if (force_fallback_check) then
+         info=1
+      else
+         call zpotrf('U',hdim,K_mat,hdim,info)
+      end if
       ! Setting to zero the lower triangular part of K_mat
       do ia=1,hdim
          do ja=1,hdim
@@ -569,10 +593,12 @@ contains
          call zgemm('N','C',hdim,hdim,hdim,cone,g_mat,hdim,K_mat,hdim,czero,dum_mat,hdim)
          call zgemm('N','N',hdim,hdim,hdim,cone,K_mat,hdim,dum_mat,hdim,czero,eig_vec,hdim)
       else
-         print *,' Warning in diamag: non-positive definite matrix in zpotrf', iq, info
+         if (.not.force_fallback_check) then
+            print *,' Warning in diamag: non-positive definite matrix in zpotrf', iq, info
+         end if
          ! The fallback must return physical bosonic vectors.  It is checked below;
          ! a failed check is fatal for Chern/OAM callers.
-         call fallback_bosonic_diag(NA, h_in, eig_val, eig_vec, iq)
+         call fallback_bosonic_diag(NA, K_fallback, eig_val, eig_vec, iq)
       end if
 
       if (colpa_ok) then
@@ -655,13 +681,13 @@ contains
       !
    end subroutine diagonalize_quad_hamiltonian
 
-   subroutine fallback_bosonic_diag(NA, h_in, eig_val, eig_vec, iq)
+   subroutine fallback_bosonic_diag(NA, K_in, eig_val, eig_vec, iq)
       use Constants
       implicit none
 
       integer, intent(in) :: NA, iq
-      integer :: hdim, ia, info
-      complex(dblprec), intent(in)  :: h_in(2*NA, 2*NA)
+      integer :: hdim, ia, info, i_stat, i_all
+      complex(dblprec), intent(in)  :: K_in(2*NA, 2*NA)
       real(dblprec),    intent(out) :: eig_val(2*NA)
       complex(dblprec), intent(out) :: eig_vec(2*NA, 2*NA)
 
@@ -675,11 +701,18 @@ contains
       czero = (0.0_dblprec, 0.0_dblprec)
       hdim = 2 * NA
 
-      !— allocate everything —
-      allocate(alpha_mat(hdim), beta_mat(hdim))
-      allocate(eta(hdim, hdim), A_copy(hdim, hdim))
-      allocate(work(8 * hdim))
-      allocate(rwork(hdim))
+      allocate(alpha_mat(hdim),stat=i_stat)
+      call memocc(i_stat,product(shape(alpha_mat))*kind(alpha_mat),'alpha_mat','fallback_bosonic_diag')
+      allocate(beta_mat(hdim),stat=i_stat)
+      call memocc(i_stat,product(shape(beta_mat))*kind(beta_mat),'beta_mat','fallback_bosonic_diag')
+      allocate(eta(hdim, hdim),stat=i_stat)
+      call memocc(i_stat,product(shape(eta))*kind(eta),'eta','fallback_bosonic_diag')
+      allocate(A_copy(hdim, hdim),stat=i_stat)
+      call memocc(i_stat,product(shape(A_copy))*kind(A_copy),'A_copy','fallback_bosonic_diag')
+      allocate(work(8 * hdim),stat=i_stat)
+      call memocc(i_stat,product(shape(work))*kind(work),'work','fallback_bosonic_diag')
+      allocate(rwork(hdim),stat=i_stat)
+      call memocc(i_stat,product(shape(rwork))*kind(rwork),'rwork','fallback_bosonic_diag')
 
       eig_vec = czero
       eig_val = 0.0_dblprec
@@ -691,26 +724,8 @@ contains
          eta(NA+ia, NA+ia)   = (-1.0_dblprec, 0.0_dblprec)
       end do
 
-      !— copy H into a working array —
-      A_copy = h_in
-
-      !- Pretty-print A_copy
-      ! print *, 'A_copy'
-      ! do ia = 1, hdim
-      !    print '(20f12.6)', h_in(ia, 1:hdim)
-      ! end do
-
-      !- Add small diagonal offset to ensure positive definiteness
-      !— (can be controlled by input parameter `nc_eps`) —
-      if (diamag_eps > -1.0_dblprec) then
-         do ia = 1, hdim
-            A_copy(ia, ia) = A_copy(ia, ia) + diamag_eps
-         end do
-      else
-         do ia = 1, hdim
-            A_copy(ia, ia) = A_copy(ia, ia) + 1.0d-6
-         end do
-      end if
+      ! K_in is the same scaled and regularised Hermitian kernel used by Colpa.
+      A_copy = K_in
 
       !— solve A_copy * v = ω * η * v  via ZGGEV —
       call zggev( 'N', 'V', hdim,                       &
@@ -752,8 +767,24 @@ contains
          end do
       end if
 
-      !— clean up —
-      deallocate(alpha_mat, beta_mat, eta, A_copy, work, rwork)
+      i_all=-product(shape(alpha_mat))*kind(alpha_mat)
+      deallocate(alpha_mat,stat=i_stat)
+      call memocc(i_stat,i_all,'alpha_mat','fallback_bosonic_diag')
+      i_all=-product(shape(beta_mat))*kind(beta_mat)
+      deallocate(beta_mat,stat=i_stat)
+      call memocc(i_stat,i_all,'beta_mat','fallback_bosonic_diag')
+      i_all=-product(shape(eta))*kind(eta)
+      deallocate(eta,stat=i_stat)
+      call memocc(i_stat,i_all,'eta','fallback_bosonic_diag')
+      i_all=-product(shape(A_copy))*kind(A_copy)
+      deallocate(A_copy,stat=i_stat)
+      call memocc(i_stat,i_all,'A_copy','fallback_bosonic_diag')
+      i_all=-product(shape(work))*kind(work)
+      deallocate(work,stat=i_stat)
+      call memocc(i_stat,i_all,'work','fallback_bosonic_diag')
+      i_all=-product(shape(rwork))*kind(rwork)
+      deallocate(rwork,stat=i_stat)
+      call memocc(i_stat,i_all,'rwork','fallback_bosonic_diag')
 
    end subroutine fallback_bosonic_diag
 
@@ -1656,6 +1687,10 @@ contains
             read(ifile,*,iostat=i_err) diamag_eps
             if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
 
+         case('nc_allow_unstable') ! Allow unstable LSWT kernels in paraunitary calculations
+            read(ifile,*,iostat=i_err) nc_allow_unstable
+            if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
+
          case('do_helicity') ! Enable helicity/chern analysis
             read(ifile,*,iostat=i_err) do_helicity
             if(i_err/=0) write(*,*) 'ERROR: Reading ', trim(keyword),' data',i_err
@@ -1705,7 +1740,7 @@ subroutine setup_Jtens_q(Natom,Mensemble,NA,emomM,q,nq,Jtens_q)
    real(dblprec), dimension(3) :: dmv, cmv, amv
    real(dblprec), dimension(9) :: pmv
    real(dblprec), dimension(3) :: z
-   real(dblprec), dimension(3,3) :: R_n, J_n, D_n, C_n, A_n, P_n
+   real(dblprec), dimension(3,3) :: R_n, J_n, D_n, A_n, P_n
    complex(dblprec)  :: FTfac, im
    integer :: iq, ia, ja, j, jat, ih
    !
@@ -1715,7 +1750,7 @@ subroutine setup_Jtens_q(Natom,Mensemble,NA,emomM,q,nq,Jtens_q)
    Jtens_q=0.0_dblprec
    z(1)=0.0_dblprec;z(2)=0.0_dblprec;z(3)=1.0_dblprec
    !
-   !!!$omp parallel do default(shared) private(iq,q_vec,ia,ja,j,jat,FTfac,dmv,cmv,pmv,amv, J_n, D_n, C_n, P_n, A_n)
+   !!!$omp parallel do default(shared) private(iq,q_vec,ia,ja,j,jat,FTfac,dmv,cmv,pmv,amv, J_n, D_n, P_n, A_n)
    do iq=0,nq
       ! Ensure that iq=0 corresponds to gamma
       if(iq>0) then
@@ -1743,22 +1778,6 @@ subroutine setup_Jtens_q(Natom,Mensemble,NA,emomM,q,nq,Jtens_q)
             J_n(1,1)=ham%ncoup(j,ih,1)
             J_n(2,2)=ham%ncoup(j,ih,1)
             J_n(3,3)=ham%ncoup(j,ih,1)
-            if (ham_inp%do_dm==1) then
-               dmv=ham%dm_vect(:,j,ih)
-               D_n=dm2tens(dmv)
-               J_n=J_n-D_n
-            end if
-            if (ham_inp%do_sa==1) then
-               cmv=-ham%sa_vect(:,j,ih)
-               C_n=sa2tens(cmv)
-               J_n=J_n+C_n
-            end if
-            if (ham_inp%do_pd==1) then
-               pmv=-ham%pd_vect(:,j,ih)
-               P_n=pd2tens(pmv)
-               J_n=J_n+P_n
-            end if
-
             FTfac=exp(-im *(q_vec(1)*dist(1)+q_vec(2)*dist(2)+q_vec(3)*dist(3)))
 
             !print '(a,2i6,3f10.4)','----------------',ia,jat,q(:,iq)
@@ -1770,6 +1789,46 @@ subroutine setup_Jtens_q(Natom,Mensemble,NA,emomM,q,nq,Jtens_q)
 
             Jtens_q(:,:,ia,jat,iq)=Jtens_q(:,:,ia,jat,iq)+matmul(J_n,R_n)*FTfac
          end do
+         ! DM interactions use their own neighbour list and coupling indices.
+         if (ham_inp%do_dm==1) then
+            do j=1,ham%dmlistsize(ih)
+               ja=ham%dmlist(j,ia)
+               jat=mod(ja-1,NA)+1
+               call f_wrap_coord_diff(Natom,coord,ia,ja,dist)
+               call find_R(R_n,emomM(:,jat,1),emomM(:,ja,1))
+               dmv=ham%dm_vect(:,j,ih)
+               D_n=dm2tens(dmv)
+               J_n=-D_n
+               FTfac=exp(-im *(q_vec(1)*dist(1)+q_vec(2)*dist(2)+q_vec(3)*dist(3)))
+               Jtens_q(:,:,ia,jat,iq)=Jtens_q(:,:,ia,jat,iq)+matmul(J_n,R_n)*FTfac
+            end do
+         end if
+         ! Symmetric anisotropic interactions use their own neighbour list.
+         if (ham_inp%do_sa==1) then
+            do j=1,ham%salistsize(ih)
+               ja=ham%salist(j,ia)
+               jat=mod(ja-1,NA)+1
+               call f_wrap_coord_diff(Natom,coord,ia,ja,dist)
+               call find_R(R_n,emomM(:,jat,1),emomM(:,ja,1))
+               cmv=-ham%sa_vect(:,j,ih)
+               J_n=sa2tens(cmv)
+               FTfac=exp(-im *(q_vec(1)*dist(1)+q_vec(2)*dist(2)+q_vec(3)*dist(3)))
+               Jtens_q(:,:,ia,jat,iq)=Jtens_q(:,:,ia,jat,iq)+matmul(J_n,R_n)*FTfac
+            end do
+         end if
+         ! Pseudo-dipolar interactions use their own neighbour list.
+         if (ham_inp%do_pd==1) then
+            do j=1,ham%pdlistsize(ih)
+               ja=ham%pdlist(j,ia)
+               jat=mod(ja-1,NA)+1
+               call f_wrap_coord_diff(Natom,coord,ia,ja,dist)
+               call find_R(R_n,emomM(:,jat,1),emomM(:,ja,1))
+               pmv=-ham%pd_vect(:,j,ih)
+               J_n=pd2tens(pmv)
+               FTfac=exp(-im *(q_vec(1)*dist(1)+q_vec(2)*dist(2)+q_vec(3)*dist(3)))
+               Jtens_q(:,:,ia,jat,iq)=Jtens_q(:,:,ia,jat,iq)+matmul(J_n,R_n)*FTfac
+            end do
+         end if
          ! Anisotropies (on-site interactions)
          ! Anisotropy
          if (ham_inp%do_anisotropy==1) then
