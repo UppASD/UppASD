@@ -66,7 +66,7 @@ public:
 
 class GpuMSSimulation {
 private:
-   bool isInitiatedSD;   GpuTensor<real, 1> exchangeM;
+   bool isInitiatedSD;   
 
    void printMdStatus(std::size_t mstep, GpuSimulation& gpuSim);
 

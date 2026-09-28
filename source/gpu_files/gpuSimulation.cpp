@@ -611,6 +611,21 @@ printf("current type %i\n", whichsim);
         }
         else {printf("Wrong phase! 0 - initial, 1 - measurement");}
     }
+    else if(whichsim == 2){
+        GpuMSSimulation GpuMS;
+        if(whichphase == 0) {
+            printf("Initial phase in MS not installed yet!");
+            //GpuMS.MSiphase(*this);
+            //copyToFortran();
+        }
+        else if(whichphase == 1) {
+            copyFromFortran();
+            GpuMS.MSmphase(*this);
+        }
+        else {printf("Wrong phase! 0 - initial, 1 - measurement");}
+
+
+    }
     else {printf("Wrong simulation type! 0 - SD, 1 - MC; current type %i\n", whichsim);}
     //release();
 }
