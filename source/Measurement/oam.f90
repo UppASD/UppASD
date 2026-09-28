@@ -59,8 +59,8 @@ module orbital_angular_momentum
 
    real(dblprec), allocatable :: oam_coord(:,:)
    complex(dblprec), allocatable :: oam_psi(:)
-   complex(dblprec), allocatable :: oam_tri_dx(:)
-   complex(dblprec), allocatable :: oam_tri_dy(:)
+   complex(dblprec), allocatable :: oam_fem_dx(:)
+   complex(dblprec), allocatable :: oam_fem_dy(:)
    complex(dblprec), allocatable :: oam_site_dx(:)
    complex(dblprec), allocatable :: oam_site_dy(:)
    integer, allocatable :: oam_step_buffer(:)
@@ -221,10 +221,10 @@ contains
       call memocc(i_stat,product(shape(oam_site_dx))*kind(oam_site_dx),'oam_site_dx','oam_init')
       allocate(oam_site_dy(Natom),stat=i_stat)
       call memocc(i_stat,product(shape(oam_site_dy))*kind(oam_site_dy),'oam_site_dy','oam_init')
-      allocate(oam_tri_dx(max(1,nsimp)),stat=i_stat)
-      call memocc(i_stat,product(shape(oam_tri_dx))*kind(oam_tri_dx),'oam_tri_dx','oam_init')
-      allocate(oam_tri_dy(max(1,nsimp)),stat=i_stat)
-      call memocc(i_stat,product(shape(oam_tri_dy))*kind(oam_tri_dy),'oam_tri_dy','oam_init')
+      allocate(oam_fem_dx(max(1,nsimp)),stat=i_stat)
+      call memocc(i_stat,product(shape(oam_fem_dx))*kind(oam_fem_dx),'oam_fem_dx','oam_init')
+      allocate(oam_fem_dy(max(1,nsimp)),stat=i_stat)
+      call memocc(i_stat,product(shape(oam_fem_dy))*kind(oam_fem_dy),'oam_fem_dy','oam_init')
       allocate(oam_step_buffer(oam_buff_traj),stat=i_stat)
       call memocc(i_stat,product(shape(oam_step_buffer))*kind(oam_step_buffer),'oam_step_buffer','oam_init')
       allocate(oam_row_buffer(oam_ncolumns,oam_buff_traj),stat=i_stat)
@@ -242,12 +242,11 @@ contains
    !---------------------------------------------------------------------------------
    !> @brief Sample the trajectory OAM and buffer one output row when scheduled.
    !---------------------------------------------------------------------------------
-   subroutine oam_sample(mstep,emom,mmom,atype)
+   subroutine oam_sample(mstep,emom,mmom)
 
       integer, intent(in) :: mstep
       real(dblprec), intent(in) :: emom(3,oam_natom,oam_mensemble)
       real(dblprec), intent(in) :: mmom(oam_natom,oam_mensemble)
-      integer, intent(in) :: atype(:)
 
       integer :: k, j
       integer :: nfinite(oam_ncolumns)
@@ -311,9 +310,9 @@ contains
       end do
 
       do itri=1,nsimp
-         oam_tri_dx(itri) = grad_b(1,itri)*oam_psi(simp(1,itri)) + &
+         oam_fem_dx(itri) = grad_b(1,itri)*oam_psi(simp(1,itri)) + &
             grad_b(2,itri)*oam_psi(simp(2,itri)) + grad_b(3,itri)*oam_psi(simp(3,itri))
-         oam_tri_dy(itri) = grad_c(1,itri)*oam_psi(simp(1,itri)) + &
+         oam_fem_dy(itri) = grad_c(1,itri)*oam_psi(simp(1,itri)) + &
             grad_c(2,itri)*oam_psi(simp(2,itri)) + grad_c(3,itri)*oam_psi(simp(3,itri))
       end do
 
@@ -324,8 +323,8 @@ contains
          if (site_wsum(i) > 0.0_dblprec) then
             do ip=site_tri_ptr(i),site_tri_ptr(i+1)-1
                itri = site_tri_idx(ip)
-               oam_site_dx(i) = oam_site_dx(i) + tri_area(itri)*oam_tri_dx(itri)
-               oam_site_dy(i) = oam_site_dy(i) + tri_area(itri)*oam_tri_dy(itri)
+               oam_site_dx(i) = oam_site_dx(i) + tri_area(itri)*oam_fem_dx(itri)
+               oam_site_dy(i) = oam_site_dy(i) + tri_area(itri)*oam_fem_dy(itri)
             end do
             oam_site_dx(i) = oam_site_dx(i)/site_wsum(i)
             oam_site_dy(i) = oam_site_dy(i)/site_wsum(i)
@@ -548,15 +547,15 @@ contains
          deallocate(oam_psi,stat=i_stat)
          call memocc(i_stat,i_all,'oam_psi','oam_release')
       end if
-      if (allocated(oam_tri_dx)) then
-         i_all=-product(shape(oam_tri_dx))*kind(oam_tri_dx)
-         deallocate(oam_tri_dx,stat=i_stat)
-         call memocc(i_stat,i_all,'oam_tri_dx','oam_release')
+      if (allocated(oam_fem_dx)) then
+         i_all=-product(shape(oam_fem_dx))*kind(oam_fem_dx)
+         deallocate(oam_fem_dx,stat=i_stat)
+         call memocc(i_stat,i_all,'oam_fem_dx','oam_release')
       end if
-      if (allocated(oam_tri_dy)) then
-         i_all=-product(shape(oam_tri_dy))*kind(oam_tri_dy)
-         deallocate(oam_tri_dy,stat=i_stat)
-         call memocc(i_stat,i_all,'oam_tri_dy','oam_release')
+      if (allocated(oam_fem_dy)) then
+         i_all=-product(shape(oam_fem_dy))*kind(oam_fem_dy)
+         deallocate(oam_fem_dy,stat=i_stat)
+         call memocc(i_stat,i_all,'oam_fem_dy','oam_release')
       end if
       if (allocated(oam_site_dx)) then
          i_all=-product(shape(oam_site_dx))*kind(oam_site_dx)
