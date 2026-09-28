@@ -1,0 +1,29 @@
+simid honey
+ncell 24 24 1
+BC P P 0
+cell 1.0000000000 0.0000000000 0.0
+     0.5000000000 0.8660254038 0.0
+     0.0 0.0 1.0
+Sym 0
+posfile ./posfile
+momfile ./momfile
+exchange ./jfile
+dm ./dmfile
+maptype 1
+posfiletype C
+initmag 3
+ip_mode N
+mode S
+temp 0.0
+Nstep 1
+damping 0.1
+timestep 1e-16
+hfield 0.0 0.0 0.0
+do_avrg N
+do_chern Y
+do_oam_lswt Y
+kgrid 60 60 1
+oam_nphi 128
+oam_nr 32
+anisotropy ./kfile
+f_oam_kmax 4.1887902047863905
