@@ -152,6 +152,33 @@ unsigned int* FortranData::ac_step;
 unsigned int* FortranData::ac_buff;
 unsigned int* FortranData::nspinwait;
 
+   //Multiscale data
+bool* FortranData::do_multiscale;
+bool* FortranData::damping_enable;
+
+int* FortranData::inte_nrInterpAtoms; 
+int* FortranData::damp_nrInterpAtoms; 
+
+int* FortranData::inte_indices;    
+int* FortranData::damp_indices;    
+
+int* FortranData::inte_firstNeighbour; 
+int* FortranData::damp_firstNeighbour; 
+
+real* FortranData::inte_weights; 
+real* FortranData::damp_weights; 
+
+int* FortranData::inte_neighbours; 
+int* FortranData::damp_neighbours; 
+
+real* FortranData::damp_coefficients;
+real* FortranData::damp_preinterpolation;
+
+
+real* FortranData::backbuffer;
+int* FortranData::backbufferHead;
+   
+
 void FortranData::setFlagPointers(unsigned int* p_do_dm, unsigned int* p_do_jtensor, unsigned int* p_do_anisotropy,
                                   char* p_do_avrg, char* p_do_proj_avrg, char* p_do_projch_avrg, char* p_do_cumu, char* p_do_cumu_proj,
                                   unsigned int* p_plotenergy, char* p_do_autocorr, char* p_do_tottraj,
@@ -355,81 +382,21 @@ void FortranData::setCorrelationPointers(real* p_q, real* p_r_mid, real* p_coord
    m_kw_projch = reinterpret_cast<cpu_complex*>(p_m_kw_projch);
 
 }
-/*void FortranData::setConstantPointers(char* p1, int* p2, unsigned int* p3, unsigned int* p4, unsigned int* p5,
-                                      unsigned int* p6, unsigned int* p7, real* p8, real* p9, real* p10,
-                                      real* p11, real* p12, real* p13, real* p14, int* p15, char* p16,
-                                      unsigned int* p17, unsigned int* p18, unsigned int* p19,
-                                      unsigned int* p20, unsigned int* p21, real * p_Temp, unsigned int* p_ipmcnphase, unsigned int* p_mcnstep,
-                                      unsigned int * p_ipnphase) {
-   stt = p1;
-   SDEalgh = p2;
 
-   rstep = p3;
-   nstep = p4;
-   Natom = p5;
-   nHam = p21;
-   Mensemble = p6;
-   max_no_neigh = p7;
+void FortranData::setMultiscalePointers(bool* p_do_multiscale, int* p_inte_nrInterpAtoms, int* p_inte_indices, int* p_inte_firstNeighbour, 
+                                          real* p_inte_weights, int* p_inte_neighbours, real* p_backbuffer, int* p_backbufferHead){
 
-   delta_t = p8;
-   gamma = p9;
-   k_bolt = p10;
-   mub = p11;
-   damping = p12;
 
-   binderc = p13;
-   mavg = p14;
-
-   mompar = p15;
-   initexc = p16;
-
-   do_dm = p17;
-   max_no_dmneigh = p18;
-   do_jtensor = p19;
-   do_aniso = p20;
-   Temp = p_Temp;
-   ipnphase = p_ipnphase;
-   ipmcnphase = p_ipmcnphase;
-   mcnstep = p_mcnstep;
-}*/
-
-/*void FortranData::setMatrixPointers(real* p1, unsigned int* p2, unsigned int* p3, real* p4, real* p5,
-                                    real* p6, real* p7, real* p8, real* p9, real* p10, real* p11, real* p12,
-                                    real* p13, real* p14, real* p15, real* p16, unsigned int* p17,
-                                    unsigned int* p18, real* p19, real* p20, real* p21, unsigned int* p22,
-                                    real* p23, unsigned int* p24, real * p_ipTem   m_k_proj = p_m_k_proj;
-   m_k_projch = p_m_k_projch;p, unsigned int * p_ipmcnstep,
-                                    real * p_ipTemp_array, unsigned int* p_ipnstep) {
-   ncoup = p1;
-   nlist = p2;
-   nlistsize = p3;
-   beff = p4;
-   b2eff = p5;
-   emomM = p6;
-   emom = p7;
-   emom2 = p8;
-   external_field = p9;
-   mmom = p10;
-   btorque = p11;
-   temperature = p12;
-   mmom0 = p13;
-   mmom2 = p14;
-   mmomi = p15;
-   dmvect = p16;
-   dmlist = p17;
-   dmlistsize = p18;
-   j_tensor = p19;
-   kaniso = p20;
-   eaniso = p21;
-   taniso = p22;
-   sb = p23;
-   aHam = p24;
-   ipTemp = p_ipTemp;
-   ipmcnstep = p_ipmcnstep;
-   ipTemp_array = p_ipTemp_array;
-   ipnstep = p_ipnstep;
-}*/
-
+   do_multiscale = p_do_multiscale;
+   inte_nrInterpAtoms = p_inte_nrInterpAtoms;
+   inte_indices = p_inte_indices; 
+   inte_firstNeighbour = p_inte_firstNeighbour; 
+   inte_weights = p_inte_weights; 
+   inte_neighbours = p_inte_neighbours;
+   backbuffer =  p_backbuffer;
+   backbufferHead = p_backbufferHead;
+                                                                          
+}
 void FortranData::setInputDataPointers(int* p1, int* p2, int* p3) {
    gpu_mode = p1;
    gpu_rng = p2;
@@ -512,6 +479,16 @@ FortranData::setCorrelationPointers(
    p_q, p_r_mid, p_coord, p_w,  p_m_k, p_m_kw, p_m_kt, p_deltat_corr, p_scstep_arr, p_sc_nsamp, p_sc_tidx,
    p_atype, p_achtype, p_m_k_proj, p_m_k_projch, p_m_kt_proj, p_m_kt_projch, p_m_kw_proj, p_m_kw_projch);
 }
+
+extern "C" void fortrandata_setmultiscale_(bool* p_do_multiscale, int* p_inte_nrInterpAtoms, int* p_inte_indices, int* p_inte_firstNeighbour, 
+                                          real* p_inte_weights, int* p_inte_neighbours, real* p_backbuffer, int* p_backbufferHead){
+
+FortranData::setMultiscalePointers(
+   p_do_multiscale, p_inte_nrInterpAtoms, p_inte_indices, p_inte_firstNeighbour, p_inte_weights, p_inte_neighbours,
+   p_backbuffer, p_backbufferHead);
+}
+
+
 /*extern "C" void fortrandata_setconstants_(char* p1, int* p2, unsigned int* p3, unsigned int* p4,
                                           unsigned int* p5, unsigned int* p6, unsigned int* p7, real* p8,
                                           real* p9, real* p10, real* p11, real* p12, real* p13, real* p14,

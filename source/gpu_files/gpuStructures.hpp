@@ -27,6 +27,8 @@ struct Flag {
    char do_sc_proj;
    char do_sc_projch;
    int do_ene;
+   bool do_multiscale;
+
 };
 
 struct SimulationParameters {    
@@ -165,7 +167,30 @@ struct hostCorrelations {
    Tensor<cpu_complex, 4> m_kw_projch;
 
 };
-   
+
+
+struct hostInterpolationInfo {
+   int nrInterpAtoms // Number of atoms affected
+   Tensor<int, 1> indices;   //index on firstNeighbour corresponding to each atom. indices(i) contains 0 if the atom is not affected by the interpolation.   
+   Tensor<int, 1>  firstNeighbour; // index of the first neighbour in weights and neighbours
+   Tensor<real, 1>  weights; // Per-neighbour coefficient
+   Tensor<int, 1>  neighbours; // Atom indices for neighbours participating in the interpolation
+};
+
+struct hostMultiscaleRest{
+   Tensor<real, 4> backbuffer;
+   int backbufferHead;
+};
+
+struct hostDampingBand {
+   hostInterpolationInfo interpolation;
+   Tensor<real, 1> coefficients;
+   Tensor<real, 3> preinterpolation;
+   bool  enable;
+};
+
+
+
 struct deviceHamiltonian {
    GpuTensor<unsigned int, 1>     aHam;                             //reduced Hamiltonian
    GpuTensor<real, 2>             ncoup;            //Jij
@@ -229,4 +254,24 @@ struct deviceEnergies {
 
 };
 
+
+struct deviceInterpolationInfo {
+   int nrInterpAtoms // Number of atoms affected
+   GpuTensor<int, 1> indices;   //index on firstNeighbour corresponding to each atom. indices(i) contains 0 if the atom is not affected by the interpolation.   
+   GpuTensor<int, 1>  firstNeighbour; // index of the first neighbour in weights and neighbours
+   GpuTensor<real, 1>  weights; // Per-neighbour coefficient
+   GpuTensor<int, 1>  neighbours; // Atom indices for neighbours participating in the interpolation
+};
+
+struct deviceMultiscaleRest{
+   GpuTensor<real, 4> backbuffer;
+   int backbufferHead;
+};
+
+struct deviceDampingBand {
+   deviceInterpolationInfo interpolation;
+   GpuTensor<real, 1> coefficients;
+   GpuTensor<real, 3> preinterpolation;
+   bool  enable;
+};
    

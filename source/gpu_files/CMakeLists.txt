@@ -30,6 +30,7 @@ gpuMomentUpdater.cpp
 gpuMomentUpdater.hpp
 gpuParallelizationHelper.hpp 
 gpuParallelizationHelper.cpp 
+gpuStructures.hpp
 fort_helper.cpp
 fortranData.cpp
 fortranData.hpp

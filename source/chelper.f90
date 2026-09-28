@@ -45,6 +45,9 @@ module Chelper
    use MetaTypes
    use macrocells
    use OptimizationRoutines
+   use Multiscale,              only : multiscaleBackbuffer, multiscaleBackbufferHead
+   use MultiscaleInterpolation, only : interfaceInterpolation
+   use MultiscaleDampingBand,   only : dampingBand
 
 
    use prn_cudameasurements,   only :  print_observable, print_trajectory
@@ -78,6 +81,40 @@ module Chelper
       end subroutine FortranData_setCorrelations
    end interface
 
+
+   interface
+
+      subroutine FortranData_setMultiscale( &
+            p_do_multiscale,               &
+            p_inte_nrInterpAtoms,          &
+            p_inte_indices,                &
+            p_inte_firstNeighbour,         &
+            p_inte_weights,                &
+            p_inte_neighbours,             &
+            p_backbuffer,                  &
+            p_backbufferHead)              &
+            bind(C, name="fortrandata_setmultiscale_")
+
+         import :: c_bool, c_double, c_int
+
+         logical(c_bool) :: p_do_multiscale
+
+         integer(c_int) :: p_inte_nrInterpAtoms
+
+         integer(c_int) :: p_inte_indices(*)
+         integer(c_int) :: p_inte_firstNeighbour(*)
+
+         real(c_double) :: p_inte_weights(*)
+
+         integer(c_int) :: p_inte_neighbours(*)
+
+         real(c_double) :: p_backbuffer(*)
+
+         integer(c_int) :: p_backbufferHead
+
+      end subroutine FortranData_setMultiscale
+
+   end interface
 
    private
 
@@ -320,12 +357,14 @@ contains
       type(corr_t), intent(inout) :: cc !< Derived type for correlation data
       real(dblprec), dimension(3,Natom, Mensemble), intent(inout) :: btorque !< Field from (m x dm/dr)
       integer :: zeroflag = 0
+      logical(c_bool) :: c_do_multiscale
       
       !!!TODO: replace those with actual variables 
       integer :: ene_step = 10
       integer :: ene_buff = 100
       !character(len=1)::do_projch_avrg = 'Y'
       !character(len=1)::do_cumu_proj = 'Y'
+      c_do_multiscale = do_multiscale
 
 
       !if(cc%do_proj=='C'.or.cc%do_proj=='Y'.or.cc%do_proj=='T'.or.cc%do_proj=='Q'.or.cc%do_projch=='C'.or.cc%do_projch=='Y'.or.cc%do_projch=='Q'.or.cc%do_projch=='T') then
@@ -438,6 +477,10 @@ contains
       call FortranData_setCorrelations(q, r_mid, coord, cc%w, cc%m_k, cc%m_kw, cc%m_kt, cc%deltat_corr, &
           cc%scstep_arr, cc%sc_nsamp, cc%sc_tidx, atype_meta, achtype, cc%m_k_proj, cc%m_k_projch, &
           cc%m_kt_proj, cc%m_kt_projch, cc%m_kw_proj, cc%m_kw_projch)
+
+      call FortranData_setMultiscale(c_do_multiscale, int(interfaceInterpolation%nrInterpAtoms, c_int), &
+      interfaceInterpolation%indices, interfaceInterpolation%firstNeighbour, interfaceInterpolation%weights, &
+      interfaceInterpolation%neighbours, multiscaleBackbuffer, int(multiscaleBackbufferHead, c_int))
 
 
       call FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed)
