@@ -19,6 +19,7 @@ module orbital_angular_momentum
 
    private
 
+   character(len=1), public :: do_oam = 'N' !< Deprecated trajectory OAM alias
    character(len=1), public :: do_oam_traj = 'N' !< Enable trajectory OAM
    integer, public :: oam_step_traj = 100       !< Sampling interval
    integer, public :: oam_buff_traj = 10        !< Number of buffered rows
@@ -27,6 +28,10 @@ module orbital_angular_momentum
    character(len=4), public :: oam_weight = 'site' !< Site or area weighting
    real(dblprec), public :: oam_sigma_max = 0.6_dblprec !< Centroid spread guard
    real(dblprec), public :: oam_gfactor = 0.0_dblprec !< Optional g factor
+   integer, allocatable, public :: oam_sublattice(:) !< Optional unit-cell sublattice list
+   logical, public :: oam_sublattice_set = .false. !< Whether a sublattice list was supplied
+   real(dblprec), public :: oam_lambda_centroid_sum = 0.0_dblprec
+   integer, public :: oam_lambda_centroid_count = 0
 
    public :: oam_defaults, oam_init, oam_sample, oam_flush
 
@@ -38,6 +43,9 @@ module orbital_angular_momentum
    integer :: oam_mensemble = 0
    integer :: oam_n1 = 0
    integer :: oam_n2 = 0
+   integer :: oam_na = 1
+   integer :: oam_ncolumns = 9
+   integer :: oam_nsubblocks = 0
    integer :: oam_rstep = 0
    integer :: oam_nbuffer = 0
    real(dblprec) :: oam_g = 2.0_dblprec
@@ -65,6 +73,7 @@ contains
    !---------------------------------------------------------------------------------
    subroutine oam_defaults()
       do_oam_traj = 'N'
+      do_oam = 'N'
       oam_step_traj = 100
       oam_buff_traj = 10
       oam_origin = 0.0_dblprec
@@ -72,6 +81,10 @@ contains
       oam_weight = 'site'
       oam_sigma_max = 0.6_dblprec
       oam_gfactor = 0.0_dblprec
+      oam_sublattice_set = .false.
+      oam_lambda_centroid_sum = 0.0_dblprec
+      oam_lambda_centroid_count = 0
+      if (allocated(oam_sublattice)) deallocate(oam_sublattice)
    end subroutine oam_defaults
 
    !---------------------------------------------------------------------------------
@@ -85,7 +98,7 @@ contains
       real(dblprec), intent(in) :: emom(3,Natom,Mensemble)
       character(len=8), intent(in) :: simid
 
-      integer :: i, k, i_stat
+      integer :: i, j, k, i_stat
       real(dblprec) :: mean_m(3), mean_norm, alignment, det_cell, seed_dot
       real(dblprec) :: seed(3), ex(3), ey(3), ez(3)
 
@@ -99,6 +112,29 @@ contains
       if (trim(adjustl(oam_weight)) /= 'site' .and. trim(adjustl(oam_weight)) /= 'area') then
          write(*,'(1x,a,a)') 'Trajectory OAM: unknown oam_weight ',trim(oam_weight)
          oam_weight = 'site'
+      end if
+      if (oam_sublattice_set) then
+         if (.not.allocated(oam_sublattice) .or. size(oam_sublattice)<1) then
+            write(*,'(1x,a)') 'Trajectory OAM disabled: oam_sublattice is empty.'
+            return
+         end if
+         do i=1,size(oam_sublattice)
+            if (oam_sublattice(i)<1 .or. oam_sublattice(i)>NA) then
+               write(*,'(1x,a,i0,a,i0)') 'Trajectory OAM disabled: oam_sublattice entry ', &
+                  oam_sublattice(i), ' is outside 1..', NA
+               return
+            end if
+            do j=1,i-1
+               if (oam_sublattice(i)==oam_sublattice(j)) then
+                  write(*,'(1x,a)') 'Trajectory OAM disabled: oam_sublattice contains duplicates.'
+                  return
+               end if
+            end do
+         end do
+         oam_nsubblocks = 0
+      else
+         oam_nsubblocks = 0
+         if (NA > 1) oam_nsubblocks = NA
       end if
 
       mean_m = 0.0_dblprec
@@ -140,6 +176,8 @@ contains
       oam_mensemble = Mensemble
       oam_n1 = N1
       oam_n2 = N2
+      oam_na = NA
+      oam_ncolumns = 9 + 3*oam_nsubblocks
       oam_rstep = rstep
       oam_simid = simid
       oam_periodic = (/BC1=='P',BC2=='P'/)
@@ -189,12 +227,14 @@ contains
       call memocc(i_stat,product(shape(oam_tri_dy))*kind(oam_tri_dy),'oam_tri_dy','oam_init')
       allocate(oam_step_buffer(oam_buff_traj),stat=i_stat)
       call memocc(i_stat,product(shape(oam_step_buffer))*kind(oam_step_buffer),'oam_step_buffer','oam_init')
-      allocate(oam_row_buffer(9,oam_buff_traj),stat=i_stat)
+      allocate(oam_row_buffer(oam_ncolumns,oam_buff_traj),stat=i_stat)
       call memocc(i_stat,product(shape(oam_row_buffer))*kind(oam_row_buffer),'oam_row_buffer','oam_init')
 
       oam_nbuffer = 0
       oam_header_written = .false.
       oam_norm_warning = .false.
+      oam_lambda_centroid_sum = 0.0_dblprec
+      oam_lambda_centroid_count = 0
       oam_active = .true.
       oam_initialized = .true.
    end subroutine oam_init
@@ -209,31 +249,38 @@ contains
       real(dblprec), intent(in) :: mmom(oam_natom,oam_mensemble)
       integer, intent(in) :: atype(:)
 
-      integer :: k, j, nfinite
-      real(dblprec) :: row(9), row_sum(9)
-      logical :: all_finite(9)
+      integer :: k, j
+      integer :: nfinite(oam_ncolumns)
+      real(dblprec) :: row(oam_ncolumns), row_sum(oam_ncolumns)
 
       if (.not.oam_active) return
       if (mod(mstep-oam_rstep-1,oam_step_traj) /= 0) return
 
       row_sum = 0.0_dblprec
-      all_finite = .true.
+      nfinite = 0
       do k=1,oam_mensemble
          call oam_evaluate_ensemble(k,emom,mmom,row)
          do j=1,9
             if (ieee_is_finite(row(j))) then
                row_sum(j) = row_sum(j) + row(j)
-            else
-               all_finite(j) = .false.
+               nfinite(j) = nfinite(j) + 1
+            end if
+         end do
+         do j=10,oam_ncolumns
+            if (ieee_is_finite(row(j))) then
+               row_sum(j) = row_sum(j) + row(j)
+               nfinite(j) = nfinite(j) + 1
             end if
          end do
       end do
       row = ieee_value(0.0_dblprec,ieee_quiet_nan)
-      do j=1,9
-         nfinite = 0
-         if (all_finite(j)) nfinite = oam_mensemble
-         if (nfinite > 0) row(j) = row_sum(j)/real(nfinite,dblprec)
+      do j=1,oam_ncolumns
+         if (nfinite(j) > 0) row(j) = row_sum(j)/real(nfinite(j),dblprec)
       end do
+      if (ieee_is_finite(row(2))) then
+         oam_lambda_centroid_sum = oam_lambda_centroid_sum + row(2)
+         oam_lambda_centroid_count = oam_lambda_centroid_count + 1
+      end if
       call oam_buffer_row(mstep,row)
    end subroutine oam_sample
 
@@ -252,14 +299,11 @@ contains
       integer, intent(in) :: k
       real(dblprec), intent(in) :: emom(3,oam_natom,oam_mensemble)
       real(dblprec), intent(in) :: mmom(oam_natom,oam_mensemble)
-      real(dblprec), intent(out) :: row(9)
+      real(dblprec), intent(out) :: row(:)
 
-      integer :: i, ip, itri
-      real(dblprec) :: weight, norm, nm, rx, ry, sigma, spread_limit
-      real(dblprec) :: reduced(2), angle, sin_sum(2), cos_sum(2), d(2)
-      real(dblprec) :: lever(2), lever_centroid(2), ell, lambda_origin, lambda_centroid
-      real(dblprec) :: psi_weight
-      logical :: centroid_valid
+      integer :: i, ip, itri, isub, offset
+      real(dblprec) :: nm, lambda_origin, lambda_centroid, rx, ry, sigma
+      logical :: centroid_valid, norm_valid
 
       do i=1,oam_natom
          oam_psi(i) = cmplx(dot_product(emom(:,i,k),oam_frame(:,1)), &
@@ -289,21 +333,66 @@ contains
       end do
       !$omp end parallel do
 
-      norm = 0.0_dblprec
-      nm = 0.0_dblprec
-      do i=1,oam_natom
-         if (site_wsum(i) > 0.0_dblprec) then
-            weight = oam_site_weight(i)
-            psi_weight = abs(oam_psi(i))**2*weight
-            norm = norm + psi_weight
-         end if
-         nm = nm + mmom(i,k)/oam_g*(1.0_dblprec-dot_product(emom(:,i,k),oam_frame(:,3)))
-      end do
       row = ieee_value(0.0_dblprec,ieee_quiet_nan)
+      call oam_group_metrics(k,emom,mmom,0,nm,lambda_origin,lambda_centroid,rx,ry,sigma, &
+         centroid_valid,norm_valid)
+      row(1) = lambda_origin
+      row(2) = lambda_centroid
       row(3) = nm
       row(5) = nm
-      if (norm < 1.0e-14_dblprec) then
-         if (.not.oam_norm_warning) then
+      row(7) = rx
+      row(8) = ry
+      row(9) = sigma
+      if (norm_valid) then
+         if (centroid_valid) then
+            row(4) = nm*lambda_centroid
+            row(6) = row(5)+row(4)
+         end if
+      end if
+
+      do isub=1,oam_nsubblocks
+         offset = 9 + 3*(isub-1)
+         call oam_group_metrics(k,emom,mmom,isub,nm,lambda_origin,lambda_centroid,rx,ry,sigma, &
+            centroid_valid,norm_valid)
+         row(offset+1) = lambda_origin
+         row(offset+2) = lambda_centroid
+         row(offset+3) = nm
+      end do
+   end subroutine oam_evaluate_ensemble
+
+   subroutine oam_group_metrics(k,emom,mmom,group,nm,lambda_origin,lambda_centroid,rx,ry,sigma, &
+      centroid_valid,norm_valid)
+      integer, intent(in) :: k, group
+      real(dblprec), intent(in) :: emom(3,oam_natom,oam_mensemble)
+      real(dblprec), intent(in) :: mmom(oam_natom,oam_mensemble)
+      real(dblprec), intent(out) :: nm, lambda_origin, lambda_centroid, rx, ry, sigma
+      logical, intent(out) :: centroid_valid, norm_valid
+
+      integer :: i
+      real(dblprec) :: weight, norm, psi_weight, angle
+      real(dblprec) :: reduced(2), sin_sum(2), cos_sum(2), d(2), lever(2), lever_centroid(2)
+      real(dblprec) :: ell, spread_limit
+
+      nm = 0.0_dblprec
+      norm = 0.0_dblprec
+      do i=1,oam_natom
+         if (.not.oam_site_selected(i,group)) cycle
+         nm = nm + mmom(i,k)/oam_g*(1.0_dblprec-dot_product(emom(:,i,k),oam_frame(:,3)))
+         if (site_wsum(i) > 0.0_dblprec) then
+            weight = oam_site_weight(i)
+            norm = norm + abs(oam_psi(i))**2*weight
+         end if
+      end do
+
+      lambda_origin = ieee_value(0.0_dblprec,ieee_quiet_nan)
+      lambda_centroid = ieee_value(0.0_dblprec,ieee_quiet_nan)
+      rx = ieee_value(0.0_dblprec,ieee_quiet_nan)
+      ry = ieee_value(0.0_dblprec,ieee_quiet_nan)
+      sigma = ieee_value(0.0_dblprec,ieee_quiet_nan)
+      centroid_valid = .false.
+      norm_valid = norm >= 1.0e-14_dblprec
+      if (.not.norm_valid) then
+         if (group==0 .and. .not.oam_norm_warning) then
             write(*,'(1x,a)') 'WARNING: trajectory OAM norm is below 1e-14; writing NaN.'
             oam_norm_warning = .true.
          end if
@@ -315,6 +404,7 @@ contains
       rx = 0.0_dblprec
       ry = 0.0_dblprec
       do i=1,oam_natom
+         if (.not.oam_site_selected(i,group)) cycle
          if (site_wsum(i) <= 0.0_dblprec) cycle
          weight = oam_site_weight(i)
          psi_weight = abs(oam_psi(i))**2*weight
@@ -346,13 +436,12 @@ contains
       end do
       rx = oam_cell(1,1)*reduced(1)+oam_cell(1,2)*reduced(2)
       ry = oam_cell(2,1)*reduced(1)+oam_cell(2,2)*reduced(2)
-      row(7) = rx
-      row(8) = ry
 
       sigma = 0.0_dblprec
       lambda_origin = 0.0_dblprec
       lambda_centroid = 0.0_dblprec
       do i=1,oam_natom
+         if (.not.oam_site_selected(i,group)) cycle
          if (site_wsum(i) <= 0.0_dblprec) cycle
          weight = oam_site_weight(i)
          psi_weight = abs(oam_psi(i))**2*weight
@@ -372,24 +461,34 @@ contains
       lambda_origin = lambda_origin/norm
       lambda_centroid = lambda_centroid/norm
       sigma = sqrt(sigma/norm)
-      row(1) = lambda_origin
-      row(2) = lambda_centroid
-      row(9) = sigma
       spread_limit = oam_sigma_max*oam_half_short
       centroid_valid = sigma <= spread_limit
-      if (.not.centroid_valid) then
-         row(2) = ieee_value(0.0_dblprec,ieee_quiet_nan)
-         row(4) = ieee_value(0.0_dblprec,ieee_quiet_nan)
-         row(6) = ieee_value(0.0_dblprec,ieee_quiet_nan)
+      if (.not.centroid_valid) lambda_centroid = ieee_value(0.0_dblprec,ieee_quiet_nan)
+   end subroutine oam_group_metrics
+
+   logical function oam_site_selected(i,group)
+      integer, intent(in) :: i, group
+      integer :: isub, j
+
+      isub = mod(i-1,oam_na)+1
+      if (group > 0) then
+         oam_site_selected = isub == group
+      else if (.not.oam_sublattice_set) then
+         oam_site_selected = .true.
       else
-         row(4) = nm*row(2)
-         row(6) = row(5)+row(4)
+         oam_site_selected = .false.
+         do j=1,size(oam_sublattice)
+            if (isub == oam_sublattice(j)) then
+               oam_site_selected = .true.
+               exit
+            end if
+         end do
       end if
-   end subroutine oam_evaluate_ensemble
+   end function oam_site_selected
 
    subroutine oam_buffer_row(mstep,row)
       integer, intent(in) :: mstep
-      real(dblprec), intent(in) :: row(9)
+      real(dblprec), intent(in) :: row(:)
       oam_nbuffer = oam_nbuffer + 1
       oam_step_buffer(oam_nbuffer) = mstep
       oam_row_buffer(:,oam_nbuffer) = row
@@ -398,8 +497,8 @@ contains
    end subroutine oam_buffer_row
 
    subroutine oam_write_header()
-      character(len=256) :: filn
-      integer :: ios
+      character(len=1024) :: filn, columns
+      integer :: ios, isub
 
       write(filn,'("oam_traj.",a,".out")') trim(oam_simid)
       open(unit=ofileno,file=trim(filn),status='replace',action='write',iostat=ios)
@@ -410,21 +509,27 @@ contains
       write(ofileno,'(a,3(es24.16,1x))') '# origin = ',oam_origin_xy(1),oam_origin_xy(2),oam_origin(3)
       write(ofileno,'(a)') '# lambda_L_centroid is referenced to the |psi|^2 centroid R; this removes the drift term ' // &
          '(R x P)_z but not the envelope winding l.'
-      write(ofileno,'(a)') '# step lambda_L_origin lambda_L_centroid N_m Lz_tot_hbar dSz_hbar balance R_x R_y sigma_psi'
+      columns = '# step lambda_L_origin lambda_L_centroid N_m Lz_tot_hbar dSz_hbar balance R_x R_y sigma_psi'
+      do isub=1,oam_nsubblocks
+         write(columns(len_trim(columns)+1:),'(a,i0,a,i0,a,i0)') ' lambda_L_origin_s',isub, &
+            ' lambda_L_centroid_s',isub,' N_m_s',isub
+      end do
+      write(ofileno,'(a)') trim(columns)
       close(ofileno)
       oam_header_written = .true.
    end subroutine oam_write_header
 
    subroutine oam_write_buffer()
-      character(len=256) :: filn
+      character(len=256) :: filn, fmt
       integer :: i, ios
 
       if (oam_nbuffer == 0 .or. .not.oam_header_written) return
       write(filn,'("oam_traj.",a,".out")') trim(oam_simid)
       open(unit=ofileno,file=trim(filn),position='append',action='write',iostat=ios)
       if (ios /= 0) error stop 'Trajectory OAM: unable to append output file'
+      write(fmt,'("(i8,1x,",i0,"(es24.16,1x))")') oam_ncolumns
       do i=1,oam_nbuffer
-         write(ofileno,'(i8,1x,9(es24.16,1x))') oam_step_buffer(i),oam_row_buffer(:,i)
+         write(ofileno,fmt) oam_step_buffer(i),oam_row_buffer(:,i)
       end do
       close(ofileno)
       oam_nbuffer = 0

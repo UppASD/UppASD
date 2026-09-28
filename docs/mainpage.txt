@@ -92,6 +92,33 @@ The input format is keyword based. The code is programmed to search for given ke
     do_tottraj Y                           Measure moments
     tottraj_step   100
 
+@subsection oam OAM measurements
+
+UppASD provides two different orbital-angular-momentum paths. Set
+\c do_oam_traj \c Y for the finite-amplitude real-space trajectory observable;
+it writes \c oam_traj.<simid>.out. Set \c do_oam_lswt \c Y for the harmonic,
+band- and wave-vector-resolved LSWT observable; it requires \c do_chern \c Y
+and writes \c oam_lswt.<simid>.out. These are different observables (C14): the
+trajectory value includes intrinsic and envelope winding, whereas LSWT reports
+intrinsic band OAM. They are only related in the narrow-wavepacket bridge
+limit.
+
+Trajectory keys are \c do_oam_traj, \c oam_step, \c oam_buff, \c oam_origin
+(three reals), \c oam_weight (\c site or \c area), \c oam_sigma_max,
+\c oam_gfactor, and the optional one-based integer list \c oam_sublattice.
+The deprecated \c do_oam key aliases \c do_oam_traj and prints a warning.
+The first ten trajectory output columns are \c step,
+\c lambda_L_origin, \c lambda_L_centroid, \c N_m, \c Lz_tot_hbar,
+\c dSz_hbar, \c balance, \c R_x, \c R_y, and \c sigma_psi. When \c NA is
+greater than one and no sublattice filter is supplied, one block of
+\c lambda_L_origin, \c lambda_L_centroid, and \c N_m is appended for each
+sublattice. The cumulant JSON key \c orbital_angular_momentum is the running
+mean of finite centroid values, or \c null.
+
+LSWT keys are \c do_oam_lswt, \c oam_nphi, \c oam_nr, \c oam_kmax, and
+\c oam_lswt_pointwise. The deprecated aliases \c do_magnon_oam,
+\c f_oam_nphi, \c f_oam_nr, and \c f_oam_kmax remain accepted.
+
 
 While the meaning of most of the entries in this particular example should be obvious, it is also clear that more information must be read in from external files for the system to be fully defined. These are:
 

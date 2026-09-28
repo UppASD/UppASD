@@ -13,7 +13,7 @@ module prn_topology
    use Profiling
    use Parameters
    use Topology
-   use orbital_angular_momentum, only : oam_defaults
+   use orbital_angular_momentum, only : oam_defaults, do_oam
 
    implicit none
 
@@ -38,7 +38,7 @@ module prn_topology
 
    public :: print_topology, flush_topology, allocate_topology,prn_topology_init
    public :: skyno, skyno_step, skyno_buff, do_proj_skyno, do_skyno_den, do_skyno_cmass
-   public :: sk_avrg, sk_var, do_oam, oam_buff, oam_step, print_mesh
+   public :: sk_avrg, sk_var, print_mesh
 
 contains
 
@@ -245,10 +245,6 @@ contains
       do_skyno_den  = "N"
       skyno_step    = 100
       skyno_buff    = 10
-      ! OAM
-      do_oam       = "N"
-      oam_step    = 100
-      oam_buff    = 10
       print_mesh  = "N"
       call oam_defaults()
 

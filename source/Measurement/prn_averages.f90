@@ -932,7 +932,9 @@ contains
       !
       use Constants
       use prn_topology
-      use Topology, only : chi_cavg, kappa_cavg, n_chi_cavg, kappa_csum, n_Lz_cavg, Lz_csum
+      use Topology, only : chi_cavg, kappa_cavg, n_chi_cavg, kappa_csum
+      use orbital_angular_momentum, only : do_oam_traj, oam_lambda_centroid_sum, &
+         oam_lambda_centroid_count
       use Polarization, only : do_chiral
 
       !.. Implicit declarations
@@ -1121,8 +1123,11 @@ contains
                write(ofileno,'(a,a,f16.8,a,f16.8,a,f16.8,a)') '    "vector_chirality"    : ', '[ ', &
                   kappa_cavg(1), ', ', kappa_cavg(2), ', ', kappa_cavg(3), '],'
             end if
-            if (do_oam == 'Y') then
-               write(ofileno,'(a,f16.8,a)') '    "orbital_angular_momentum"    : ', Lz_csum/n_Lz_cavg,' ,'
+            if (do_oam_traj == 'Y' .and. oam_lambda_centroid_count > 0) then
+               write(ofileno,'(a,f16.8,a)') '    "orbital_angular_momentum"    : ', &
+                  oam_lambda_centroid_sum/real(oam_lambda_centroid_count,dblprec),' ,'
+            else
+               write(ofileno,'(a)') '    "orbital_angular_momentum"    :  null ,'
             end if
          write(ofileno,'(a,f16.8,a)') '    "susceptibility"  : ', pmsusc,' ,'
          write(ofileno,'(a,f16.8,a)') '    "susceptibility_err"  : ', chi_err,' ,'

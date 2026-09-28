@@ -14,7 +14,7 @@ module Topology
    use Parameters
    use Profiling
    use Systemdata, only : coord
-   use Mesh2D, only : nsimp, simp, site_tri_ptr, site_tri_idx, mesh2d_build
+   use Mesh2D, only : nsimp, simp, site_tri_ptr, site_tri_idx
 
    ! Parameters for the printing
    integer :: skyno_step !< Interval for sampling the skyrmion number
@@ -31,9 +31,6 @@ module Topology
    integer :: n_chi_cavg = 0 !< Number of times the average scalar chirality has been calculated
 
    ! Variables for OAM 
-   character(len=1) :: do_oam = 'N' !< Perform real-space triangulation OAM measurement (not magnon OAM)
-   integer :: oam_step !< Interval for sampling OAM
-   integer :: oam_buff !< Buffer size for the sampling of OAM
    character(len=1) :: print_mesh = 'N' !< Print triangulation mesh to file
    real(dblprec), dimension(:, :, :), allocatable :: mu_arr !< Array for dynamic magnetization
    real(dblprec), dimension(:, :), allocatable :: S0_arr !< Array for static magnetization
@@ -343,12 +340,6 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
       real(dblprec), dimension(3) :: c12,c23,c31
       integer :: k,isimp
 
-      ! Ensure triangulation is set up
-      if (nsimp == 0) then
-         write(*,'(1x, a)') "Setting up triangulation for chirality calculation"
-         call mesh2d_build(N1, N2, N3, NA, coord, C1, C2, C3, BC1, BC2, BC3)
-      end if
-
       kappa_tot = 0.0_dblprec
       chi_tot   = 0.0_dblprec
 
@@ -386,6 +377,7 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
       use math_functions, only : f_cross_product
       use SystemData, only : coord
       use InputData, only : simid, N1, N2, N3, NA, C1, C2, C3, BC1, BC2, BC3
+      use orbital_angular_momentum, only : oam_step_traj
       implicit none
       integer,          intent(in) :: Natom, Mensemble, mstep, flag
       real(dblprec),    intent(in) :: emom(3,Natom,Mensemble)
@@ -402,12 +394,6 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
    !------------------ 0 :  allocate & initialise ------------------
    case (0)
    
-      ! Ensure triangulation is set up for solid-angle OAM calculation
-      if (nsimp == 0) then
-         write(*,'(1x, a)') "Setting up triangulation for OAM calculation"
-         call mesh2d_build(N1, N2, N3, NA, coord, C1, C2, C3, BC1, BC2, BC3)
-      end if
-
       ! Allocate arrays (keeping some for compatibility, but not all are needed for triangulation approach)
       allocate(S0_arr(3,Natom), mu_arr(3,Natom,Mensemble))
       allocate(Lz_i(Natom,Mensemble))
@@ -418,7 +404,7 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
    
    !------------------ 1 :  sample current step --------------------
    case (1)
-      if ( mod(mstep-1,oam_step)==0) then
+      if ( mod(mstep-1,oam_step_traj)==0) then
       step_counter = step_counter + 1
 
       ! Use solid-angle triangulation approach for OAM calculation

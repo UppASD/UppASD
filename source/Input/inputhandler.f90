@@ -62,8 +62,8 @@ contains
       use temperature,        only : grad, tempfile, do_3tm
       use Polarization
       use prn_topology
-      use orbital_angular_momentum, only : do_oam_traj, oam_step_traj, oam_buff_traj, oam_origin, &
-         oam_origin_set, oam_weight, oam_sigma_max
+      use orbital_angular_momentum, only : do_oam, do_oam_traj, oam_step_traj, oam_buff_traj, oam_origin, &
+         oam_origin_set, oam_weight, oam_sigma_max, oam_gfactor, oam_sublattice, oam_sublattice_set
       use prn_currents
       use RandomNumbers
       use prn_induced_info,   only : do_prn_induced, ind_step,ind_buff
@@ -1481,8 +1481,21 @@ contains
                read(ifile,*,iostat=i_err) oam_sigma_max
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('oam_gfactor')
+               read(ifile,*,iostat=i_err) oam_gfactor
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('oam_sublattice')
+               read(ifile,'(a)',iostat=i_err) string
+               if (i_err == 0) call parse_oam_sublattice(string,i_err)
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             case('do_oam')
                read(ifile,*,iostat=i_err) do_oam
+               if (i_err == 0) then
+                  do_oam_traj = do_oam
+                  write(*,'(1x,a)') 'Deprecated input key do_oam; use do_oam_traj'
+               end if
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             case('print_mesh')
@@ -1909,6 +1922,85 @@ contains
 
       return
    end subroutine read_parameters
+
+   !--------------------------------------------------------------------------------
+   !> @brief Parse the whitespace-separated integer list used by oam_sublattice.
+   !--------------------------------------------------------------------------------
+   subroutine parse_oam_sublattice(line,i_err)
+      use orbital_angular_momentum, only : oam_sublattice, oam_sublattice_set
+
+      character(len=*), intent(in) :: line
+      integer, intent(out) :: i_err
+
+      character(len=len(line)) :: work, token
+      integer :: i, j, n, ntoken, ios, value, line_len
+
+      i_err = 0
+      work = line
+      line_len = len_trim(work)
+      do i=1,line_len
+         if (work(i:i)=='#' .or. work(i:i)=='!') then
+            line_len = i-1
+            exit
+         end if
+         if (work(i:i)==',') work(i:i)=' '
+      end do
+
+      ntoken = 0
+      i = 1
+      do while (i <= line_len)
+         do while (i <= line_len .and. (work(i:i)==' ' .or. work(i:i)==char(9)))
+            i = i + 1
+         end do
+         if (i > line_len) exit
+         j = i
+         do while (j <= line_len .and. work(j:j)/=' ' .and. work(j:j)/=char(9))
+            j = j + 1
+         end do
+         ntoken = ntoken + 1
+         i = j
+      end do
+
+      if (ntoken < 1) then
+         i_err = 1
+         oam_sublattice_set = .false.
+         return
+      end if
+
+      if (allocated(oam_sublattice)) deallocate(oam_sublattice)
+      allocate(oam_sublattice(ntoken),stat=ios)
+      if (ios /= 0) then
+         i_err = ios
+         oam_sublattice_set = .false.
+         return
+      end if
+
+      n = 0
+      i = 1
+      do while (i <= line_len)
+         do while (i <= line_len .and. (work(i:i)==' ' .or. work(i:i)==char(9)))
+            i = i + 1
+         end do
+         if (i > line_len) exit
+         j = i
+         do while (j <= line_len .and. work(j:j)/=' ' .and. work(j:j)/=char(9))
+            j = j + 1
+         end do
+         token = ' '
+         token(1:min(len(token),j-i)) = work(i:j-1)
+         read(token,*,iostat=ios) value
+         if (ios /= 0) then
+            i_err = ios
+            deallocate(oam_sublattice)
+            oam_sublattice_set = .false.
+            return
+         end if
+         n = n + 1
+         oam_sublattice(n) = value
+         i = j
+      end do
+      oam_sublattice_set = .true.
+   end subroutine parse_oam_sublattice
 
 
 
