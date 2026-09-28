@@ -1,0 +1,60 @@
+diff --git a/source/SpinWaves/chern_number.f90 b/source/SpinWaves/chern_number.f90
+index 948be94..436a3fb 100644
+--- a/source/SpinWaves/chern_number.f90
++++ b/source/SpinWaves/chern_number.f90
+@@ -928,7 +928,8 @@ contains
+          do j=0,nphi-1
+             phi=dphi*real(j,dblprec)
+             iq=(ir-1)*nphi+j+1
+-            call polar_cartesian_to_reduced(kr*cos(phi),kr*sin(phi),0.0_dblprec,C1,C2,C3,polar_q(:,iq))
++            ! setup_Jtens_q/setup_ektij consume Cartesian q in units of 2*pi/alat
++            polar_q(:,iq)=(/ kr*cos(phi), kr*sin(phi), 0.0_dblprec /)/(2.0_dblprec*pi)
+          end do
+       end do
+ 
+diff --git a/source/SpinWaves/diamag.f90 b/source/SpinWaves/diamag.f90
+index 7ad9cc1..5dfd3e9 100644
+--- a/source/SpinWaves/diamag.f90
++++ b/source/SpinWaves/diamag.f90
+@@ -107,7 +107,7 @@ contains
+       diamag_mix=0.030_dblprec
+       diamag_thresh=1.0d-8
+       diamag_nfreq=200
+-      !diamag_eps=-1.0_dblprec
++      diamag_eps=-1.0_dblprec
+       !diamag_qvect=0.0_dblprec
+       !diamag_nvect(1:2)=0.0_dblprec;diamag_nvect(3)=1.0_dblprec
+ 
+@@ -1743,11 +1743,6 @@ subroutine setup_Jtens_q(Natom,Mensemble,NA,emomM,q,nq,Jtens_q)
+             J_n(1,1)=ham%ncoup(j,ih,1)
+             J_n(2,2)=ham%ncoup(j,ih,1)
+             J_n(3,3)=ham%ncoup(j,ih,1)
+-            if (ham_inp%do_dm==1) then
+-               dmv=ham%dm_vect(:,j,ih)
+-               D_n=dm2tens(dmv)
+-               J_n=J_n-D_n
+-            end if
+             if (ham_inp%do_sa==1) then
+                cmv=-ham%sa_vect(:,j,ih)
+                C_n=sa2tens(cmv)
+@@ -1770,6 +1765,20 @@ subroutine setup_Jtens_q(Natom,Mensemble,NA,emomM,q,nq,Jtens_q)
+ 
+             Jtens_q(:,:,ia,jat,iq)=Jtens_q(:,:,ia,jat,iq)+matmul(J_n,R_n)*FTfac
+          end do
++         ! DM interactions live on their own neighbour list (ham%dmlist), which
++         ! in general differs from the exchange list in length and order.
++         if (ham_inp%do_dm==1) then
++            do j=1,ham%dmlistsize(ih)
++               ja=ham%dmlist(j,ia)
++               jat=mod(ja-1,NA)+1
++               call f_wrap_coord_diff(Natom,coord,ia,ja,dist)
++               call find_R(R_n,emomM(:,jat,1),emomM(:,ja,1))
++               dmv=ham%dm_vect(:,j,ih)
++               D_n=-dm2tens(dmv)
++               FTfac=exp(-im *(q_vec(1)*dist(1)+q_vec(2)*dist(2)+q_vec(3)*dist(3)))
++               Jtens_q(:,:,ia,jat,iq)=Jtens_q(:,:,ia,jat,iq)+matmul(D_n,R_n)*FTfac
++            end do
++         end if
+          ! Anisotropies (on-site interactions)
+          ! Anisotropy
+          if (ham_inp%do_anisotropy==1) then
