@@ -25,6 +25,7 @@ module Mesh2D
    integer, allocatable, public :: site_tri_idx(:)    ! CSR triangle indices
    integer, public :: ndegenerate = 0
    real(dblprec), public :: mesh_cell_area = 0.0_dblprec
+   logical, save :: non_xy_mesh_warning = .false.
 
    public :: mesh2d_build, mesh2d_report, mesh2d_release
 
@@ -34,9 +35,8 @@ contains
    !> @brief Build the shared two-dimensional mesh.
    !>
    !> Periodic vertices are placed by minimum image relative to the first vertex
-   !> of each cell.  Open directions omit their wrap cells.  The z-cell count is
-   !> retained in the interface for compatibility; this mesh represents the first
-   !> xy plane, as required by the two-dimensional topology observables.
+   !> of each cell.  Open directions omit their wrap cells.  Every z layer gets
+   !> its own independent xy triangulation; triangles never connect layers.
    !---------------------------------------------------------------------------------
    subroutine mesh2d_build(N1,N2,N3,NA,coord,C1,C2,C3,BC1,BC2,BC3)
 
@@ -48,7 +48,7 @@ contains
       character(len=1), intent(in) :: BC1, BC2, BC3
 
       integer :: i_stat, i_all, max_tri, tri_count, total_inc
-      integer :: x, y, ixp, iyp, it, i00, i10, i01, i11
+      integer :: x, y, z, ixp, iyp, it, i00, i10, i01, i11, layer_offset
       integer :: ia, iv, isite, tri_index, natom
       integer, allocatable :: simp_work(:,:), site_count(:), cursor(:)
       real(dblprec), allocatable :: area_work(:), b_work(:,:), c_work(:,:)
@@ -68,9 +68,14 @@ contains
       call mesh2d_release()
 
       natom = N1*N2*N3*NA
-      max_tri = max(1,2*N1*N2*NA)
+      max_tri = max(1,2*N1*N2*N3*NA)
       periodic_x = BC1=='P'
       periodic_y = BC2=='P'
+
+      if (N2==1 .and. N3>1 .and. .not.non_xy_mesh_warning) then
+         write(*,'(1x,a)') 'WARNING: Mesh2D received N2=1 and N3>1; the system is not in an xy plane.'
+         non_xy_mesh_warning=.true.
+      end if
 
       cell1 = real(N1,dblprec)*C1(1:2)
       cell2 = real(N2,dblprec)*C2(1:2)
@@ -96,59 +101,62 @@ contains
       tri_count = 0
       ndegenerate = 0
 
-      do y=1,N2
-         if (y==N2 .and. .not.periodic_y) cycle
-         iyp = modulo(y,N2)+1
-         do x=1,N1
-            if (x==N1 .and. .not.periodic_x) cycle
-            ixp = modulo(x,N1)+1
-            do it=1,NA
-               i00 = NA*((y-1)*N1+(x-1))+it
-               i10 = NA*((y-1)*N1+(ixp-1))+it
-               i01 = NA*((iyp-1)*N1+(x-1))+it
-               i11 = NA*((iyp-1)*N1+(ixp-1))+it
+      do z=1,N3
+         layer_offset=NA*N1*N2*(z-1)
+         do y=1,N2
+            if (y==N2 .and. .not.periodic_y) cycle
+            iyp = modulo(y,N2)+1
+            do x=1,N1
+               if (x==N1 .and. .not.periodic_x) cycle
+               ixp = modulo(x,N1)+1
+               do it=1,NA
+                  i00 = layer_offset+NA*((y-1)*N1+(x-1))+it
+                  i10 = layer_offset+NA*((y-1)*N1+(ixp-1))+it
+                  i01 = layer_offset+NA*((iyp-1)*N1+(x-1))+it
+                  i11 = layer_offset+NA*((iyp-1)*N1+(ixp-1))+it
 
-               r00=coord(1:2,i00)
-               call minimum_image_2d(coord(1:2,i10)-r00,cell1,cell2,inv_cell, &
-                  det_cell,periodic_x,periodic_y,rel10)
-               call minimum_image_2d(coord(1:2,i01)-r00,cell1,cell2,inv_cell, &
-                  det_cell,periodic_x,periodic_y,rel01)
-               call minimum_image_2d(coord(1:2,i11)-r00,cell1,cell2,inv_cell, &
-                  det_cell,periodic_x,periodic_y,rel11)
+                  r00=coord(1:2,i00)
+                  call minimum_image_2d(coord(1:2,i10)-r00,cell1,cell2,inv_cell, &
+                     det_cell,periodic_x,periodic_y,rel10)
+                  call minimum_image_2d(coord(1:2,i01)-r00,cell1,cell2,inv_cell, &
+                     det_cell,periodic_x,periodic_y,rel01)
+                  call minimum_image_2d(coord(1:2,i11)-r00,cell1,cell2,inv_cell, &
+                     det_cell,periodic_x,periodic_y,rel11)
 
-               d2_diag1=dot_product(rel11,rel11)
-               d1=rel10-rel01
-               d2_diag2=dot_product(d1,d1)
+                  d2_diag1=dot_product(rel11,rel11)
+                  d1=rel10-rel01
+                  d2_diag2=dot_product(d1,d1)
 
-               if (d2_diag1<=d2_diag2) then
-                  vertices=(/i00,i10,i11/)
-                  p=0.0_dblprec
-                  p(2,:)=rel10
-                  p(3,:)=rel11
-                  call append_triangle(vertices,p,tri_count,ndegenerate,simp_work, &
-                     area_work,b_work,c_work)
+                  if (d2_diag1<=d2_diag2) then
+                     vertices=(/i00,i10,i11/)
+                     p=0.0_dblprec
+                     p(2,:)=rel10
+                     p(3,:)=rel11
+                     call append_triangle(vertices,p,tri_count,ndegenerate,simp_work, &
+                        area_work,b_work,c_work)
 
-                  vertices=(/i00,i11,i01/)
-                  p=0.0_dblprec
-                  p(2,:)=rel11
-                  p(3,:)=rel01
-                  call append_triangle(vertices,p,tri_count,ndegenerate,simp_work, &
-                     area_work,b_work,c_work)
-               else
-                  vertices=(/i00,i10,i01/)
-                  p=0.0_dblprec
-                  p(2,:)=rel10
-                  p(3,:)=rel01
-                  call append_triangle(vertices,p,tri_count,ndegenerate,simp_work, &
-                     area_work,b_work,c_work)
+                     vertices=(/i00,i11,i01/)
+                     p=0.0_dblprec
+                     p(2,:)=rel11
+                     p(3,:)=rel01
+                     call append_triangle(vertices,p,tri_count,ndegenerate,simp_work, &
+                        area_work,b_work,c_work)
+                  else
+                     vertices=(/i00,i10,i01/)
+                     p=0.0_dblprec
+                     p(2,:)=rel10
+                     p(3,:)=rel01
+                     call append_triangle(vertices,p,tri_count,ndegenerate,simp_work, &
+                        area_work,b_work,c_work)
 
-                  vertices=(/i10,i11,i01/)
-                  p(1,:)=rel10
-                  p(2,:)=rel11
-                  p(3,:)=rel01
-                  call append_triangle(vertices,p,tri_count,ndegenerate,simp_work, &
-                     area_work,b_work,c_work)
-               end if
+                     vertices=(/i10,i11,i01/)
+                     p(1,:)=rel10
+                     p(2,:)=rel11
+                     p(3,:)=rel01
+                     call append_triangle(vertices,p,tri_count,ndegenerate,simp_work, &
+                        area_work,b_work,c_work)
+                  end if
+               end do
             end do
          end do
       end do

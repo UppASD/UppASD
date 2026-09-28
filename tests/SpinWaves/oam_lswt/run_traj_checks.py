@@ -37,15 +37,20 @@ def reread(d):
     return rs[:, 4:7].T
 
 
-def run_case(name, lattice="square", bc=("P", "P"), shift=(0.0, 0.0), field=None, keys=None):
+def run_case(name, lattice="square", bc=("P", "P"), shift=(0.0, 0.0), field=None,
+             keys=None, layers=1):
     d = os.path.join(WORK, name)
     shutil.rmtree(d, ignore_errors=True)
     keys = dict(keys or {})
-    xy, _ = F.write_case(d, lattice=lattice, N=N, bc=bc, shift=shift, field=field, extra_keys=keys)
+    xy, _ = F.write_case(d, lattice=lattice, N=N, bc=bc, shift=shift, field=field,
+                          extra_keys=keys, layers=layers)
     m = reread(d)
     L = F.LATTICES[lattice]
     per = (bc[0] == "P", bc[1] == "P")
-    simp, P = O.triangulate(N, N, 1, xy, L["C1"], L["C2"], per)
+    layer_n = N * N
+    simp1, P1 = O.triangulate(N, N, 1, xy[:, :layer_n], L["C1"], L["C2"], per)
+    simp = np.concatenate([simp1 + z * layer_n for z in range(layers)], axis=0)
+    P = np.concatenate([P1 for _ in range(layers)], axis=0)
     origin = None
     if "oam_origin" in keys:
         origin = np.array([float(v) for v in keys["oam_origin"].split()[:2]])
@@ -105,10 +110,14 @@ check("C2 amplitude independence", bool(np.all(np.isfinite(vals))) and float(np.
 def boosted(xy, k=0.3):
     v = O.vortex(xy, xy[:2].mean(1), 1, 0.05, 5.0)
     psi = (v[0] + 1j * v[1]) * np.exp(1j * k * xy[0])
-    return np.stack([psi.real, psi.imag, v[2]])
+    # Keep UppASD's initialization frame equal to the global frame used by the
+    # oracle, while retaining the plane-wave momentum of the packet.
+    psi = psi - psi.mean()
+    return np.stack([psi.real, psi.imag, np.sqrt(np.clip(1 - np.abs(psi) ** 2, 0, None))])
 out = {}
 for tag, sh in (("a", (0.0, 0.0)), ("b", (0.37, 0.21))):
-    ref, meas, rc, log = run_case(f"shift_{tag}", shift=sh, field=boosted, keys={"oam_origin": "0.0 0.0 0.0"})
+    ref, meas, rc, log = run_case(f"shift_{tag}", shift=sh, field=boosted,
+                                  keys={"oam_origin": "0.0 0.0 0.0", "timestep": "1e-30"})
     out[tag] = meas if (meas and agree(ref, meas, "lambda_L_origin") and agree(ref, meas, "lambda_L_centroid")) else None
 ok = all(out.values()) and abs(out["a"]["lambda_L_centroid"] - out["b"]["lambda_L_centroid"]) < 1e-6 \
     and abs(out["a"]["lambda_L_origin"] - out["b"]["lambda_L_origin"]) > 1e-3
@@ -152,6 +161,16 @@ def noise(xy):
 ref, meas, rc, log = run_case("delocalised", field=noise)
 check("C9 delocalised -> lambda_L_centroid NaN", meas is not None and np.isnan(meas["lambda_L_centroid"])
       and np.isfinite(meas["lambda_L_origin"]))
+
+# C11: independent layers preserve lambda and add their magnetic weight.
+r_one = run_case("multilayer_1", field=vort(1), layers=1)
+r_two = run_case("multilayer_2", field=vort(1), layers=2)
+ok = r_one[1] is not None and r_two[1] is not None
+if ok:
+    ok = all(agree(r_two[0], r_two[1], k) for k in ("lambda_L_origin", "lambda_L_centroid", "N_m"))
+    ok = ok and abs(r_two[1]["lambda_L_origin"] - r_one[1]["lambda_L_origin"]) <= 1e-6
+    ok = ok and abs(r_two[1]["N_m"] - 2.0 * r_one[1]["N_m"]) <= 1e-6 * max(1.0, abs(r_one[1]["N_m"]))
+check("C11 two layers: lambda unchanged, N_m doubled", ok)
 
 # C0: mesh diagnostic line (contract C7): periodic mesh tiles the cell exactly,
 # open mesh drops the wrap cells.  Parsed from stdout.

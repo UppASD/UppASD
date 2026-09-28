@@ -339,6 +339,17 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
       real(dblprec), dimension(3) :: m1,m2,m3
       real(dblprec), dimension(3) :: c12,c23,c31
       integer :: k,isimp
+      logical, save :: empty_mesh_warning = .false.
+
+      if (nsimp==0) then
+         if (.not.empty_mesh_warning) then
+            write(*,'(1x,a)') 'WARNING: chirality_tri called with an empty mesh; returning zeros.'
+            empty_mesh_warning=.true.
+         end if
+         kappa_avg=0.0_dblprec
+         chi_avg=0.0_dblprec
+         return
+      end if
 
       kappa_tot = 0.0_dblprec
       chi_tot   = 0.0_dblprec
