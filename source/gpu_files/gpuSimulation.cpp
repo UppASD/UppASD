@@ -49,6 +49,7 @@ void GpuSimulation::initiateConstants() {
     Flags.do_sc_projch = *FortranData::do_sc_projch;
     Flags.do_ene = *FortranData::do_ene;
     Flags.do_gpu_measurements = ((*FortranData::do_cuda_measurements == 'Y')? true : false);
+    Flags.do_multiscale = *FortranData::do_multiscale;
     //Flags.do_avrg = static_cast<bool>(*FortranData::do_avrg);
     //Flags.do_cumu = static_cast<bool>(*FortranData::do_cumu);
 
@@ -213,6 +214,19 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
         }
 
     }
+
+    if(Flags.do_multiscale){
+        cpuInterpolationInfo.nrInterpAtoms = *FortranData::inte_nrInterpAtoms;
+        cpuInterpolationInfo.nWeights = *FortranData::inte_nWeights;
+        cpuInterpolationInfo.nRows = *FortranData::inte_nRows;
+        long int NW = static_cast <long int>(cpuInterpolationInfo.nWeights );
+        long int NR = static_cast <long int>(cpuInterpolationInfo.nRows);
+        cpuInterpolationInfo.indices.set(FortranData::inte_indices, N);    
+        cpuInterpolationInfo.firstNeighbour.set(FortranData::inte_firstNeighbour, NR + 1); // index of the first neighbour in weights and neighbours
+        cpuInterpolationInfo.weights.set(FortranData::inte_weights, NW); // Per-neighbour coefficient
+        cpuInterpolationInfo.neighbours.set(FortranData::inte_neighbours, NW); // Atom indices for neighbours participating in the interpolation
+
+    }
   // printf("HERE - 2\n");
 
   //  if(FortranData::ipnstep == nullptr)printf("ITS EMPTY\n");
@@ -342,6 +356,16 @@ bool GpuSimulation::initiateMatrices() {
 
     //gpuLattice.temperature.initiate(N); //is initiated if we run SD or MC simulation inside corresponding classes where they are requires
     if(FortranData::btorque) {gpuLattice.btorque.Allocate(static_cast <long int>(3), N, M);}
+
+    if(Flags.do_multiscale){
+        long int NW = static_cast <long int>(cpuInterpolationInfo.nWeights );
+        long int NR = static_cast <long int>(cpuInterpolationInfo.nRows);
+        gpuInterpolationInfo.indices.Allocate(N);    
+        gpuInterpolationInfo.firstNeighbour.Allocate(NR + 1); // index of the first neighbour in weights and neighbours
+        gpuInterpolationInfo.weights.Allocate(NW); // Per-neighbour coefficient
+        gpuInterpolationInfo.neighbours.Allocate(NW); // Atom indices for neighbours participating in the interpolation
+
+    }
     //e.Allocate( static_cast <long int>(3), N, M);} 
 
    /* if (Flags.do_mphase_now != 0){
@@ -468,6 +492,13 @@ void GpuSimulation::release() {
    // gpuMeasurables.mavg_buff.Free();  
    // gpuMeasurables.mcumu_buff.Free();  
   
+       if(Flags.do_multiscale){
+
+        gpuInterpolationInfo.firstNeighbour.Free(); // index of the first neighbour in weights and neighbours
+        gpuInterpolationInfo.weights.Free(); // Per-neighbour coefficient
+        gpuInterpolationInfo.neighbours.Free(); // Atom indices for neighbours participating in the interpolation
+
+    }
     TensorMemoryTracker::printResults();
     // TensorMemoryTracker::saveToFile();
     TensorDataMovementTracker::printResults();
@@ -523,6 +554,14 @@ void GpuSimulation::copyFromFortran() {
    // gpuMeasurables.mavg_buff.copy_sync(cpuMeasurables.mavg_buff);  
    // gpuMeasurables.mcumu_buff.copy_sync(cpuMeasurables.mcumu_buff);
    }
+
+    if(Flags.do_multiscale){
+
+        gpuInterpolationInfo.indices.copy_sync(cpuInterpolationInfo.indices);    
+        gpuInterpolationInfo.firstNeighbour.copy_sync(cpuInterpolationInfo.firstNeighbour);  
+        gpuInterpolationInfo.weights.copy_sync(cpuInterpolationInfo.weights);  
+        gpuInterpolationInfo.neighbours.copy_sync(cpuInterpolationInfo.neighbours);  
+    }
 }
 void GpuSimulation::copyToFortran() {
    if(isInitiated) {

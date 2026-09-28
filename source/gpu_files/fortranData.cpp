@@ -156,8 +156,8 @@ unsigned int* FortranData::nspinwait;
 bool* FortranData::do_multiscale;
 bool* FortranData::damping_enable;
 
-int* FortranData::inte_nrInterpAtoms; 
-int* FortranData::damp_nrInterpAtoms; 
+unsigned int* FortranData::inte_nrInterpAtoms; 
+unsigned int* FortranData::damp_nrInterpAtoms; 
 
 int* FortranData::inte_indices;    
 int* FortranData::damp_indices;    
@@ -177,6 +177,9 @@ real* FortranData::damp_preinterpolation;
 
 real* FortranData::backbuffer;
 int* FortranData::backbufferHead;
+
+unsigned int* FortranData::inte_nWeights;
+unsigned int* FortranData::inte_nRows;
    
 
 void FortranData::setFlagPointers(unsigned int* p_do_dm, unsigned int* p_do_jtensor, unsigned int* p_do_anisotropy,
@@ -383,20 +386,26 @@ void FortranData::setCorrelationPointers(real* p_q, real* p_r_mid, real* p_coord
 
 }
 
-void FortranData::setMultiscalePointers(bool* p_do_multiscale, int* p_inte_nrInterpAtoms, int* p_inte_indices, int* p_inte_firstNeighbour, 
-                                          real* p_inte_weights, int* p_inte_neighbours, real* p_backbuffer, int* p_backbufferHead){
+void FortranData::setMultiscalePointers(bool* p_do_multiscale, unsigned int* p_inte_nrInterpAtoms, unsigned int* p_inte_nWeights,
+                                    unsigned int* p_inte_nRows, int* p_inte_indices, int* p_inte_firstNeighbour, real* p_inte_weights,
+                                    int* p_inte_neighbours, real* p_backbuffer, int* p_backbufferHead)
+{
+    do_multiscale = p_do_multiscale;
 
+    inte_nrInterpAtoms = p_inte_nrInterpAtoms;
+    inte_nWeights = p_inte_nWeights;
+    inte_nRows = p_inte_nRows;
 
-   do_multiscale = p_do_multiscale;
-   inte_nrInterpAtoms = p_inte_nrInterpAtoms;
-   inte_indices = p_inte_indices; 
-   inte_firstNeighbour = p_inte_firstNeighbour; 
-   inte_weights = p_inte_weights; 
-   inte_neighbours = p_inte_neighbours;
-   backbuffer =  p_backbuffer;
-   backbufferHead = p_backbufferHead;
-                                                                          
+    inte_indices = p_inte_indices;
+    inte_firstNeighbour = p_inte_firstNeighbour;
+    inte_weights = p_inte_weights;
+    inte_neighbours = p_inte_neighbours;
+
+    backbuffer = p_backbuffer;
+    backbufferHead = p_backbufferHead;
 }
+
+
 void FortranData::setInputDataPointers(int* p1, int* p2, int* p3) {
    gpu_mode = p1;
    gpu_rng = p2;
@@ -480,12 +489,13 @@ FortranData::setCorrelationPointers(
    p_atype, p_achtype, p_m_k_proj, p_m_k_projch, p_m_kt_proj, p_m_kt_projch, p_m_kw_proj, p_m_kw_projch);
 }
 
-extern "C" void fortrandata_setmultiscale_(bool* p_do_multiscale, int* p_inte_nrInterpAtoms, int* p_inte_indices, int* p_inte_firstNeighbour, 
-                                          real* p_inte_weights, int* p_inte_neighbours, real* p_backbuffer, int* p_backbufferHead){
-
-FortranData::setMultiscalePointers(
-   p_do_multiscale, p_inte_nrInterpAtoms, p_inte_indices, p_inte_firstNeighbour, p_inte_weights, p_inte_neighbours,
-   p_backbuffer, p_backbufferHead);
+extern "C" void fortrandata_setmultiscale_(bool* p_do_multiscale, unsigned int* p_inte_nrInterpAtoms, unsigned int* p_inte_nWeights,
+    unsigned int* p_inte_nRows, int* p_inte_indices, int* p_inte_firstNeighbour, real* p_inte_weights, int* p_inte_neighbours,
+    real* p_backbuffer, int* p_backbufferHead)
+{
+    FortranData::setMultiscalePointers(
+      p_do_multiscale, p_inte_nrInterpAtoms, p_inte_nWeights, p_inte_nRows, p_inte_indices, p_inte_firstNeighbour,
+      p_inte_weights, p_inte_neighbours, p_backbuffer, p_backbufferHead);
 }
 
 

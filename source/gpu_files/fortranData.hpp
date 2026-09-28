@@ -208,8 +208,8 @@ public:
    static bool* do_multiscale;
    static bool* damping_enable;
 
-   static int* inte_nrInterpAtoms; 
-   static int* damp_nrInterpAtoms; 
+   static unsigned int* inte_nrInterpAtoms; 
+   static unsigned int* damp_nrInterpAtoms; 
 
    static int* inte_indices;    
    static int* damp_indices;    
@@ -229,6 +229,9 @@ public:
 
    static real* backbuffer;
    static int* backbufferHead;
+
+   static unsigned int* inte_nWeights;
+   static unsigned int* inte_nRows;
    
 
 
@@ -281,10 +284,17 @@ public:
                                        void* p_m_k_projch, void* p_m_kt_proj, void* p_m_kt_projch, void* p_m_kw_proj, 
                                        void* p_m_kw_projch);
 
-   static void setMultiscalePointers(bool* p_do_multiscale, int* p_inte_nrInterpAtoms, int* p_inte_indices, int* p_inte_firstNeighbour, 
-                                       real* p_inte_weights, int* p_inte_neighbours, real* p_backbuffer, int* p_backbufferHead);
-    
-   
+   static void setMultiscalePointers(
+    bool* p_do_multiscale,
+    unsigned int* p_inte_nrInterpAtoms,
+    unsigned int* p_inte_nWeights,
+    unsigned int* p_inte_nRows,
+    int* p_inte_indices,
+    int* p_inte_firstNeighbour,
+    real* p_inte_weights,
+    int* p_inte_neighbours,
+    real* p_backbuffer,
+    int* p_backbufferHead);  
     /*static void setConstantPointers(char* p1, int* p2, unsigned int* p3, unsigned int* p4, unsigned int* p5,
                                    unsigned int* p6, unsigned int* p7, real* p8, real* p9, real* p10,
                                    real* p11, real* p12, real* p13, real* p14, int* p15, char* p16,

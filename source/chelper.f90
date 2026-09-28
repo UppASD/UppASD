@@ -82,39 +82,42 @@ module Chelper
    end interface
 
 
-   interface
+    interface
 
-      subroutine FortranData_setMultiscale( &
-            p_do_multiscale,               &
-            p_inte_nrInterpAtoms,          &
-            p_inte_indices,                &
-            p_inte_firstNeighbour,         &
-            p_inte_weights,                &
-            p_inte_neighbours,             &
-            p_backbuffer,                  &
-            p_backbufferHead)              &
-            bind(C, name="fortrandata_setmultiscale_")
+       subroutine FortranData_setMultiscale( &
+             p_do_multiscale,               &
+             p_inte_nrInterpAtoms,          &
+             p_inte_nWeights,              &
+             p_inte_nRows,                  &
+             p_inte_indices,                &
+             p_inte_firstNeighbour,         &
+             p_inte_weights,                &
+             p_inte_neighbours,             &
+             p_backbuffer,                  &
+             p_backbufferHead)              &
+             bind(C, name="fortrandata_setmultiscale_")
+          import :: c_bool, c_double, c_int
 
-         import :: c_bool, c_double, c_int
+          logical(c_bool) :: p_do_multiscale
 
-         logical(c_bool) :: p_do_multiscale
+          integer(c_int) :: p_inte_nrInterpAtoms
+          integer(c_int) :: p_inte_nWeights
+          integer(c_int) :: p_inte_nRows
 
-         integer(c_int) :: p_inte_nrInterpAtoms
+          integer(c_int) :: p_inte_indices(*)
+          integer(c_int) :: p_inte_firstNeighbour(*)
 
-         integer(c_int) :: p_inte_indices(*)
-         integer(c_int) :: p_inte_firstNeighbour(*)
+          real(c_double) :: p_inte_weights(*)
 
-         real(c_double) :: p_inte_weights(*)
+          integer(c_int) :: p_inte_neighbours(*)
 
-         integer(c_int) :: p_inte_neighbours(*)
+          real(c_double) :: p_backbuffer(*)
 
-         real(c_double) :: p_backbuffer(*)
+          integer(c_int) :: p_backbufferHead
 
-         integer(c_int) :: p_backbufferHead
+       end subroutine FortranData_setMultiscale
 
-      end subroutine FortranData_setMultiscale
-
-   end interface
+    end interface
 
    private
 
@@ -478,10 +481,10 @@ contains
           cc%scstep_arr, cc%sc_nsamp, cc%sc_tidx, atype_meta, achtype, cc%m_k_proj, cc%m_k_projch, &
           cc%m_kt_proj, cc%m_kt_projch, cc%m_kw_proj, cc%m_kw_projch)
 
-      call FortranData_setMultiscale(c_do_multiscale, int(interfaceInterpolation%nrInterpAtoms, c_int), &
-      interfaceInterpolation%indices, interfaceInterpolation%firstNeighbour, interfaceInterpolation%weights, &
-      interfaceInterpolation%neighbours, multiscaleBackbuffer, int(multiscaleBackbufferHead, c_int))
-
+       call FortranData_setMultiscale(c_do_multiscale, int(interfaceInterpolation%nrInterpAtoms, c_int), &
+       int(size(interfaceInterpolation%weights), c_int), int(size(interfaceInterpolation%firstNeighbour) - 1, c_int), &
+       interfaceInterpolation%indices, interfaceInterpolation%firstNeighbour, interfaceInterpolation%weights, &
+       interfaceInterpolation%neighbours, multiscaleBackbuffer, int(multiscaleBackbufferHead, c_int))
 
       call FortranData_setInputData(gpu_mode, gpu_rng, gpu_rng_seed)
 

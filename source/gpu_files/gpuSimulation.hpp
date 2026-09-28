@@ -19,11 +19,15 @@ private:
     hostMeasurables cpuMeasurebles;//those are host matrices
     hostHamiltonian cpuHamiltonian;//those are host matrices
     hostCorrelations cpuCorrelations;//those are host matrices
+    hostInterpolationInfo cpuInterpolationInfo;
+    hostMultiscaleRest cpuMultiscaleRest;
 
     deviceLattice gpuLattice; //those are device matrices
     deviceMeasurables gpuMeasurebles;//those are device matrices
     deviceHamiltonian gpuHamiltonian;//those are device matrices
     deviceEnergies gpuEnergies;
+    deviceInterpolationInfo gpuInterpolationInfo;
+    deviceMultiscaleRest gpuMultiscaleRest;
 
     const unsigned int maxThreads;
     const unsigned int maxBlocks;
