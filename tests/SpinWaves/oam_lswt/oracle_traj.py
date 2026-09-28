@@ -5,7 +5,7 @@ deliberately written without reference to the Fortran and must never be
 "fixed" to agree with it: if they disagree, escalate.
 
 Physics (CONVENTIONS_OAM.md, C1-C4):
-    psi_i      = m_x,i + i m_y,i                 (frame: global, from <m> at init)
+    psi_i      = m_x,i + i m_y,i                 (frame: defined by the harness texture at init)
     grad psi   = linear-FEM triangle gradients, area-weighted to sites
     ell_z(i)   = Im[ psi_i^* ((x_i-x0) d_y psi_i - (y_i-y0) d_x psi_i) ]
     lambda_L   = sum_i ell_z(i) w_i / sum_i |psi_i|^2 w_i       (w_i = 1 or A_i)
@@ -118,9 +118,23 @@ def circular_centroid(coords, wt, N1, N2, C1, C2, periodic):
     return M @ np.array(red)
 
 
+def to_c8_frame(m):
+    """Express moments in the C8 frame defined by the harness texture."""
+    e_z = np.sum(m, axis=1)
+    e_z /= np.linalg.norm(e_z)
+    seed = np.array([1.0, 0.0, 0.0])
+    if abs(np.dot(e_z, seed)) >= 0.9:
+        seed = np.array([0.0, 1.0, 0.0])
+    e_x = seed - np.dot(seed, e_z) * e_z
+    e_x /= np.linalg.norm(e_x)
+    e_y = np.cross(e_z, e_x)
+    return np.vstack((e_x @ m, e_y @ m, e_z @ m))
+
+
 def evaluate(m, coords, simp, P, N1, N2, C1, C2, periodic, origin=None,
              weight="site", mmom=None, g=2.0, sigma_max=0.6):
-    """Return the oam_traj column set for one configuration m (3,Natom)."""
+    """Return the oam_traj column set; the harness texture defines the frame."""
+    m = to_c8_frame(m)
     psi = m[0] + 1j * m[1]
     gx, gy, Ai, ok, _ = fem_gradient(psi, simp, P)
     w = np.where(ok, 1.0 if weight == "site" else Ai, 0.0)

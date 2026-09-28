@@ -1,5 +1,9 @@
 # OAM questions and decisions
 
+## 2026-09-28 — R3
+
+- Proposal (not implemented): add an explicit `oam_axis` contract key for restart-loaded or driven states, with the default frame axis equal to the normalized average moment at initialization. The C8 frame remains implicit in the current contract and oracle.
+
 ## 2026-09-28 — B5.4 held at GA
 
 B5.1–B5.3 are prepared, but B5.4 is not started because its prompt requires
