@@ -170,7 +170,7 @@ struct hostCorrelations {
 
 
 struct hostInterpolationInfo {
-   int nrInterpAtoms // Number of atoms affected
+   int nrInterpAtoms; // Number of atoms affected
    Tensor<int, 1> indices;   //index on firstNeighbour corresponding to each atom. indices(i) contains 0 if the atom is not affected by the interpolation.   
    Tensor<int, 1>  firstNeighbour; // index of the first neighbour in weights and neighbours
    Tensor<real, 1>  weights; // Per-neighbour coefficient
@@ -256,7 +256,7 @@ struct deviceEnergies {
 
 
 struct deviceInterpolationInfo {
-   int nrInterpAtoms // Number of atoms affected
+   int nrInterpAtoms; // Number of atoms affected
    GpuTensor<int, 1> indices;   //index on firstNeighbour corresponding to each atom. indices(i) contains 0 if the atom is not affected by the interpolation.   
    GpuTensor<int, 1>  firstNeighbour; // index of the first neighbour in weights and neighbours
    GpuTensor<real, 1>  weights; // Per-neighbour coefficient
