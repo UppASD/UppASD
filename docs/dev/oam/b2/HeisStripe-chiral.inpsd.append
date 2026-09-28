@@ -1,0 +1,8 @@
+# B2 chirality regression overrides; append to tests/HeisStripe/inpsd.dat.
+mseed       1
+tseed       1
+Nstep       2
+do_avrg     N
+do_chiral   Y
+chir_step   1
+chir_buff   1

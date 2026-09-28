@@ -1,0 +1,8 @@
+# B2 skyrmion-number regression overrides; append to tests/kagome/inpsd.dat.
+mseed       1
+tseed       1
+Nstep       2
+do_avrg     N
+skyno       T
+skyno_step  1
+skyno_buff  1

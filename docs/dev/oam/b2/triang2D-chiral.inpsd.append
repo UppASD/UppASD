@@ -1,0 +1,19 @@
+# B2 chirality regression overrides; append to tests/triang2D/inpsd.dat.
+mseed       1
+tseed       1
+ip_mode     N
+mode        S
+do_ld       N
+Initlatt    0
+do_ams      N
+do_magdos   N
+do_phonspec N
+do_phondos  N
+do_sc       N
+do_uc       N
+do_spintemp N
+Nstep       2
+do_avrg     N
+do_chiral   Y
+chir_step   1
+chir_buff   1
