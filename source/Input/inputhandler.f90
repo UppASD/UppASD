@@ -62,6 +62,8 @@ contains
       use temperature,        only : grad, tempfile, do_3tm
       use Polarization
       use prn_topology
+      use orbital_angular_momentum, only : do_oam_traj, oam_step_traj, oam_buff_traj, oam_origin, &
+         oam_origin_set, oam_weight, oam_sigma_max
       use prn_currents
       use RandomNumbers
       use prn_induced_info,   only : do_prn_induced, ind_step,ind_buff
@@ -1453,6 +1455,31 @@ contains
             !------------------------------------------------------------------------
             ! START OF VARIABLES FOR ANGULAR ORBITAL MOMENTUM
             !------------------------------------------------------------------------
+
+            case('do_oam_traj')
+               read(ifile,*,iostat=i_err) do_oam_traj
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('oam_step')
+               read(ifile,*,iostat=i_err) oam_step_traj
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('oam_buff')
+               read(ifile,*,iostat=i_err) oam_buff_traj
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('oam_origin')
+               read(ifile,*,iostat=i_err) oam_origin
+               oam_origin_set = i_err == 0
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('oam_weight')
+               read(ifile,*,iostat=i_err) oam_weight
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('oam_sigma_max')
+               read(ifile,*,iostat=i_err) oam_sigma_max
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             case('do_oam')
                read(ifile,*,iostat=i_err) do_oam

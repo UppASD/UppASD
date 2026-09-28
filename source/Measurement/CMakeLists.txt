@@ -1,4 +1,6 @@
-target_sources(${UppASD_LIB} PRIVATE measurements.f90
+target_sources(${UppASD_LIB} PRIVATE mesh2d.f90
+oam.f90
+measurements.f90
 polarization.f90
 prn_averages.f90
 prn_currents.f90

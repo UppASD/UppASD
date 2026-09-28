@@ -118,7 +118,7 @@ contains
       use prn_microwaves,   only : print_mwf_fields
       use prn_trajectories, only : print_trajectories
       use prn_induced_info, only : print_ind_trajectories
-      use topology,        only : calculate_oam, do_oam
+      use orbital_angular_momentum, only : do_oam_traj, oam_sample
 
       implicit none
       !
@@ -196,9 +196,9 @@ contains
       call print_pol(sstep,mstep,Natom,Mensemble,max_no_neigh,nlist,nlistsize,emom,&
          delta_t,simid,real_time_measure)
 
-      ! Calculate orbital angular momentum
-      if (do_oam=='Y') then
-         call calculate_oam(Natom,Mensemble,emom, mstep, 1)
+      ! Calculate trajectory orbital angular momentum
+      if (do_oam_traj=='Y') then
+         call oam_sample(mstep,emom,mmom,atype)
       end if
 
       ! Print information about the induced moments
@@ -258,7 +258,7 @@ contains
       use prn_trajectories, only : flush_trajectories
       use prn_currents,     only : flush_currents
       use prn_induced_info, only : flush_ind_trajectories
-      use topology,        only : calculate_oam, do_oam
+      use orbital_angular_momentum, only : oam_flush
 
       implicit none
 
@@ -302,10 +302,8 @@ contains
       ! Flush the induced moments measurements
       call flush_ind_trajectories(Natom,Mensemble,ind_list_full,simid,real_time_measure)
 
-      ! Flush the orbital angular momentum measurements
-      if (do_oam=='Y') then
-         call calculate_oam(Natom,Mensemble,emom, mstep, 2)
-      end if
+      ! Flush the trajectory orbital angular momentum measurements
+      call oam_flush()
    end subroutine flush_measurements
 
    !-----------------------------------------------------------------------------

@@ -13,6 +13,7 @@ module prn_topology
    use Profiling
    use Parameters
    use Topology
+   use orbital_angular_momentum, only : oam_defaults
 
    implicit none
 
@@ -249,6 +250,7 @@ contains
       oam_step    = 100
       oam_buff    = 10
       print_mesh  = "N"
+      call oam_defaults()
 
    end subroutine prn_topology_init
 

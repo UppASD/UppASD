@@ -1,5 +1,13 @@
 # OAM questions and decisions
 
+## 2026-09-28 — B3
+
+- Restatement: C1 defines the transverse complex field as `psi = m_x + i*m_y` in the single frame fixed at `oam_init`. In the +z Holstein–Primakoff convention this is proportional to the magnon annihilation field, so positive `lambda_L` denotes magnon OAM pointing along +z. It is the conjugate of the `m_x - i*m_y` convention used in parts of the literature.
+- Restatement: C2 does not subtract a reference spin from the moment. The transverse field is made directly from the moment components, so its intensity is `|psi|^2 = 1 - m_z^2`; the reference state only fixes the frame.
+- Restatement: C3 reports an origin-referenced value and a centroid-referenced value. The latter removes the packet-drift contribution `(R x P)_z`, but it does not remove the extrinsic envelope winding `l`.
+- Origin dependence: with `P = sum Im[conj(psi)*grad(psi)] w`, changing the fixed origin from `x0` to `x0'` changes the numerator by `((x0 - x0') x P)_z`, hence `lambda_L(x0') - lambda_L(x0) = ((x0 - x0') x P)_z / N`. A stationary vortex has `P = 0`, so this difference vanishes for every origin.
+- Gate G2 question: the C3 harness texture has an initial average transverse moment of approximately `(0.001048, 0.003601)` even though its intended frame is Cartesian +z. C8 requires `e_z` to follow the normalized average moment; applying that frame gives `lambda_L_origin = -5.059702` and `-5.123670` for the two shifts, while the independent oracle (which evaluates `m_x + i*m_y` in the unrotated Cartesian frame) expects `-4.835643` and `-4.896778`. Options are (a) update the fixture/oracle to rotate the prescribed texture into the C8 frame, or (b) treat this residual transverse mean as numerical and use the Cartesian frame, which would violate C8. Recommendation: maintainer decision is required; no tolerance or oracle change was made.
+
 ## 2026-09-27 — A1/A2
 
 - Question: Should the static `hfield` be included in the LSWT Hamiltonian?

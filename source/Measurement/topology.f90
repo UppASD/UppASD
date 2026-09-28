@@ -14,6 +14,7 @@ module Topology
    use Parameters
    use Profiling
    use Systemdata, only : coord
+   use Mesh2D, only : nsimp, simp, site_tri_ptr, site_tri_idx, mesh2d_build
 
    ! Parameters for the printing
    integer :: skyno_step !< Interval for sampling the skyrmion number
@@ -22,9 +23,6 @@ module Topology
    character(len=1) :: do_proj_skyno !< Perform type dependent skyrmion number measurement
    character(len=1) :: do_skyno_den  !< Perform site dependent skyrmion number measurement
    character(len=1) :: do_skyno_cmass  !< Perform center-of-mass skyrmion number measurement
-
-   integer :: nsimp !< Number of simplices
-   integer, dimension(:,:), allocatable :: simp !< Array for storing Delaunay simplices
 
    real(dblprec) :: chi_avg !< Average scalar chirality (instantaneous)
    real(dblprec) :: chi_cavg  = 0.0_dblprec !< Average scalar chirality (cumulative)
@@ -165,21 +163,20 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
 
       thesum_proj=0.0_dblprec
 
-      !!$omp parallel do default(shared) private(isimp,k,q,qq,m1,m2,m3,m1m2m3,m1m2,m1m3,m2m3) reduction(+:thesum)
+      !!$omp parallel do default(shared) private(isimp,k,q,qq,m1,m2,m3,m1m2m3,m1m2,m1m3,m2m3,isite) reduction(+:thesum_proj)
       do k=1, Mensemble
-         do isite=1,NA
-            do isimp=isite,nsimp+isite-1, NA
-               m1 = emom(:,simp(1,isimp),k)
-               m2 = emom(:,simp(2,isimp),k)
-               m3 = emom(:,simp(3,isimp),k)
-               m1m2m3=f_volume(m1,m2,m3)
-               m1m2=dot_product(m1,m2)
-               m1m3=dot_product(m1,m3)
-               m2m3=dot_product(m2,m3)
-               qq=m1m2m3/(1.0_dblprec+m1m2+m1m3+m2m3)
-               q=2.0_dblprec*atan(qq)
-               thesum_proj(isite)=thesum_proj(isite)+q
-            end do
+         do isimp=1,nsimp
+            isite=mod(simp(1,isimp)-1,NA)+1
+            m1 = emom(:,simp(1,isimp),k)
+            m2 = emom(:,simp(2,isimp),k)
+            m3 = emom(:,simp(3,isimp),k)
+            m1m2m3=f_volume(m1,m2,m3)
+            m1m2=dot_product(m1,m2)
+            m1m3=dot_product(m1,m3)
+            m2m3=dot_product(m2,m3)
+            qq=m1m2m3/(1.0_dblprec+m1m2+m1m3+m2m3)
+            q=2.0_dblprec*atan(qq)
+            thesum_proj(isite)=thesum_proj(isite)+q
          end do
       end do
       !!$omp end parallel do
@@ -208,7 +205,7 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
       integer, intent(in) :: iatom !< Current atom
 
 
-      integer :: k,i1,i2,i3, isimp
+      integer :: k,i1,i2,i3, isimp, itri
       real(dblprec), dimension(3) :: m1, m2, m3
       real(dblprec) :: thesum,q,qq, m1m2m3, m1m2, m1m3, m2m3
 
@@ -216,8 +213,14 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
 
       !isimp=2*iatom.
 
+      if (.not.allocated(site_tri_ptr)) then
+         pontryagin_tri_dens=0.0_dblprec
+         return
+      end if
+
       do k=1, Mensemble
-         do isimp=2*iatom-1,2*iatom
+         do itri=site_tri_ptr(iatom),site_tri_ptr(iatom+1)-1
+            isimp=site_tri_idx(itri)
             m1 = emom(:,simp(1,isimp),k)
             m2 = emom(:,simp(2,isimp),k)
             m3 = emom(:,simp(3,isimp),k)
@@ -227,7 +230,7 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
             m2m3=dot_product(m2,m3)
             qq=m1m2m3/(1.0_dblprec+m1m2+m1m3+m2m3)
             q=2.0_dblprec*atan(qq)
-            thesum=thesum+q
+            thesum=thesum+q/3.0_dblprec
          end do
       end do
 
@@ -320,74 +323,6 @@ function pontryagin_tri_proj(NA, Natom,Mensemble,emom)
 
    !---------------------------------------------------------------------------------
    !> @brief
-   !> Constructing a Delaunay triangulation from an a priori known triangular
-   !lattice
-   !
-   !> @author
-   !> Anders Bergman
-   !---------------------------------------------------------------------------------
-subroutine delaunay_tri_tri(nx,ny,nz,NT,coords)
-   use Constants
-   implicit none
-
-   integer, intent(in) :: nx,ny,nz,NT
-   real(dblprec), intent(in) :: coords(3,nx*ny*nz*NT)
-
-   integer :: x,y,z,it, nsimp_max
-   integer :: i00,i10,i01,i11
-   real(dblprec) :: d2_diag1,d2_diag2
-   real(dblprec), dimension(3) :: r00,r10,r01,r11
-
-   nsimp_max = 2*nx*ny*nz*NT
-   allocate(simp(3,nsimp_max))
-   nsimp = 0
-
-   do z=1,nz
-      do y=1,ny
-         do x=1,nx
-            do it=1,NT
-               ! FIXED: Proper indexing calculation
-               ! Each cell has NT atoms, wrap_idx gives 1-based cell index
-               i00 = NT*(wrap_idx(x,       y,       z,nx,ny,nz)-1) + it
-               i10 = NT*(wrap_idx(modulo(x,nx)+1, y,       z,nx,ny,nz)-1) + it
-               i01 = NT*(wrap_idx(x,       modulo(y,ny)+1,z,nx,ny,nz)-1) + it
-               i11 = NT*(wrap_idx(modulo(x,nx)+1, modulo(y,ny)+1,z,nx,ny,nz)-1) + it
-
-               r00 = coords(:,i00)
-               r10 = coords(:,i10)
-               r01 = coords(:,i01)
-               r11 = coords(:,i11)
-
-               ! Compare diagonals to choose triangulation
-               d2_diag1 = sum((r00-r11)**2)
-               d2_diag2 = sum((r10-r01)**2)
-
-               if (d2_diag1 <= d2_diag2) then
-                  nsimp = nsimp+1 ; simp(:,nsimp) = [i00,i10,i11]
-                  nsimp = nsimp+1 ; simp(:,nsimp) = [i00,i11,i01]
-               else
-                  nsimp = nsimp+1 ; simp(:,nsimp) = [i00,i10,i01]
-                  nsimp = nsimp+1 ; simp(:,nsimp) = [i10,i11,i01]
-               end if
-
-            end do
-         end do
-      end do
-   end do
-
-   write(*,'(1x,a,i8,a)') 'Triangulation created with ', nsimp, ' simplices'
-
-   contains
-      integer function wrap_idx(x,y,z,nx,ny,nz)
-         implicit none
-         integer, intent(in) :: x,y,z,nx,ny,nz
-         wrap_idx = nx*ny*(z-1) + nx*(y-1) + x
-      end function wrap_idx
-end subroutine delaunay_tri_tri
-
-
-   !---------------------------------------------------------------------------------
-   !> @brief
    !> Calculates the scalar chirality using triangulation
    !
    !> @author
@@ -396,7 +331,7 @@ end subroutine delaunay_tri_tri
    function chirality_tri(Natom,Mensemble,emom) result(kappa_avg)
       use constants
       use math_functions, only : f_cross_product
-      use InputData, only: N1, N2, N3, NA
+      use InputData, only: N1, N2, N3, NA, C1, C2, C3, BC1, BC2, BC3
       implicit none
       integer, intent(in) :: Natom, Mensemble
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom
@@ -411,7 +346,7 @@ end subroutine delaunay_tri_tri
       ! Ensure triangulation is set up
       if (nsimp == 0) then
          write(*,'(1x, a)') "Setting up triangulation for chirality calculation"
-         call delaunay_tri_tri(N1, N2, N3, NA, coord)
+         call mesh2d_build(N1, N2, N3, NA, coord, C1, C2, C3, BC1, BC2, BC3)
       end if
 
       kappa_tot = 0.0_dblprec
@@ -450,7 +385,7 @@ end subroutine delaunay_tri_tri
    subroutine calculate_oam(Natom,Mensemble,emom,mstep,flag)
       use math_functions, only : f_cross_product
       use SystemData, only : coord
-      use InputData, only : simid, N1, N2, N3, NA, C1, C2, C3
+      use InputData, only : simid, N1, N2, N3, NA, C1, C2, C3, BC1, BC2, BC3
       implicit none
       integer,          intent(in) :: Natom, Mensemble, mstep, flag
       real(dblprec),    intent(in) :: emom(3,Natom,Mensemble)
@@ -470,7 +405,7 @@ end subroutine delaunay_tri_tri
       ! Ensure triangulation is set up for solid-angle OAM calculation
       if (nsimp == 0) then
          write(*,'(1x, a)') "Setting up triangulation for OAM calculation"
-         call delaunay_tri_tri(N1, N2, N3, NA, coord)
+         call mesh2d_build(N1, N2, N3, NA, coord, C1, C2, C3, BC1, BC2, BC3)
       end if
 
       ! Allocate arrays (keeping some for compatibility, but not all are needed for triangulation approach)

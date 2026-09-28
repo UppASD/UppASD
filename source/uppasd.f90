@@ -270,8 +270,11 @@ contains
       use MetaTypes
       use Qvectors,        only : q,nq
       use Chern_number
+      use orbital_angular_momentum, only : oam_init
 
       integer :: cflag
+
+      call oam_init(Natom,Mensemble,NA,N1,N2,coord,C1,C2,BC1,BC2,emom,simid,rstep)
 
       if(do_diamag=='Y') then
          call timing(0,'SpinCorr      ','ON')
@@ -470,6 +473,9 @@ contains
       use MultiscaleInterpolation
       use MultiscaleSetupSystem
       use MultiscaleDampingBand
+      use Mesh2D, only : mesh2d_release
+
+      call mesh2d_release()
 
     if (do_multiscale) then
       call allocate_multiscale(flag=-1)
@@ -573,6 +579,8 @@ contains
       use clusters
       use MC_Wolff
       use Topology
+      use Mesh2D, only : mesh2d_build, mesh2d_report
+      use orbital_angular_momentum, only : do_oam_traj
       use geometry,        only : setup_geometry, rescale_lattvec
       use gradients
       use Stiffness,       only : do_stiffness
@@ -1299,16 +1307,11 @@ contains
             ham%max_no_neigh,ham%nlistsize,ham%nlist,coord)
       end if
 
-      if (skyno=='T'.or.do_chiral=='Y'.or.do_oam=='Y') then
-         write(*,'(1x, a)') "Triangulating mesh"
-         call delaunay_tri_tri(n1,n2,n3, NA, coord)
+      if (skyno=='T'.or.do_proj_skyno=='T'.or.do_chiral=='Y'.or.do_oam_traj=='Y'.or.print_mesh=='Y') then
+         call mesh2d_build(N1,N2,N3,NA,coord,C1,C2,C3,BC1,BC2,BC3)
+         call mesh2d_report()
          ! Print triangulation mesh to file for debugging/visualization
          call print_triangulation_mesh('triangulation', coord, Natom, simid, C1, C2, C3, N1, N2, N3)
-      end if
-
-      if (do_oam=='Y') then
-         write(*,'(1x, a)') "Setup OAM mesh"
-         call calculate_oam(Natom,Mensemble,emom, 1, 0)
       end if
 
       if (mode=='W') then
