@@ -104,3 +104,40 @@ paper's drawn NNN orientation and resolves the independent magnitude mismatch.
 The intended work-package commit is `[OAM-A5]` and contains only this report
 and the ASCII input files under `sign_pin/`. No generated artifact or blob is
 part of it.
+
+## A5b rerun — corrected D mapping (2026-09-28)
+
+R4 first reran the original `D/J = +/-0.15` inputs to check the K-point
+normalisation from UppASD output. At `K = 4.188790204786391`, both signs gave
+`E_1 = 205.6867800742812 meV` and `E_2 = 120.8500727235184 meV`, hence
+`E_1 - E_2 = 84.8367073507628 meV = 1.5588 (4*ry_ev)`. This is
+`6 sqrt(3) D S` for `D = 0.15` and `S = 1`; the paper's relation is twice
+that value, so `D_UppASD = 2 D_paper` and the published `d = 0.1` requires
+`|D_UppASD|/J = 0.30`.
+
+Every D coefficient in `plus_D/dmfile` and `minus_D/dmfile` was then doubled
+from `+/-0.15` to `+/-0.30`. The corrected runs used isolated copies of the
+two input directories and:
+
+```text
+env OMP_NUM_THREADS=1 /Users/andersb/Jobb/UppASD_6.1/build-oam/bin/uppasd > run.log 2>&1
+```
+
+Both runs reported a maximum paraunitarity error of `7.86138E-15`, the
+expected warning that `kmax` exceeds the inscribed BZ radius, and wrote the
+Fishman OAM output. The corrected K-point gap was
+`169.6734211892256 meV`, twice the baseline gap.
+
+The band-1 K-point rows are:
+
+| UppASD `D/J` | `F_1(K)/hbar` | `O_1,av(K)/hbar` | peak location | comparison with +0.236 |
+|---:|---:|---:|---|---:|
+| `+0.30` | `+0.761021860661387` | `+0.227959688312056` | `K` | `-3.4069%` |
+| `-0.30` | `-0.761021860661387` | `-0.227959688312056` | `K` | opposite sign, same magnitude |
+
+The positive result agrees with the independent oracle's approximately
+`0.228` and is about 3.4% below the published `0.236 hbar`. For the sign
+oscillation described in the paper, the corrected `F_1(k)` samples remain
+nonnegative for `+D` and nonpositive for `-D` throughout `0 <= k <= K`, apart
+from the zero at `k=0`; no sign oscillation is observed. This observation is
+recorded without resolving the discrepancy. GA remains with the maintainer.
