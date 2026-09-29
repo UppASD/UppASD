@@ -711,7 +711,7 @@ contains
       call memocc(i_stat,product(shape(A_copy))*kind(A_copy),'A_copy','fallback_bosonic_diag')
       allocate(work(8 * hdim),stat=i_stat)
       call memocc(i_stat,product(shape(work))*kind(work),'work','fallback_bosonic_diag')
-      allocate(rwork(hdim),stat=i_stat)
+      allocate(rwork(8 * hdim),stat=i_stat)
       call memocc(i_stat,product(shape(rwork))*kind(rwork),'rwork','fallback_bosonic_diag')
 
       eig_vec = czero
