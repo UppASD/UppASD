@@ -20,6 +20,7 @@
 #include "correlationFactory.hpp"
 #include "measurementQueue.hpp"
 #include "cpuRestMeasurement.hpp"
+#include "gpuInterpolation.hpp"
 
 #include "gpu_wrappers.h"
 #include "gpuCorrelations.hpp"
@@ -102,6 +103,9 @@ void GpuSimulation::GpuMSSimulation::MSmphase(GpuSimulation& gpuSim) {
       std::fprintf(stderr, "GpuSDSimulation: Hamiltonian failed to initiate!\n");
       return;
    }
+
+   GpuInterpolation interpolation(gpuSim.SimParam.N, gpuSim.SimParam.M, gpuSim.gpuInterpolationInfo, 
+                    gpuSim.gpuLattice);
 
    int mnn = gpuSim.cpuHamiltonian.j_tensor.extent(2);
    int l = gpuSim.cpuHamiltonian.j_tensor.extent(3);

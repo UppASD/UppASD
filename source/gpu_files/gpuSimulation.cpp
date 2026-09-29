@@ -360,6 +360,7 @@ bool GpuSimulation::initiateMatrices() {
     if(Flags.do_multiscale){
         long int NW = static_cast <long int>(cpuInterpolationInfo.nWeights );
         long int NR = static_cast <long int>(cpuInterpolationInfo.nRows);
+        gpuInterpolationInfo.nrInterpAtoms = gpuInterpolationInfo.nrInterpAtoms;
         gpuInterpolationInfo.indices.Allocate(N);    
         gpuInterpolationInfo.firstNeighbour.Allocate(NR + 1); // index of the first neighbour in weights and neighbours
         gpuInterpolationInfo.weights.Allocate(NW); // Per-neighbour coefficient

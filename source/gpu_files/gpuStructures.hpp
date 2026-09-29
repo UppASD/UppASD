@@ -258,7 +258,7 @@ struct deviceEnergies {
 
 
 struct deviceInterpolationInfo {
-   //unsigned int nrInterpAtoms; // Number of atoms affected
+   unsigned int nrInterpAtoms; // Number of atoms affected
    //unsigned int nWeights;
    //unsigned int nRows;
    GpuTensor<int, 1> indices;   //index on firstNeighbour corresponding to each atom. indices(i) contains 0 if the atom is not affected by the interpolation.   

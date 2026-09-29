@@ -17,11 +17,20 @@ private:
 
     unsigned int maxThreads;
     unsigned int maxBlocks;
+    dim3 threads;
+    dim3 blocks;
+    const unsigned int N;
+    const unsigned int M;
+    deviceInterpolationInfo& gpuInterpolationInfo;
+    GpuTensor<real, 4> backbuffer;
+    int backbufferHead;
+    deviceLattice& gpuLattice;
     
 
 
 public:
-    GpuInterpolation();
+    GpuInterpolation(const unsigned int p_N, const unsigned int p_M, deviceInterpolationInfo& p_gpuInterpolationInfo, 
+                     deviceLattice& p_gpuLattice);
     ~GpuInterpolation();
 
     void interpolate();  
