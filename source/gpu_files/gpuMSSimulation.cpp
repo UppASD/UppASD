@@ -135,7 +135,7 @@ void GpuSimulation::GpuMSSimulation::MSmphase(GpuSimulation& gpuSim) {
       stopwatch.add("hamiltonian");
 
       // Perform first step of SDE solver
-      //integrator.evolveFirst(gpuSim.gpuLattice); TODO
+      integrator.evolveFirst(gpuSim.gpuLattice); //TODO
       stopwatch.add("evolution");
 
       measure_ene = ((gpuSim.Flags.do_ene > 0 ) && (gpuSim.Flags.do_gpu_measurements)&&
@@ -147,7 +147,7 @@ void GpuSimulation::GpuMSSimulation::MSmphase(GpuSimulation& gpuSim) {
   
 
       // Perform second (corrector) step of SDE solver
-      //integrator.evolveSecond(gpuSim.gpuLattice); TODO
+      integrator.evolveSecond(gpuSim.gpuLattice); //TODO
       stopwatch.add("evolution");
       // Update magnetic moments after time evolution step
       momUpdater.update();

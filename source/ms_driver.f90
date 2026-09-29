@@ -689,6 +689,126 @@ contains
       call timing(0,'Measurement   ','OF')
    end subroutine ms_mphase
 
+      subroutine ms_iphaseGPU()
+#if defined (CUDA_V) || defined (HIP_V)
+      use Chelper
+
+#else
+      use NoCuda
+#endif
+   use Restart
+      use Damping
+      use SpinTorques, only : btorque, stt
+      use InputData
+      use Correlation
+      use MomentData, only : emom, mmom
+      use CalculateFields, only : calc_external_fields
+      use FieldData, only : external_field, sitefld
+      use SystemData, only : anumb
+
+      ! Common stuff
+      integer :: whichsim !< Type of simulation, 0 - SD, 1 -MC, 2 - MS
+      integer :: whichphase !< Initial or measurement, 0 - initial, 1 - measurement
+      !character(len = 1), intent(in) :: gpu_mc_bf !< Initial or measurement, 0 - initial, 1 - measurement
+
+      whichsim = 2
+      whichphase = 0
+
+      ! Match CPU sd_iphase setup: initialize static external fields for initial phase.
+      call calc_external_fields(Natom,Mensemble,iphfield,anumb,external_field, &
+         do_bpulse,sitefld,sitenatomfld)
+
+      ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
+      call FortranData_Initiate(stt,btorque, sc, 'I')
+
+      ! Let the fortran timing think we are in Measurement
+      call timing(0,'Measurement   ','ON')
+
+      ! Start simulation
+  
+      call gpuSim_initiateConstants()
+      call gpuSim_initiateMatrices()
+      call gpuSim_gpuRunSimulation(whichsim, whichphase, gpu_mc_bf)
+      call gpuSim_release();
+
+
+      ! Save restart information after GPU initial phase.
+      call timing(0,'PrintRestart  ','ON')
+      if (do_mom_legacy.ne.'Y') then
+         call prn_mag_conf(Natom,0,Mensemble,'R',simid,mmom,emom,'',mode)
+      else
+         call prnrestart(Natom,Mensemble,simid,0,emom,mmom)
+      endif
+      call timing(0,'PrintRestart  ','OF')
+
+      call timing(0,'Measurement   ','OF')
+   end subroutine ms_iphaseGPU
+
+
+      !---------------------------------------------------------------------------------
+   !> @brief
+   !> CUDA implemented sd measurement phase
+   !
+   !> @author
+   !> Niklas Fejes
+   !
+   !> @date 2014/08/22 : Thomas Nystrand
+   !> - Moved to separate routine
+   !---------------------------------------------------------------------------------
+   subroutine ms_mphaseGPU()
+#if defined (CUDA_V) || defined (HIP_V)
+      use Chelper
+
+#else
+      use NoCuda
+#endif
+      use Damping
+      use SpinTorques, only : btorque, stt  
+      use Correlation  
+      use Temperature
+      use InputData
+      use FieldData,             only : beff,beff1,beff2,beff3,b2eff,sitefld,       &
+         external_field,field1,field2,time_external_field,allocation_field_time,    &
+         thermal_field
+      use MomentData
+      use FieldPulse
+      use SystemData,            only: coord
+      use SystemData,            only : atype, anumb, Landeg
+      use ChemicalData
+      use SimulationData,        only : bn, rstep, mstep
+      use MetaTypes
+      use Polarization
+      use HamiltonianData
+
+      ! Common stuff
+      integer :: whichsim !< Type of simulation, 0 - SD, 1 - MC, 2 - MS
+      integer :: whichphase !< Initial or measurement, 0 - initial, 1 - measurement
+      integer ::cgk_flag, ntmp, dummy_mstep
+      !character(len = 1), intent(in) :: gpu_mc_bf !< Initial or measurement, 0 - initial, 1 - measurement
+      whichsim = 2
+      whichphase = 1
+      cgk_flag = 0
+      dummy_mstep = 0
+
+      ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
+      call FortranData_Initiate(stt,btorque, sc, 'M')
+
+      ! Let the fortran timing think we are in Measurement
+      call timing(0,'Measurement   ','ON')
+
+      ! Start simulation
+
+      call gpuSim_initiateConstants()
+      call gpuSim_initiateMatrices()
+      call gpuSim_gpuRunSimulation(whichsim, whichphase, gpu_mc_bf);
+      call gpuSim_release();
+
+
+      call timing(0,'Measurement   ','OF')
+
+      
+   end subroutine ms_mphaseGPU
+
    
 
 end module ms_driver
