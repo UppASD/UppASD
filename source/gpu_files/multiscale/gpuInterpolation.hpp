@@ -22,8 +22,6 @@ private:
     const unsigned int N;
     const unsigned int M;
     deviceInterpolationInfo& gpuInterpolationInfo;
-    GpuTensor<real, 4> backbuffer;
-    int backbufferHead;
     deviceLattice& gpuLattice;
     
 
