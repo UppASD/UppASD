@@ -54,8 +54,12 @@ def run_case(name, lattice="square", bc=("P", "P"), shift=(0.0, 0.0), field=None
     origin = None
     if "oam_origin" in keys:
         origin = np.array([float(v) for v in keys["oam_origin"].split()[:2]])
+    axis = None
+    if "oam_axis" in keys:
+        axis = np.array([float(v) for v in keys["oam_axis"].split()[:3]])
     ref = O.evaluate(m, xy, simp, P, N, N, L["C1"], L["C2"], per, origin=origin,
-                     weight=keys.get("oam_weight", "site"))
+                     weight=keys.get("oam_weight", "site"),
+                     gradient=keys.get("oam_gradient", "fem"), NA=1, axis=axis)
     fn = f"{d}/oam_traj.oamtest.out"
     if SELFTEST:
         with open(fn, "w") as f:
@@ -110,14 +114,11 @@ check("C2 amplitude independence", bool(np.all(np.isfinite(vals))) and float(np.
 def boosted(xy, k=0.3):
     v = O.vortex(xy, xy[:2].mean(1), 1, 0.05, 5.0)
     psi = (v[0] + 1j * v[1]) * np.exp(1j * k * xy[0])
-    # Keep UppASD's initialization frame equal to the global frame used by the
-    # oracle, while retaining the plane-wave momentum of the packet.
-    psi = psi - psi.mean()
-    return np.stack([psi.real, psi.imag, np.sqrt(np.clip(1 - np.abs(psi) ** 2, 0, None))])
+    return np.stack([psi.real, psi.imag, v[2]])
 out = {}
 for tag, sh in (("a", (0.0, 0.0)), ("b", (0.37, 0.21))):
     ref, meas, rc, log = run_case(f"shift_{tag}", shift=sh, field=boosted,
-                                  keys={"oam_origin": "0.0 0.0 0.0", "timestep": "1e-30"})
+                                  keys={"oam_origin": "0.0 0.0 0.0"})
     out[tag] = meas if (meas and agree(ref, meas, "lambda_L_origin") and agree(ref, meas, "lambda_L_centroid")) else None
 ok = all(out.values()) and abs(out["a"]["lambda_L_centroid"] - out["b"]["lambda_L_centroid"]) < 1e-6 \
     and abs(out["a"]["lambda_L_origin"] - out["b"]["lambda_L_origin"]) > 1e-3
@@ -171,6 +172,63 @@ if ok:
     ok = ok and abs(r_two[1]["lambda_L_origin"] - r_one[1]["lambda_L_origin"]) <= 1e-6
     ok = ok and abs(r_two[1]["N_m"] - 2.0 * r_one[1]["N_m"]) <= 1e-6 * max(1.0, abs(r_one[1]["N_m"]))
 check("C11 two layers: lambda unchanged, N_m doubled", ok)
+
+# C12: FFTW spectral gradients.  The first probe distinguishes a binary
+# without USE_FFTW from an implementation failure; the former is explicitly
+# outside this check's build requirement.
+def high_k_boost(xy):
+    center = xy[:2].mean(1)
+    v = O.vortex(xy, center, 1, 0.05, 5.0)
+    psi = (v[0] + 1j * v[1]) * np.exp(1j * 1.5 * xy[0])
+    return np.stack([psi.real, psi.imag, np.sqrt(np.clip(1 - np.abs(psi) ** 2, 0, None))])
+
+
+spectral_probe = run_case("spectral_probe", field=vort(1),
+                          keys={"oam_gradient": "spectral"})
+spectral_header = os.path.join(WORK, "spectral_probe", "oam_traj.oamtest.out")
+has_fftw = SELFTEST or (
+    spectral_probe[1] is not None
+    and os.path.exists(spectral_header)
+    and any("oam_gradient = spectral" in line for line in open(spectral_header))
+)
+if not has_fftw and not SELFTEST and "requires a build with USE_FFTW" in spectral_probe[3]:
+    print("[SKIP] C12 spectral gradient: binary was not built with FFTW")
+else:
+    r_ell = run_case("spectral_ell1", field=vort(1),
+                     keys={"oam_gradient": "spectral"})
+    r_hex = run_case("spectral_hex", lattice="hex", field=vort(1),
+                     keys={"oam_gradient": "spectral"})
+    ok_a = all(r[1] is not None and all(agree(r[0], r[1], key, tol=1e-6)
+                                        for key in ("lambda_L_origin", "lambda_L_centroid", "N_m"))
+               for r in (r_ell, r_hex))
+    check("C12a spectral ell+1 and hex match NumPy oracle", ok_a)
+
+    r_high_s = run_case("spectral_high_k", field=high_k_boost,
+                        keys={"oam_gradient": "spectral"})
+    r_high_f = run_case("fem_high_k", field=high_k_boost)
+    analytic_lambda = 1.0
+    ok_b = (r_high_s[1] is not None and r_high_f[1] is not None
+            and abs(r_high_s[1]["lambda_L_centroid"] - analytic_lambda) <= 1e-4
+            and abs(r_high_f[1]["lambda_L_centroid"] - analytic_lambda) >= 0.1)
+    check("C12b k.a=1.5 spectral analytic lambda; FEM bias", ok_b,
+          "" if r_high_s[1] is None or r_high_f[1] is None else
+          f"spectral={r_high_s[1]['lambda_L_centroid']:.8f}, "
+          f"FEM={r_high_f[1]['lambda_L_centroid']:.8f}, analytic={analytic_lambda:.1f}")
+
+# C13: explicit lab-frame axis versus the C8 default frame.  This uses the
+# original boosted packet; T4 restores it without subtracting its mean.
+c13_keys = {"oam_origin": "0.0 0.0 0.0"}
+r_c13_default = run_case("axis_default", field=boosted, keys=c13_keys)
+r_c13_lab = run_case("axis_lab", field=boosted,
+                     keys={**c13_keys, "oam_axis": "0.0 0.0 1.0"})
+ok_default = (r_c13_default[1] is not None
+              and all(agree(r_c13_default[0], r_c13_default[1], key)
+                      for key in ("lambda_L_origin", "lambda_L_centroid", "N_m")))
+ok_lab = (r_c13_lab[1] is not None
+          and all(agree(r_c13_lab[0], r_c13_lab[1], key)
+                  for key in ("lambda_L_origin", "lambda_L_centroid", "N_m")))
+check("C13 default axis matches default-frame oracle", ok_default)
+check("C13 explicit z axis matches lab-frame oracle", ok_lab)
 
 # C0: mesh diagnostic line (contract C7): periodic mesh tiles the cell exactly,
 # open mesh drops the wrap cells.  Parsed from stdout.

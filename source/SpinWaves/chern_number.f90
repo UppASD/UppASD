@@ -997,8 +997,7 @@ contains
       open(ofileno,file=f_file)
       write(ofileno,'(a)') '# Fishman gauge-invariant angularly averaged magnon OAM'
       write(ofileno,'(a)') '# k is physical Cartesian |k|; rings are not folded back into the BZ.'
-      write(ofileno,'(a)') '# C13 absolute sign: CONFIRMED; positive UppASD D maps to positive Fishman OAM.'
-      write(ofileno,'(a)') '# C13 magnitude: O_1,av(K)/hbar ~= 0.228 versus published 0.236; discrepancy retained.'
+      write(ofileno,'(a)') '# Sign: O_n = -1/2 Im[T^dagger eta dT/dphi], T = X^-1 (Fishman); validated against PRB 107, 214434, see docs/dev/oam/sign_pin.'
       write(ofileno,'(a)') '# k band energy(meV) F_n(k)/hbar O_n,av(k)/hbar'
       do ir=1,nrad
          do band=1,NA

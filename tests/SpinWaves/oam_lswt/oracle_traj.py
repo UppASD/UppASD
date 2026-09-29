@@ -101,6 +101,54 @@ def fem_gradient(psi, simp, P):
     return gx, gy, ws / 3.0, ok, A
 
 
+def spectral_gradient(psi, N1, N2, C1, C2, NA=1):
+    """Return Cartesian spectral gradients on each sublattice/layer grid.
+
+    The FFT uses UppASD's x-fastest atom ordering.  ``np.fft`` supplies the
+    discrete Fourier coefficients; the multipliers below convert folded
+    reduced-grid indices into Cartesian wave vectors.  The even-grid Nyquist
+    component is assigned zero derivative, matching C17.
+    """
+    psi = np.asarray(psi, complex)
+    ncell = N1 * N2
+    plane_size = NA * ncell
+    if psi.size % plane_size:
+        raise ValueError("spectral grid does not tile the psi array")
+    nlayer = psi.size // plane_size
+
+    C1 = np.asarray(C1, float)[:2]
+    C2 = np.asarray(C2, float)[:2]
+    det = C1[0] * C2[1] - C2[0] * C1[1]
+    if abs(det) <= 1e-14:
+        raise ValueError("singular spectral cell")
+    twopi = 2.0 * np.pi
+    b1 = twopi * np.array([C2[1], -C2[0]]) / det
+    b2 = twopi * np.array([-C1[1], C1[0]]) / det
+
+    m1 = np.arange(N1, dtype=float)
+    m2 = np.arange(N2, dtype=float)
+    m1[m1 >= (N1 + 1) / 2.0] -= N1
+    m2[m2 >= (N2 + 1) / 2.0] -= N2
+    if N1 % 2 == 0:
+        m1[N1 // 2] = 0.0
+    if N2 % 2 == 0:
+        m2[N2 // 2] = 0.0
+    kx = (m2[:, None] / N2) * b2[0] + (m1[None, :] / N1) * b1[0]
+    ky = (m2[:, None] / N2) * b2[1] + (m1[None, :] / N1) * b1[1]
+
+    gx = np.empty_like(psi)
+    gy = np.empty_like(psi)
+    for iz in range(nlayer):
+        for isub in range(NA):
+            start = iz * plane_size + isub
+            indices = start + NA * np.arange(ncell)
+            field = psi[indices].reshape(N2, N1)
+            spectrum = np.fft.fft2(field)
+            gx[indices] = np.fft.ifft2(1j * kx * spectrum).reshape(-1)
+            gy[indices] = np.fft.ifft2(1j * ky * spectrum).reshape(-1)
+    return gx, gy
+
+
 def circular_centroid(coords, wt, N1, N2, C1, C2, periodic):
     """Centroid in reduced coordinates, circular mean along periodic axes."""
     C1 = np.asarray(C1, float)[:2]; C2 = np.asarray(C2, float)[:2]
@@ -118,9 +166,12 @@ def circular_centroid(coords, wt, N1, N2, C1, C2, periodic):
     return M @ np.array(red)
 
 
-def to_c8_frame(m):
-    """Express moments in the C8 frame defined by the harness texture."""
-    e_z = np.sum(m, axis=1)
+def to_c8_frame(m, axis=None):
+    """Express moments in the C8 frame, optionally using an explicit axis."""
+    if axis is None:
+        e_z = np.sum(m, axis=1)
+    else:
+        e_z = np.asarray(axis, float).copy()
     e_z /= np.linalg.norm(e_z)
     seed = np.array([1.0, 0.0, 0.0])
     if abs(np.dot(e_z, seed)) >= 0.9:
@@ -132,11 +183,23 @@ def to_c8_frame(m):
 
 
 def evaluate(m, coords, simp, P, N1, N2, C1, C2, periodic, origin=None,
-             weight="site", mmom=None, g=2.0, sigma_max=0.6):
+             weight="site", mmom=None, g=2.0, sigma_max=0.6,
+             gradient="fem", NA=1, axis=None):
     """Return the oam_traj column set; the harness texture defines the frame."""
-    m = to_c8_frame(m)
+    m = to_c8_frame(m, axis=axis)
     psi = m[0] + 1j * m[1]
-    gx, gy, Ai, ok, _ = fem_gradient(psi, simp, P)
+    if gradient == "fem":
+        gx, gy, Ai, ok, _ = fem_gradient(psi, simp, P)
+    elif gradient == "spectral":
+        if not all(periodic):
+            raise ValueError("spectral gradient requires periodic axes")
+        gx, gy = spectral_gradient(psi, N1, N2, C1, C2, NA=NA)
+        # The site-area weights are geometric and remain the FEM dual areas;
+        # only the derivative itself changes in spectral mode.
+        _, _, Ai, _, _ = fem_gradient(psi, simp, P)
+        ok = np.ones(psi.size, dtype=bool)
+    else:
+        raise ValueError(f"unknown gradient method: {gradient}")
     w = np.where(ok, 1.0 if weight == "site" else Ai, 0.0)
     norm = np.sum(np.abs(psi) ** 2 * w)
     if origin is None:

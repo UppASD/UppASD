@@ -9,6 +9,7 @@
 module orbital_angular_momentum
 
    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite, ieee_quiet_nan, ieee_value
+   use, intrinsic :: iso_c_binding
    use Parameters
    use Profiling
    use InputData, only : Landeg_glob
@@ -16,6 +17,10 @@ module orbital_angular_momentum
       site_tri_ptr, site_tri_idx
 
    implicit none
+
+#ifdef USE_FFTW
+   include 'fftw3.f03'
+#endif
 
    private
 
@@ -25,7 +30,10 @@ module orbital_angular_momentum
    integer, public :: oam_buff_traj = 10        !< Number of buffered rows
    real(dblprec), public :: oam_origin(3) = 0.0_dblprec !< Fixed origin
    logical, public :: oam_origin_set = .false.  !< Whether an origin was supplied
+   real(dblprec), public :: oam_axis(3) = 0.0_dblprec !< Optional frame axis
+   logical, public :: oam_axis_set = .false. !< Whether an axis was supplied
    character(len=4), public :: oam_weight = 'site' !< Site or area weighting
+   character(len=8), public :: oam_gradient = 'fem' !< FEM or spectral gradient
    real(dblprec), public :: oam_sigma_max = 0.6_dblprec !< Centroid spread guard
    real(dblprec), public :: oam_gfactor = 0.0_dblprec !< Optional g factor
    integer, allocatable, public :: oam_sublattice(:) !< Optional unit-cell sublattice list
@@ -46,6 +54,7 @@ module orbital_angular_momentum
    integer :: oam_na = 1
    integer :: oam_ncolumns = 9
    integer :: oam_nsubblocks = 0
+   integer :: oam_nlayers = 1
    integer :: oam_rstep = 0
    integer :: oam_nbuffer = 0
    real(dblprec) :: oam_g = 2.0_dblprec
@@ -56,6 +65,8 @@ module orbital_angular_momentum
    real(dblprec) :: oam_half_short = 0.0_dblprec
    logical :: oam_periodic(2) = .false.
    character(len=8) :: oam_simid = ''
+   character(len=8) :: oam_gradient_method = 'fem'
+   logical :: oam_spectral_ready = .false.
 
    real(dblprec), allocatable :: oam_coord(:,:)
    complex(dblprec), allocatable :: oam_psi(:)
@@ -63,6 +74,16 @@ module orbital_angular_momentum
    complex(dblprec), allocatable :: oam_fem_dy(:)
    complex(dblprec), allocatable :: oam_site_dx(:)
    complex(dblprec), allocatable :: oam_site_dy(:)
+   real(dblprec), allocatable :: oam_kx(:,:)
+   real(dblprec), allocatable :: oam_ky(:,:)
+#ifdef USE_FFTW
+   type(C_PTR) :: oam_fft_forward = C_NULL_PTR
+   type(C_PTR) :: oam_fft_backward = C_NULL_PTR
+   complex(C_DOUBLE_COMPLEX), allocatable :: oam_fft_field(:,:)
+   complex(C_DOUBLE_COMPLEX), allocatable :: oam_fft_hat(:,:)
+   complex(C_DOUBLE_COMPLEX), allocatable :: oam_fft_work(:,:)
+   complex(C_DOUBLE_COMPLEX), allocatable :: oam_fft_result(:,:)
+#endif
    integer, allocatable :: oam_step_buffer(:)
    real(dblprec), allocatable :: oam_row_buffer(:,:)
 
@@ -78,7 +99,13 @@ contains
       oam_buff_traj = 10
       oam_origin = 0.0_dblprec
       oam_origin_set = .false.
+      oam_axis = 0.0_dblprec
+      oam_axis_set = .false.
       oam_weight = 'site'
+      oam_gradient = 'fem'
+      oam_gradient_method = 'fem'
+      oam_spectral_ready = .false.
+      oam_nlayers = 1
       oam_sigma_max = 0.6_dblprec
       oam_gfactor = 0.0_dblprec
       oam_sublattice_set = .false.
@@ -112,6 +139,28 @@ contains
       if (trim(adjustl(oam_weight)) /= 'site' .and. trim(adjustl(oam_weight)) /= 'area') then
          write(*,'(1x,a,a)') 'Trajectory OAM: unknown oam_weight ',trim(oam_weight)
          oam_weight = 'site'
+      end if
+      select case(trim(adjustl(oam_gradient)))
+      case('fem','spectral')
+         oam_gradient_method = trim(adjustl(oam_gradient))
+      case default
+         write(*,'(1x,a,a)') 'Trajectory OAM disabled: unknown oam_gradient ',trim(oam_gradient)
+         return
+      end select
+      if (oam_gradient_method == 'spectral') then
+         if (BC1 /= 'P' .or. BC2 /= 'P') then
+            write(*,'(1x,a)') 'Trajectory OAM disabled: spectral gradient requires BC1 = BC2 = P.'
+            return
+         end if
+#ifndef USE_FFTW
+         write(*,'(1x,a)') 'Trajectory OAM disabled: spectral gradient requires a build with USE_FFTW.'
+         return
+#else
+         if (mod(Natom,NA*N1*N2) /= 0) then
+            write(*,'(1x,a)') 'Trajectory OAM disabled: spectral grid dimensions do not tile the atom array.'
+            return
+         end if
+#endif
       end if
       if (oam_sublattice_set) then
          if (.not.allocated(oam_sublattice) .or. size(oam_sublattice)<1) then
@@ -149,7 +198,17 @@ contains
          write(*,'(1x,a)') 'Trajectory OAM disabled: the initial average moment is zero.'
          return
       end if
-      ez = mean_m / mean_norm
+      if (oam_axis_set) then
+         mean_norm = sqrt(dot_product(oam_axis,oam_axis))
+         if (mean_norm <= 1.0e-14_dblprec) then
+            write(*,'(1x,a)') 'Trajectory OAM disabled: oam_axis has zero length.'
+            return
+         end if
+         ez = oam_axis / mean_norm
+         oam_axis = ez
+      else
+         ez = mean_m / mean_norm
+      end if
       alignment = 1.0_dblprec
       do k=1,Mensemble
          do i=1,Natom
@@ -177,6 +236,7 @@ contains
       oam_n1 = N1
       oam_n2 = N2
       oam_na = NA
+      oam_nlayers = max(1,Natom/(NA*N1*N2))
       oam_ncolumns = 9 + 3*oam_nsubblocks
       oam_rstep = rstep
       oam_simid = simid
@@ -225,6 +285,14 @@ contains
       call memocc(i_stat,product(shape(oam_fem_dx))*kind(oam_fem_dx),'oam_fem_dx','oam_init')
       allocate(oam_fem_dy(max(1,nsimp)),stat=i_stat)
       call memocc(i_stat,product(shape(oam_fem_dy))*kind(oam_fem_dy),'oam_fem_dy','oam_init')
+#ifdef USE_FFTW
+      if (oam_gradient_method == 'spectral') call oam_setup_spectral()
+      if (oam_gradient_method == 'spectral' .and. .not.oam_spectral_ready) then
+         write(*,'(1x,a)') 'Trajectory OAM disabled: unable to create spectral FFTW plans.'
+         call oam_release()
+         return
+      end if
+#endif
       allocate(oam_step_buffer(oam_buff_traj),stat=i_stat)
       call memocc(i_stat,product(shape(oam_step_buffer))*kind(oam_step_buffer),'oam_step_buffer','oam_init')
       allocate(oam_row_buffer(oam_ncolumns,oam_buff_traj),stat=i_stat)
@@ -309,28 +377,32 @@ contains
             dot_product(emom(:,i,k),oam_frame(:,2)),dblprec)
       end do
 
-      do itri=1,nsimp
-         oam_fem_dx(itri) = grad_b(1,itri)*oam_psi(simp(1,itri)) + &
-            grad_b(2,itri)*oam_psi(simp(2,itri)) + grad_b(3,itri)*oam_psi(simp(3,itri))
-         oam_fem_dy(itri) = grad_c(1,itri)*oam_psi(simp(1,itri)) + &
-            grad_c(2,itri)*oam_psi(simp(2,itri)) + grad_c(3,itri)*oam_psi(simp(3,itri))
-      end do
+      if (oam_gradient_method == 'spectral') then
+         call oam_spectral_gradient()
+      else
+         do itri=1,nsimp
+            oam_fem_dx(itri) = grad_b(1,itri)*oam_psi(simp(1,itri)) + &
+               grad_b(2,itri)*oam_psi(simp(2,itri)) + grad_b(3,itri)*oam_psi(simp(3,itri))
+            oam_fem_dy(itri) = grad_c(1,itri)*oam_psi(simp(1,itri)) + &
+               grad_c(2,itri)*oam_psi(simp(2,itri)) + grad_c(3,itri)*oam_psi(simp(3,itri))
+         end do
 
-      oam_site_dx = (0.0_dblprec,0.0_dblprec)
-      oam_site_dy = (0.0_dblprec,0.0_dblprec)
-      !$omp parallel do default(shared) private(i,ip,itri) schedule(static)
-      do i=1,oam_natom
-         if (site_wsum(i) > 0.0_dblprec) then
-            do ip=site_tri_ptr(i),site_tri_ptr(i+1)-1
-               itri = site_tri_idx(ip)
-               oam_site_dx(i) = oam_site_dx(i) + tri_area(itri)*oam_fem_dx(itri)
-               oam_site_dy(i) = oam_site_dy(i) + tri_area(itri)*oam_fem_dy(itri)
-            end do
-            oam_site_dx(i) = oam_site_dx(i)/site_wsum(i)
-            oam_site_dy(i) = oam_site_dy(i)/site_wsum(i)
-         end if
-      end do
-      !$omp end parallel do
+         oam_site_dx = (0.0_dblprec,0.0_dblprec)
+         oam_site_dy = (0.0_dblprec,0.0_dblprec)
+         !$omp parallel do default(shared) private(i,ip,itri) schedule(static)
+         do i=1,oam_natom
+            if (site_wsum(i) > 0.0_dblprec) then
+               do ip=site_tri_ptr(i),site_tri_ptr(i+1)-1
+                  itri = site_tri_idx(ip)
+                  oam_site_dx(i) = oam_site_dx(i) + tri_area(itri)*oam_fem_dx(itri)
+                  oam_site_dy(i) = oam_site_dy(i) + tri_area(itri)*oam_fem_dy(itri)
+               end do
+               oam_site_dx(i) = oam_site_dx(i)/site_wsum(i)
+               oam_site_dy(i) = oam_site_dy(i)/site_wsum(i)
+            end if
+         end do
+         !$omp end parallel do
+      end if
 
       row = ieee_value(0.0_dblprec,ieee_quiet_nan)
       call oam_group_metrics(k,emom,mmom,0,nm,lambda_origin,lambda_centroid,rx,ry,sigma, &
@@ -504,10 +576,18 @@ contains
       if (ios /= 0) error stop 'Trajectory OAM: unable to open output file'
       write(ofileno,'(a)') '# psi = m_x + i*m_y in the global frame fixed at oam_init; lambda_L > 0 means magnon OAM along +z.'
       write(ofileno,'(a,a)') '# oam_weight = ',trim(oam_weight)
+      write(ofileno,'(a,a)') '# oam_gradient = ',trim(oam_gradient_method)
+      write(ofileno,'(a,3(es24.16,1x))') '# oam_axis = ',oam_frame(1,3),oam_frame(2,3),oam_frame(3,3)
+      if (oam_axis_set) then
+         write(ofileno,'(a)') '# oam_axis_source = explicit'
+      else
+         write(ofileno,'(a)') '# oam_axis_source = defaulted to the normalized average moment at oam_init'
+      end if
       write(ofileno,'(a,es24.16)') '# g = ',oam_g
       write(ofileno,'(a,3(es24.16,1x))') '# origin = ',oam_origin_xy(1),oam_origin_xy(2),oam_origin(3)
       write(ofileno,'(a)') '# lambda_L_centroid is referenced to the |psi|^2 centroid R; this removes the drift term ' // &
          '(R x P)_z but not the envelope winding l.'
+      write(ofileno,'(a)') '# Linear-FEM gradients are accurate for k.a <= 0.5; measured weighted phase-gradient bias: -4.61% at k.a = 0.5 and -16.29% at k.a = 1.0.'
       columns = '# step lambda_L_origin lambda_L_centroid N_m Lz_tot_hbar dSz_hbar balance R_x R_y sigma_psi'
       do isub=1,oam_nsubblocks
          write(columns(len_trim(columns)+1:),'(a,i0,a,i0,a,i0)') ' lambda_L_origin_s',isub, &
@@ -534,8 +614,133 @@ contains
       oam_nbuffer = 0
    end subroutine oam_write_buffer
 
+#ifdef USE_FFTW
+   subroutine oam_setup_spectral()
+      integer :: i_stat, ix, iy, m1, m2
+      real(dblprec) :: c1x, c1y, c2x, c2y, det, twopi
+      real(dblprec) :: b1x, b1y, b2x, b2y
+
+      allocate(oam_kx(oam_n1,oam_n2),stat=i_stat)
+      call memocc(i_stat,product(shape(oam_kx))*kind(oam_kx),'oam_kx','oam_setup_spectral')
+      allocate(oam_ky(oam_n1,oam_n2),stat=i_stat)
+      call memocc(i_stat,product(shape(oam_ky))*kind(oam_ky),'oam_ky','oam_setup_spectral')
+      allocate(oam_fft_field(oam_n1,oam_n2),stat=i_stat)
+      call memocc(i_stat,product(shape(oam_fft_field))*kind(oam_fft_field),'oam_fft_field','oam_setup_spectral')
+      allocate(oam_fft_hat(oam_n1,oam_n2),stat=i_stat)
+      call memocc(i_stat,product(shape(oam_fft_hat))*kind(oam_fft_hat),'oam_fft_hat','oam_setup_spectral')
+      allocate(oam_fft_work(oam_n1,oam_n2),stat=i_stat)
+      call memocc(i_stat,product(shape(oam_fft_work))*kind(oam_fft_work),'oam_fft_work','oam_setup_spectral')
+      allocate(oam_fft_result(oam_n1,oam_n2),stat=i_stat)
+      call memocc(i_stat,product(shape(oam_fft_result))*kind(oam_fft_result),'oam_fft_result','oam_setup_spectral')
+      oam_fft_field = (0.0_dblprec,0.0_dblprec)
+      oam_fft_hat = (0.0_dblprec,0.0_dblprec)
+      oam_fft_work = (0.0_dblprec,0.0_dblprec)
+      oam_fft_result = (0.0_dblprec,0.0_dblprec)
+
+      c1x = oam_cell(1,1)/real(oam_n1,dblprec)
+      c1y = oam_cell(2,1)/real(oam_n1,dblprec)
+      c2x = oam_cell(1,2)/real(oam_n2,dblprec)
+      c2y = oam_cell(2,2)/real(oam_n2,dblprec)
+      det = c1x*c2y-c2x*c1y
+      twopi = 2.0_dblprec*acos(-1.0_dblprec)
+      b1x = twopi*c2y/det
+      b1y = -twopi*c2x/det
+      b2x = -twopi*c1y/det
+      b2y = twopi*c1x/det
+      do iy=0,oam_n2-1
+         m2 = oam_spectral_mode(iy,oam_n2)
+         if (mod(oam_n2,2)==0 .and. iy==oam_n2/2) m2 = 0
+         do ix=0,oam_n1-1
+            m1 = oam_spectral_mode(ix,oam_n1)
+            if (mod(oam_n1,2)==0 .and. ix==oam_n1/2) m1 = 0
+            oam_kx(ix+1,iy+1) = real(m1,dblprec)*b1x/real(oam_n1,dblprec) + &
+               real(m2,dblprec)*b2x/real(oam_n2,dblprec)
+            oam_ky(ix+1,iy+1) = real(m1,dblprec)*b1y/real(oam_n1,dblprec) + &
+               real(m2,dblprec)*b2y/real(oam_n2,dblprec)
+         end do
+      end do
+
+      oam_fft_forward = fftw_plan_dft_2d(int(oam_n2,C_INT),int(oam_n1,C_INT), &
+         oam_fft_field,oam_fft_hat,FFTW_FORWARD,FFTW_MEASURE)
+      oam_fft_backward = fftw_plan_dft_2d(int(oam_n2,C_INT),int(oam_n1,C_INT), &
+         oam_fft_work,oam_fft_result,FFTW_BACKWARD,FFTW_MEASURE)
+      oam_spectral_ready = c_associated(oam_fft_forward) .and. c_associated(oam_fft_backward)
+   end subroutine oam_setup_spectral
+
+   integer function oam_spectral_mode(index,n) result(mode)
+      integer, intent(in) :: index, n
+
+      if (2*index < n) then
+         mode = index
+      else
+         mode = index-n
+      end if
+   end function oam_spectral_mode
+#endif
+
+   subroutine oam_spectral_gradient()
+#ifdef USE_FFTW
+      integer :: ix, iy, isub, iz, iatom
+      real(dblprec) :: scale
+      complex(C_DOUBLE_COMPLEX) :: factor
+
+      if (.not.oam_spectral_ready) return
+      scale = 1.0_dblprec/real(oam_n1*oam_n2,dblprec)
+      do iz=0,oam_nlayers-1
+         do isub=1,oam_na
+            do iy=0,oam_n2-1
+               do ix=0,oam_n1-1
+                  iatom = isub + oam_na*(ix+oam_n1*iy+oam_n1*oam_n2*iz)
+                  oam_fft_field(ix+1,iy+1) = oam_psi(iatom)
+               end do
+            end do
+            call fftw_execute_dft(oam_fft_forward,oam_fft_field,oam_fft_hat)
+
+            do iy=0,oam_n2-1
+               do ix=0,oam_n1-1
+                  factor = cmplx(0.0_dblprec,oam_kx(ix+1,iy+1),kind=dblprec)
+                  oam_fft_work(ix+1,iy+1) = oam_fft_hat(ix+1,iy+1)*factor
+               end do
+            end do
+            call fftw_execute_dft(oam_fft_backward,oam_fft_work,oam_fft_result)
+            do iy=0,oam_n2-1
+               do ix=0,oam_n1-1
+                  iatom = isub + oam_na*(ix+oam_n1*iy+oam_n1*oam_n2*iz)
+                  oam_site_dx(iatom) = scale*oam_fft_result(ix+1,iy+1)
+               end do
+            end do
+
+            do iy=0,oam_n2-1
+               do ix=0,oam_n1-1
+                  factor = cmplx(0.0_dblprec,oam_ky(ix+1,iy+1),kind=dblprec)
+                  oam_fft_work(ix+1,iy+1) = oam_fft_hat(ix+1,iy+1)*factor
+               end do
+            end do
+            call fftw_execute_dft(oam_fft_backward,oam_fft_work,oam_fft_result)
+            do iy=0,oam_n2-1
+               do ix=0,oam_n1-1
+                  iatom = isub + oam_na*(ix+oam_n1*iy+oam_n1*oam_n2*iz)
+                  oam_site_dy(iatom) = scale*oam_fft_result(ix+1,iy+1)
+               end do
+            end do
+         end do
+      end do
+#endif
+   end subroutine oam_spectral_gradient
+
    subroutine oam_release()
       integer :: i_stat, i_all
+
+#ifdef USE_FFTW
+      if (c_associated(oam_fft_forward)) then
+         call fftw_destroy_plan(oam_fft_forward)
+         oam_fft_forward = C_NULL_PTR
+      end if
+      if (c_associated(oam_fft_backward)) then
+         call fftw_destroy_plan(oam_fft_backward)
+         oam_fft_backward = C_NULL_PTR
+      end if
+#endif
 
       if (allocated(oam_coord)) then
          i_all=-product(shape(oam_coord))*kind(oam_coord)
@@ -567,6 +772,38 @@ contains
          deallocate(oam_site_dy,stat=i_stat)
          call memocc(i_stat,i_all,'oam_site_dy','oam_release')
       end if
+      if (allocated(oam_kx)) then
+         i_all=-product(shape(oam_kx))*kind(oam_kx)
+         deallocate(oam_kx,stat=i_stat)
+         call memocc(i_stat,i_all,'oam_kx','oam_release')
+      end if
+      if (allocated(oam_ky)) then
+         i_all=-product(shape(oam_ky))*kind(oam_ky)
+         deallocate(oam_ky,stat=i_stat)
+         call memocc(i_stat,i_all,'oam_ky','oam_release')
+      end if
+#ifdef USE_FFTW
+      if (allocated(oam_fft_field)) then
+         i_all=-product(shape(oam_fft_field))*kind(oam_fft_field)
+         deallocate(oam_fft_field,stat=i_stat)
+         call memocc(i_stat,i_all,'oam_fft_field','oam_release')
+      end if
+      if (allocated(oam_fft_hat)) then
+         i_all=-product(shape(oam_fft_hat))*kind(oam_fft_hat)
+         deallocate(oam_fft_hat,stat=i_stat)
+         call memocc(i_stat,i_all,'oam_fft_hat','oam_release')
+      end if
+      if (allocated(oam_fft_work)) then
+         i_all=-product(shape(oam_fft_work))*kind(oam_fft_work)
+         deallocate(oam_fft_work,stat=i_stat)
+         call memocc(i_stat,i_all,'oam_fft_work','oam_release')
+      end if
+      if (allocated(oam_fft_result)) then
+         i_all=-product(shape(oam_fft_result))*kind(oam_fft_result)
+         deallocate(oam_fft_result,stat=i_stat)
+         call memocc(i_stat,i_all,'oam_fft_result','oam_release')
+      end if
+#endif
       if (allocated(oam_step_buffer)) then
          i_all=-product(shape(oam_step_buffer))*kind(oam_step_buffer)
          deallocate(oam_step_buffer,stat=i_stat)
@@ -577,6 +814,7 @@ contains
          deallocate(oam_row_buffer,stat=i_stat)
          call memocc(i_stat,i_all,'oam_row_buffer','oam_release')
       end if
+      oam_spectral_ready = .false.
    end subroutine oam_release
 
    real(dblprec) function oam_site_weight(i) result(weight)

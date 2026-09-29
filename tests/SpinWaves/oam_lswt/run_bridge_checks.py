@@ -9,10 +9,12 @@ The harness reports two related but distinct checks:
   variation of the band spinor.
 
 The production trajectory packet is retained as a dynamics/control diagnostic.
-Its current per-sublattice FEM value is deliberately not compared with
-``F_n``: R6 shows that it is not the all-site particle-field bridge observable.
-The accepted bridge target is ``lambda = l - 2 F_n`` for the C1/
-``exp(+i k.r)`` particle convention.
+Its per-sublattice FEM value is not used as a quantitative ``F_n`` check at
+the tested short wavelength: the intrinsic connection is a sum of
+per-sublattice terms, but linear-FEM gradients become biased as ``k.a`` grows.
+B5.4 validates the independent oracle against LSWT, not the production
+trajectory kernel. The accepted bridge target is ``lambda = l - 2 F_n`` for
+the C1/ ``exp(+i k.r)`` particle convention.
 
 Example::
 
@@ -92,7 +94,8 @@ def packet(coords: np.ndarray, mode: np.ndarray, k0: float, ell: int) -> np.ndar
 
 
 def write_trajectory_case(directory: Path, *, simid: str, k0: float,
-                           mode: np.ndarray, ell: int, nstep: int) -> np.ndarray:
+                           mode: np.ndarray, ell: int, nstep: int,
+                           gradient: str = "fem") -> np.ndarray:
     """Write one trajectory input and return its prescribed complex packet."""
 
     directory.mkdir(parents=True, exist_ok=True)
@@ -130,6 +133,7 @@ do_tottraj Y
 tottraj_step 1
 tottraj_buff 32
 do_oam_traj Y
+oam_gradient {gradient}
 oam_step 10
 oam_buff 10
 oam_origin {origin[0]:.16e} {origin[1]:.16e} 0.0
@@ -223,6 +227,8 @@ def main() -> int:
                         help="trajectory steps per packet")
     parser.add_argument("--force", action="store_true",
                         help="remove an existing generated work directory")
+    parser.add_argument("--gradient", choices=("fem", "spectral"), default="fem",
+                        help="trajectory OAM gradient method")
     parser.add_argument("--allow-known-bridge-gap", action="store_true",
                         help=argparse.SUPPRESS)
     args = parser.parse_args()
@@ -246,7 +252,8 @@ def main() -> int:
         simid = f"hb{ell}"
         directory = workdir / simid
         psi0 = write_trajectory_case(directory, simid=simid, k0=k0,
-                                      mode=mode, ell=ell, nstep=args.nstep)
+                                      mode=mode, ell=ell, nstep=args.nstep,
+                                      gradient=args.gradient)
         run_binary(args.binary, directory)
         oam = load_oam(directory, simid)
         frequency, phase_residual, steps, projection = frequency_from_projection(
@@ -269,8 +276,8 @@ def main() -> int:
     stable_ok = all(case["phase_residual"] < 0.15 for case in cases.values())
 
     # C14/B5.4 uses a full angular band packet and an analytic spatial
-    # derivative.  This avoids confusing the production per-sublattice FEM
-    # diagnostic with the all-site particle-field bridge term.
+    # derivative. This isolates oracle/LSWT validation from the production
+    # per-sublattice FEM diagnostic and its short-wavelength bias.
     bridge_results = [oracle_bridge.evaluate("periodic", N, k0, ell,
                                              D=D, sigma_k=0.18)
                       for ell in (0, 1)]
@@ -298,7 +305,7 @@ def main() -> int:
     print(
         "[INFO] B5.4 production-mesh diagnostic: "
         f"phase_ok={stable_ok}, observed_shift={l_shift:.8f}, "
-        f"fixed_spinor_lambda0={bridge_value:.8f}; "
+        f"fixed_spinor_lambda0={bridge_value:.8f}, gradient={args.gradient}; "
         "not used as the C14 bridge acceptance value"
     )
     print(f"Outputs retained in {workdir}")

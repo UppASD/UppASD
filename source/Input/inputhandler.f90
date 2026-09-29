@@ -63,7 +63,8 @@ contains
       use Polarization
       use prn_topology
       use orbital_angular_momentum, only : do_oam, do_oam_traj, oam_step_traj, oam_buff_traj, oam_origin, &
-         oam_origin_set, oam_weight, oam_sigma_max, oam_gfactor, oam_sublattice, oam_sublattice_set
+         oam_origin_set, oam_axis, oam_axis_set, oam_weight, oam_gradient, oam_sigma_max, oam_gfactor, &
+         oam_sublattice, oam_sublattice_set
       use prn_currents
       use RandomNumbers
       use prn_induced_info,   only : do_prn_induced, ind_step,ind_buff
@@ -1473,8 +1474,17 @@ contains
                oam_origin_set = i_err == 0
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('oam_axis')
+               read(ifile,*,iostat=i_err) oam_axis
+               oam_axis_set = i_err == 0
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             case('oam_weight')
                read(ifile,*,iostat=i_err) oam_weight
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
+            case('oam_gradient')
+               read(ifile,*,iostat=i_err) oam_gradient
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
             case('oam_sigma_max')

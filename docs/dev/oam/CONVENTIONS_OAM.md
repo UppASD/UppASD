@@ -26,6 +26,11 @@ Report two values every sample:
 
 Referencing to `R` removes the drift term `(R x P)_z`, **not** the extrinsic part: `lambda_L_centroid` still contains the envelope winding `l`. Say exactly this in the output header. A stationary packet (P = 0) has `lambda_L_origin = lambda_L_centroid` for any origin; only a moving packet separates them.
 
+Linear-FEM gradients are accurate for `k·a ≲ 0.5`; in the single-sublattice
+square-lattice boosted-Gaussian oracle check the weighted phase-gradient bias
+was `−4.61%` at `k·a = 0.5` and `−16.29%` at `k·a = 1.0`, so the error grows
+with `k·a`.
+
 **C4 — Weighting.** Two options: `oam_weight = site` (`w_i = 1`) or `area` (`w_i = A_i = (1/3) sum_{D in i} A_D`). Maintainer confirmation (2026-09-28): the default is `site`, matching the site-summed magnon count `N_m` and pyswatter's `spin-oam-balance`. Pyswatter's standalone `lz` defaults to `area`, so the choice is recorded in the output header.
 
 **C5 — Guards.**
@@ -61,6 +66,18 @@ Mesh2D: ntri= <n> total_area= <x> cell_area= <y> degenerate= <k>
 A periodic mesh must tile the cell exactly (`total_area = N1*N2*|C1 x C2|`). An open mesh covers `(N1-1)*(N2-1)*|C1 x C2|`.
 
 **C8 — Frame.** Phase 1: a single global frame, with `e_z` along the normalised average moment at `oam_init` and `e_x, e_y` completing a right-handed set. If `min_i m_i . <m> < 0.9`, refuse with a clear message and produce no numbers. Smooth local frames for non-collinear states are out of scope, and must not be attempted with the existing `local_frame`: its `if (abs(ez(1))<0.9)` seed choice is discontinuous and injects phase jumps into the gradient.
+
+**C8b — Explicit frame axis CONFIRMED (2026-09-29).** The optional key `oam_axis x y z` supplies the frame's `e_z`. The axis is normalised at `oam_init` and the C8 collinearity check uses this axis. When the key is absent, `e_z` defaults to the normalised average moment at `oam_init`, preserving C8's current behaviour. The trajectory header records the normalised axis and whether it was explicit or defaulted.
+
+**C17 — Gradient method CONFIRMED (2026-09-29).** The optional key `oam_gradient fem|spectral` selects the trajectory gradient method. The default is `fem`, preserving the linear-FEM path. `spectral` requires `BC1 = BC2 = 'P'` and a build with `USE_FFTW`; otherwise `oam_init` refuses with a clear message and produces no OAM numbers. There is no silent fallback to FEM.
+
+For `spectral`, each sublattice `it` and layer `z` is an `N1×N2` grid in reduced coordinates. The Cartesian wave vector used for differentiation is
+
+```
+k = (m1*b1 + m2*b2)/N,
+```
+
+where `m1` and `m2` are folded to `[-N/2, N/2)`, `b1` and `b2` are `2*pi` times the reciprocal basis vectors of `C1` and `C2`, and `N` is the corresponding grid length for each direction. For even `N`, the Nyquist component's derivative is set to zero. The spectral gradient is exact for fields band-limited to that fold. The weights, centroid, guards, and every output column are unchanged from C3–C6. The `oam_traj` header records the selected gradient method.
 
 ## Part II — LSWT magnon OAM (`do_oam_lswt`, Fishman formulation)
 
