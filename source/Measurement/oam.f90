@@ -67,6 +67,7 @@ module orbital_angular_momentum
    character(len=8) :: oam_simid = ''
    character(len=8) :: oam_gradient_method = 'fem'
    logical :: oam_spectral_ready = .false.
+   logical :: oam_spectral_boundary = .false.
 
    real(dblprec), allocatable :: oam_coord(:,:)
    complex(dblprec), allocatable :: oam_psi(:)
@@ -105,6 +106,7 @@ contains
       oam_gradient = 'fem'
       oam_gradient_method = 'fem'
       oam_spectral_ready = .false.
+      oam_spectral_boundary = .false.
       oam_nlayers = 1
       oam_sigma_max = 0.6_dblprec
       oam_gfactor = 0.0_dblprec
@@ -288,7 +290,11 @@ contains
 #ifdef USE_FFTW
       if (oam_gradient_method == 'spectral') call oam_setup_spectral()
       if (oam_gradient_method == 'spectral' .and. .not.oam_spectral_ready) then
-         write(*,'(1x,a)') 'Trajectory OAM disabled: unable to create spectral FFTW plans.'
+         if (oam_spectral_boundary) then
+            write(*,'(1x,a)') 'Trajectory OAM disabled: spectral shortest-image search reaches |a| = 2 or |b| = 2.'
+         else
+            write(*,'(1x,a)') 'Trajectory OAM disabled: unable to create spectral FFTW plans.'
+         end if
          call oam_release()
          return
       end if
@@ -576,7 +582,11 @@ contains
       if (ios /= 0) error stop 'Trajectory OAM: unable to open output file'
       write(ofileno,'(a)') '# psi = m_x + i*m_y in the global frame fixed at oam_init; lambda_L > 0 means magnon OAM along +z.'
       write(ofileno,'(a,a)') '# oam_weight = ',trim(oam_weight)
-      write(ofileno,'(a,a)') '# oam_gradient = ',trim(oam_gradient_method)
+      if (oam_gradient_method == 'spectral') then
+         write(ofileno,'(a)') '# oam_gradient = spectral (Brillouin-zone fold)'
+      else
+         write(ofileno,'(a,a)') '# oam_gradient = ',trim(oam_gradient_method)
+      end if
       write(ofileno,'(a,3(es24.16,1x))') '# oam_axis = ',oam_frame(1,3),oam_frame(2,3),oam_frame(3,3)
       if (oam_axis_set) then
          write(ofileno,'(a)') '# oam_axis_source = explicit'
@@ -616,9 +626,12 @@ contains
 
 #ifdef USE_FFTW
    subroutine oam_setup_spectral()
-      integer :: i_stat, ix, iy, m1, m2
+      integer :: i_stat, ix, iy, ia, ib, n_tie
       real(dblprec) :: c1x, c1y, c2x, c2y, det, twopi
       real(dblprec) :: b1x, b1y, b2x, b2y
+      real(dblprec) :: kx_candidate, ky_candidate, norm2, min_norm2, tie_tol
+      real(dblprec) :: sum_kx, sum_ky
+      logical :: boundary_tie
 
       allocate(oam_kx(oam_n1,oam_n2),stat=i_stat)
       call memocc(i_stat,product(shape(oam_kx))*kind(oam_kx),'oam_kx','oam_setup_spectral')
@@ -647,18 +660,48 @@ contains
       b1y = -twopi*c2x/det
       b2x = -twopi*c1y/det
       b2y = twopi*c1x/det
+      oam_spectral_boundary = .false.
       do iy=0,oam_n2-1
-         m2 = oam_spectral_mode(iy,oam_n2)
-         if (mod(oam_n2,2)==0 .and. iy==oam_n2/2) m2 = 0
          do ix=0,oam_n1-1
-            m1 = oam_spectral_mode(ix,oam_n1)
-            if (mod(oam_n1,2)==0 .and. ix==oam_n1/2) m1 = 0
-            oam_kx(ix+1,iy+1) = real(m1,dblprec)*b1x/real(oam_n1,dblprec) + &
-               real(m2,dblprec)*b2x/real(oam_n2,dblprec)
-            oam_ky(ix+1,iy+1) = real(m1,dblprec)*b1y/real(oam_n1,dblprec) + &
-               real(m2,dblprec)*b2y/real(oam_n2,dblprec)
+            min_norm2 = huge(1.0_dblprec)
+            sum_kx = 0.0_dblprec
+            sum_ky = 0.0_dblprec
+            n_tie = 0
+            boundary_tie = .false.
+            do ib=-2,2
+               do ia=-2,2
+                  kx_candidate = real(ix+ia*oam_n1,dblprec)*b1x/real(oam_n1,dblprec) + &
+                     real(iy+ib*oam_n2,dblprec)*b2x/real(oam_n2,dblprec)
+                  ky_candidate = real(ix+ia*oam_n1,dblprec)*b1y/real(oam_n1,dblprec) + &
+                     real(iy+ib*oam_n2,dblprec)*b2y/real(oam_n2,dblprec)
+                  norm2 = kx_candidate*kx_candidate + ky_candidate*ky_candidate
+                  tie_tol = 1.0e-10_dblprec*max(max(abs(norm2),abs(min_norm2)),1.0e-30_dblprec)
+                  if (n_tie == 0 .or. norm2 < min_norm2-tie_tol) then
+                     min_norm2 = norm2
+                     sum_kx = kx_candidate
+                     sum_ky = ky_candidate
+                     n_tie = 1
+                     boundary_tie = abs(ia)==2 .or. abs(ib)==2
+                  else if (abs(norm2-min_norm2) <= tie_tol) then
+                     sum_kx = sum_kx + kx_candidate
+                     sum_ky = sum_ky + ky_candidate
+                     n_tie = n_tie + 1
+                     boundary_tie = boundary_tie .or. abs(ia)==2 .or. abs(ib)==2
+                  end if
+               end do
+            end do
+            if (n_tie == 1) then
+               oam_kx(ix+1,iy+1) = sum_kx
+               oam_ky(ix+1,iy+1) = sum_ky
+            else
+               oam_kx(ix+1,iy+1) = sum_kx/real(n_tie,dblprec)
+               oam_ky(ix+1,iy+1) = sum_ky/real(n_tie,dblprec)
+            end if
+            oam_spectral_boundary = oam_spectral_boundary .or. boundary_tie
          end do
       end do
+
+      if (oam_spectral_boundary) return
 
       oam_fft_forward = fftw_plan_dft_2d(int(oam_n2,C_INT),int(oam_n1,C_INT), &
          oam_fft_field,oam_fft_hat,FFTW_FORWARD,FFTW_MEASURE)
@@ -666,16 +709,6 @@ contains
          oam_fft_work,oam_fft_result,FFTW_BACKWARD,FFTW_MEASURE)
       oam_spectral_ready = c_associated(oam_fft_forward) .and. c_associated(oam_fft_backward)
    end subroutine oam_setup_spectral
-
-   integer function oam_spectral_mode(index,n) result(mode)
-      integer, intent(in) :: index, n
-
-      if (2*index < n) then
-         mode = index
-      else
-         mode = index-n
-      end if
-   end function oam_spectral_mode
 #endif
 
    subroutine oam_spectral_gradient()
@@ -815,6 +848,7 @@ contains
          call memocc(i_stat,i_all,'oam_row_buffer','oam_release')
       end if
       oam_spectral_ready = .false.
+      oam_spectral_boundary = .false.
    end subroutine oam_release
 
    real(dblprec) function oam_site_weight(i) result(weight)

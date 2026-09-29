@@ -101,21 +101,7 @@ def fem_gradient(psi, simp, P):
     return gx, gy, ws / 3.0, ok, A
 
 
-def spectral_gradient(psi, N1, N2, C1, C2, NA=1):
-    """Return Cartesian spectral gradients on each sublattice/layer grid.
-
-    The FFT uses UppASD's x-fastest atom ordering.  ``np.fft`` supplies the
-    discrete Fourier coefficients; the multipliers below convert folded
-    reduced-grid indices into Cartesian wave vectors.  The even-grid Nyquist
-    component is assigned zero derivative, matching C17.
-    """
-    psi = np.asarray(psi, complex)
-    ncell = N1 * N2
-    plane_size = NA * ncell
-    if psi.size % plane_size:
-        raise ValueError("spectral grid does not tile the psi array")
-    nlayer = psi.size // plane_size
-
+def _spectral_reciprocal_basis(C1, C2):
     C1 = np.asarray(C1, float)[:2]
     C2 = np.asarray(C2, float)[:2]
     det = C1[0] * C2[1] - C2[0] * C1[1]
@@ -124,6 +110,12 @@ def spectral_gradient(psi, N1, N2, C1, C2, NA=1):
     twopi = 2.0 * np.pi
     b1 = twopi * np.array([C2[1], -C2[0]]) / det
     b2 = twopi * np.array([-C1[1], C1[0]]) / det
+    return b1, b2
+
+
+def _old_spectral_kgrid(N1, N2, C1, C2):
+    """The pre-U1 rectangular-grid fold, retained for the oracle selftest."""
+    b1, b2 = _spectral_reciprocal_basis(C1, C2)
 
     m1 = np.arange(N1, dtype=float)
     m2 = np.arange(N2, dtype=float)
@@ -135,7 +127,54 @@ def spectral_gradient(psi, N1, N2, C1, C2, NA=1):
         m2[N2 // 2] = 0.0
     kx = (m2[:, None] / N2) * b2[0] + (m1[None, :] / N1) * b1[0]
     ky = (m2[:, None] / N2) * b2[1] + (m1[None, :] / N1) * b1[1]
+    return kx, ky
 
+
+def _wigner_seitz_spectral_kgrid(N1, N2, C1, C2):
+    """Return the shortest reciprocal representative for every FFT index."""
+    b1, b2 = _spectral_reciprocal_basis(C1, C2)
+    kx = np.empty((N2, N1), float)
+    ky = np.empty((N2, N1), float)
+    boundary = False
+    for j2 in range(N2):
+        for j1 in range(N1):
+            best_norm = np.inf
+            best = []
+            for db in range(-2, 3):
+                for da in range(-2, 3):
+                    k = ((j1 + da * N1) / N1) * b1 + ((j2 + db * N2) / N2) * b2
+                    norm = float(np.dot(k, k))
+                    tol = 1e-10 * max(abs(norm), abs(best_norm), 1e-30)
+                    if not best or norm < best_norm - tol:
+                        best_norm = norm
+                        best = [(k, da, db)]
+                    elif abs(norm - best_norm) <= tol:
+                        best.append((k, da, db))
+            if any(abs(da) == 2 or abs(db) == 2 for _, da, db in best):
+                boundary = True
+            vector = best[0][0] if len(best) == 1 else np.mean([item[0] for item in best], axis=0)
+            kx[j2, j1], ky[j2, j1] = vector
+    return kx, ky, boundary
+
+
+def spectral_gradient(psi, N1, N2, C1, C2, NA=1):
+    """Return Cartesian spectral gradients on each sublattice/layer grid.
+
+    The FFT uses UppASD's x-fastest atom ordering.  ``np.fft`` supplies the
+    discrete Fourier coefficients; each multiplier is the Wigner--Seitz
+    representative found by an independent shortest-image search.  Tied
+    representatives are averaged, including the even-grid Nyquist tie.
+    """
+    psi = np.asarray(psi, complex)
+    ncell = N1 * N2
+    plane_size = NA * ncell
+    if psi.size % plane_size:
+        raise ValueError("spectral grid does not tile the psi array")
+    nlayer = psi.size // plane_size
+
+    kx, ky, boundary = _wigner_seitz_spectral_kgrid(N1, N2, C1, C2)
+    if boundary:
+        raise ValueError("spectral shortest-image search reaches its boundary")
     gx = np.empty_like(psi)
     gy = np.empty_like(psi)
     for iz in range(nlayer):
@@ -257,6 +296,11 @@ def self_test():
     simp, P = triangulate(N, N, 1, xy, C1, C2, (True, True))
     A = 0.5 * np.abs((P[:, 1, 0] - P[:, 0, 0]) * (P[:, 2, 1] - P[:, 0, 1]) - (P[:, 1, 1] - P[:, 0, 1]) * (P[:, 2, 0] - P[:, 0, 0]))
     assert abs(A.sum() - N * N) < 1e-9 and A.min() > 0.49, "mesh area"
+    for n1, n2 in ((8, 8), (8, 7), (9, 6)):
+        old_kx, old_ky = _old_spectral_kgrid(n1, n2, C1, C2)
+        new_kx, new_ky, boundary = _wigner_seitz_spectral_kgrid(n1, n2, C1, C2)
+        assert not boundary, (n1, n2, "unexpected search boundary")
+        assert np.array_equal(new_kx, old_kx) and np.array_equal(new_ky, old_ky), (n1, n2, "rectangular k-grid")
     c = xy[:2].mean(1)
     for ell in (-2, -1, 1, 2, 3):
         r = evaluate(vortex(xy, c, ell, 0.05, 6.0), xy, simp, P, N, N, C1, C2, (True, True))

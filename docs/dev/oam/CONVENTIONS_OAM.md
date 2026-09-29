@@ -71,13 +71,14 @@ A periodic mesh must tile the cell exactly (`total_area = N1*N2*|C1 x C2|`). An 
 
 **C17 — Gradient method CONFIRMED (2026-09-29).** The optional key `oam_gradient fem|spectral` selects the trajectory gradient method. The default is `fem`, preserving the linear-FEM path. `spectral` requires `BC1 = BC2 = 'P'` and a build with `USE_FFTW`; otherwise `oam_init` refuses with a clear message and produces no OAM numbers. There is no silent fallback to FEM.
 
-For `spectral`, each sublattice `it` and layer `z` is an `N1×N2` grid in reduced coordinates. The Cartesian wave vector used for differentiation is
+For `spectral`, each sublattice `it` and layer `z` is an `N1×N2` grid. FFT index `(j1, j2)` represents the wave vectors `k(a,b) = ((j1 + a*N1)/N1)*b1 + ((j2 + b*N2)/N2)*b2` for integers `a, b`, where `b1, b2` are `2*pi` times the reciprocal basis of the unit-cell vectors `C1, C2`.
 
-```
-k = (m1*b1 + m2*b2)/N,
-```
+The derivative multiplier is the shortest member of that set: its first-Brillouin-zone (Wigner–Seitz) image.
+- When several members tie for shortest (`|k|^2` equal within a relative `1e-10`), the multiplier is their arithmetic mean. This zeroes the ambiguous component and keeps the unambiguous one.
+- On rectangular cells this reproduces the per-axis fold and Nyquist rule exactly.
+- The search covers `a, b ∈ {-2,…,2}`. `oam_init` refuses if any shortest image lies on the search boundary (`|a| = 2` or `|b| = 2`).
 
-where `m1` and `m2` are folded to `[-N/2, N/2)`, `b1` and `b2` are `2*pi` times the reciprocal basis vectors of `C1` and `C2`, and `N` is the corresponding grid length for each direction. For even `N`, the Nyquist component's derivative is set to zero. The spectral gradient is exact for fields band-limited to that fold. The weights, centroid, guards, and every output column are unchanged from C3–C6. The `oam_traj` header records the selected gradient method.
+The gradient is exact for fields whose content lies strictly inside the sublattice's first Brillouin zone. Weights, centroid, guards and every output column are unchanged from C3–C6. The `oam_traj` header records `oam_gradient = spectral (Brillouin-zone fold)`.
 
 ## Part II — LSWT magnon OAM (`do_oam_lswt`, Fishman formulation)
 

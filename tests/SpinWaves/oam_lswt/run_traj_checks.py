@@ -38,17 +38,18 @@ def reread(d):
 
 
 def run_case(name, lattice="square", bc=("P", "P"), shift=(0.0, 0.0), field=None,
-             keys=None, layers=1):
+             keys=None, layers=1, grid=None):
     d = os.path.join(WORK, name)
     shutil.rmtree(d, ignore_errors=True)
     keys = dict(keys or {})
-    xy, _ = F.write_case(d, lattice=lattice, N=N, bc=bc, shift=shift, field=field,
+    ngrid = N if grid is None else grid
+    xy, _ = F.write_case(d, lattice=lattice, N=ngrid, bc=bc, shift=shift, field=field,
                           extra_keys=keys, layers=layers)
     m = reread(d)
     L = F.LATTICES[lattice]
     per = (bc[0] == "P", bc[1] == "P")
-    layer_n = N * N
-    simp1, P1 = O.triangulate(N, N, 1, xy[:, :layer_n], L["C1"], L["C2"], per)
+    layer_n = ngrid * ngrid
+    simp1, P1 = O.triangulate(ngrid, ngrid, 1, xy[:, :layer_n], L["C1"], L["C2"], per)
     simp = np.concatenate([simp1 + z * layer_n for z in range(layers)], axis=0)
     P = np.concatenate([P1 for _ in range(layers)], axis=0)
     origin = None
@@ -57,7 +58,7 @@ def run_case(name, lattice="square", bc=("P", "P"), shift=(0.0, 0.0), field=None
     axis = None
     if "oam_axis" in keys:
         axis = np.array([float(v) for v in keys["oam_axis"].split()[:3]])
-    ref = O.evaluate(m, xy, simp, P, N, N, L["C1"], L["C2"], per, origin=origin,
+    ref = O.evaluate(m, xy, simp, P, ngrid, ngrid, L["C1"], L["C2"], per, origin=origin,
                      weight=keys.get("oam_weight", "site"),
                      gradient=keys.get("oam_gradient", "fem"), NA=1, axis=axis)
     fn = f"{d}/oam_traj.oamtest.out"
@@ -176,10 +177,10 @@ check("C11 two layers: lambda unchanged, N_m doubled", ok)
 # C12: FFTW spectral gradients.  The first probe distinguishes a binary
 # without USE_FFTW from an implementation failure; the former is explicitly
 # outside this check's build requirement.
-def high_k_boost(xy):
+def high_k_boost(xy, k=1.5):
     center = xy[:2].mean(1)
     v = O.vortex(xy, center, 1, 0.05, 5.0)
-    psi = (v[0] + 1j * v[1]) * np.exp(1j * 1.5 * xy[0])
+    psi = (v[0] + 1j * v[1]) * np.exp(1j * k * xy[0])
     return np.stack([psi.real, psi.imag, np.sqrt(np.clip(1 - np.abs(psi) ** 2, 0, None))])
 
 
@@ -214,6 +215,18 @@ else:
           "" if r_high_s[1] is None or r_high_f[1] is None else
           f"spectral={r_high_s[1]['lambda_L_centroid']:.8f}, "
           f"FEM={r_high_f[1]['lambda_L_centroid']:.8f}, analytic={analytic_lambda:.1f}")
+
+    r_high_hex = run_case("spectral_high_k_hex", lattice="hex", grid=48,
+                          field=lambda xy: high_k_boost(xy, k=3.0),
+                          keys={"oam_gradient": "spectral", "oam_axis": "0 0 1"})
+    ok_c = (r_high_hex[1] is not None
+            and all(agree(r_high_hex[0], r_high_hex[1], key, tol=1e-6)
+                    for key in ("lambda_L_origin", "lambda_L_centroid", "N_m"))
+            and abs(r_high_hex[1]["lambda_L_centroid"] - 1.0) <= 1e-4)
+    check("C12c hex k.a=3 Brillouin-zone fold", ok_c,
+          "" if r_high_hex[1] is None else
+          f"spectral={r_high_hex[1]['lambda_L_centroid']:.8f}, "
+          f"oracle={r_high_hex[0]['lambda_L_centroid']:.8f}, analytic=1.0")
 
 # C13: explicit lab-frame axis versus the C8 default frame.  This uses the
 # original boosted packet; T4 restores it without subtracting its mean.
