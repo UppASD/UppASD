@@ -8,8 +8,10 @@ The harness reports two related but distinct checks:
   reciprocal-supercell packet, whose analytic gradient contains the angular
   variation of the band spinor.
 
-The production trajectory packet is retained as a dynamics/control diagnostic.
-Its per-sublattice FEM value is not used as a quantitative ``F_n`` check at
+The production trajectory packet is a fixed sublattice-spinor control. Its
+targets are ``lambda(l=0) ~= 0``, ``lambda(l=1) ~= 1``, and a shift of one;
+it contains no angular variation of the band spinor and therefore no Berry
+term. Its per-sublattice value is not used as a quantitative ``F_n`` check at
 the tested short wavelength: the intrinsic connection is a sum of
 per-sublattice terms, but linear-FEM gradients become biased as ``k.a`` grows.
 B5.4 validates the independent oracle against LSWT, not the production
@@ -43,6 +45,7 @@ import oracle_traj
 
 S3 = np.sqrt(3.0)
 N = 24
+CLEAN_N = 48
 C1 = np.array([1.0, 0.0, 0.0])
 C2 = np.array([0.5, S3 / 2.0, 0.0])
 BASIS = np.array([[0.0, 0.0, 0.0], [0.5, 0.5 / S3, 0.0]])
@@ -77,15 +80,26 @@ def write_restart(directory: Path, moments: np.ndarray) -> None:
             )
 
 
-def packet(coords: np.ndarray, mode: np.ndarray, k0: float, ell: int) -> np.ndarray:
+def packet(coords: np.ndarray, mode: np.ndarray, k0: float, ell: int,
+           *, clean: bool = False, n: int = N) -> np.ndarray:
     """Construct a small-amplitude optical-band packet in the global frame."""
 
     xy = coords[:2]
-    center = xy.mean(axis=1)
-    dxy = xy - center[:, None]
+    if clean:
+        center = 0.5 * (n * C1[:2] + n * C2[:2])
+        cell = np.column_stack((n * C1[:2], n * C2[:2]))
+        dxy = xy - center[:, None]
+        reduced = np.linalg.solve(cell, dxy)
+        reduced -= np.round(reduced)
+        dxy = cell @ reduced
+    else:
+        center = xy.mean(axis=1)
+        dxy = xy - center[:, None]
     radius = np.linalg.norm(dxy, axis=0)
     theta = np.arctan2(dxy[1], dxy[0])
     envelope = np.exp(-0.5 * (radius / SIGMA) ** 2)
+    if clean:
+        envelope *= (radius / SIGMA) ** abs(ell)
     phase = np.exp(1j * (k0 * xy[0] + ell * theta))
     sublattice_mode = np.asarray([mode[0], mode[1]], complex)
     psi = AMP * sublattice_mode[np.arange(coords.shape[1]) % 2] * envelope * phase
@@ -95,19 +109,20 @@ def packet(coords: np.ndarray, mode: np.ndarray, k0: float, ell: int) -> np.ndar
 
 def write_trajectory_case(directory: Path, *, simid: str, k0: float,
                            mode: np.ndarray, ell: int, nstep: int,
-                           gradient: str = "fem") -> np.ndarray:
+                           gradient: str = "fem", n: int = N,
+                           clean: bool = False) -> np.ndarray:
     """Write one trajectory input and return its prescribed complex packet."""
 
     directory.mkdir(parents=True, exist_ok=True)
     # This supplies the common honeycomb geometry, exchange and DMI files.
     mkhoney.write(str(directory), C2, J=J, D=D, kgrid=(30, 30), nphi=64, nr=16)
-    coords = coords_honeycomb()
-    moments = packet(coords, mode, k0, ell)
+    coords = coords_honeycomb(n)
+    moments = packet(coords, mode, k0, ell, clean=clean, n=n)
     write_restart(directory, moments)
     origin = coords[:2].mean(axis=1)
     with (directory / "inpsd.dat").open("w") as handle:
         handle.write(f"""simid {simid}
-ncell {N} {N} 1
+ncell {n} {n} 1
 BC P P 0
 cell {C1[0]:.10f} {C1[1]:.10f} 0.0
      {C2[0]:.10f} {C2[1]:.10f} 0.0
@@ -139,6 +154,7 @@ oam_buff 10
 oam_origin {origin[0]:.16e} {origin[1]:.16e} 0.0
 oam_weight site
 oam_sigma_max 0.6
+{"oam_axis 0.0 0.0 1.0" if clean else ""}
 do_chern N
 do_oam_lswt N
 """)
@@ -229,6 +245,8 @@ def main() -> int:
                         help="remove an existing generated work directory")
     parser.add_argument("--gradient", choices=("fem", "spectral"), default="fem",
                         help="trajectory OAM gradient method")
+    parser.add_argument("--clean", action="store_true",
+                        help="run the one-step, grid-snapped clean control packet")
     parser.add_argument("--allow-known-bridge-gap", action="store_true",
                         help=argparse.SUPPRESS)
     args = parser.parse_args()
@@ -247,6 +265,39 @@ def main() -> int:
     k0, energy, fishman, mode = load_lswt_reference(lswt_dir)
     print(f"LSWT reference: k0={k0:.8f}, E={energy:.8f} meV, F_n={fishman:.8f}")
 
+    if args.clean:
+        n1 = 2 * round(k0 * CLEAN_N / (4.0 * np.pi))
+        clean_k0 = 2.0 * np.pi * n1 / CLEAN_N
+        _, clean_vectors = oracle_honey.evecs(np.array([clean_k0, 0.0]), J=J, D=D, S=1.0)
+        clean_mode = clean_vectors[:, 0]
+        print(f"Clean control: N={CLEAN_N}, n1={n1}, k0={clean_k0:.8f}, gradient={args.gradient}")
+        clean_cases = {}
+        for ell in (0, 1):
+            simid = f"clean{ell}"
+            directory = workdir / simid
+            write_trajectory_case(directory, simid=simid, k0=clean_k0,
+                                  mode=clean_mode, ell=ell, nstep=1,
+                                  gradient=args.gradient, n=CLEAN_N, clean=True)
+            run_binary(args.binary, directory)
+            oam = load_oam(directory, simid)
+            clean_cases[ell] = oam
+            print(
+                f"clean l={ell}: step1 lambda_centroid={oam[0, 2]:.8f}, "
+                f"median lambda_centroid={np.nanmedian(oam[:, 2]):.8f}, "
+                "phase residual=n/a"
+            )
+        clean_ok = True
+        if args.gradient == "spectral":
+            clean_ok = (abs(clean_cases[0][0, 2]) <= 1.0e-6
+                        and abs(clean_cases[1][0, 2] - 1.0) <= 1.0e-4)
+            result("U3 clean spectral targets", clean_ok,
+                   f"lambda0={clean_cases[0][0, 2]:.8f}, "
+                   f"lambda1={clean_cases[1][0, 2]:.8f}")
+        else:
+            print("[INFO] U3 clean FEM control is reported for comparison; spectral targets are not applied.")
+        print(f"Outputs retained in {workdir}")
+        return 0 if clean_ok else 1
+
     cases = {}
     for ell in (0, 1):
         simid = f"hb{ell}"
@@ -264,6 +315,7 @@ def main() -> int:
         print(
             f"l={ell}: frequency={frequency:.8f} rad/ps, "
             f"phase residual={phase_residual:.3e}, "
+            f"lambda_centroid step1={oam[0, 2]:.8f}, "
             f"lambda_centroid median={np.nanmedian(oam[:, 2]):.8f}, "
             f"N_m median={np.nanmedian(oam[:, 3]):.8f}"
         )
@@ -303,10 +355,11 @@ def main() -> int:
                ])),
     ]
     print(
-        "[INFO] B5.4 production-mesh diagnostic: "
-        f"phase_ok={stable_ok}, observed_shift={l_shift:.8f}, "
-        f"fixed_spinor_lambda0={bridge_value:.8f}, gradient={args.gradient}; "
-        "not used as the C14 bridge acceptance value"
+        "[INFO] Production fixed-spinor control targets: "
+        "lambda(l=0)~=0, lambda(l=1)~=1, shift~=1; "
+        f"observed phase_ok={stable_ok}, observed_shift={l_shift:.8f}, "
+        f"lambda0={bridge_value:.8f}, gradient={args.gradient}; "
+        "this fixed-spinor packet has no Berry term and is not used as the C14 bridge acceptance value"
     )
     print(f"Outputs retained in {workdir}")
     # The production fixed-spinor packet is intentionally not an acceptance

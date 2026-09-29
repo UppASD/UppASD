@@ -242,3 +242,28 @@ documented `exp(+i k.r)` reconstruction, the particle-only spatial field
 gives `lambda = l - 2 F_n` from the exact Fourier identity. This is now the
 settled C14 convention. The bridge packet has `k0 ≈ 2.9 < |K| ≈ 4.19` on the
 honeycomb lattice, so it lies strictly inside the zone and is in scope.
+
+## 6. Production-kernel bridge
+
+The production packet in `run_bridge_checks.py` uses a fixed sublattice
+spinor, so its targets are `lambda(l=0) ≈ 0`, `lambda(l=1) ≈ 1`, and a shift
+of one. The `l - 2F_n` relation applies only to the angularly varying
+`oracle_bridge` packet. The following runs use `lambda_L_centroid`; “step 1”
+is the first trajectory sample and “median” is over the production run.
+
+| Packet | Gradient | `l=0` step 1 / median | `l=0` phase residual | `l=1` step 1 / median | `l=1` phase residual |
+|---|---|---:|---:|---:|---:|
+| Production, `N=24`, `σ=4`, `k0=2.90207898` | FEM | `−0.00039878 / 0.00239015` | `0.5401` | `−0.23152559 / −0.21785507` | `0.6074` |
+| Production, `N=24`, `σ=4`, `k0=2.90207898` | spectral | `−0.00099755 / −0.00070547` | `0.5401` | `0.92043798 / 0.92426231` | `0.6074` |
+| Clean, `N=48`, `σ=4`, `n1=22`, `k0=2.87979327` | FEM | `0.00000000 / 0.00000000` | `—` | `−0.23131513 / −0.23131513` | `—` |
+| Clean, `N=48`, `σ=4`, `n1=22`, `k0=2.87979327` | spectral | `0.00000000 / 0.00000000` | `—` | `0.99999997 / 0.99999997` | `—` |
+
+The production packet validates the trajectory dynamics and exposes the
+fixed-spinor control targets, but it does not validate the LSWT Berry term:
+nothing varies with angle in its sublattice spinor. Spectral differentiation
+removes the short-wavelength gradient bias, giving the expected clean `l=1`
+value to `3×10⁻8`; the production `l=1` residual from one is due to the
+supercell wrap and the non-zero core amplitude. The independent
+`oracle_bridge` packet, whose spinor does vary around the ring, is the bridge
+validation against LSWT; the production trajectory kernel is not that
+validation.
