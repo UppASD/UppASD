@@ -31,10 +31,12 @@ The LSWT reference selected `k0=2.90207898`, `E=251.61986468 meV`, and
 stable enough for the strict phase criterion, and the current per-sublattice
 trajectory mesh returned `lambda_centroid(l=0)=0.00239` and an `l=1` shift of
 `-0.22025`, rather than the B5.4 targets `F_n` and `+1`. The `F_n` bridge is
-therefore not accepted; this is consistent with R6's warning that the
-current per-sublattice mesh cannot recover the band-spinor derivative. The
-generated run is retained outside the repository at the path above, and no
-source or oracle change was made.
+therefore not accepted as a production-kernel validation. The discrepancy is
+the expected short-wavelength bias of the linear-FEM gradient: the intrinsic
+connection is a sum of per-sublattice terms, so independent sublattice
+sampling is sufficient in principle, but the spatial gradient is inaccurate
+at this large wave vector. The generated run is retained outside the
+repository at the path above, and no source or oracle change was made.
 
 ## 2026-09-28 — B5.4 packet/convention escalation
 
@@ -59,9 +61,10 @@ lambda = l + Im[u^dagger d u/dphi] = l - 2 F_n
 ```
 
 for the documented `exp(+i k.r)` reconstruction and the Fishman definition
-`F_n = -1/2 Im[u^dagger d u/dphi]`. The WLS gradient does not converge at this
-large lattice wave vector, but the analytic-gradient result already exposes a
-factor/sign conflict with C14's `l + F_n` target. Per C16, B5.4 stops here:
+`F_n = -1/2 Im[u^dagger d u/dphi]`. The linear-FEM/WLS gradient is biased at
+this large lattice wave vector, but the analytic-gradient result already
+exposes a factor/sign conflict with C14's `l + F_n` target. Per C16, B5.4
+stops here:
 the maintainer must decide whether C14 should use the trajectory field's
 `l - 2F_n` result, a conjugate/Fourier convention, or a separately defined
 bridge observable. No Fortran bridge diagnostic was added and no oracle was
@@ -78,9 +81,13 @@ control and the annular k-space packet, and leaves the contract-versus-Fourier
 comparison (`l+F_n` versus `l-2F_n`) visible until the bridge normalization is
 resolved.
 
-## 2026-09-28 — R3
+## 2026-09-29 — C8b implemented
 
-- Proposal (not implemented): add an explicit `oam_axis` contract key for restart-loaded or driven states, with the default frame axis equal to the normalized average moment at initialization. The C8 frame remains implicit in the current contract and oracle.
+The explicit `oam_axis x y z` proposal is implemented as C8b. The supplied
+axis is normalised at `oam_init` and used for the collinearity check; when the
+key is absent, the normalised average moment remains the default. The
+trajectory header records the normalised axis and whether it was explicit or
+defaulted.
 
 ## 2026-09-28 — B5.4 held at GA
 
@@ -168,11 +175,12 @@ supercell packet with analytic spatial derivatives now validates the target
 and the `l=1` minus `l=0` shift of `+1` through
 `tests/SpinWaves/oam_lswt/oracle_bridge.py --validate`.
 
-The current production trajectory mesh is per-sublattice, so its direct
-`lambda_L_centroid` is retained as a discretisation diagnostic and is not
-claimed to be `F_n`. B5.4/G3 can therefore sign the bridge convention using
-the independent all-site oracle, while a future all-site production
-observable remains a separate implementation item.
+The current production trajectory mesh is per-sublattice. That is sufficient
+for the intrinsic connection in the continuum because it is a sum over
+sublattices, but its direct `lambda_L_centroid` remains a discretisation
+diagnostic at the tested short wavelength. B5.4/G3 therefore signs the bridge
+convention using the independent oracle against LSWT; it does not validate the
+production trajectory kernel.
 
 ## 2026-09-29 — G1 and G3 accepted
 

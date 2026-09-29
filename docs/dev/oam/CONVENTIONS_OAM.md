@@ -26,10 +26,9 @@ Report two values every sample:
 
 Referencing to `R` removes the drift term `(R x P)_z`, **not** the extrinsic part: `lambda_L_centroid` still contains the envelope winding `l`. Say exactly this in the output header. A stationary packet (P = 0) has `lambda_L_origin = lambda_L_centroid` for any origin; only a moving packet separates them.
 
-Linear-FEM gradients are accurate for `k·a ≲ 0.5`; in the single-sublattice
-square-lattice boosted-Gaussian oracle check the weighted phase-gradient bias
-was `−4.61%` at `k·a = 0.5` and `−16.29%` at `k·a = 1.0`, so the error grows
-with `k·a`.
+FEM λ is biased low as `k·a` grows (square lattice: about `−8.15%` at
+`k·a = 0.5`, `−30.60%` at `1.0`, relative to `k·a = 0`). Use
+`oam_gradient spectral` on periodic cells for `k·a ≳ 0.25`.
 
 **C4 — Weighting.** Two options: `oam_weight = site` (`w_i = 1`) or `area` (`w_i = A_i = (1/3) sum_{D in i} A_D`). Maintainer confirmation (2026-09-28): the default is `site`, matching the site-summed magnon count `N_m` and pyswatter's `spin-oam-balance`. Pyswatter's standalone `lz` defaults to `area`, so the choice is recorded in the output header.
 

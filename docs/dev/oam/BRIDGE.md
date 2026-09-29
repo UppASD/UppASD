@@ -4,7 +4,7 @@ Status: convention resolved and oracle-validated. The derivation is the
 `[OAM-R6]` prerequisite for B5.4. The independent reciprocal-supercell oracle
 now validates the particle-field bridge with an analytic spatial derivative;
 the production per-sublattice trajectory mesh remains a separate diagnostic
-and is not identified with `F_n`.
+until its short-wavelength FEM accuracy is established quantitatively.
 
 ## 1. Conventions and the HP map
 
@@ -149,7 +149,7 @@ the envelope/cell origin and C3's centroid of the physical site weights. It is
 also why an origin value must not be used as a translation-invariant bridge
 observable.
 
-## 3. Why this is not `F_n(k0)`
+## 3. Relation to `F_n(k0)` and FEM validity
 
 C9/C10 define the gauge-invariant LSWT quantity, in units of `hbar`, as
 
@@ -161,11 +161,27 @@ C9/C10 define the gauge-invariant LSWT quantity, in units of `hbar`, as
 
 with the ring average (equivalently Berry phase divided by `4*pi`) understood
 in C10. This is a derivative of the band spinor around `k`; it is not the
-algebraic intracell moment `tau_s x k`. The per-sublattice FEM gradient has no
-triangle containing both sublattices, so it cannot recover the missing
-intracell spinor derivative. Its direct comparison quantity is therefore
-`Lambda_sub,env` or `Lambda_sub,centroid`, equations (1)--(3), including the
-HP hole and norm factors when applicable.
+algebraic intracell moment `tau_s x k`. For a particle-only band spinor, the
+intrinsic term is a sum of per-sublattice contributions,
+
+```
+  Im[u^dagger d_phi u] = sum_s Im[u_s^* d_phi u_s].
+```
+
+The corresponding Nambu expression is the same sum with the `eta` signs from
+C9. Therefore a mesh that samples each sublattice independently is
+sufficient to represent the intrinsic derivative; no A--B triangle is
+required. The limitation is numerical: at short wavelengths the linear-FEM
+gradient underestimates the spatial phase gradient. Its direct comparison
+quantity is `Lambda_sub,env` or `Lambda_sub,centroid`, equations (1)--(3),
+including the HP hole and norm factors when applicable.
+
+An independent `oracle_traj.py` check on the width-`5a` vortex used by C12,
+boosted by `exp(i k x)`, gives square-lattice FEM `lambda_L_centroid` values
+`0.98677`, `0.90637` and `0.68486` at `k.a = 0`, `0.5` and `1.0`. Thus FEM λ
+is biased low by about `−8.15%` at `k.a = 0.5` and `−30.60%` at `1.0`,
+relative to `k.a = 0`; use `oam_gradient spectral` on periodic cells for
+`k.a ≳ 0.25`.
 
 The reciprocal-supercell particle-field identity fixes C14:
 
@@ -175,10 +191,12 @@ The reciprocal-supercell particle-field identity fixes C14:
 ```
 
 This is the target for the full angularly varying band packet, not for the
-fixed-spinor control and not for the current per-sublattice FEM output. The
-pointwise, gauge-dependent Berry connection must not be substituted for the
-C10 ring quantity. Hole-mixed modes require the Nambu version of (4) and are
-outside the current particle-only acceptance case.
+fixed-spinor control. The pointwise, gauge-dependent Berry connection must not
+be substituted for the C10 ring quantity. The current per-sublattice FEM
+output can represent this sum, but its short-wavelength discretisation error
+must be resolved before treating a production value as a quantitative `F_n`
+measurement. Hole-mixed modes require the Nambu version of (4) and are outside
+the current particle-only acceptance case.
 
 ## 4. Numerical check with `oracle_honey.py`
 
@@ -197,8 +215,8 @@ about the actual global site centroid, while equation (2) gives the nonzero
 raw-origin lever shown in the table. The oracle values are plainly not equal:
 at `k0 = (3,0)`, for example, the Berry-flux value is `-0.05136` while the
 raw per-sublattice lever is `-0.56678`. This numerically checks both the
-lever-arm derivation and the fact that the present per-sublattice observable
-cannot be identified with `F_n`.
+lever-arm derivation and the fact that this fixed-k0 raw-origin lever is not
+the gauge-invariant ring quantity `F_n`.
 
 ## 5. Recommendation and gate
 
@@ -210,12 +228,14 @@ Offer both observables:
 2. Use the reciprocal-supercell packet and its analytic derivative as the
    C14/B5.4 convention oracle. It compares the full particle field with
    `l - 2F_n` and checks the independent `+1` envelope-winding shift.
-3. Keep any future all-site production diagnostic separate until its
-   discretisation and hole-sector conventions are specified.
+3. Keep production comparisons separate until the short-wavelength
+   discretisation and hole-sector conventions are specified; an all-site mesh
+   is not required by the per-sublattice sum itself.
 
 C13/GA is accepted. C14 is confirmed by the analytic particle-field oracle;
-G3 can use that oracle for the bridge convention while the existing
-per-sublattice trajectory output remains explicitly non-`F_n`.
+G3 can use that oracle for the bridge convention. B5.4 validates the
+independent oracle against LSWT; it does not validate the production
+trajectory kernel.
 
 The reciprocal-supercell oracle resolves the former blocker: with the
 documented `exp(+i k.r)` reconstruction, the particle-only spatial field

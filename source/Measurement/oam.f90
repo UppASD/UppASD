@@ -597,7 +597,11 @@ contains
       write(ofileno,'(a,3(es24.16,1x))') '# origin = ',oam_origin_xy(1),oam_origin_xy(2),oam_origin(3)
       write(ofileno,'(a)') '# lambda_L_centroid is referenced to the |psi|^2 centroid R; this removes the drift term ' // &
          '(R x P)_z but not the envelope winding l.'
-      write(ofileno,'(a)') '# Linear-FEM gradients are accurate for k.a <= 0.5; measured weighted phase-gradient bias: -4.61% at k.a = 0.5 and -16.29% at k.a = 1.0.'
+      if (oam_gradient_method == 'spectral') then
+         write(ofileno,'(a)') '# spectral gradient: exact inside the first Brillouin zone; see C17'
+      else
+         write(ofileno,'(a)') '# FEM lambda is biased low as k.a grows (square lattice: about -8.15% at k.a = 0.5, -30.60% at k.a = 1.0, relative to k.a = 0). Use oam_gradient spectral on periodic cells for k.a >= 0.25.'
+      end if
       columns = '# step lambda_L_origin lambda_L_centroid N_m Lz_tot_hbar dSz_hbar balance R_x R_y sigma_psi'
       do isub=1,oam_nsubblocks
          write(columns(len_trim(columns)+1:),'(a,i0,a,i0,a,i0)') ' lambda_L_origin_s',isub, &

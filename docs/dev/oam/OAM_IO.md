@@ -26,6 +26,16 @@ Trajectory inputs are:
 - `oam_sublattice i j ...`: optional one-based unit-cell sublattice list. If
   omitted, all sites are included. For `NA > 1`, omission also appends one
   `lambda_L_origin_sN lambda_L_centroid_sN N_m_sN` block per sublattice.
+- `oam_gradient fem|spectral`: gradient method, default `fem`. `spectral`
+  requires `BC1 = BC2 = P` and a build that defines `USE_FFTW`; MKL-FFT builds
+  do not define `USE_FFTW`, so they refuse spectral mode. There is no silent
+  fallback to FEM. The spectral method uses the first-Brillouin-zone fold
+  defined in C17 and refuses if its finite image search reaches the boundary.
+- `oam_axis x y z`: optional frame axis, normalised at `oam_init`; by default
+  the axis is the normalised average moment at `oam_init`. A zero axis or an
+  initial state with minimum alignment below `0.9` is refused. For boosted,
+  driven or restart-loaded states, set this to the ground-state axis so the
+  frame does not follow the packet.
 
 The first ten trajectory columns are:
 
@@ -50,3 +60,10 @@ amplitude, while LSWT OAM is intrinsic band OAM in the harmonic limit. In the
 particle-only narrow-wavepacket bridge convention used by B5.4,
 `lambda_L_centroid = l_envelope - 2 F_n(k0)/hbar`; this is a derived bridge
 relation, not an assertion that the two standalone observables are equal.
+FEM λ is biased low as `k·a` grows (square lattice: about `−8.15%` at
+`k·a = 0.5`, `−30.60%` at `1.0`, relative to `k·a = 0`). Use
+`oam_gradient spectral` on periodic cells for `k·a ≳ 0.25`.
+
+For boosted, driven or restart-loaded states, use `oam_axis` for the
+ground-state axis. In the C13 check the default axis tilts by about `0.2°`
+and shifts `lambda_L_centroid` by about `6%` (`0.903` versus `0.957`).
