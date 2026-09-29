@@ -190,3 +190,18 @@ accepted: the CTest harness is green, the two supported pyswatter comparisons
 pass, `shift_b` remains N/A for the current pyswatter implementation, the
 positive vortex sign passes, and the C14 particle-field bridge oracle passes
 with `lambda = l - 2 F_n`.
+
+## 2026-09-29 — Carrier-referenced spectral gradient proposal
+
+Proposal (not implemented): for a carrier-referenced gradient, write
+`psi = exp(i k0.r) phi` and use
+
+```text
+grad psi = exp(i k0.r) (i k0 phi + grad phi),
+```
+
+where `k0` comes from an input key or the spectral peak. The carrier term is
+the drift term and cancels in `lambda_L_centroid`, leaving only `grad phi` to
+be resolved accurately. Open questions are how `k0` is chosen during the
+dynamics, how the reference interacts with the C8 frame, and how to test it;
+the suggested test is a K-centred `l = 1` packet on the honeycomb lattice.

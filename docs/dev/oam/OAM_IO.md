@@ -31,6 +31,9 @@ Trajectory inputs are:
   do not define `USE_FFTW`, so they refuse spectral mode. There is no silent
   fallback to FEM. The spectral method uses the first-Brillouin-zone fold
   defined in C17 and refuses if its finite image search reaches the boundary.
+  Spectral trajectory OAM is valid only when the field content lies strictly
+  inside each sublattice's first Brillouin zone. K- and M-centred packets are
+  out of scope for both spectral and FEM gradients.
 - `oam_axis x y z`: optional frame axis, normalised at `oam_init`; by default
   the axis is the normalised average moment at `oam_init`. A zero axis or an
   initial state with minimum alignment below `0.9` is refused. For boosted,

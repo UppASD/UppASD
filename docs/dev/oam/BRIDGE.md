@@ -240,4 +240,5 @@ trajectory kernel.
 The reciprocal-supercell oracle resolves the former blocker: with the
 documented `exp(+i k.r)` reconstruction, the particle-only spatial field
 gives `lambda = l - 2 F_n` from the exact Fourier identity. This is now the
-settled C14 convention.
+settled C14 convention. The bridge packet has `k0 ≈ 2.9 < |K| ≈ 4.19` on the
+honeycomb lattice, so it lies strictly inside the zone and is in scope.
