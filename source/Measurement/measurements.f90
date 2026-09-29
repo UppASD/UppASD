@@ -198,7 +198,7 @@ contains
 
       ! Calculate trajectory orbital angular momentum
       if (do_oam_traj=='Y') then
-         call oam_sample(mstep,emom,mmom,atype)
+         call oam_sample(mstep,emom,mmom)
       end if
 
       ! Print information about the induced moments

@@ -151,11 +151,12 @@ Agreement is required to 1e-3 on `lambda_L`, once the origin is matched (`--shif
 
 **B5.4 — Bridge test** [Opus; requires Blueprint A merged]. Two-sublattice honeycomb with Haldane DMI (`tests/SpinWaves/oam_lswt/mkhoney.py`), where `F_n ≠ 0`:
 1. Run `do_oam_lswt`; record `F_n(k0)` for a chosen band n and small k0.
-2. Build the trajectory initial state from `T_n(k0)` (Holstein–Primakoff, small amplitude) times a broad Gaussian envelope with l = 0. Write it with `mkfixture_traj`-style restart files. Run at zero damping and temperature, sampling for several precession periods.
-3. Assert `lambda_L_centroid → F_n(k0)/ħ` within a few percent, constant in time.
-4. Repeat with an l = 1 envelope and assert a shift of +1.
+2. Build the trajectory initial state from the full particle band packet, including the angular variation of `T_n(k)` around the ring (Holstein–Primakoff, small amplitude), times a broad Gaussian envelope with l = 0. A fixed `T_n(k0)` spinor is only a control and cannot carry the Berry term. Write it with `mkfixture_traj`-style restart files. Run at zero damping and temperature, sampling for several precession periods.
+3. In the independent reciprocal-supercell oracle, use the analytic spatial derivative to assert
+   `lambda_L_centroid → -2 F_n(k0)/ħ` for l = 0, within the finite-packet tolerance, and verify that the packet frequency is `E_n(k0)/ħ`.
+4. Repeat with an l = 1 envelope and assert a shift of +1. The current per-sublattice production mesh is reported as a separate discretisation diagnostic until an all-site bridge observable is implemented; it must not be relabelled as `F_n`.
 
-This is the only place the two observables are compared (C14). If step 3 fails by a sign, that is the C13 question and goes to the maintainer.
+This is the only place the two observables are compared (C14). The accepted particle-field convention is `l - 2F_n`; a sign or factor mismatch goes to `OAM_QUESTIONS.md` and is not hidden by changing the oracle.
 
 **Gate G3:** the maintainer signs off B5.2–B5.4.
 

@@ -1307,7 +1307,7 @@ contains
             ham%max_no_neigh,ham%nlistsize,ham%nlist,coord)
       end if
 
-      if (skyno=='Y'.or.skyno=='T'.or.do_proj_skyno=='Y'.or.do_proj_skyno=='T'.or. &
+      if (skyno=='T'.or.do_proj_skyno=='Y'.or.do_proj_skyno=='T'.or. &
          do_chiral=='Y'.or.do_oam_traj=='Y'.or.print_mesh=='Y') then
          call mesh2d_build(N1,N2,N3,NA,coord,C1,C2,C3,BC1,BC2,BC3)
          call mesh2d_report()

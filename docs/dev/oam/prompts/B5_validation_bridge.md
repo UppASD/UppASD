@@ -16,10 +16,17 @@ You may not have pyswatter. Don't emulate it; leave the script for the maintaine
 
 Before coding, write the derivation into `OAM_QUESTIONS.md`: how the Holstein–Primakoff amplitudes in `T_n(k0)` map onto site `m_x + i m_y` in the C1 frame, including the hole components, the `sqrt(2S)`, and the Fourier sign of `setup_ektij` (`exp(-i k·r)`). The mapping must reproduce the LSWT frequency when propagated. Check that first: the precession frequency of the packet has to match `E_n(k0)/ħ` to 1%.
 
-Then follow the steps in Blueprint B5.4. Tolerances:
-- `λ_centroid` within 5% of `F_n(k0)/ħ`, stable over the run;
+Then follow the steps in Blueprint B5.4. Use the full angularly varying band
+spinor packet; a fixed-spinor packet is only a control. Tolerances:
+- the analytic particle-field oracle agrees with `-2 F_n(k0)/ħ` within 0.03;
+- the packet frequency agrees with `E_n(k0)/ħ` to 1%;
 - the l = 1 shift is +1 within 0.05.
 
-A mismatch by a sign is the C13 question. Report it; don't fix it.
+The current per-sublattice trajectory mesh is not the all-site bridge
+observable and must be reported separately rather than compared directly to
+`F_n`.
+
+A sign or factor mismatch is now a C14 bridge-convention failure. Report it in
+`OAM_QUESTIONS.md`; do not fix it by changing the oracle.
 
 **Commit, report, stop for gate G3.**

@@ -46,5 +46,7 @@ new keys.
 
 The trajectory observable and LSWT observable are deliberately different
 (C14): trajectory OAM contains intrinsic and envelope winding at arbitrary
-amplitude, while LSWT OAM is intrinsic band OAM in the harmonic limit. They
-must not be compared as equal except in the narrow-wavepacket bridge limit.
+amplitude, while LSWT OAM is intrinsic band OAM in the harmonic limit. In the
+particle-only narrow-wavepacket bridge convention used by B5.4,
+`lambda_L_centroid = l_envelope - 2 F_n(k0)/hbar`; this is a derived bridge
+relation, not an assertion that the two standalone observables are equal.

@@ -26,7 +26,7 @@ Report two values every sample:
 
 Referencing to `R` removes the drift term `(R x P)_z`, **not** the extrinsic part: `lambda_L_centroid` still contains the envelope winding `l`. Say exactly this in the output header. A stationary packet (P = 0) has `lambda_L_origin = lambda_L_centroid` for any origin; only a moving packet separates them.
 
-**C4 — Weighting. OPEN.** Two options: `oam_weight = site` (`w_i = 1`) or `area` (`w_i = A_i = (1/3) sum_{D in i} A_D`). Proposed default: `site`, matching the site-summed magnon count `N_m` and pyswatter's `spin-oam-balance`. pyswatter's standalone `lz` defaults to `area`, so the choice must be recorded in the output header. Maintainer confirms the default at G0.
+**C4 — Weighting.** Two options: `oam_weight = site` (`w_i = 1`) or `area` (`w_i = A_i = (1/3) sum_{D in i} A_D`). Maintainer confirmation (2026-09-28): the default is `site`, matching the site-summed magnon count `N_m` and pyswatter's `spin-oam-balance`. Pyswatter's standalone `lz` defaults to `area`, so the choice is recorded in the output header.
 
 **C5 — Guards.**
 - Norm `sum |psi|^2 w` below `1e-14`: both lambda columns `NaN`, one warning per run, no division.
@@ -82,11 +82,17 @@ This is algebraically Fishman PRL 129, 167202, Eq. 11, where the operator acts o
 
 **C12 — Neighbour lists.** Exchange, DM, symmetric-anisotropic (SA) and pseudo-dipolar (PD) couplings each live on their own list (`nlist`, `dmlist`, `salist`, `pdlist`), which in general differ in length and order. A coupling vector must always be indexed with its own list.
 
-**C13 — Absolute sign of F. OPEN.** Pin it against Fishman, Berlijn, Villanova, Lindsay, PRB 107, 214434 (2023): for the FM honeycomb with NNN DM, O_1,av peaks at 0.236ħ for d = 0.1, where a is the NN distance and the rings extend to K. The maintainer maps d to UppASD's D/J and signs off. Until then the sign is labelled "convention: see OAM_QUESTIONS.md" in the output header.
+**C13 — Absolute sign of F. CONFIRMED (2026-09-28).** For the FM honeycomb with NNN DM, the corrected mapping is `D_UppASD/J = 2 D_paper/J`; positive UppASD `D` produces positive Fishman OAM and negative `D` reverses the sign. The positive result is `O_1,av(K)/hbar ≈ 0.228`, agreeing with the independent oracle; the approximately 3.4% difference from the published `0.236 hbar` is retained as a documented magnitude discrepancy. The output sign convention is therefore confirmed and must not be changed to fit the published magnitude.
 
 ## Part III — Both
 
-**C14 — Two different observables.** The trajectory path measures intrinsic plus extrinsic OAM at arbitrary amplitude. The LSWT path measures band- and k-resolved intrinsic OAM in the harmonic limit, which is identically zero for a single-sublattice ferromagnet. They meet only in the narrow-wavepacket limit, `lambda_L_centroid ≈ l_envelope + F_n(k0)/hbar`. **Never write a test asserting they are equal.** The only comparison allowed is the bridge test (B5.4).
+**C14 — Bridge convention CONFIRMED (2026-09-28).** The trajectory path measures intrinsic plus envelope OAM at arbitrary amplitude. The LSWT path measures band- and k-resolved intrinsic OAM in the harmonic limit; `F_n` is its gauge-invariant intrinsic band term. For the C1 particle field, the documented `exp(+i k.r)` reconstruction, and the particle-only HP control used by B5.4, the bridge is
+
+```
+lambda_L_centroid(l,n,k0) = l_envelope - 2 F_n(k0)/hbar
+```
+
+in dimensionless `hbar` units. The sign follows C1 and the Fourier reconstruction; the factor of two follows the C9 Fishman normalization when the band spinor is inserted into the spatial particle field. The `l` term is the extrinsic envelope winding, while `F_n` is intrinsic. A fixed-spinor packet contains no `dT_n/dphi` and must not be used as the bridge packet. The B5.4 oracle therefore checks `l - 2F_n` and the `l=1` minus `l=0` shift of `+1`; it must never assert `l+F_n`. Hole-mixed modes require the corresponding Nambu generalization and are outside this particle-only acceptance case. **Never write a test asserting the two full observables are equal outside B5.4.**
 
 **C15 — Naming.**
 

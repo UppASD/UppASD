@@ -54,7 +54,7 @@ contains
       real(dblprec), allocatable :: area_work(:), b_work(:,:), c_work(:,:)
       real(dblprec) :: cell1(2), cell2(2), inv_cell(2,2), det_cell
       real(dblprec) :: r00(2), rel10(2), rel01(2), rel11(2)
-      real(dblprec) :: p(3,2), d1(2), d2(2)
+      real(dblprec) :: p(3,2), d1(2)
       real(dblprec) :: d2_diag1, d2_diag2
       integer :: vertices(3)
       logical :: periodic_x, periodic_y
@@ -63,6 +63,9 @@ contains
       if (size(C3) < 3) error stop 'Mesh2D: invalid third lattice vector'
       if (N1 < 1 .or. N2 < 1 .or. N3 < 1 .or. NA < 1) then
          error stop 'Mesh2D: invalid mesh dimensions'
+      end if
+      if (BC3 /= '0' .and. BC3 /= 'P') then
+         error stop 'Mesh2D: invalid z boundary condition'
       end if
 
       call mesh2d_release()
@@ -80,7 +83,8 @@ contains
       cell1 = real(N1,dblprec)*C1(1:2)
       cell2 = real(N2,dblprec)*C2(1:2)
       det_cell = cell1(1)*cell2(2)-cell1(2)*cell2(1)
-      mesh_cell_area=abs(det_cell)/real(N1*N2,dblprec)
+      ! Report the supercell area so it compares directly with total_area.
+      mesh_cell_area=abs(det_cell)
       inv_cell = 0.0_dblprec
       if (abs(det_cell)>1.0e-14_dblprec) then
          inv_cell(1,1)= cell2(2)/det_cell

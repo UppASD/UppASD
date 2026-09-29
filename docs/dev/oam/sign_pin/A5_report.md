@@ -140,4 +140,12 @@ The positive result agrees with the independent oracle's approximately
 oscillation described in the paper, the corrected `F_1(k)` samples remain
 nonnegative for `+D` and nonpositive for `-D` throughout `0 <= k <= K`, apart
 from the zero at `k=0`; no sign oscillation is observed. This observation is
-recorded without resolving the discrepancy. GA remains with the maintainer.
+recorded without changing the sign convention.
+
+## GA decision — maintainer confirmation (2026-09-28)
+
+GA is accepted for the absolute sign and UppASD-to-paper DM mapping. Positive
+UppASD `D` is the positive Fishman-OAM convention, with
+`D_UppASD/J = 2 D_paper/J` for this input convention. The approximately 3.4%
+magnitude difference from the published `0.236 hbar` remains documented and
+does not invalidate the sign decision.

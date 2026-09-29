@@ -1493,7 +1493,7 @@ contains
             case('do_oam')
                read(ifile,*,iostat=i_err) do_oam
                if (i_err == 0) then
-                  do_oam_traj = do_oam
+                  if (do_oam == 'Y') do_oam_traj = 'Y'
                   write(*,'(1x,a)') 'Deprecated input key do_oam; use do_oam_traj'
                end if
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err

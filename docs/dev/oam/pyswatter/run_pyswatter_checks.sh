@@ -16,7 +16,21 @@ for case_name in 'ell+1' 'shift_b' 'w_area'; do
     test -f "$case_dir/restart.oamtest.out"
     (
         cd "$case_dir"
+        case "$case_name" in
+            'ell+1'|'w_area')
+                # UppASD's default origin for these centred cases is (20,20,0).
+                shift_x=20.0
+                shift_y=20.0
+                ;;
+            shift_b)
+                # shift_b explicitly sets oam_origin to (0,0,0).  Its remaining
+                # raw-frame difference is the documented C8 basis tilt; --m0 is
+                # a ground-state component transform, not an origin correction.
+                shift_x=0.0
+                shift_y=0.0
+                ;;
+        esac
         pyswatter-animate spin-oam-balance coord.oamtest.out restart.oamtest.out \
-            --lz-integration site --output ref.csv
+            --lz-integration site --shift "$shift_x" "$shift_y" 0.0 --output ref.csv
     )
 done
