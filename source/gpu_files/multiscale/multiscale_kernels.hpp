@@ -12,7 +12,11 @@ namespace cg = cooperative_groups;
 
 #endif
 
-__global__ void interpolate_atoms(const int interp_natoms, const int N, const int M,
+__global__ void interpolate_atoms1(const int interp_natoms, const int N, const int M,
                                   const int* indices, const int* first_neighbour,
                                   const int* neighbours, const real* weights, const real* mmom,
-                                  real* emomM, real* emom, real* emom2);
+                                  real* emomM, real* emom, const GpuTensor<real, 3>  emom_buffer);
+
+__global__ void interpolate_atoms2(const int interp_natoms, const int N, const int M,
+                                  const int* indices, const int* first_neighbour,
+                                  const int* neighbours, const real* weights, real* emom2, const GpuTensor<real, 3>  emom_buffer);

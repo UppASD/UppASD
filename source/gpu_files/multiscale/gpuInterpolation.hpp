@@ -23,7 +23,8 @@ private:
     const unsigned int M;
     deviceInterpolationInfo& gpuInterpolationInfo;
     deviceLattice& gpuLattice;
-    
+    GpuTensor<real, 3> emom_buffer;   
+    bool isAllocated;
 
 
 public:
@@ -31,6 +32,7 @@ public:
                      deviceLattice& p_gpuLattice);
     ~GpuInterpolation();
 
-    void interpolate();  
+    void interpolateFirst();  
+    void interpolateSecond();  
 };
 

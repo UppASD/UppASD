@@ -43,9 +43,15 @@ GpuInterpolation::GpuInterpolation(const unsigned int p_N, const unsigned int p_
 {
     blocks  = {1, 1, 1};
     threads = {1, 1, 1};
+    emom_buffer.Allocate(3, N, M);
+    isAllocated = true;
 }
 
-GpuInterpolation::~GpuInterpolation() {}
+GpuInterpolation::~GpuInterpolation() {
+
+    if(isAllocated)
+    emom_buffer.Free();
+}
 
 #define ERRCHK(x)                                                                                  \
     do {                                                                                           \
@@ -113,7 +119,7 @@ interpolate_atoms(const int interp_natoms, const int N, const int M, const int* 
 }*/
 
 void
-GpuInterpolation::interpolate()
+GpuInterpolation::interpolateFirst()
 {
     // Assert interp_natoms equal to ubound(interfaceInterpolation%indices, 1)
     const int interp_natoms = gpuInterpolationInfo.indices.extent(0);
@@ -134,6 +140,8 @@ GpuInterpolation::interpolate()
     const int*  first_neighbour = gpuInterpolationInfo.firstNeighbour.data();
     const real* weights         = gpuInterpolationInfo.weights.data();
     const int*  neighbours      = gpuInterpolationInfo.neighbours.data();
+
+    emom_buffer.copy_sync(emom);
     ERRCHK(indices != nullptr); // Check associated(interp%indices). TODO confirm correct intent.
 
   /*  interpolate_atoms(interp_natoms,
@@ -148,7 +156,7 @@ GpuInterpolation::interpolate()
                       emom,
                       emom2);*/
 
-    interpolate_atoms<<<blocks, threads>>>(interp_natoms,
+    interpolate_atoms1<<<blocks, threads>>>(interp_natoms,
                                            N,
                                            M,
                                            indices,
@@ -158,5 +166,58 @@ GpuInterpolation::interpolate()
                                            mmom,
                                            emomM,
                                            emom,
-                                           emom2);
+                                           emom_buffer);
+
 }
+
+
+void
+GpuInterpolation::interpolateSecond()
+{
+    // Assert interp_natoms equal to ubound(interfaceInterpolation%indices, 1)
+    const int interp_natoms = gpuInterpolationInfo.indices.extent(0);
+    ERRCHK(M == gpuLattice.emom.extent(2));
+
+    const dim3 threads = {256, 1, 1};
+    const dim3 blocks  = {
+        (interp_natoms + threads.x - 1) / threads.y,
+        (M + threads.y - 1) / threads.y,
+        1,
+    };
+
+    real*       emomM           = gpuLattice.emomM.data();
+    real*       emom            = gpuLattice.emom.data();
+    real*       emom2           = gpuLattice.emom2.data();
+    const real* mmom            = gpuLattice.mmom.data();
+    const int*  indices         = gpuInterpolationInfo.indices.data();
+    const int*  first_neighbour = gpuInterpolationInfo.firstNeighbour.data();
+    const real* weights         = gpuInterpolationInfo.weights.data();
+    const int*  neighbours      = gpuInterpolationInfo.neighbours.data();
+
+    emom_buffer.copy_sync(emom2);
+    ERRCHK(indices != nullptr); // Check associated(interp%indices). TODO confirm correct intent.
+
+  /*  interpolate_atoms(interp_natoms,
+                      N,
+                      M,
+                      indices,
+                      first_neighbour,
+                      neighbours,
+                      weights,
+                      mmom,
+                      emomM,
+                      emom,
+                      emom2);*/
+
+    interpolate_atoms2<<<blocks, threads>>>(interp_natoms,
+                                           N,
+                                           M,
+                                           indices,
+                                           first_neighbour,
+                                           neighbours,
+                                           weights,
+                                           emom2,
+                                           emom_buffer);
+
+}
+

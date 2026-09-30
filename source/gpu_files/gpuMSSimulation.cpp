@@ -79,6 +79,8 @@ void GpuSimulation::GpuMSSimulation::MSmphase(GpuSimulation& gpuSim) {
    // Hamiltonian calculations
    GpuHamiltonianCalculations hamCalc;
 
+   
+
    // Moment updater
    GpuMomentUpdater momUpdater(gpuSim.gpuLattice, gpuSim.SimParam.mompar, gpuSim.SimParam.initexc);
    //Queue
@@ -90,8 +92,8 @@ void GpuSimulation::GpuMSSimulation::MSmphase(GpuSimulation& gpuSim) {
    //                gpuSim.gpuLattice.beff, gpuSim.cpuLattice.emomM, gpuSim.cpuLattice.emom,
     //               gpuSim.cpuLattice.mmom, gpuSim.cpuLattice.beff, mqueue);
    //Corrrelations
-   const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, 
-            gpuSim.Flags, gpuSim.SimParam, gpuSim.cpuCorrelations, mqueue);
+   //const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, 
+   //         gpuSim.Flags, gpuSim.SimParam, gpuSim.cpuCorrelations, mqueue);
 
    // Initiate integrator and Hamiltonian
    if(!integrator.initiate(gpuSim.SimParam)) {  // TODO
@@ -127,7 +129,7 @@ void GpuSimulation::GpuMSSimulation::MSmphase(GpuSimulation& gpuSim) {
    for(std::size_t mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
       // Measure
       measurement->measure(mstep);
-      correlation->measure(mstep);
+     // correlation->measure(mstep);
 
       stopwatch.add("measurement");
 
@@ -142,6 +144,8 @@ void GpuSimulation::GpuMSSimulation::MSmphase(GpuSimulation& gpuSim) {
       integrator.evolveFirst(gpuSim.gpuLattice); //TODO
       stopwatch.add("evolution");
 
+      interpolation.interpolateFirst();
+
       measure_ene = ((gpuSim.Flags.do_ene > 0 ) && (gpuSim.Flags.do_gpu_measurements)&&
             (((mstep-1)%gpuSim.SimParam.ene_step == 0)||((gpuSim.Flags.do_cumu)&&((mstep-1)%gpuSim.SimParam.cumu_step == 0))));
 
@@ -154,6 +158,8 @@ void GpuSimulation::GpuMSSimulation::MSmphase(GpuSimulation& gpuSim) {
       integrator.evolveSecond(gpuSim.gpuLattice); //TODO
       stopwatch.add("evolution");
       // Update magnetic moments after time evolution step
+
+      interpolation.interpolateSecond();
       momUpdater.update();
       stopwatch.add("moments");
 
@@ -176,14 +182,14 @@ void GpuSimulation::GpuMSSimulation::MSmphase(GpuSimulation& gpuSim) {
    hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
 
    measurement->measure(rstep + nstep + 1);    
-   correlation->measure(rstep + nstep + 1);  // TODO
+   //correlation->measure(rstep + nstep + 1);  // TODO
    stopwatch.add("measurement");
 
    mqueue.finish();
 
    // Print remaining measurements
    measurement->flushMeasurements(rstep + nstep + 1);  // TODO
-   correlation->flushCorrelations(gpuSim.cpuCorrelations, rstep + nstep + 1); 
+   //correlation->flushCorrelations(gpuSim.cpuCorrelations, rstep + nstep + 1); 
    
    // Transfer GPU sample count back to Fortran for averaging
    if (FortranData::sc_nsamp_ptr != nullptr) {
