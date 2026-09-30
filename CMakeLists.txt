@@ -1161,6 +1161,8 @@ add_test(NAME oam-lswt-harness COMMAND python3 -u ${CMAKE_SOURCE_DIR}/tests/Spin
 set_property(TEST oam-lswt-harness PROPERTY LABELS oam-lswt)
 add_test(NAME oam-traj-harness COMMAND python3 -u ${CMAKE_SOURCE_DIR}/tests/SpinWaves/oam_lswt/run_traj_checks.py --binary ${TestBinary} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_property(TEST oam-traj-harness PROPERTY LABELS oam-traj)
+add_test(NAME oam-bridge-band COMMAND python3 -u ${CMAKE_SOURCE_DIR}/tests/SpinWaves/oam_lswt/run_bridge_checks.py --binary ${TestBinary} --band --force --workdir ${CMAKE_BINARY_DIR}/bridge_band_checks WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST oam-bridge-band PROPERTY LABELS "oam-traj;oam-bridge")
 add_test(NAME regression-test  COMMAND python3 -u bergtest.py --file regressionResaro.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
 endif (RUN_REG_TESTS)
 if (RUN_ASD_TESTS)

@@ -1,10 +1,11 @@
 # R6 bridge derivation: LSWT bands to trajectory OAM
 
-Status: convention resolved and oracle-validated. The derivation is the
-`[OAM-R6]` prerequisite for B5.4. The independent reciprocal-supercell oracle
-now validates the particle-field bridge with an analytic spatial derivative;
-the production per-sublattice trajectory mesh remains a separate diagnostic
-until its short-wavelength FEM accuracy is established quantitatively.
+Status: convention resolved and validated against LSWT with spectral gradients
+(B5.5). The derivation is the `[OAM-R6]` prerequisite for B5.4. The
+independent reciprocal-supercell oracle validates the particle-field bridge
+with an analytic spatial derivative; the production trajectory kernel agrees
+with it when spectral gradients are available and is biased with FEM at short
+wavelength.
 
 ## 1. Conventions and the HP map
 
@@ -194,9 +195,10 @@ This is the target for the full angularly varying band packet, not for the
 fixed-spinor control. The pointwise, gauge-dependent Berry connection must not
 be substituted for the C10 ring quantity. The current per-sublattice FEM
 output can represent this sum, but its short-wavelength discretisation error
-must be resolved before treating a production value as a quantitative `F_n`
-measurement. Hole-mixed modes require the Nambu version of (4) and are outside
-the current particle-only acceptance case.
+must be resolved before treating a FEM production value as a quantitative
+`F_n` measurement. Spectral gradients remove this short-wavelength bias on
+periodic cells. Hole-mixed modes require the Nambu version of (4) and are
+outside the current particle-only acceptance case.
 
 ## 4. Numerical check with `oracle_honey.py`
 
@@ -259,11 +261,12 @@ is the first trajectory sample and “median” is over the production run.
 | Clean, `N=48`, `σ=4`, `n1=22`, `k0=2.87979327` | spectral | `0.00000000 / 0.00000000` | `—` | `0.99999997 / 0.99999997` | `—` |
 
 The production packet validates the trajectory dynamics and exposes the
-fixed-spinor control targets, but it does not validate the LSWT Berry term:
+fixed-spinor control targets, but it does not contain the LSWT Berry term:
 nothing varies with angle in its sublattice spinor. Spectral differentiation
 removes the short-wavelength gradient bias, giving the expected clean `l=1`
 value to `3×10⁻8`; the production `l=1` residual from one is due to the
 supercell wrap and the non-zero core amplitude. The independent
-`oracle_bridge` packet, whose spinor does vary around the ring, is the bridge
-validation against LSWT; the production trajectory kernel is not that
-validation.
+`oracle_bridge` packet and the B5.5 angular band-packet check, whose spinors
+vary around the ring, validate the production kernel against LSWT with
+spectral gradients. The same kernel remains FEM-biased at short wavelength;
+`auto` selects spectral where possible.

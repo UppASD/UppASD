@@ -32,6 +32,7 @@ contains
    subroutine do_measurements(mstep,do_avrg,do_tottraj,avrg_step,ntraj,tottraj_step,&
       traj_step,do_cumu,cumu_step,logsamp,do_copy,do_cuda_avrg,do_cuda_cumu)
       !
+      use orbital_angular_momentum, only : do_oam_traj, oam_sample_due
       implicit none
       !
       integer, intent(in)          :: mstep              !< Current simulation step
@@ -90,6 +91,14 @@ contains
             do_copy = 1
             return
          end if
+      end if
+
+      ! OAM sampling uses the physical mstep, not the logarithmically sampled
+      ! sstep used by the ordinary measurement schedules.  GPU drivers must
+      ! copy the current moments before oam_sample consumes them.
+      if (do_oam_traj=='Y' .and. oam_sample_due(mstep)) then
+         do_copy = 1
+         return
       end if
 
       ! If not returned yet, don´t copy

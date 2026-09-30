@@ -33,7 +33,7 @@ module orbital_angular_momentum
    real(dblprec), public :: oam_axis(3) = 0.0_dblprec !< Optional frame axis
    logical, public :: oam_axis_set = .false. !< Whether an axis was supplied
    character(len=4), public :: oam_weight = 'site' !< Site or area weighting
-   character(len=8), public :: oam_gradient = 'fem' !< FEM or spectral gradient
+   character(len=8), public :: oam_gradient = 'auto' !< Auto, FEM or spectral gradient
    real(dblprec), public :: oam_sigma_max = 0.6_dblprec !< Centroid spread guard
    real(dblprec), public :: oam_gfactor = 0.0_dblprec !< Optional g factor
    integer, allocatable, public :: oam_sublattice(:) !< Optional unit-cell sublattice list
@@ -41,12 +41,13 @@ module orbital_angular_momentum
    real(dblprec), public :: oam_lambda_centroid_sum = 0.0_dblprec
    integer, public :: oam_lambda_centroid_count = 0
 
-   public :: oam_defaults, oam_init, oam_sample, oam_flush
+   public :: oam_defaults, oam_init, oam_sample, oam_sample_due, oam_flush
 
    logical :: oam_active = .false.
    logical :: oam_initialized = .false.
    logical :: oam_header_written = .false.
    logical :: oam_norm_warning = .false.
+   logical :: oam_ensemble_warning = .false.
    integer :: oam_natom = 0
    integer :: oam_mensemble = 0
    integer :: oam_n1 = 0
@@ -66,6 +67,7 @@ module orbital_angular_momentum
    logical :: oam_periodic(2) = .false.
    character(len=8) :: oam_simid = ''
    character(len=8) :: oam_gradient_method = 'fem'
+   logical :: oam_gradient_auto = .false.
    logical :: oam_spectral_ready = .false.
    logical :: oam_spectral_boundary = .false.
 
@@ -103,8 +105,9 @@ contains
       oam_axis = 0.0_dblprec
       oam_axis_set = .false.
       oam_weight = 'site'
-      oam_gradient = 'fem'
+      oam_gradient = 'auto'
       oam_gradient_method = 'fem'
+      oam_gradient_auto = .false.
       oam_spectral_ready = .false.
       oam_spectral_boundary = .false.
       oam_nlayers = 1
@@ -139,11 +142,23 @@ contains
       if (oam_step_traj < 1) oam_step_traj = 1
       if (oam_buff_traj < 1) oam_buff_traj = 1
       if (trim(adjustl(oam_weight)) /= 'site' .and. trim(adjustl(oam_weight)) /= 'area') then
-         write(*,'(1x,a,a)') 'Trajectory OAM: unknown oam_weight ',trim(oam_weight)
-         oam_weight = 'site'
+         write(*,'(1x,a,a)') 'Trajectory OAM disabled: unknown oam_weight ',trim(oam_weight)
+         return
       end if
       select case(trim(adjustl(oam_gradient)))
+      case('auto')
+         oam_gradient_auto = .true.
+#ifdef USE_FFTW
+         if (BC1 == 'P' .and. BC2 == 'P') then
+            oam_gradient_method = 'spectral'
+         else
+            oam_gradient_method = 'fem'
+         end if
+#else
+         oam_gradient_method = 'fem'
+#endif
       case('fem','spectral')
+         oam_gradient_auto = .false.
          oam_gradient_method = trim(adjustl(oam_gradient))
       case default
          write(*,'(1x,a,a)') 'Trajectory OAM disabled: unknown oam_gradient ',trim(oam_gradient)
@@ -155,12 +170,18 @@ contains
             return
          end if
 #ifndef USE_FFTW
-         write(*,'(1x,a)') 'Trajectory OAM disabled: spectral gradient requires a build with USE_FFTW.'
-         return
+         if (.not.oam_gradient_auto) then
+            write(*,'(1x,a)') 'Trajectory OAM disabled: spectral gradient requires a build with USE_FFTW.'
+            return
+         end if
 #else
          if (mod(Natom,NA*N1*N2) /= 0) then
-            write(*,'(1x,a)') 'Trajectory OAM disabled: spectral grid dimensions do not tile the atom array.'
-            return
+            if (oam_gradient_auto) then
+               oam_gradient_method = 'fem'
+            else
+               write(*,'(1x,a)') 'Trajectory OAM disabled: spectral grid dimensions do not tile the atom array.'
+               return
+            end if
          end if
 #endif
       end if
@@ -290,15 +311,24 @@ contains
 #ifdef USE_FFTW
       if (oam_gradient_method == 'spectral') call oam_setup_spectral()
       if (oam_gradient_method == 'spectral' .and. .not.oam_spectral_ready) then
-         if (oam_spectral_boundary) then
-            write(*,'(1x,a)') 'Trajectory OAM disabled: spectral shortest-image search reaches |a| = 2 or |b| = 2.'
+         if (oam_gradient_auto) then
+            call oam_release_spectral()
+            oam_gradient_method = 'fem'
          else
-            write(*,'(1x,a)') 'Trajectory OAM disabled: unable to create spectral FFTW plans.'
+            if (oam_spectral_boundary) then
+               write(*,'(1x,a)') 'Trajectory OAM disabled: spectral shortest-image search reaches |a| = 2 or |b| = 2.'
+            else
+               write(*,'(1x,a)') 'Trajectory OAM disabled: unable to create spectral FFTW plans.'
+            end if
+            call oam_release()
+            return
          end if
-         call oam_release()
-         return
       end if
 #endif
+      if (oam_gradient_auto) then
+         write(*,'(1x,a,a,a)') 'Trajectory OAM: oam_gradient auto resolved to ', &
+            trim(oam_gradient_method), ' (auto).'
+      end if
       allocate(oam_step_buffer(oam_buff_traj),stat=i_stat)
       call memocc(i_stat,product(shape(oam_step_buffer))*kind(oam_step_buffer),'oam_step_buffer','oam_init')
       allocate(oam_row_buffer(oam_ncolumns,oam_buff_traj),stat=i_stat)
@@ -307,11 +337,21 @@ contains
       oam_nbuffer = 0
       oam_header_written = .false.
       oam_norm_warning = .false.
+      oam_ensemble_warning = .false.
       oam_lambda_centroid_sum = 0.0_dblprec
       oam_lambda_centroid_count = 0
       oam_active = .true.
       oam_initialized = .true.
    end subroutine oam_init
+
+   !---------------------------------------------------------------------------------
+   !> @brief Return whether the current simulation step is an OAM sample step.
+   !---------------------------------------------------------------------------------
+   logical function oam_sample_due(mstep)
+      integer, intent(in) :: mstep
+
+      oam_sample_due = oam_active .and. mod(mstep-oam_rstep-1,oam_step_traj) == 0
+   end function oam_sample_due
 
    !---------------------------------------------------------------------------------
    !> @brief Sample the trajectory OAM and buffer one output row when scheduled.
@@ -323,33 +363,89 @@ contains
       real(dblprec), intent(in) :: mmom(oam_natom,oam_mensemble)
 
       integer :: k, j
-      integer :: nfinite(oam_ncolumns)
-      real(dblprec) :: row(oam_ncolumns), row_sum(oam_ncolumns)
+      integer :: excluded_origin, excluded_centroid
+      real(dblprec) :: row(oam_ncolumns)
+      real(dblprec) :: origin_l(1+oam_nsubblocks), origin_n(1+oam_nsubblocks)
+      real(dblprec) :: centroid_l(1+oam_nsubblocks), centroid_n(1+oam_nsubblocks)
+      real(dblprec) :: origin_l_k(1+oam_nsubblocks), origin_n_k(1+oam_nsubblocks)
+      real(dblprec) :: centroid_l_k(1+oam_nsubblocks), centroid_n_k(1+oam_nsubblocks)
+      real(dblprec) :: nm_sum, rx_sum, ry_sum, sigma_sum, centroid_weight
+      real(dblprec) :: sub_nm_sum(max(1,oam_nsubblocks))
 
-      if (.not.oam_active) return
-      if (mod(mstep-oam_rstep-1,oam_step_traj) /= 0) return
+      if (.not.oam_sample_due(mstep)) return
 
-      row_sum = 0.0_dblprec
-      nfinite = 0
+      ! Preserve the single-ensemble arithmetic and formatting path exactly.
+      if (oam_mensemble == 1) then
+         call oam_evaluate_ensemble(1,emom,mmom,row,origin_l_k,origin_n_k, &
+            centroid_l_k,centroid_n_k)
+         if (ieee_is_finite(row(2))) then
+            oam_lambda_centroid_sum = oam_lambda_centroid_sum + row(2)
+            oam_lambda_centroid_count = oam_lambda_centroid_count + 1
+         end if
+         call oam_buffer_row(mstep,row)
+         return
+      end if
+
+      origin_l = 0.0_dblprec
+      origin_n = 0.0_dblprec
+      centroid_l = 0.0_dblprec
+      centroid_n = 0.0_dblprec
+      nm_sum = 0.0_dblprec
+      rx_sum = 0.0_dblprec
+      ry_sum = 0.0_dblprec
+      sigma_sum = 0.0_dblprec
+      centroid_weight = 0.0_dblprec
+      excluded_origin = 0
+      excluded_centroid = 0
+      sub_nm_sum = 0.0_dblprec
       do k=1,oam_mensemble
-         call oam_evaluate_ensemble(k,emom,mmom,row)
-         do j=1,9
-            if (ieee_is_finite(row(j))) then
-               row_sum(j) = row_sum(j) + row(j)
-               nfinite(j) = nfinite(j) + 1
-            end if
+         call oam_evaluate_ensemble(k,emom,mmom,row,origin_l_k,origin_n_k, &
+            centroid_l_k,centroid_n_k)
+         nm_sum = nm_sum + row(3)
+         do j=1,oam_nsubblocks
+            sub_nm_sum(j) = sub_nm_sum(j) + row(9+3*(j-1)+3)
          end do
-         do j=10,oam_ncolumns
-            if (ieee_is_finite(row(j))) then
-               row_sum(j) = row_sum(j) + row(j)
-               nfinite(j) = nfinite(j) + 1
-            end if
+         do j=1,1+oam_nsubblocks
+            origin_l(j) = origin_l(j) + origin_l_k(j)
+            origin_n(j) = origin_n(j) + origin_n_k(j)
+            centroid_l(j) = centroid_l(j) + centroid_l_k(j)
+            centroid_n(j) = centroid_n(j) + centroid_n_k(j)
          end do
+         if (origin_n_k(1) <= 0.0_dblprec) excluded_origin = excluded_origin + 1
+         if (centroid_n_k(1) <= 0.0_dblprec) then
+            excluded_centroid = excluded_centroid + 1
+         else
+            centroid_weight = centroid_weight + centroid_n_k(1)
+            rx_sum = rx_sum + centroid_n_k(1)*row(7)
+            ry_sum = ry_sum + centroid_n_k(1)*row(8)
+            sigma_sum = sigma_sum + centroid_n_k(1)*row(9)
+         end if
       end do
       row = ieee_value(0.0_dblprec,ieee_quiet_nan)
-      do j=1,oam_ncolumns
-         if (nfinite(j) > 0) row(j) = row_sum(j)/real(nfinite(j),dblprec)
+      row(3) = nm_sum/real(oam_mensemble,dblprec)
+      row(5) = row(3)
+      if (origin_n(1) > 0.0_dblprec) row(1) = origin_l(1)/origin_n(1)
+      if (centroid_n(1) > 0.0_dblprec) then
+         row(2) = centroid_l(1)/centroid_n(1)
+         row(4) = row(3)*row(2)
+         row(6) = row(5)+row(4)
+         row(7) = rx_sum/centroid_weight
+         row(8) = ry_sum/centroid_weight
+         row(9) = sigma_sum/centroid_weight
+      end if
+      do j=1,oam_nsubblocks
+         if (origin_n(j+1) > 0.0_dblprec) row(9+3*(j-1)+1) = &
+            origin_l(j+1)/origin_n(j+1)
+         if (centroid_n(j+1) > 0.0_dblprec) row(9+3*(j-1)+2) = &
+            centroid_l(j+1)/centroid_n(j+1)
+         row(9+3*(j-1)+3) = sub_nm_sum(j)/real(oam_mensemble,dblprec)
       end do
+      if ((excluded_origin > 0 .or. excluded_centroid > 0) .and. &
+          .not.oam_ensemble_warning) then
+         write(*,'(1x,a,i0,a,i0,a)') 'WARNING: trajectory OAM excluded ensembles from lambda columns (origin=', &
+            excluded_origin, ', centroid=', excluded_centroid, ').'
+         oam_ensemble_warning = .true.
+      end if
       if (ieee_is_finite(row(2))) then
          oam_lambda_centroid_sum = oam_lambda_centroid_sum + row(2)
          oam_lambda_centroid_count = oam_lambda_centroid_count + 1
@@ -368,15 +464,21 @@ contains
       oam_initialized = .false.
    end subroutine oam_flush
 
-   subroutine oam_evaluate_ensemble(k,emom,mmom,row)
+   subroutine oam_evaluate_ensemble(k,emom,mmom,row,origin_l,origin_n,centroid_l,centroid_n)
       integer, intent(in) :: k
       real(dblprec), intent(in) :: emom(3,oam_natom,oam_mensemble)
       real(dblprec), intent(in) :: mmom(oam_natom,oam_mensemble)
       real(dblprec), intent(out) :: row(:)
+      real(dblprec), intent(out) :: origin_l(:), origin_n(:), centroid_l(:), centroid_n(:)
 
       integer :: i, ip, itri, isub, offset
-      real(dblprec) :: nm, lambda_origin, lambda_centroid, rx, ry, sigma
+      real(dblprec) :: nm, norm, lambda_origin, lambda_centroid, rx, ry, sigma
       logical :: centroid_valid, norm_valid
+
+      origin_l = 0.0_dblprec
+      origin_n = 0.0_dblprec
+      centroid_l = 0.0_dblprec
+      centroid_n = 0.0_dblprec
 
       do i=1,oam_natom
          oam_psi(i) = cmplx(dot_product(emom(:,i,k),oam_frame(:,1)), &
@@ -412,7 +514,7 @@ contains
 
       row = ieee_value(0.0_dblprec,ieee_quiet_nan)
       call oam_group_metrics(k,emom,mmom,0,nm,lambda_origin,lambda_centroid,rx,ry,sigma, &
-         centroid_valid,norm_valid)
+         centroid_valid,norm_valid,norm)
       row(1) = lambda_origin
       row(2) = lambda_centroid
       row(3) = nm
@@ -421,7 +523,11 @@ contains
       row(8) = ry
       row(9) = sigma
       if (norm_valid) then
+         origin_l(1) = row(1)*norm
+         origin_n(1) = norm
          if (centroid_valid) then
+            centroid_l(1) = row(2)*norm
+            centroid_n(1) = norm
             row(4) = nm*lambda_centroid
             row(6) = row(5)+row(4)
          end if
@@ -430,20 +536,29 @@ contains
       do isub=1,oam_nsubblocks
          offset = 9 + 3*(isub-1)
          call oam_group_metrics(k,emom,mmom,isub,nm,lambda_origin,lambda_centroid,rx,ry,sigma, &
-            centroid_valid,norm_valid)
+            centroid_valid,norm_valid,norm)
          row(offset+1) = lambda_origin
          row(offset+2) = lambda_centroid
          row(offset+3) = nm
+         if (norm_valid) then
+            origin_l(isub+1) = row(offset+1)*norm
+            origin_n(isub+1) = norm
+            if (centroid_valid) then
+               centroid_l(isub+1) = row(offset+2)*norm
+               centroid_n(isub+1) = norm
+            end if
+         end if
       end do
    end subroutine oam_evaluate_ensemble
 
    subroutine oam_group_metrics(k,emom,mmom,group,nm,lambda_origin,lambda_centroid,rx,ry,sigma, &
-      centroid_valid,norm_valid)
+      centroid_valid,norm_valid,norm_out)
       integer, intent(in) :: k, group
       real(dblprec), intent(in) :: emom(3,oam_natom,oam_mensemble)
       real(dblprec), intent(in) :: mmom(oam_natom,oam_mensemble)
       real(dblprec), intent(out) :: nm, lambda_origin, lambda_centroid, rx, ry, sigma
       logical, intent(out) :: centroid_valid, norm_valid
+      real(dblprec), intent(out) :: norm_out
 
       integer :: i
       real(dblprec) :: weight, norm, psi_weight, angle
@@ -460,6 +575,7 @@ contains
             norm = norm + abs(oam_psi(i))**2*weight
          end if
       end do
+      norm_out = norm
 
       lambda_origin = ieee_value(0.0_dblprec,ieee_quiet_nan)
       lambda_centroid = ieee_value(0.0_dblprec,ieee_quiet_nan)
@@ -582,7 +698,9 @@ contains
       if (ios /= 0) error stop 'Trajectory OAM: unable to open output file'
       write(ofileno,'(a)') '# psi = m_x + i*m_y in the global frame fixed at oam_init; lambda_L > 0 means magnon OAM along +z.'
       write(ofileno,'(a,a)') '# oam_weight = ',trim(oam_weight)
-      if (oam_gradient_method == 'spectral') then
+      if (oam_gradient_auto) then
+         write(ofileno,'(a,a,a)') '# oam_gradient = ',trim(oam_gradient_method),' (auto)'
+      else if (oam_gradient_method == 'spectral') then
          write(ofileno,'(a)') '# oam_gradient = spectral (Brillouin-zone fold)'
       else
          write(ofileno,'(a,a)') '# oam_gradient = ',trim(oam_gradient_method)
@@ -708,9 +826,9 @@ contains
       if (oam_spectral_boundary) return
 
       oam_fft_forward = fftw_plan_dft_2d(int(oam_n2,C_INT),int(oam_n1,C_INT), &
-         oam_fft_field,oam_fft_hat,FFTW_FORWARD,FFTW_MEASURE)
+         oam_fft_field,oam_fft_hat,FFTW_FORWARD,FFTW_ESTIMATE)
       oam_fft_backward = fftw_plan_dft_2d(int(oam_n2,C_INT),int(oam_n1,C_INT), &
-         oam_fft_work,oam_fft_result,FFTW_BACKWARD,FFTW_MEASURE)
+         oam_fft_work,oam_fft_result,FFTW_BACKWARD,FFTW_ESTIMATE)
       oam_spectral_ready = c_associated(oam_fft_forward) .and. c_associated(oam_fft_backward)
    end subroutine oam_setup_spectral
 #endif
@@ -764,6 +882,53 @@ contains
       end do
 #endif
    end subroutine oam_spectral_gradient
+
+#ifdef USE_FFTW
+   subroutine oam_release_spectral()
+      integer :: i_stat, i_all
+
+      if (c_associated(oam_fft_forward)) then
+         call fftw_destroy_plan(oam_fft_forward)
+         oam_fft_forward = C_NULL_PTR
+      end if
+      if (c_associated(oam_fft_backward)) then
+         call fftw_destroy_plan(oam_fft_backward)
+         oam_fft_backward = C_NULL_PTR
+      end if
+      if (allocated(oam_kx)) then
+         i_all=-product(shape(oam_kx))*kind(oam_kx)
+         deallocate(oam_kx,stat=i_stat)
+         call memocc(i_stat,i_all,'oam_kx','oam_release_spectral')
+      end if
+      if (allocated(oam_ky)) then
+         i_all=-product(shape(oam_ky))*kind(oam_ky)
+         deallocate(oam_ky,stat=i_stat)
+         call memocc(i_stat,i_all,'oam_ky','oam_release_spectral')
+      end if
+      if (allocated(oam_fft_field)) then
+         i_all=-product(shape(oam_fft_field))*kind(oam_fft_field)
+         deallocate(oam_fft_field,stat=i_stat)
+         call memocc(i_stat,i_all,'oam_fft_field','oam_release_spectral')
+      end if
+      if (allocated(oam_fft_hat)) then
+         i_all=-product(shape(oam_fft_hat))*kind(oam_fft_hat)
+         deallocate(oam_fft_hat,stat=i_stat)
+         call memocc(i_stat,i_all,'oam_fft_hat','oam_release_spectral')
+      end if
+      if (allocated(oam_fft_work)) then
+         i_all=-product(shape(oam_fft_work))*kind(oam_fft_work)
+         deallocate(oam_fft_work,stat=i_stat)
+         call memocc(i_stat,i_all,'oam_fft_work','oam_release_spectral')
+      end if
+      if (allocated(oam_fft_result)) then
+         i_all=-product(shape(oam_fft_result))*kind(oam_fft_result)
+         deallocate(oam_fft_result,stat=i_stat)
+         call memocc(i_stat,i_all,'oam_fft_result','oam_release_spectral')
+      end if
+      oam_spectral_ready = .false.
+      oam_spectral_boundary = .false.
+   end subroutine oam_release_spectral
+#endif
 
    subroutine oam_release()
       integer :: i_stat, i_all

@@ -68,7 +68,11 @@ A periodic mesh must tile the cell exactly (`total_area = N1*N2*|C1 x C2|`). An 
 
 **C8b — Explicit frame axis CONFIRMED (2026-09-29).** The optional key `oam_axis x y z` supplies the frame's `e_z`. The axis is normalised at `oam_init` and the C8 collinearity check uses this axis. When the key is absent, `e_z` defaults to the normalised average moment at `oam_init`, preserving C8's current behaviour. The trajectory header records the normalised axis and whether it was explicit or defaulted.
 
-**C17 — Gradient method CONFIRMED (2026-09-29).** The optional key `oam_gradient fem|spectral` selects the trajectory gradient method. The default is `fem`, preserving the linear-FEM path. `spectral` requires `BC1 = BC2 = 'P'` and a build with `USE_FFTW`; otherwise `oam_init` refuses with a clear message and produces no OAM numbers. There is no silent fallback to FEM.
+**C17 — Gradient method (amended 2026-09-29).** The optional key `oam_gradient auto|fem|spectral` selects the trajectory gradient method.
+
+- The default is `auto`. It resolves to `spectral` when the build defines `USE_FFTW`, `BC1 = BC2 = 'P'`, and the shortest-image search stays inside its bounds. Otherwise it resolves to `fem`.
+- The resolution is printed once to stdout and recorded in the header as `# oam_gradient = <method> (auto)`.
+- An explicit `spectral` keeps the strict refusal described below. An explicit `fem` always uses FEM.
 
 For `spectral`, each sublattice `it` and layer `z` is an `N1×N2` grid. FFT index `(j1, j2)` represents the wave vectors `k(a,b) = ((j1 + a*N1)/N1)*b1 + ((j2 + b*N2)/N2)*b2` for integers `a, b`, where `b1, b2` are `2*pi` times the reciprocal basis of the unit-cell vectors `C1, C2`.
 
@@ -78,6 +82,15 @@ The derivative multiplier is the shortest member of that set: its first-Brilloui
 - The search covers `a, b ∈ {-2,…,2}`. `oam_init` refuses if any shortest image lies on the search boundary (`|a| = 2` or `|b| = 2`).
 
 The gradient is exact for fields whose content lies strictly inside the sublattice's first Brillouin zone. Weights, centroid, guards and every output column are unchanged from C3–C6. The `oam_traj` header records `oam_gradient = spectral (Brillouin-zone fold)`.
+
+**C18 — Ensembles (approved 2026-09-29).** With `Mensemble > 1`, each sample aggregates over the ensembles `k`.
+
+- λ columns (origin, centroid and per-sublattice) are norm-weighted: `λ = Σ_k L_k / Σ_k n_k`, where `L_k = Σ_i ℓ_i w_i` and `n_k = Σ_i |ψ_i|² w_i`. The sums run over the ensembles for which that column is valid: the norm guard for origin columns; the norm and spread guards for centroid columns.
+- `N_m` and `dSz_hbar` are arithmetic means over all ensembles.
+- `Lz_tot_hbar = N_m × lambda_L_centroid` and `balance = dSz_hbar + Lz_tot_hbar`, both from the aggregated values, so the C5 relations hold.
+- `R_x`, `R_y`, `sigma_psi` are `n_k`-weighted means over the centroid-valid ensembles.
+- If any ensemble is excluded from a λ column at a sample, stdout gets a one-time warning with the count.
+- With `Mensemble = 1`, output is byte-identical to before.
 
 ## Part II — LSWT magnon OAM (`do_oam_lswt`, Fishman formulation)
 

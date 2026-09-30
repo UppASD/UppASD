@@ -247,7 +247,7 @@ def evaluate(m, coords, simp, P, N1, N2, C1, C2, periodic, origin=None,
     Nm = float(np.sum(mmom / g * (1.0 - m[2])))
     out = dict(N_m=Nm)
     if norm < 1e-14:
-        out.update(lambda_L_origin=float("nan"), lambda_L_centroid=float("nan"),
+        out.update(norm_psi=float(norm), lambda_L_origin=float("nan"), lambda_L_centroid=float("nan"),
                    R_x=float("nan"), R_y=float("nan"), sigma_psi=float("nan"))
         return out
 
@@ -272,11 +272,61 @@ def evaluate(m, coords, simp, P, N1, N2, C1, C2, periodic, origin=None,
     half = 0.5 * min(np.linalg.norm(N1 * np.asarray(C1)[:2]), np.linalg.norm(N2 * np.asarray(C2)[:2]))
     if sig > sigma_max * half:
         lc = float("nan")
-    out.update(lambda_L_origin=lo, lambda_L_centroid=lc, R_x=float(R[0]), R_y=float(R[1]),
+    out.update(norm_psi=float(norm), lambda_L_origin=lo, lambda_L_centroid=lc, R_x=float(R[0]), R_y=float(R[1]),
                sigma_psi=sig, Lz_tot_hbar=Nm * lc if np.isfinite(lc) else float("nan"),
                dSz_hbar=Nm)
     out["balance"] = out["dSz_hbar"] + out["Lz_tot_hbar"]
     return out
+
+
+def evaluate_ensembles(fields, coords, simp, P, N1, N2, C1, C2, periodic,
+                       origin=None, weight="site", mmoms=None, g=2.0,
+                       sigma_max=0.6, gradient="fem", NA=1, axis=None):
+    """Aggregate trajectory columns according to contract C18.
+
+    The per-ensemble ``norm_psi`` value is internal oracle metadata.  Lambda
+    columns aggregate their unnormalised first moments over valid norms;
+    magnetic columns are arithmetic means, and centroid diagnostics use the
+    norm weights of centroid-valid ensembles.
+    """
+    fields = list(fields)
+    if not fields:
+        raise ValueError("at least one ensemble field is required")
+    if mmoms is None:
+        mmoms = [None] * len(fields)
+    common_axis = axis
+    if common_axis is None:
+        common_axis = np.sum(np.stack(fields), axis=(0, 2))
+    refs = [evaluate(field, coords, simp, P, N1, N2, C1, C2, periodic,
+                     origin=origin, weight=weight, mmom=mmom, g=g,
+                     sigma_max=sigma_max, gradient=gradient, NA=NA, axis=common_axis)
+            for field, mmom in zip(fields, mmoms)]
+    count = float(len(refs))
+    result = {"N_m": float(np.mean([ref["N_m"] for ref in refs]))}
+    result["dSz_hbar"] = result["N_m"]
+    origin_l = sum(ref["lambda_L_origin"] * ref["norm_psi"]
+                   for ref in refs if np.isfinite(ref["lambda_L_origin"]))
+    origin_n = sum(ref["norm_psi"] for ref in refs
+                   if np.isfinite(ref["lambda_L_origin"]))
+    centroid_refs = [ref for ref in refs if np.isfinite(ref["lambda_L_centroid"])]
+    centroid_l = sum(ref["lambda_L_centroid"] * ref["norm_psi"]
+                     for ref in centroid_refs)
+    centroid_n = sum(ref["norm_psi"] for ref in centroid_refs)
+    result["lambda_L_origin"] = origin_l / origin_n if origin_n > 0 else float("nan")
+    result["lambda_L_centroid"] = (centroid_l / centroid_n
+                                    if centroid_n > 0 else float("nan"))
+    if centroid_n > 0:
+        result["R_x"] = sum(ref["R_x"] * ref["norm_psi"] for ref in centroid_refs) / centroid_n
+        result["R_y"] = sum(ref["R_y"] * ref["norm_psi"] for ref in centroid_refs) / centroid_n
+        result["sigma_psi"] = sum(ref["sigma_psi"] * ref["norm_psi"] for ref in centroid_refs) / centroid_n
+    else:
+        result.update(R_x=float("nan"), R_y=float("nan"), sigma_psi=float("nan"))
+    result["Lz_tot_hbar"] = (result["N_m"] * result["lambda_L_centroid"]
+                              if np.isfinite(result["lambda_L_centroid"]) else float("nan"))
+    result["balance"] = result["dSz_hbar"] + result["Lz_tot_hbar"]
+    result["_excluded_origin"] = sum(not np.isfinite(ref["lambda_L_origin"]) for ref in refs)
+    result["_excluded_centroid"] = sum(not np.isfinite(ref["lambda_L_centroid"]) for ref in refs)
+    return result
 
 
 # ------------------------------------------------------------ test fields --

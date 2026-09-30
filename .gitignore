@@ -49,3 +49,7 @@ dist/
 eggs/
 *.egg*
 venv
+# Generated OAM harness work directories
+traj_checks/
+bridge_checks/
+bridge_band_checks/

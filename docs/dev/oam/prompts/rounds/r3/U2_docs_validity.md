@@ -8,7 +8,7 @@
    - The limit is gradient accuracy at short wavelength.
 2. `BRIDGE.md` §5: state plainly that B5.4 validates the oracle against LSWT, not the production trajectory kernel.
 3. `OAM_IO.md`:
-   - Document `oam_gradient fem|spectral` (C17, as amended by U1) and `oam_axis x y z` (C8b), with defaults and refusal conditions.
+   - Document `oam_gradient auto|fem|spectral` (C17, as amended by U5) and `oam_axis x y z` (C8b), with defaults and refusal conditions.
    - Spectral needs a build that defines `USE_FFTW`. MKL-FFT builds don't define it, so they refuse spectral.
 4. `OAM_QUESTIONS.md` (around line 83): mark the `oam_axis` proposal as implemented (C8b).
 
@@ -23,7 +23,7 @@ Reproduce these values yourself with `oracle_traj.evaluate(..., gradient="fem")`
 
 Then replace the validity sentence in C3, `OAM_IO.md` and the `oam_traj` header with:
 
-> FEM λ is biased low as k·a grows (square lattice: about −X% at k·a = 0.5, −Y% at 1.0, relative to k·a = 0). Use `oam_gradient spectral` on periodic cells for k·a ≳ 0.25.
+> FEM is biased at short wavelength; `auto` selects spectral where possible.
 
 **Header.**
 - Print the FEM validity line only when `oam_gradient = fem`.
@@ -32,5 +32,5 @@ Then replace the validity sentence in C3, `OAM_IO.md` and the `oam_traj` header 
 **Frame note (`OAM_IO.md`).** For boosted, driven or restart-loaded states, recommend setting `oam_axis` to the ground-state axis. In the C13 case, the default axis tilts by about 0.2° and shifts λ_centroid by 6% (0.903 against 0.957).
 
 **Acceptance:**
-- `git grep -n "cannot recover" -- docs tests source ':!docs/dev/thin*'` returns nothing.
+- `git grep -n "cannot recover" -- docs tests source ':!docs/dev/oam/prompts/rounds/*'` returns nothing.
 - Both harnesses still ALL PASS.

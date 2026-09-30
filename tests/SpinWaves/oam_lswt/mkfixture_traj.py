@@ -25,7 +25,8 @@ LATTICES = {
 
 
 def write_case(dirname, *, lattice="square", N=41, bc=("P", "P"), shift=(0.0, 0.0),
-               field=None, extra_keys=None, simid="oamtest", layers=1):
+               field=None, extra_keys=None, simid="oamtest", layers=1,
+               ensemble_fields=None):
     """field: callable coords(3,Natom) -> m(3,Natom).  Returns coords."""
     if layers < 1:
         raise ValueError("layers must be positive")
@@ -41,8 +42,13 @@ def write_case(dirname, *, lattice="square", N=41, bc=("P", "P"), shift=(0.0, 0.
     coords = np.concatenate([xy + np.array([0.0, 0.0, float(z)])[:, None]
                              for z in range(layers)], axis=1)
     nsite = N * N * layers
-    m = field(coords) if field is not None else np.vstack([np.zeros((2, nsite)), np.ones(nsite)])
-    m = m / np.linalg.norm(m, axis=0)
+    if ensemble_fields is None:
+        ensemble_fields = [field(coords) if field is not None else
+                           np.vstack([np.zeros((2, nsite)), np.ones(nsite)])]
+    m = np.stack([(value(coords) if callable(value) else value) /
+                  np.linalg.norm(value(coords) if callable(value) else value, axis=0)
+                  for value in ensemble_fields], axis=2)
+    nens = m.shape[2]
     with open(f"{dirname}/posfile", "w") as f:
         f.write(f"1 1 {shift[0]:.10f} {shift[1]:.10f} 0.0\n")
     with open(f"{dirname}/momfile", "w") as f:
@@ -52,16 +58,19 @@ def write_case(dirname, *, lattice="square", N=41, bc=("P", "P"), shift=(0.0, 0.
             f.write(f"1 1 {d[0]:.10f} {d[1]:.10f} 0.0 1.0\n")
     with open(f"{dirname}/restart.in", "w") as f:
         f.write("#" * 80 + "\n# File type: R\n# Simulation type: S\n"
-                f"# Number of atoms: {nsite:9d}\n# Number of ensembles:         1\n" + "#" * 80 + "\n")
+                f"# Number of atoms: {nsite:9d}\n# Number of ensembles: {nens:9d}\n" + "#" * 80 + "\n")
         f.write("  # iter     ens   iatom           |Mom|             M_x             M_y             M_z\n")
-        for i in range(nsite):
-            f.write(f"{0:8d}{1:8d}{i+1:8d}  {1.0:16.8E}{m[0,i]:24.16E}{m[1,i]:24.16E}{m[2,i]:24.16E}\n")
+        for k in range(nens):
+            for i in range(nsite):
+                f.write(f"{0:8d}{k+1:8d}{i+1:8d}  {1.0:16.8E}"
+                        f"{m[0,i,k]:24.16E}{m[1,i,k]:24.16E}{m[2,i,k]:24.16E}\n")
     keys = {"do_oam_traj": "Y", "oam_step": "1"}
     keys.update(extra_keys or {})
     c1, c2 = L["C1"], L["C2"]
     with open(f"{dirname}/inpsd.dat", "w") as f:
         f.write(f"""simid {simid}
 ncell {N} {N} {layers}
+Mensemble {nens}
 BC {bc[0]} {bc[1]} 0
 cell {c1[0]:.10f} {c1[1]:.10f} 0.0
      {c2[0]:.10f} {c2[1]:.10f} 0.0

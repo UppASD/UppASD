@@ -38,6 +38,9 @@ sampling is sufficient in principle, but the spatial gradient is inaccurate
 at this large wave vector. The generated run is retained outside the
 repository at the path above, and no source or oracle change was made.
 
+See [BRIDGE.md §6](BRIDGE.md#6-production-kernel-bridge) for the settled
+production-kernel validation.
+
 ## 2026-09-28 — B5.4 packet/convention escalation
 
 The oracle was extended with reciprocal-supercell packets, explicit particle

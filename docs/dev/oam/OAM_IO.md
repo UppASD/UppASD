@@ -26,11 +26,13 @@ Trajectory inputs are:
 - `oam_sublattice i j ...`: optional one-based unit-cell sublattice list. If
   omitted, all sites are included. For `NA > 1`, omission also appends one
   `lambda_L_origin_sN lambda_L_centroid_sN N_m_sN` block per sublattice.
-- `oam_gradient fem|spectral`: gradient method, default `fem`. `spectral`
-  requires `BC1 = BC2 = P` and a build that defines `USE_FFTW`; MKL-FFT builds
-  do not define `USE_FFTW`, so they refuse spectral mode. There is no silent
-  fallback to FEM. The spectral method uses the first-Brillouin-zone fold
-  defined in C17 and refuses if its finite image search reaches the boundary.
+- `oam_gradient auto|fem|spectral`: gradient method, default `auto`. `auto`
+  resolves to `spectral` for periodic in-plane cells on `USE_FFTW` builds when
+  the first-Brillouin-zone image search is inside its bounds; otherwise it
+  resolves to `fem`. MKL-FFT builds therefore resolve `auto` to `fem`. An
+  explicit `spectral` requires `BC1 = BC2 = P` and `USE_FFTW`, and refuses
+  when those conditions or the finite image search fail. The spectral method
+  uses the first-Brillouin-zone fold defined in C17.
   Spectral trajectory OAM is valid only when the field content lies strictly
   inside each sublattice's first Brillouin zone. K- and M-centred packets are
   out of scope for both spectral and FEM gradients.
@@ -63,9 +65,44 @@ amplitude, while LSWT OAM is intrinsic band OAM in the harmonic limit. In the
 particle-only narrow-wavepacket bridge convention used by B5.4,
 `lambda_L_centroid = l_envelope - 2 F_n(k0)/hbar`; this is a derived bridge
 relation, not an assertion that the two standalone observables are equal.
-FEM λ is biased low as `k·a` grows (square lattice: about `−8.15%` at
-`k·a = 0.5`, `−30.60%` at `1.0`, relative to `k·a = 0`). Use
-`oam_gradient spectral` on periodic cells for `k·a ≳ 0.25`.
+FEM λ is biased at short wavelength; `auto` selects spectral where possible.
+On a square lattice the measured FEM bias is about `−8.15%` at `k·a = 0.5`
+and `−30.60%` at `1.0`, relative to `k·a = 0`.
+
+When explicit `spectral` mode refuses because the image search reaches its
+finite boundary, the in-plane cell vectors are not reduced. Re-express `C1,
+C2` as a reduced basis; for example replace `C2 = (1.5, 0.3)` by
+`C2 − C1 = (0.5, 0.3)`.
+
+With `Mensemble > 1`, λ columns use norm-weighted first moments over valid
+ensembles. `N_m` and `dSz_hbar` are arithmetic means; `Lz_tot_hbar` and
+`balance` are then recomputed from the aggregate, and centroid diagnostics
+use norm weights over centroid-valid ensembles. A warning reports excluded
+ensembles once. For `Mensemble = 1`, output is unchanged.
+
+The observable is intended for coherent packets. In a finite-temperature run,
+the origin columns can remain finite while the centroid spread guard rejects
+most or all `lambda_L_centroid` values for delocalised thermal magnons; this
+is expected, not a crash. An exactly saturated initial FM sample has zero
+transverse norm and is reported as `NaN` by the same guard before thermal
+fluctuations develop.
+
+The following Debug-build timing measurements use `OMP_NUM_THREADS=1`,
+`oam_step 10`, `NA = 2`, and a frozen FM packet on an Apple M-series host.
+The setup column is the one-step wall time (FFTW plan creation plus the first
+sample); the per-sample column is `(101-step wall − one-step wall) / 10`, and
+there are eleven OAM samples in the 101-step run. The OAM fraction subtracts
+the matched no-OAM baseline; values below one percent are within run noise.
+They are a performance reference, not an acceptance gate.
+
+| grid | spectral setup+first | spectral/sample | spectral OAM/total | FEM setup+first | FEM/sample | FEM OAM/total |
+|---:|---:|---:|---:|---:|---:|---:|
+| 128² | 0.826 s | 0.0647 s | <1% | 0.155 s | 0.1261 s | <1% |
+| 256² | 0.585 s | 0.5012 s | 7.8% | 0.601 s | 0.5061 s | 8.9% |
+| 512² | 2.411 s | 1.9976 s | 12.2% | 2.390 s | 1.9784 s | 11.4% |
+
+The 512² `FFTW_MEASURE` setup took 2.86 s, so the plans use
+`FFTW_ESTIMATE`; the table reports the post-switch measurements.
 
 For boosted, driven or restart-loaded states, use `oam_axis` for the
 ground-state axis. In the C13 check the default axis tilts by about `0.2°`

@@ -56,6 +56,17 @@ SIGMA = 4.0
 TIMESTEP_S = 1.0e-16
 HBAR_MEV_PS = 0.6582119569
 
+# U5a/B5.5 angularly varying honeycomb packet.  Keep this implementation in
+# the harness: the archived reference under docs/dev/oam/prompts/rounds/r4 is
+# an audit record, not a
+# runtime dependency.
+BAND_N = 90
+BAND_DK = 0.15
+BAND_NPHI = 192
+BAND_NR = 13
+BAND_D = 1.0
+BAND = 0
+
 
 def coords_honeycomb(n: int = N) -> np.ndarray:
     """Return the atom order used by UppASD for the generated posfile."""
@@ -110,7 +121,8 @@ def packet(coords: np.ndarray, mode: np.ndarray, k0: float, ell: int,
 def write_trajectory_case(directory: Path, *, simid: str, k0: float,
                            mode: np.ndarray, ell: int, nstep: int,
                            gradient: str = "fem", n: int = N,
-                           clean: bool = False) -> np.ndarray:
+                           clean: bool = False, damping: float = 0.0,
+                           temperature: float = 0.0) -> np.ndarray:
     """Write one trajectory input and return its prescribed complex packet."""
 
     directory.mkdir(parents=True, exist_ok=True)
@@ -138,8 +150,8 @@ initmag 4
 restartfile ./restart.in
 ip_mode N
 mode S
-temp 0.0
-damping 0.0
+temp {temperature}
+damping {damping}
 Nstep {nstep}
 timestep {TIMESTEP_S:.16e}
 do_avrg N
@@ -233,6 +245,190 @@ def result(label: str, passed: bool, detail: str) -> bool:
     return passed
 
 
+def band_ring_gauge(k: float):
+    phis = 2.0 * np.pi * np.arange(BAND_NPHI) / BAND_NPHI
+    us = [oracle_honey.evecs(np.array([k * np.cos(phi), k * np.sin(phi)]),
+                             D=BAND_D)[1][:, BAND] for phi in phis]
+    for index in range(1, BAND_NPHI):
+        overlap = np.vdot(us[index - 1], us[index])
+        us[index] = us[index] * np.conj(overlap) / abs(overlap)
+    theta = np.angle(np.vdot(us[-1], us[0]))
+    return phis, [u * np.exp(1j * index * theta / BAND_NPHI)
+                  for index, u in enumerate(us)]
+
+
+def band_packet_with_gradient(xy: np.ndarray, center: np.ndarray, k0: float,
+                              ell: int):
+    krs = np.linspace(k0 - 2.5 * BAND_DK, k0 + 2.5 * BAND_DK, BAND_NR)
+    positions = xy[:2] - center[:, None]
+    sublattice = np.arange(xy.shape[1]) % 2
+    field = np.zeros(xy.shape[1], complex)
+    grad_x = np.zeros(xy.shape[1], complex)
+    grad_y = np.zeros(xy.shape[1], complex)
+    previous = None
+    for kr in krs:
+        phis, spinors = band_ring_gauge(kr)
+        if previous is not None:
+            overlap = np.vdot(previous, spinors[0])
+            spinors = [u * np.conj(overlap) / abs(overlap) for u in spinors]
+        previous = spinors[0]
+        envelope = np.exp(-(kr - k0) ** 2 / (2.0 * BAND_DK ** 2))
+        for phi, spinor in zip(phis, spinors):
+            wavevector = kr * np.array([np.cos(phi), np.sin(phi)])
+            term = (envelope * np.exp(1j * ell * phi) *
+                    spinor[sublattice] * np.exp(1j * (wavevector @ positions)))
+            field += term
+            grad_x += 1j * wavevector[0] * term
+            grad_y += 1j * wavevector[1] * term
+    scale = 0.05 / np.abs(field).max()
+    return field * scale, grad_x * scale, grad_y * scale
+
+
+def band_exact_lambda(xy: np.ndarray, cell: np.ndarray, inv_cell: np.ndarray,
+                      field: np.ndarray, grad_x: np.ndarray,
+                      grad_y: np.ndarray) -> float:
+    weight = np.abs(field) ** 2
+    theta = 2.0 * np.pi * ((inv_cell @ xy[:2]) % 1.0)
+    reduced_center = np.mod(np.arctan2(
+        (weight * np.sin(theta)).sum(axis=1),
+        (weight * np.cos(theta)).sum(axis=1)) / (2.0 * np.pi), 1.0)
+    center = cell @ reduced_center
+    reduced = inv_cell @ (xy[:2] - center[:, None])
+    reduced -= np.round(reduced)
+    lever = cell @ reduced
+    return float(np.sum(np.imag(np.conj(field) *
+                                (lever[0] * grad_y - lever[1] * grad_x))) /
+                 weight.sum())
+
+
+def band_lswt_prediction(k0: float, ell: int) -> float:
+    krs = np.linspace(k0 - 2.5 * BAND_DK, k0 + 2.5 * BAND_DK, BAND_NR)
+    kk = np.linspace(0.0, krs[-1], 400)
+    berry = oracle_honey.F_of_k(kk, BAND, D=BAND_D, nphi=384)
+    berry_at_packet = np.interp(krs, kk, berry)
+    weight = np.exp(-(krs - k0) ** 2 / BAND_DK ** 2) * krs
+    return float(ell - 2.0 * np.sum(weight * berry_at_packet) / weight.sum())
+
+
+def write_band_case(directory: Path, field: np.ndarray, simid: str,
+                    gradient: str) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
+    tau = [np.array(BASIS[0][:2]), np.array(BASIS[1][:2])]
+    (directory / "posfile").write_text("".join(
+        f"{index + 1} {index + 1} {position[0]:.14f} "
+        f"{position[1]:.14f} 0.0\n" for index, position in enumerate(tau)))
+    (directory / "momfile").write_text(
+        "1 1 1.0 0.0 0.0 1.0\n2 1 1.0 0.0 0.0 1.0\n")
+    nn = [(0.5, S3 / 6.0), (-0.5, S3 / 6.0), (0.0, -S3 / 3.0)]
+    (directory / "jfile").write_text(
+        "".join(f"1 2 {dx:.14f} {dy:.14f} 0.0 1.0\n" for dx, dy in nn) +
+        "".join(f"2 1 {-dx:.14f} {-dy:.14f} 0.0 1.0\n" for dx, dy in nn))
+    mz = np.sqrt(1.0 - np.abs(field) ** 2)
+    with (directory / "restart.in").open("w") as handle:
+        handle.write("#" * 80 + "\n# File type: R\n# Simulation type: S\n")
+        handle.write(f"# Number of atoms: {field.size:9d}\n")
+        handle.write("# Number of ensembles:         1\n" + "#" * 80 + "\n")
+        handle.write("  # iter     ens   iatom           |Mom|             M_x             M_y             M_z\n")
+        for index, value in enumerate(field):
+            handle.write(f"{0:8d}{1:8d}{index + 1:8d}  {1.0:16.8E}"
+                         f"{value.real:24.16E}{value.imag:24.16E}"
+                         f"{mz[index]:24.16E}\n")
+    (directory / "inpsd.dat").write_text(f"""simid {simid}
+ncell {BAND_N} {BAND_N} 1
+BC P P 0
+cell 1.0 0.0 0.0
+     0.5 {S3 / 2.0:.14f} 0.0
+     0.0 0.0 1.0
+Sym 0
+posfile ./posfile
+posfiletype C
+momfile ./momfile
+exchange ./jfile
+maptype 1
+do_prnstruct 1
+initmag 4
+restartfile ./restart.in
+ip_mode N
+mode S
+temp 0.0
+damping 0.0
+Nstep 1
+timestep 1e-20
+do_avrg N
+do_oam_traj Y
+oam_step 1
+oam_gradient {gradient}
+oam_axis 0 0 1
+""")
+
+
+def run_band_case(binary: str, directory: Path, field: np.ndarray,
+                  gradient: str, simid: str) -> tuple[float | None, str]:
+    write_band_case(directory, field, simid, gradient)
+    executable = (shutil.which(binary) if os.path.sep not in binary
+                  else str(Path(binary).expanduser().resolve()))
+    if executable is None:
+        raise FileNotFoundError(f"UppASD executable not found: {binary}")
+    env = os.environ.copy()
+    env.setdefault("OMP_NUM_THREADS", "1")
+    completed = subprocess.run([executable], cwd=directory, text=True,
+                               capture_output=True, env=env)
+    log = completed.stdout + completed.stderr
+    (directory / "uppasd.log").write_text(log)
+    if completed.returncode:
+        tail = "\n".join(log.splitlines()[-30:])
+        raise RuntimeError(f"UppASD failed in {directory}:\n{tail}")
+    output = directory / f"oam_traj.{simid}.out"
+    if not output.exists():
+        return None, log
+    rows = [line.split() for line in output.read_text().splitlines()
+            if line.strip() and not line.lstrip().startswith("#")]
+    return (float(rows[0][2]) if rows else None), log
+
+
+def run_band_check(binary: str, workdir: Path) -> int:
+    cell = np.column_stack((BAND_N * C1[:2], BAND_N * C2[:2]))
+    inv_cell = np.linalg.inv(cell)
+    xy = coords_honeycomb(BAND_N)
+    center = xy[:2].mean(axis=1)
+    records = []
+    spectral_probe = None
+    for k0 in (1.0, 2.0):
+        for ell in (0, 1):
+            field, grad_x, grad_y = band_packet_with_gradient(xy, center, k0, ell)
+            exact = band_exact_lambda(xy, cell, inv_cell, field, grad_x, grad_y)
+            target = band_lswt_prediction(k0, ell)
+            spectral, log = run_band_case(binary, workdir / f"s{k0:g}{ell}",
+                                          field, "spectral", f"b55s{k0:g}{ell}")
+            if spectral is None and spectral_probe is None:
+                spectral_probe = log
+            fem, _ = run_band_case(binary, workdir / f"f{k0:g}{ell}",
+                                   field, "fem", f"b55f{k0:g}{ell}")
+            records.append((k0, ell, spectral, exact, target, fem))
+    if all(item[2] is None for item in records):
+        if spectral_probe and "requires a build with USE_FFTW" in spectral_probe:
+            print("[SKIP] B5.5 band bridge: binary lacks FFTW")
+            return 0
+        raise RuntimeError("B5.5 band bridge produced no spectral output")
+    if any(item[2] is None for item in records):
+        raise RuntimeError("B5.5 band bridge produced incomplete spectral output")
+    for k0, ell, spectral, exact, target, fem in records:
+        print(f"B5.5 k0={k0:.1f} l={ell}: spectral {spectral:+.6f} | "
+              f"exact {exact:+.6f} | LSWT l-2<F> {target:+.6f} | FEM {fem:+.6f}")
+    by_key = {(k0, ell): (spectral, exact, target)
+              for k0, ell, spectral, exact, target, _ in records}
+    errors = [abs(spectral - exact) for spectral, exact, _ in by_key.values()]
+    shifts = [by_key[(k0, 1)][0] - by_key[(k0, 0)][0] for k0 in (1.0, 2.0)]
+    lswt_errors = [abs(exact - target) for _, exact, target in by_key.values()]
+    shift_error = max(abs(shift - 1.0) for shift in shifts)
+    passed = (max(errors) <= 1.0e-5 and shift_error <= 1.0e-5
+              and max(lswt_errors) <= 3.0e-3)
+    return 0 if result("B5.5 band-packet bridge", passed,
+                       f"max spectral error={max(errors):.3e}, "
+                       f"max shift error={shift_error:.3e}, "
+                       f"max LSWT gap={max(lswt_errors):.3e}") else 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", default=os.environ.get("UPPASD", "uppasd"),
@@ -243,8 +439,14 @@ def main() -> int:
                         help="trajectory steps per packet")
     parser.add_argument("--force", action="store_true",
                         help="remove an existing generated work directory")
-    parser.add_argument("--gradient", choices=("fem", "spectral"), default="fem",
+    parser.add_argument("--gradient", choices=("auto", "fem", "spectral"), default="fem",
                         help="trajectory OAM gradient method")
+    parser.add_argument("--damping", type=float, default=0.0,
+                        help="Gilbert damping for the generated packet")
+    parser.add_argument("--temperature", type=float, default=0.0,
+                        help="temperature for the generated packet")
+    parser.add_argument("--band", action="store_true",
+                        help="run the U5 B5.5 angular band-packet bridge check")
     parser.add_argument("--clean", action="store_true",
                         help="run the one-step, grid-snapped clean control packet")
     parser.add_argument("--allow-known-bridge-gap", action="store_true",
@@ -257,6 +459,9 @@ def main() -> int:
             parser.error(f"workdir exists; choose another directory or use --force: {workdir}")
         shutil.rmtree(workdir)
     workdir.mkdir(parents=True)
+
+    if args.band:
+        return run_band_check(args.binary, workdir)
 
     lswt_dir = workdir / "lswt"
     mkhoney.write(str(lswt_dir), C2, J=J, D=D, kgrid=(30, 30), nphi=64, nr=16,
@@ -276,8 +481,9 @@ def main() -> int:
             simid = f"clean{ell}"
             directory = workdir / simid
             write_trajectory_case(directory, simid=simid, k0=clean_k0,
-                                  mode=clean_mode, ell=ell, nstep=1,
-                                  gradient=args.gradient, n=CLEAN_N, clean=True)
+                                  mode=clean_mode, ell=ell, nstep=args.nstep,
+                                  gradient=args.gradient, n=CLEAN_N, clean=True,
+                                  damping=args.damping, temperature=args.temperature)
             run_binary(args.binary, directory)
             oam = load_oam(directory, simid)
             clean_cases[ell] = oam
@@ -304,7 +510,9 @@ def main() -> int:
         directory = workdir / simid
         psi0 = write_trajectory_case(directory, simid=simid, k0=k0,
                                       mode=mode, ell=ell, nstep=args.nstep,
-                                      gradient=args.gradient)
+                                      gradient=args.gradient,
+                                      damping=args.damping,
+                                      temperature=args.temperature)
         run_binary(args.binary, directory)
         oam = load_oam(directory, simid)
         frequency, phase_residual, steps, projection = frequency_from_projection(

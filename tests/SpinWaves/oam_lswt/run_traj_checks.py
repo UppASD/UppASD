@@ -34,17 +34,20 @@ results = []
 
 def reread(d):
     rs = np.loadtxt(f"{d}/restart.in", comments="#")
-    return rs[:, 4:7].T
+    rs = np.atleast_2d(rs)
+    ensembles = int(np.max(rs[:, 1]))
+    return np.stack([rs[rs[:, 1] == k, 4:7].T for k in range(1, ensembles + 1)], axis=2)
 
 
 def run_case(name, lattice="square", bc=("P", "P"), shift=(0.0, 0.0), field=None,
-             keys=None, layers=1, grid=None):
+             keys=None, layers=1, grid=None, ensemble_fields=None):
     d = os.path.join(WORK, name)
     shutil.rmtree(d, ignore_errors=True)
     keys = dict(keys or {})
+    keys.setdefault("oam_gradient", "fem")
     ngrid = N if grid is None else grid
     xy, _ = F.write_case(d, lattice=lattice, N=ngrid, bc=bc, shift=shift, field=field,
-                          extra_keys=keys, layers=layers)
+                          extra_keys=keys, layers=layers, ensemble_fields=ensemble_fields)
     m = reread(d)
     L = F.LATTICES[lattice]
     per = (bc[0] == "P", bc[1] == "P")
@@ -58,21 +61,45 @@ def run_case(name, lattice="square", bc=("P", "P"), shift=(0.0, 0.0), field=None
     axis = None
     if "oam_axis" in keys:
         axis = np.array([float(v) for v in keys["oam_axis"].split()[:3]])
-    ref = O.evaluate(m, xy, simp, P, ngrid, ngrid, L["C1"], L["C2"], per, origin=origin,
-                     weight=keys.get("oam_weight", "site"),
-                     gradient=keys.get("oam_gradient", "fem"), NA=1, axis=axis)
+    gradient = keys.get("oam_gradient", "fem")
+    if gradient == "auto":
+        gradient = "spectral" if all(per) else "fem"
+    if m.shape[2] == 1:
+        ref = O.evaluate(m[:, :, 0], xy, simp, P, ngrid, ngrid, L["C1"], L["C2"], per,
+                         origin=origin, weight=keys.get("oam_weight", "site"),
+                         gradient=gradient, NA=1, axis=axis)
+    else:
+        ref = O.evaluate_ensembles([m[:, :, k] for k in range(m.shape[2])], xy, simp, P,
+                                   ngrid, ngrid, L["C1"], L["C2"], per, origin=origin,
+                                   weight=keys.get("oam_weight", "site"), gradient=gradient,
+                                   NA=1, axis=axis)
     fn = f"{d}/oam_traj.oamtest.out"
     if SELFTEST:
         with open(fn, "w") as f:
-            f.write("# selftest\n# " + " ".join(COLS) + "\n")
+            resolved = "spectral" if keys.get("oam_gradient") == "auto" and all(per) else gradient
+            f.write(f"# selftest\n# oam_gradient = {resolved} (auto)\n# " + " ".join(COLS) + "\n")
             f.write("1 " + " ".join(repr(ref.get(c, float("nan"))) for c in COLS[1:]) + "\n")
-        rc, log = 0, ""
+        excluded = (ref.get("_excluded_origin", 0), ref.get("_excluded_centroid", 0))
+        log = "excluded ensembles" if any(excluded) else ""
+        rc = 0
     else:
         r = subprocess.run([EXE], cwd=d, capture_output=True, text=True)
         rc, log = r.returncode, r.stdout + r.stderr
         if rc == 0 and os.path.exists(f"{d}/coord.oamtest.out"):
             c = np.loadtxt(f"{d}/coord.oamtest.out")[:, 1:4].T
             assert np.abs(c - xy).max() < 1e-5, f"{name}: coordinate ordering differs from fixture"
+        if rc == 0 and keys.get("oam_gradient") == "auto":
+            header = open(fn).read() if os.path.exists(fn) else ""
+            gradient = "spectral" if "oam_gradient = spectral (auto)" in header else "fem"
+            if m.shape[2] == 1:
+                ref = O.evaluate(m[:, :, 0], xy, simp, P, ngrid, ngrid, L["C1"], L["C2"], per,
+                                 origin=origin, weight=keys.get("oam_weight", "site"),
+                                 gradient=gradient, NA=1, axis=axis)
+            else:
+                ref = O.evaluate_ensembles([m[:, :, k] for k in range(m.shape[2])], xy, simp, P,
+                                           ngrid, ngrid, L["C1"], L["C2"], per, origin=origin,
+                                           weight=keys.get("oam_weight", "site"), gradient=gradient,
+                                           NA=1, axis=axis)
     meas = None
     if rc == 0 and os.path.exists(fn):
         rows = [l.split() for l in open(fn) if l.strip() and not l.lstrip().startswith("#")]
@@ -242,6 +269,64 @@ ok_lab = (r_c13_lab[1] is not None
                   for key in ("lambda_L_origin", "lambda_L_centroid", "N_m")))
 check("C13 default axis matches default-frame oracle", ok_default)
 check("C13 explicit z axis matches lab-frame oracle", ok_lab)
+
+# C14: norm-weighted ensemble aggregation.  The second packet has a different
+# amplitude so arithmetic averaging of already-normalized lambda values would
+# fail this check.
+ensemble_vortices = run_case(
+    "ensemble_vortices", field=None,
+    ensemble_fields=[vort(1, amp=0.05), vort(2, amp=0.08)],
+    keys={"oam_gradient": "fem"})
+ensemble_meas = ensemble_vortices[1]
+ensemble_ref = ensemble_vortices[0]
+ensemble_keys = ("lambda_L_origin", "lambda_L_centroid", "N_m",
+                 "Lz_tot_hbar", "dSz_hbar", "balance", "R_x", "R_y", "sigma_psi")
+ensemble_ok = ensemble_meas is not None and all(
+    (np.isnan(ensemble_ref[key]) and np.isnan(ensemble_meas[key])) or
+    abs(ensemble_ref[key] - ensemble_meas[key]) <= 1.0e-10 * max(1.0, abs(ensemble_ref[key]))
+    for key in ensemble_keys)
+check("C14 norm-weighted ensemble aggregation", ensemble_ok)
+
+ensemble_delocalised = run_case(
+    "ensemble_delocalised", field=None,
+    ensemble_fields=[vort(1, amp=0.05), noise],
+    keys={"oam_gradient": "fem", "oam_axis": "0 0 1"})
+deloc_meas = ensemble_delocalised[1]
+deloc_ref = ensemble_delocalised[0]
+deloc_log = ensemble_delocalised[3]
+deloc_ok = (deloc_meas is not None and np.isfinite(deloc_meas["lambda_L_origin"])
+            and np.isfinite(deloc_meas["lambda_L_centroid"])
+            and agree(deloc_ref, deloc_meas, "lambda_L_centroid", tol=1.0e-10)
+            and "excluded ensembles" in deloc_log)
+check("C14 delocalised ensemble: centroid excludes one with warning", deloc_ok)
+
+# C15: automatic gradient resolution.  A periodic FFTW binary must select
+# spectral; open boundaries always select FEM.  The periodic FEM result is
+# also the non-FFTW branch, which must not refuse.
+auto_periodic = run_case("auto_periodic", field=vort(1),
+                         keys={"oam_gradient": "auto"})
+auto_open = run_case("auto_open", bc=("0", "0"), field=vort(1),
+                     keys={"oam_gradient": "auto"})
+auto_periodic_header = os.path.join(WORK, "auto_periodic", "oam_traj.oamtest.out")
+auto_open_header = os.path.join(WORK, "auto_open", "oam_traj.oamtest.out")
+auto_periodic_text = open(auto_periodic_header).read() if os.path.exists(auto_periodic_header) else ""
+auto_open_text = open(auto_open_header).read() if os.path.exists(auto_open_header) else ""
+auto_periodic_method = "spectral" if "oam_gradient = spectral (auto)" in auto_periodic_text else "fem"
+auto_open_ok = (auto_open[1] is not None and "oam_gradient = fem (auto)" in auto_open_text
+                and "disabled" not in auto_open[3].lower())
+if auto_periodic_method == "spectral":
+    auto_periodic_ok = (auto_periodic[1] is not None
+                        and all(agree(auto_periodic[0], auto_periodic[1], key, tol=1.0e-10)
+                                for key in ("lambda_L_origin", "lambda_L_centroid", "N_m")))
+else:
+    auto_periodic_ok = (auto_periodic[1] is not None
+                        and "oam_gradient = fem (auto)" in auto_periodic_text
+                        and "requires a build with USE_FFTW" not in auto_periodic[3])
+check("C15 auto periodic resolves without refusal", auto_periodic_ok,
+      f"resolved={auto_periodic_method}")
+check("C15 auto open resolves to FEM", auto_open_ok)
+check("C15 auto non-FFTW branch has no refusal", auto_periodic_ok and
+      (auto_periodic_method == "fem" or "requires a build with USE_FFTW" not in auto_periodic[3]))
 
 # C0: mesh diagnostic line (contract C7): periodic mesh tiles the cell exactly,
 # open mesh drops the wrap cells.  Parsed from stdout.

@@ -1,6 +1,6 @@
 # OAM follow-up prompts, round 2 (after audit of `49f1b08`)
 
-Paste `docs/dev/oam/prompts/00_PREAMBLE.md` above each prompt. Commit these files to `docs/dev/thin2/` first.
+Paste `docs/dev/oam/prompts/00_PREAMBLE.md` above each prompt. The archived round is `docs/dev/oam/prompts/rounds/r2/`.
 
 | # | Prompt | Model | Commit |
 |---|---|---|---|
