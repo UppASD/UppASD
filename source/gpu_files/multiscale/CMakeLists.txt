@@ -3,6 +3,8 @@ target_sources(${UppASD_LIB} PRIVATE
         gpuDepondtIntegrator_MS.cpp
         gpuInterpolation.hpp
         gpuInterpolation.cpp
+        gpuDampingBand.hpp
+        gpuDampingBand.hpp
         interpolation_kernels.hpp
         interpolation_kernels.cpp
 )
