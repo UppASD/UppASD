@@ -1,23 +1,24 @@
 !> authors
 !> Edgar Mendez
 !> Nikos Ntallis
-!> Manuel Pereiro 
+!> Manuel Pereiro
+!> Nastaran Salehi
 
  module MultiscaleSetupSystem
   use Parameters, only : dblprec
   use Profiling, only : memocc
-  
+
   use Multiscale, only : runMultiscaleSetup, MultiscaleSetup, MultiscaleRegions, &
      deallocateSetup, multiscaleBackbuffer, multiscaleBackbufferHead
 
   integer, parameter :: OUTPUT_FILE_LEN = 48
-  
+
   private
   public &
        setupExchanges, setupInterpolation, setupAnisotropy, setupDampingBand, &
        setup_multiscale_system, initializeMomentData, allocate_multiscale
 
-contains 
+contains
 
   pure function rescale_inputed_exchange(inputed_exchange, this_atom_moment_magnitude, other_atom_moment_magnitude, &
             spin_interaction_order) result(rescale_exchange)
@@ -27,7 +28,7 @@ contains
     real(dblprec), intent(in) :: this_atom_moment_magnitude
     real(dblprec), intent(in) :: other_atom_moment_magnitude
     integer, intent(in) :: spin_interaction_order
-    
+
     real(dblprec), dimension(ubound(inputed_exchange, 1)) :: rescale_exchange
 
     real(dblprec) :: scale_factor
@@ -51,18 +52,18 @@ contains
     use Damping
     use Geometry,             only : setup_geometry
     use Ewaldmom,             only: allocate_Ewald
-    use InputData            
+    use InputData
     use PrintInput
     use prn_fields,           only : fields_prn_init
-    use MomentData           
+    use MomentData
     use FieldPulse,           only : read_bpulse
     use SystemData,           only : atype, anumb, coord, Landeg
     !use SpinIceData,          only : spin_ice_init
     use Temperature
-    !use Correlation        
+    !use Correlation
     use Polarization,         only : prn_pol_init
     use SetupSpinIce
-    use InputHandler_ext      
+    use InputHandler_ext
     use prn_averages,         only : avrg_init
     use ChemicalData          !only : acellnumb, acellnumbrev, achtype, atype_ch, asite_ch, achem_ch, chconceff
     use RandomNumbers         !only : mt_ran_init_b, mt_ran_init_c, setup_rng_hb, mt_ran_b
@@ -91,11 +92,11 @@ contains
     use LatticeHamiltonianData
     use LatticeHamiltonianInit     !,      only : setup_latticehamiltonian
     use omp_lib
-    
+
     implicit none
 
     character(len=*), intent(in) :: config_file
-    
+
     integer :: i_stat, i, j
 
     integer, dimension(:), allocatable :: nlistsizeTmp
@@ -105,7 +106,7 @@ contains
     integer, dimension(:), allocatable :: dmlistsizeTmp
     integer, dimension(:, :), allocatable :: dmlistTmp
     real(dblprec), dimension(:, :, :), allocatable :: dmTmp
-    
+
     integer :: isize
 
     type(MultiscaleOptions) :: options
@@ -113,7 +114,7 @@ contains
     type(MultiscaleRegions) :: regions
 
     real(dblprec) :: alpha, beta
-    
+
     ! Output file names
     character(len=OUTPUT_FILE_LEN) :: intp_file_name
     character(len=OUTPUT_FILE_LEN) :: coord_file_name
@@ -122,7 +123,7 @@ contains
     character(len=OUTPUT_FILE_LEN) :: dm_file_name
     character(len=OUTPUT_FILE_LEN) :: grad_link_file_name
     character(len=OUTPUT_FILE_LEN) :: regions_file_name
-    
+
     coord_file_name     = "coord."     // simid // ".out"
     intp_file_name      = "interface." // simid // ".out"
     dband_file_name     = "dband."     // simid // ".out"
@@ -130,9 +131,9 @@ contains
     dm_file_name        = "dm."        // simid // ".out"
     grad_link_file_name = "gradlink."  // simid // ".out"
     regions_file_name   = "msregions."   // simid // ".out"
-    
+
     print *,"Reading multiscale options from '",trim(adjustl(config_file)),"'"
-    
+
     call readMultiscaleOptions(trim(adjustl(config_file)),options)
     call runMultiscaleSetup(options,setup,regions)
     call deallocateOptions(options)
@@ -163,7 +164,7 @@ contains
     end if
     !*!!! Initialize random number generators
      call setup_rng_hb(tseed,ziggurat,rngpol) ! temperature
-     
+
      !call mt_ran_init_b(mseed) ! magninit
 
     !* Note that the same seed value is used for
@@ -192,7 +193,7 @@ contains
     C1 = (/options%space%universeSize(1),0.0_dblprec,0.0_dblprec/)
     C2 = (/0.0_dblprec,options%space%universeSize(2),0.0_dblprec/)
     C3 = (/0.0_dblprec,0.0_dblprec,options%space%universeSize(3)/)
-    
+
     ! Periodic boundaries
     BC1 = '0'
     BC2 = '0'
@@ -211,15 +212,15 @@ contains
     if (maptype/=1) then
        print*, "WARNING: Maptype does not work in multiscale, use the 'unitcell' keyword" &
             // NEW_LINE('A') // &
-            "          in coupling lists inside the multiscale configuration file."       
+            "          in coupling lists inside the multiscale configuration file."
     end if
-    
+
     ! No random alloy
     nchmax = 1
     if(do_ralloy /= 0) then
        print *, "WARNING: Ralloy will not work in multiscaled configurations."
     end if
-    
+
     ! Prevent LSF
     if(conf_num /= 1) then !< Number of configurations for LSF
        print *, "WARNING: conf_num other than 1 is ignored in multiscale mode."
@@ -237,11 +238,11 @@ contains
     if(do_prnstruct /= 0) then
        open(unit=1234, file=coord_file_name)
        do i = 1, Natom
-          write (1234, *) i, coord(:, i), '1', i
+          write (1234,'(i12,2x,3F19.13,2x,a,2x,i12 )') i, coord(:, i), '1', i
        enddo
        close(1234)
     end if
-    
+
     call allocate_mmoms(Natom, Mensemble, 1)
     call allocate_emoms(Natom, Mensemble, 1)
 
@@ -250,11 +251,11 @@ contains
     if (initmag==4) then
        write (*,'(2x,a)',advance='no') "Read from restart file"
 
-         !if(multiscale_old_format  =='Y') then      
+         !if(multiscale_old_format  =='Y') then
          !call loadrestart_old(Natom,Mensemble,restartfile,rstep,mmom,emom,emomM)
          !else
          call read_mag_conf(Natom,Mensemble,do_mom_legacy,rstep,restartfile,  &
-                  mmom,emom,emomM)  
+                  mmom,emom,emomM)
         ! end if
 
 
@@ -279,7 +280,7 @@ contains
        mmom0 = mmom
        mmomi = 1.0_dblprec/mmom0
 
-    else       
+    else
        call initializeMomentData(setup%moments,Natom,Mensemble)
     end if
 
@@ -288,7 +289,7 @@ contains
     call memocc(i_stat,product(shape(ammom_inp))*kind(ammom_inp),'ammom_inp', &
          'setup_multiscale_system')
     do j=1,conf_num
-       do i=1,NA     
+       do i=1,NA
           ammom_inp(i,:,:) = 0
           ammom_inp(i,1,j) = mmom(i,1)
        end do
@@ -319,8 +320,8 @@ contains
        ! Why?:
        ! - Damping band is not implemented for other methods than Midpoint and Depondt
        ! - mc_iphase does not implement interpolation
-     
-       write (*, *) 'ERROR: Initial phase must be iether F or N with multiscale.' 
+
+       write (*, *) 'ERROR: Initial phase must be iether F or N with multiscale.'
        stop 1
     endif
 
@@ -342,16 +343,16 @@ contains
     write(*,'(1x,a)') ' Setup up temperature'
     if (ipnphase.ge.1) then
        do i=1, ipnphase
-       
-         
+
+
 
           call setup_temp(Natom,NT,NA,N1,N2,N3,Natom_full,do_ralloy,atype,acellnumb,&
           atype_ch,simid,iptemp(i),C1,C2,C3,BC1,BC2,BC3,Bas,coord,iptemp_array(:,i) )
-           
-          print*, ipTemp(i) 
+
+          print*, ipTemp(i)
        enddo
     endif
-    
+
 
          call setup_temp(Natom,NT,NA,N1,N2,N3,Natom_full,do_ralloy,atype,acellnumb,&
           atype_ch,simid,temp,C1,C2,C3,BC1,BC2,BC3,Bas,coord,temp_array )
@@ -364,11 +365,11 @@ contains
 
     call setupExchanges(setup%atomsExchange, Natom,conf_num, &
          ncoupTmp,nlistsizeTmp,nlistTmp, exchange_file_name, do_prnmultiscale)
-          
-        
+
+
          ham%max_no_neigh = ubound(nlistTmp,1);
 
-    
+
      call allocate_hamiltoniandata(Natom, 1, Natom,1,ubound(ncoupTmp, 1), 0, 'N', 1, 'N','N')
 
     ham%ncoup = ncoupTmp
@@ -391,24 +392,24 @@ contains
     call memocc(i_stat, -isize, 'nlistTmp', 'setup_multiscale_system')
 
     call rescale_loaded_exchangeCouplings()
-    
+
     call setupDm(setup%atomsDm, Natom, &
          dmTmp,dmlistsizeTmp,dmlistTmp,ham_inp%do_dm, &
          dm_file_name, do_prnmultiscale)
-    
+
     ham%max_no_dmneigh = ubound(dmlistTmp,1)
     if (ham_inp%do_dm /= 0) then
-       
+
        call allocate_dmhamiltoniandata(Natom,Natom, ubound(dmTmp, 1), 1)
-       
+
        ham%dm_vect = dmTmp
        ham%dmlistsize = dmlistsizeTmp
        ham%dmlist = dmlistTmp
        call rescale_loaded_dmCouplings()
     end if
-      
-    
-    call multiscale_setup_anisotropy(setup)  
+
+
+    call multiscale_setup_anisotropy(setup)
 
     ! Allocate arrays for simulation and measurement
     call allocate_general(1)
@@ -422,8 +423,8 @@ contains
     call setupInterpolation(setup%interpolationWeights, &
          natom,interfaceInterpolation, &
          intp_file_name, do_prnmultiscale)
-    
-    
+
+
     ! Release temporary arrays
     isize = product(shape(anumb_inp))*kind(anumb_inp)
     deallocate(anumb_inp, stat=i_stat)
@@ -434,7 +435,7 @@ contains
     call memocc(i_stat, -isize, 'ammom_inp', 'setup_multiscale_system')
 
     call setupGradients(setup%gradientLinks, grad_link_file_name, do_prnmultiscale)
-    
+
     if (ipmode=='MS'.and.do_site_ip_damping=='Y') then
        call read_ip_damping()
     end if
@@ -446,12 +447,14 @@ contains
     subroutine allocate_general(flag)
     !
     use LLGI,          only : allocate_llgifields
-    use Depondt,       only : allocate_depondtfields
+    !use Depondt,       only : allocate_depondtfields
     use InputData
     use FieldData,     only : allocate_fields, read_local_field, allocation_field_time
     use Measurements,  only : allocate_measurementdata
     use RandomNumbers, only : allocate_randomwork
-    
+    use Midpoint_ms,   only : allocate_midpointms_fields
+    use Depondt_ms,    only : allocate_depondtms_fields
+
     !
     implicit none
     !
@@ -462,24 +465,29 @@ contains
 
     if(locfield=='Y'.and.flag>0)  call read_local_field(NA,locfieldfile)
     if(SDEalgh==5) then
-       call allocate_depondtfields(Natom, Mensemble,flag)
+       call allocate_depondtms_fields(flag,Natom, Mensemble)
     elseif(SDEalgh==11) then
        call allocate_llgifields(Natom, Mensemble,flag)
     end if
 
-    if(SDEalgh>=1.and.SDEalgh<=4) call allocate_randomwork(Natom,Mensemble,flag,'N')
- 
+    if (SDEalgh==1 .or. ipSDEalgh==1) then
+      call allocate_midpointms_fields(flag,Natom,Mensemble)
+    endif
+
+
+    if(SDEalgh>=1.and.SDEalgh<=5) call allocate_randomwork(Natom,Mensemble,flag,'N')
+
 
     call allocate_measurementdata(NA,NT,Natom,Mensemble,Nchmax,plotenergy,flag)
   end subroutine allocate_general
 
-  
+
   subroutine multiscale_setup_anisotropy(setup)
     use InputHandler_ext, only : read_anisotropy
     use HamiltonianInit      !only : setup_hamiltonian, setup_anisotropies
     use Multiscale
     use InputData
-    use HamiltonianData 
+    use HamiltonianData
     use ChemicalData, only : achem_ch
     implicit none
     type(MultiscaleSetup), intent(in) :: setup
@@ -491,12 +499,12 @@ contains
        do_ralloy = 0
     end if
     if (ham_inp%random_anisotropy) then
-       print *, "WARNING: random_anisotropy is ignored with multiscale 1."     
+       print *, "WARNING: random_anisotropy is ignored with multiscale 1."
        ham_inp%random_anisotropy = .false.
     end if
     ! ToDo : test multi-axial
     if (ham_inp%mult_axis/='N') then
-       print *, "WARNING: Does multi-axial anisotropy work?."     
+       print *, "WARNING: Does multi-axial anisotropy work?."
     end if
 
 
@@ -528,11 +536,11 @@ contains
        ham%taniso_diff = 0;
        ham%eaniso_diff = 0;
        ham%kaniso_diff = 0;
-       ham%sb_diff = 0;     
+       ham%sb_diff = 0;
     end if
 
     if(ham_inp%do_anisotropy == 1) then
-       
+
         call setupAnisotropy(setup%anisotropies,&
             ham_inp%anisotropytype,ham_inp%anisotropy, &
            ham_inp%anisotropytype_diff, ham_inp%anisotropy_diff)
@@ -567,7 +575,7 @@ contains
   end subroutine multiscale_setup_anisotropy
 
   subroutine rescale_loaded_exchangeCouplings()
-    
+
     use InputData, only : Natom
     use HamiltonianData, only : ham
     use MomentData, only : mmom
@@ -588,7 +596,7 @@ contains
   !> Rescales Dzyaloshinsky-Moriya interaction vectors
   !! that are already loaded into dm_vect
   subroutine rescale_loaded_dmCouplings()
-    
+
     use InputData, only : Natom
     use HamiltonianData, only :ham
     use MomentData, only : mmom
@@ -607,12 +615,12 @@ contains
   end subroutine rescale_loaded_dmCouplings
 
 
-  !> Adapt anisotropy setup from libmuasd to UppASD's representation
+  !> Adapt anisotropy setup from libmuasd to UppASD´s representation
   subroutine setupAnisotropy(anisotropies, &
        anisotropytype,anisotropyvalues, &
        axis2_anisotropytype,axis2_anisotropyvalues)
     use Multiscale
-    implicit none      
+    implicit none
     type(AtomAnisotropies), intent(in) :: anisotropies
      integer, dimension(:,:), intent(inout) :: anisotropyType
     real(dblprec), dimension(:,:,:), intent(inout) :: anisotropyvalues
@@ -630,7 +638,7 @@ contains
     anisotropyType(:,1) = anisotropies%anisotropyTypes(:,1)
 
     anisotropyValues(:,VALUE_K1,1) = anisotropies%anisotropyKs(1,:,1)
-    anisotropyValues(:,VALUE_K2,1) = anisotropies%anisotropyKs(2,:,1)    
+    anisotropyValues(:,VALUE_K2,1) = anisotropies%anisotropyKs(2,:,1)
     anisotropyValues(:,VALUE_E_X,1) = anisotropies%anisotropyE(1,:,1)
     anisotropyValues(:,VALUE_E_Y,1) = anisotropies%anisotropyE(2,:,1)
     anisotropyValues(:,VALUE_E_Z,1) = anisotropies%anisotropyE(3,:,1)
@@ -640,7 +648,7 @@ contains
        axis2_anisotropyType(:,1) = anisotropies%anisotropyTypes(:,2)
 
        axis2_anisotropyValues(:,VALUE_K1,1) = anisotropies%anisotropyKs(1,:,2)
-       axis2_anisotropyValues(:,VALUE_K2,1) = anisotropies%anisotropyKs(2,:,2)    
+       axis2_anisotropyValues(:,VALUE_K2,1) = anisotropies%anisotropyKs(2,:,2)
        axis2_anisotropyValues(:,VALUE_E_X,1) = anisotropies%anisotropyE(1,:,2)
        axis2_anisotropyValues(:,VALUE_E_Y,1) = anisotropies%anisotropyE(2,:,2)
        axis2_anisotropyValues(:,VALUE_E_Z,1) = anisotropies%anisotropyE(3,:,2)
@@ -667,13 +675,13 @@ contains
 
     integer :: i,j,pre_row, nrWeights, nRows, atom, row
     integer :: i_stat
-    
+
     nrWeights = weights%row%length
 
     if (nrWeights /= 0) then
-       
+
        nRows = 1
-       do i = 2, nrWeights          
+       do i = 2, nrWeights
           if(weights%row%values(i-1) /= weights%row%values(i)) then
              nRows = nRows + 1
           end if
@@ -708,7 +716,7 @@ contains
        row = 1
        do i = 1, nrWeights
           atom = weights%row%values(i)
-          if(interpolation%indices(atom) == 0) then             
+          if(interpolation%indices(atom) == 0) then
              interpolation%indices(atom) = row
              do j=pre_row+1,row
                 interpolation%firstNeighbour(j) = i
@@ -717,7 +725,7 @@ contains
              row=row+1
           end if
        end do
-       interpolation%firstNeighbour(nRows+1) = nrWeights+1       
+       interpolation%firstNeighbour(nRows+1) = nrWeights+1
        interpolation%nrInterpAtoms = nRows
 
        ! Dump to file
@@ -737,7 +745,7 @@ contains
           close(661)
        end if
     end if
-    
+
   end subroutine setupInterpolation
 
   !> Converts a damping band interpolation from MUASD to UppASD representation.
@@ -759,12 +767,12 @@ contains
     type(DampingBandData),intent(inout) :: dampingBand
     character(len=OUTPUT_FILE_LEN), intent(in) :: dump_file
     logical, intent(in) :: dump
-    
+
     integer :: i_stat
 
     if(size(muasd_positional) > 0 .and. &
        muasd_weights%row%length > 0) then
-       
+
        call setupInterpolation(muasd_weights,natom,&
             dampingBand%interpolation,dump_file, dump)
        dampingBand%enable = associated(dampingBand%interpolation%indices)
@@ -772,7 +780,7 @@ contains
        call memocc(i_stat,&
             product(shape(dampingBand%coefficients))*&
             kind(dampingBand%coefficients),&
-            'DampingBandData%coefficients','setupDampingBand')       
+            'DampingBandData%coefficients','setupDampingBand')
        dampingBand%coefficients = muasd_positional
        allocate(dampingBand%preinterpolation(3,&
             dampingBand%interpolation%nrInterpAtoms,mensemble),&
@@ -792,7 +800,7 @@ contains
           print *,"NaN's found in dband weights. Is your window large enough?"
           stop
        end if
-       
+
     else
        dampingBand%enable = .false.
     end if
@@ -824,7 +832,7 @@ contains
     integer, dimension(:, :), allocatable, intent(inout) :: nlistTmp
     character(len=OUTPUT_FILE_LEN), intent(in) :: dump_file
     logical, intent(in) :: dump
-    
+
     integer :: max_row_elems, nrows
     integer :: row, col
     integer :: columns, last_row
@@ -869,7 +877,7 @@ contains
        nlistTmp(ent,row)   = col
     end do
 
-    if (dump) then 
+    if (dump) then
        open(unit=112,file=trim(adjustl(dump_file)))
        do i = 1, ubound(nlistsizeTmp,1)
           do j=1,nlistsizeTmp(i)
@@ -881,7 +889,7 @@ contains
   end subroutine setupExchanges
 
 
-  
+
   !> Converts dms from a MUASD sparse matrix to UppASD
   !!  internal representation
   !! @param[in] dm Dms in MUASD
@@ -891,7 +899,7 @@ contains
   !! @param[in, out] dmlistsize Number of entries per column, might be reallocated
   !! @param[in, out] dmlist Column index per element, might be reallocated
   !! @param[in] dump_file file to dump the DM vectors.
-  !! @param[in] dump 
+  !! @param[in] dump
   !! ToDo: Profile, maybe use a common, more efficient format
   subroutine setupDm(dm,natoms, &
        dmTmp,dmlistsizeTmp,dmlistTmp,do_dm, &
@@ -906,17 +914,17 @@ contains
     integer, intent(inout) :: do_dm
     character(len=OUTPUT_FILE_LEN), intent(in) :: dump_file
     logical, intent(in) :: dump
-    
-    
+
+
     integer :: max_row_elems, nrows
     integer :: row, col, i_col
     integer :: columns, last_row
     integer :: ent, i, j, k
     real(dblprec) :: val
 
-    
+
     nrows = natoms
-        
+
     max_row_elems = 0
     ! Count row elems
     columns = 1
@@ -929,11 +937,11 @@ contains
        end if
     end do
     max_row_elems = (max(max_row_elems,columns)-1) / 3 + 1
-    
+
     ! Resize the matrix when needed
     call ensureDmSize(nrows, max_row_elems, dmTmp,dmlistsizeTmp,dmlistTmp)
-    
-    ! Write the elements 
+
+    ! Write the elements
     dmTmp = 0d0 !
     dmlistTmp = 0
     dmlistsizeTmp = 0 ! Reset the number of elements per row, as the matrix might be larger than needed now.
@@ -947,7 +955,7 @@ contains
        row = dm%row%values(i)
        i_col = dm%col%values(i)
        col = (i_col - 1) / 3 + 1
-       k = modulo(i_col-1,3)+1 
+       k = modulo(i_col-1,3)+1
        val = dm%entries%values(i)
        if (row .ne. last_row) then
           ent = 0
@@ -968,10 +976,10 @@ contains
        end do
        close(112)
     end if
-    
+
   end subroutine setupDm
 
-  
+
   ! [Re]Allocate, only if needed, the exchange matrix
   subroutine ensureNcoupSize(nrows,max_row_elems,nconf, &
        ncoupTmp,nlistsizeTmp,nlistTmp)
@@ -981,7 +989,7 @@ contains
     integer, intent(in) :: max_row_elems
     integer, intent(in) :: nconf
 
-    real(dblprec),dimension(:,:,:),allocatable,intent(inout) :: ncoupTmp  
+    real(dblprec),dimension(:,:,:),allocatable,intent(inout) :: ncoupTmp
     integer, dimension(:), allocatable,intent(inout) :: nlistsizeTmp
     integer, dimension(:, :), allocatable, intent(inout) :: nlistTmp
 
@@ -1003,9 +1011,9 @@ contains
        allocate(ncoupTmp(max_row_elems,nrows,nconf), stat=i_stat)
        call memocc(i_stat,product(shape(ncoupTmp))*kind(ncoupTmp),&
             'ncoupTmp','ensureNcoupSize')
-       
+
     end if
-    
+
     ! nlistsizeTmp (nrows)
     if(allocated(nlistsizeTmp)) then
        if (any(size(nlistsizeTmp) .le. (/ nrows /))) then
@@ -1057,7 +1065,7 @@ contains
     integer, intent(in) :: nrows
     integer, intent(in) :: max_row_elems
 
-    real(dblprec),dimension(:,:,:),allocatable,intent(inout) :: dmTmp  
+    real(dblprec),dimension(:,:,:),allocatable,intent(inout) :: dmTmp
     integer, dimension(:), allocatable,intent(inout) :: dmlistsizeTmp
     integer, dimension(:, :), allocatable, intent(inout) :: dmlistTmp
 
@@ -1085,7 +1093,7 @@ contains
 
     ! dmlistsizeTmp (nrows)
     if(allocated(dmlistsizeTmp)) then
-       if (any(size(dmlistsizeTmp) .le. (/ nrows /))) then          
+       if (any(size(dmlistsizeTmp) .le. (/ nrows /))) then
           isize = product(shape(dmlistsizeTmp))*kind(dmlistsizeTmp)
           deallocate(dmlistsizeTmp, stat=i_stat)
           call memocc(i_stat, -isize, 'dmlistsizeTmp', 'ensureDmSize')
@@ -1121,8 +1129,8 @@ contains
 
     end if
   end subroutine ensureDmSize
-  
-  subroutine setupGradients (links, dump_file, dump)   
+
+  subroutine setupGradients (links, dump_file, dump)
     use InputData
     use SystemData, only : coord
     use HamiltonianData, only : ham       !only : max_no_neigh, nlistsize, ncoup, nlist
@@ -1141,7 +1149,7 @@ contains
     real(dblprec) :: val
 
     ! Dump if needed
-    if (dump) then 
+    if (dump) then
        open(unit=112,file=trim(adjustl(dump_file)))
        do i = 1, links%row%length
           row = links%row%values(i)
@@ -1160,7 +1168,7 @@ contains
           print *,"         stt_vector and stt_window_size options on multiscale conf."
        end if
     end if
-    
+
     ! site-dependent j is not supported, sorry
     ! It would be nice if someone implemented region-based specification in
     ! multiscale, like for moments, anisotropy or zones.
@@ -1173,9 +1181,9 @@ contains
     if (stt/='N') then
        allocate(sitenatomjvec(3,Natom),stat=i_stat)
        call memocc(i_stat,product(shape(sitenatomjvec))*kind(sitenatomjvec),'sitenatomjvec','setupGradients')
-       
+
        call initializeMultiscaleGradients(links, Natom)
-        
+
        do i=1, Natom
           sitenatomjvec(1,i)=1.0_dblprec
           sitenatomjvec(2,i)=0.0_dblprec
@@ -1207,7 +1215,7 @@ contains
     implicit none
     type(MultiscaleRegions), intent(in) :: regions
     character(len=OUTPUT_FILE_LEN), intent(in) :: dump_file
-    
+
 
     open(unit=112,file=trim(adjustl(dump_file)))
     call write_ranges(112,'# fully coarse grained atoms',regions%coarseGrained)
@@ -1217,15 +1225,15 @@ contains
     close(112)
 
   contains
-    
-    subroutine write_ranges(file, tag, indices) 
+
+    subroutine write_ranges(file, tag, indices)
       implicit none
       integer, intent(in) :: file
       character(len=*), intent(in) :: tag
       integer, dimension(:) :: indices
       integer :: i, lower, upper, index
-      
-      if (ubound(indices,1) > 0) then         
+
+      if (ubound(indices,1) > 0) then
          lower = indices(1)
          upper = lower
          write (file, *) trim(tag)
@@ -1237,20 +1245,20 @@ contains
                write (file,*) lower,upper
                lower = index
                upper = lower
-            end if            
+            end if
          end do
          write (file,*) lower,upper
 
       end if
 
-         
+
     end subroutine write_ranges
   end subroutine printMultiscaleRegions
 
 
    subroutine initializeMomentData(moments,Natom,Mensemble)
-    
-    use MomentData           
+
+    use MomentData
     implicit none
     real(dblprec), dimension(:,:), intent(in) :: moments
     integer, intent(in) :: Natom, Mensemble
@@ -1273,7 +1281,7 @@ contains
     end do
     mmom0 = mmom
     mmomi = 1.0_dblprec/mmom0
-    
+
   end subroutine initializeMomentData
 
 
@@ -1281,7 +1289,7 @@ contains
   subroutine allocate_multiscale(Natom,Mensemble,flag)
     implicit none
     integer, intent(in), optional :: Natom !< Number of atoms in system
-    integer, intent(in), optional :: Mensemble !< Number of ensembles 
+    integer, intent(in), optional :: Mensemble !< Number of ensembles
     integer, intent(in) :: flag  !< Allocate or deallocate (1/-1)
     integer :: i_all,i_stat
     if(flag>0) then
@@ -1293,11 +1301,11 @@ contains
     else
        i_all=-product(shape(multiscaleBackbuffer))*kind(multiscaleBackbuffer)
        deallocate(multiscaleBackbuffer,stat=i_stat)
-       call memocc(i_stat,i_all,'multiscaleBackbuffer','allocate_multiscale')       
+       call memocc(i_stat,i_all,'multiscaleBackbuffer','allocate_multiscale')
     end if
-    
+
   end subroutine allocate_multiscale
 
 
-  
+
 end module MultiscaleSetupSystem

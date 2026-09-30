@@ -23,7 +23,7 @@ implicit none
     !! Predefined parsing error messages
     character(len=*), parameter :: ERROR_PARSING_INT = "Expected an integer."
     character(len=*), parameter :: ERROR_PARSING_REAL = "Expected a real number."
-    character(len=*), parameter :: ERROR_PARSING_LOGICAL = "Expected a logical, " // & 
+    character(len=*), parameter :: ERROR_PARSING_LOGICAL = "Expected a logical, " // &
          "use either T (true) or F (false)."
     character(len=*), parameter :: ERROR_PARSING_CHARACTER = "Expected a character."
 
@@ -37,7 +37,7 @@ implicit none
        end subroutine filePeeker
     end interface
 
-    
+
 private
 
 public openFile, FileData, isAtEndOfLine, parseCharacter, &
@@ -52,7 +52,7 @@ contains
 subroutine verifyEndOfLine(fData)
 implicit none
     type(FileData), intent(inout) :: fData
-    
+
     if (.not. isAtEndOfLine(fData)) &
         call createErrorMsg(fData, 1, 'Some junk at the end of the line.')
 end subroutine
@@ -62,7 +62,7 @@ subroutine copyErrorMsg(src, dest)
 implicit none
     type(FileData), intent(in) :: src
     type(FileData), intent(inout) :: dest
-    
+
     dest%ierr = src%ierr
     dest%errMsg = src%errMsg
 end subroutine
@@ -76,7 +76,7 @@ implicit none
     type(FileData), intent(inout) :: fData
     integer, intent(in) :: ierr
     character(len=*), intent(in) :: msg
-    
+
     call createErrorLineMsg(fData)
 
     write (fData%errMsg, '(a)') trim(fData%errMsg) // NEW_LINE('A') // trim(msg)
@@ -87,20 +87,20 @@ end subroutine createErrorMsg
 !! parser is reading
 subroutine createErrorLineMsg(fData)
     type(FileData), intent(inout) :: fData
-    
+
     character(len=10) :: lineNrString
     character(len=10) :: columnNrString
     character(len=512) :: pointerLine
-    
+
     integer :: errorCursor
-        
+
     errorCursor = min(len(trim(fData%line)) + 1, fData%startWord)
     pointerLine = ''
     pointerLine(errorCursor:errorCursor) = '^'
 
     write(lineNrString, '(i8)') fData%lineNr
     write(columnNrString, '(i8)') errorCursor
-    
+
     write (fData%errMsg, '(4a)') 'Error in file "', trim(fData%filename), '", line: ' // trim(adjustl(lineNrString)) &
         // ', column: ' // trim(adjustl(columnNrString)) // NEW_LINE('A') // &
         trim(adjustl(fData%line)) // NEW_LINE('A') // trim(pointerLine)
@@ -112,7 +112,7 @@ implicit none
     type(FileData), intent(inout) :: fData
     integer, intent(in) :: ierr
     character(len=*), intent(in) :: msg
-    
+
     write (fData%errMsg, '(4a)') 'Error in file "', trim(fData%filename), '": ', trim(msg)
     fData%ierr = ierr
 end subroutine
@@ -123,7 +123,7 @@ implicit none
     integer, save :: next_unit = 1
     integer :: ierr
     logical :: opened
-    
+
     do
         inquire(unit=next_unit, opened=opened, iostat=ierr)
         if (ierr /= 0) cycle
@@ -138,7 +138,7 @@ subroutine openFile(fData, filename)
 implicit none
     type(FileData), intent(inout) :: fData
     character(len=*), intent(in) :: filename
-    
+
     fData%fileId = getUnusedFileId()
     fData%filename = filename
     open(unit=fData%fileId, file=fData%filename, status='old', iostat=fData%ierr)
@@ -161,7 +161,7 @@ subroutine gotoLine(fData, lineNr)
 implicit none
     type(FileData), intent(inout) :: fData
     integer, intent(in) :: lineNr
-    
+
     close(fData%fileId)
     call openFile(fData, fData%filename)
     do while (fData%lineNr < lineNr)
@@ -173,14 +173,14 @@ end subroutine gotoLine
 logical pure function isAtEndOfLine(fData)
 implicit none
     type(FileData), intent(in) :: fData
-    
+
     isAtEndOfLine = fData%atEndOfLine
-end function 
+end function
 
 !< Counts lines from the current parser position that starts with an integer
 !! This is used to count the number of entries in some lists
 !! Todo: This function would be more useful if it used a predicate instead of
-!!       being limited to `lines starting with integers'
+!!       being limited to 'lines starting with integers'
 integer function countLinesStartWithInteger(fData)
 implicit none
     type(FileData), intent(inout) :: fData
@@ -214,14 +214,14 @@ subroutine peekFile(fData, f)
   implicit none
     type(FileData), intent(inout) :: fData
     procedure(filePeeker) :: f
-    
+
     integer :: startWord, endWord, lineNr
     startWord = fData%startWord
     endWord = fData%endWord
     lineNr = fData%lineNr
-    
-    call f(fData)    
-    
+
+    call f(fData)
+
     close(fData%fileId)
     call openFile(fData, fData%filename)
     do while (fData%lineNr < lineNr)
@@ -236,10 +236,10 @@ subroutine peekFile(fData, f)
        print *, trim(fData%filename)
        print *, "Unlikely, but possibly, it was modified while being read."
        fData%ierr = 1
-    end if    
-    
+    end if
+
 end subroutine peekFile
-  
+
 
 
 
@@ -248,7 +248,7 @@ end subroutine peekFile
 subroutine readNextLine(fData)
 implicit none
     type(FileData), intent(inout) :: fData
-    
+
     call readNextWord(fData)
     call verifyEndOfLine(fData)
     if (fData%ierr /= 0) return
@@ -293,14 +293,14 @@ implicit none
        end if
     end if
 end subroutine skipOptionalDelimiter
-  
+
 !< Reads the next word in the line and updates the state of the parser
 subroutine readNextWord(fData)
 implicit none
     type(FileData), intent(inout) :: fData
-    
+
     character(len=1) :: currentChar
-    
+
     if (is_iostat_end(fData%ierr) .or. isAtEndOfLine(fData)) then
         return
     endif
@@ -318,7 +318,7 @@ implicit none
         fData%word = ''
     else
         fData%atEndOfLine = .false.
-    
+
         fData%endWord = fData%startWord
         do while (fData%endWord < len(fData%line))
             currentChar = fData%line((fData%endWord + 1):(fData%endWord + 1))
@@ -328,7 +328,7 @@ implicit none
                 fData%endWord = fData%endWord + 1
             endif
         enddo
-        
+
         fData%word = fData%line(fData%startWord:fData%endWord)
     endif
 end subroutine readNextWord
@@ -337,7 +337,7 @@ end subroutine readNextWord
 logical function isWhitespace(c)
 implicit none
     character(len=1), intent(in) :: c
-    
+
     isWhitespace = c == ' ' .or. iachar(c) == 9 !9 is Horizontal tab
 end function
 
@@ -348,11 +348,11 @@ subroutine parseInt(fData, val)
 implicit none
     type(FileData), intent(inout) :: fData
     integer, intent(out) :: val
-    ! Sometimes fortran's read does neither fail nor read a value
+    ! Sometimes fortran´s read does neither fail nor read a value
     !  when the input is incorrect. We detect that with a fixed initial value.
-    ! Let's hope no parameter can be realistically HUGE(val)
+    ! Let´s hope no parameter can be realistically HUGE(val)
     val = HUGE(val)
-    
+
     if (fData%ierr /= 0) then
         call createErrorMsg(fData, 1, ERROR_PARSING_INT)
         return
@@ -363,14 +363,14 @@ end subroutine parseInt
 
 !< If the current word in the parser is a valid real, parses it and writes the
 !! value in val.
-!! Otherwise it creates an error message. 
+!! Otherwise it creates an error message.
 subroutine parseReal(fData, val)
 implicit none
     type(FileData), intent(inout) :: fData
     real(dblprec), intent(out) :: val
-    ! Sometimes fortran's read does neither fail nor read a value
+    ! Sometimes fortran´s read does neither fail nor read a value
     !  when the input is incorrect. We detect that with a fixed initial value.
-    ! Let's hope no parameter can be realistically HUGE(val)
+    ! Let´s hope no parameter can be realistically HUGE(val)
     val = HUGE(val)
     if (fData%ierr /= 0) then
         call createErrorMsg(fData, 1, ERROR_PARSING_REAL)
@@ -389,7 +389,7 @@ subroutine parseLogical(fData, val)
 implicit none
     type(FileData), intent(inout) :: fData
     logical, intent(out) :: val
-    
+
     if (fData%ierr /= 0) then
         call createErrorMsg(fData, 1, ERROR_PARSING_LOGICAL)
         return
@@ -410,7 +410,7 @@ subroutine parseCharacter(fData, val)
 implicit none
     type(FileData), intent(inout) :: fData
     character, intent(out) :: val
-    
+
     if (fData%ierr /= 0) then
         call createErrorMsg(fData, 1, ERROR_PARSING_CHARACTER)
         return

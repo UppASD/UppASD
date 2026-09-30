@@ -24,10 +24,10 @@ module areaCoefficients
        import :: BoxShape
        type(BoxShape), intent(in) :: subbox
        ! True if the box is consequence of periodic boundary condition wrapping
-       logical,intent(in) :: wrapped 
+       logical,intent(in) :: wrapped
      end subroutine SubboxPeriodicHandler
   end interface
-  
+
   abstract interface
      subroutine SubboxHandler(subbox, isAtomistic)
        import :: BoxShape
@@ -37,7 +37,7 @@ module areaCoefficients
   end interface
 
 public iterativeAreaCoefficients, boxesAreaCoefficients
-  
+
 private
 contains
 
@@ -64,23 +64,23 @@ contains
     integer, pointer,dimension(:) :: atomistic,continuous
     integer :: first_atom, first_cont
     first_cont=-1
-    
+
     exp_box%corner = box%corner - mesh%boxSize*5d-1 - 1d-10
     exp_box%sizes  = box%sizes + mesh%boxSize + 2d-10
-   
+
     call clearArray(atoms)
     call clearArray(areas)
-    
+
     call getNeighbours(mesh%space,positions,tree, &
          exp_box%corner + exp_box%sizes/2.0_dblprec, &
          sqrt(real(mesh%space%spatDimension))/2.0_dblprec * &
          maxval(exp_box%sizes(1:mesh%space%spatDimension)), &
          atoms)
 
- 
+
     call splitIndicesByDomain(mesh,positions,atoms, atomistic,continuous, &
          first_atom, first_cont)
-    
+
     call ensureAllocLength(areas,atoms%length)
     areas%values = 0
     areas%length = atoms%length
@@ -126,21 +126,21 @@ contains
          first_cont = 1
          continuous => atoms%values(1:i)
          atomistic => atoms%values(i+1:atoms%length)
-      end if      
+      end if
     end subroutine splitIndicesByDomain
 
     !! Callback that receives each subbox
     subroutine boxesByDomain(box,isAtom)
-      implicit none      
+      implicit none
       type(BoxShape), intent(in) :: box
       logical, intent(in) :: isAtom
-      
+
       integer :: i, off
       integer, pointer,dimension(:) :: atom_set
 
       if(isAtom) then
          atom_bbox%sizes = latSp
-         off = first_atom - 1 
+         off = first_atom - 1
          atom_set => atomistic
       else
          atom_bbox%sizes = mesh%boxSize
@@ -153,11 +153,11 @@ contains
               intersectVolumeBC(atom_bbox,box,mesh%space)
       end do
     end subroutine boxesByDomain
-    
+
   end subroutine boxesAreaCoefficients
 
 
-  
+
   !> Given a box, splits it in subboxes such that none of them is affected by
   !! periodic boundary conditions.
   subroutine splitBoxByPbc(space, box, handler)
@@ -165,7 +165,7 @@ contains
     type(SpaceStruct), intent(in) :: space
     type(BoxShape), intent(in) :: box
     procedure(SubboxPeriodicHandler) :: handler
-    
+
     type(BoxShape) :: spaceBB, trimmedBox, offset, candidate
     integer :: i,j,k, dim
     integer, dimension(2,3) :: ranks
@@ -180,10 +180,10 @@ contains
     trimmedBox = box
     trimmedBox%sizes(1:dim) = min(trimmedBox%sizes(1:dim),space%universeSize(1:dim))
 
-    ! We'll offset the box on each direction with periodicity, one universe size below and above.
-    ! Here we find the offsets we'll apply, in terms of universe sizes, for each direction.
+    ! We´ll offset the box on each direction with periodicity, one universe size below and above.
+    ! Here we find the offsets we´ll apply, in terms of universe sizes, for each direction.
     ! ranks(1,:) contains the lower-bound offsets and ranks(2,:) the upper bounds.
-    periodic = space%periodicBoundary .and. (abs(space%universeSize) >1d-10)    
+    periodic = space%periodicBoundary .and. (abs(space%universeSize) >1d-10)
     ranks(1,:) = merge((/-1,-1,-1/),(/0,0,0/), periodic)
     ranks(2,:) = merge((/1,1,1/),(/0,0,0/), periodic)
 
@@ -201,15 +201,15 @@ contains
           end do
        end do
     end do
-    
+
   end subroutine splitBoxByPbc
-  
-  
-  !> Given a mesh and a box, splits the box in subboxes in such a way that each 
+
+
+  !> Given a mesh and a box, splits the box in subboxes in such a way that each
   !! subbox is either totally inside the atomistic or totally inside the continuum
   !! domain. It also deals with boundary conditions, guaranteeing that each subbox
   !! does not intersect a boundary and is fully inside the universe.
-  !! @parameter mesh 
+  !! @parameter mesh
   !! @parameter box Box to split
   !! @parameter handler Function called for every subbox.
   subroutine splitBoxByDomain(mesh, box, handler)
@@ -222,25 +222,25 @@ contains
   contains
     subroutine nonperiodic(box, wrapped)
       implicit none
-      type(BoxShape),intent(in) :: box      
+      type(BoxShape),intent(in) :: box
       logical, intent(in) :: wrapped
 
-      integer :: i,j,k, dim 
+      integer :: i,j,k, dim
       integer,dimension(3) :: nbox
       type(BoxShape) :: fdbox, candidate
       real(dblprec), dimension(3) :: corner
 
       if(1==0) print *,wrapped !Suppress waring for unused parameter
-      
+
       dim = mesh%space%spatDimension
-      
+
       ! Span of fdiff boxes of box
       nbox = 0
       nbox(1:dim) = floor(box%sizes(1:dim) / mesh%boxSize(1:dim)) + 1
       ! Top-left corner of the first fdiff box
-      corner = 0 
+      corner = 0
       corner(1:dim) = floor(box%corner(1:dim) / mesh%boxSize(1:dim)) * mesh%boxSize(1:dim)
-      
+
       fdbox%sizes = mesh%boxSize
       do i=0,nbox(1)
          do j=0,nbox(2)
@@ -251,20 +251,20 @@ contains
                if (all(abs(candidate%sizes(1:dim)) > 1d-10)) then
                   call handler(candidate, &
                        isPointInsideAtomisticBox(mesh,fdbox%corner + 0.5*fdbox%sizes))
-               end if               
+               end if
             end do
          end do
       end do
-      
+
     end subroutine nonperiodic
   end subroutine splitBoxByDomain
 
   !> Given two boxes calculates the box result of their intersection.
   !! If the boxes do not intersect, a box of size 0,0,0 and corner 0,0,0 is
   !! returned instead. Spatial dimension is taken in account.
-  !! @param box1 
-  !! @param box2 
-  !! @param spatDimension 
+  !! @param box1
+  !! @param box2
+  !! @param spatDimension
   function intersectBoxes(box1,box2,spatDimension) result(inter)
   implicit none
     type(BoxShape),intent(in) :: box1,box2
@@ -280,7 +280,7 @@ contains
 
     inter%corner=0
     inter%sizes=0
-    
+
     do i=1,spatDimension
        if ((box1c(1,i) < box2c(2,i)) .and. (box2c(1,i) < box1c(2,i))) then
           inter%corner(i) = max(box1c(1,i),box2c(1,i))
@@ -288,20 +288,20 @@ contains
        else
           inter%corner(i) = 0
           inter%sizes(i)  = 0
-          return 
+          return
        end if
-    end do    
-    
+    end do
+
   end function intersectBoxes
 
 
-  
-  
+
+
   !> Finds the volume of the intersection between box1 and box2
   !! Takes care of periodic boundary conditions
   !! @param box1
   !! @param box2
-  !! @param space  
+  !! @param space
   function intersectVolumeBC( box1, box2, space) result(volume)
   implicit none
     type(BoxShape),intent(in) :: box1,box2
@@ -313,7 +313,7 @@ contains
     integer :: i,j,k
 
     volume = 0
-    
+
     ! Wiggle box1 and add the total volume of intersections with box2
     offsetWidth = merge((/1,1,1/),(/0,0,0/), space%periodicBoundary)
     box_test%sizes = box1%sizes
@@ -325,7 +325,7 @@ contains
              volume = volume + intersectVolume(box_test,box2,space%spatDimension)
           end do
        end do
-    end do   
+    end do
   end function intersectVolumeBC
 
   !! Calculates the volume of the intersection bewteen box1 and box2
@@ -339,8 +339,8 @@ contains
 
     intersection = intersectBoxes(box1,box2, spatDimension)
     volume = product(intersection%sizes(1:spatDimension))
-  end function intersectVolume  
-  
+  end function intersectVolume
+
   !> For each atom around the given box, approximates the area that is
   !! closest to that atom than all the others.
   !! This method is slower than boxesAreaCoefficients but more accurate for 2D/3D
@@ -351,7 +351,7 @@ contains
   !! @param atoms[out] indices of the atoms considered for the calculation.
   !! @param areas[out] area affected by each atom listed in atoms (same order)
   subroutine iterativeAreaCoefficients(box,expansion,positions,space,tree,limit, atoms,areas)
-  implicit none     
+  implicit none
     type(BoxShape), intent(in) :: box
     real(dblprec), dimension(3), intent(in) :: expansion
     real(dblprec), dimension(:, :), intent(in) :: positions
@@ -360,13 +360,13 @@ contains
     integer,intent(in) :: limit
     type(DynArrayInt),intent(inout) :: atoms
     type(DynArrayReal),intent(inout) :: areas
-    
+
     type(KdTree) :: atomTree
 
     type(BoxShape) :: exp_box, sane_box
     exp_box%corner = box%corner - expansion
     exp_box%sizes  = box%sizes + 2*expansion
-   
+
     call clearArray(atoms)
 
     call getNeighbours(space,positions,tree, &
@@ -388,7 +388,7 @@ contains
     !! Reset the cache
     count_dtc = 0
     closest_cache_point = -1
-    
+
     call ensureAllocLength(areas,atoms%length)
     areas%values = 0
     areas%length = atoms%length
@@ -399,7 +399,7 @@ contains
        call deallocTree(atomTree)
     end if
 
-    
+
   contains
     !> Recursively find the area affected by each atom inside the given box.
     !! atoms is expected to contain the indices of all possible atoms in geometry
@@ -416,7 +416,7 @@ contains
       type(KdTree), intent(in) :: tree
       integer, intent(in)                  :: limit
       type(DynArrayInt), intent(in) :: atoms
-      real(dblprec), dimension(:), intent(inout) :: atom_accum      
+      real(dblprec), dimension(:), intent(inout) :: atom_accum
 
       logical :: unique, last_iter
       real(dblprec) :: area
@@ -479,7 +479,7 @@ contains
        closest_atoms(i) = atom
        distanceSquared(i) = getDistanceSquared(space, positions(:, atom), corner)
     end do
-    
+
     corner = boxCorner(box, 1)
     do j = 2, count
         if (closest_atoms(j) == closest_atoms(1)) cycle
@@ -514,15 +514,15 @@ contains
     integer, intent(out), optional  :: closest
 
     integer :: hash, index
-    integer(kind=4) :: tmp1,tmp2,tmp3 
-    
+    integer(kind=4) :: tmp1,tmp2,tmp3
+
     tmp1 = floor(huge(tmp1) * (point(1) / space%universeSize(1)))
     tmp2 = floor(huge(tmp2) * (point(2) / space%universeSize(2)))
     tmp3 = floor(huge(tmp3) * (point(3) / space%universeSize(3)))
     hash = &
          xor(tmp1 * 1024, xor(tmp2 * 2048, tmp3 * 256)) + &
          xor(tmp1 / 1024, xor(tmp2 / 2048, tmp3 / 256))
-    
+
     index = modulo(hash,CACHE_SIZE) + 1
 
     if(all(closest_cache_point(1:3,index) .eq. point)) then
@@ -535,7 +535,7 @@ contains
     end if
 
   end subroutine cachedClosest
-  
+
   !> Gives the nth corner of a box.
   !! The corners are sorted in such a way that A is the first, B is the last.
   !! In general the corner I has its nth coordinate as B if the bit n-1 of the number I is 1
@@ -561,5 +561,5 @@ contains
     real(dblprec) :: area
     area = product(rgn%sizes(1:dims))
   end function boxVolume
-  
+
 end module areaCoefficients

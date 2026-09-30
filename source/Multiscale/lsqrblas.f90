@@ -28,15 +28,15 @@
 !
 !  Reference:
 !    Jack Dongarra, Jim Bunch, Cleve Moler, Pete Stewart,
-!    LINPACK User's Guide,
+!    LINPACK User´s Guide,
 !    SIAM, 1979,
 !    ISBN13: 978-0-898711-72-1,
 !    LC: QA214.L56.
 !
 !    Charles Lawson, Richard Hanson, David Kincaid, Fred Krogh,
-!    Algorithm 539, 
+!    Algorithm 539,
 !    Basic Linear Algebra Subprograms for Fortran Usage,
-!    ACM Transactions on Mathematical Software, 
+!    ACM Transactions on Mathematical Software,
 !    Volume 5, Number 3, September 1979, pages 308-323.
 !
 !  Parameters:
@@ -51,7 +51,7 @@
 !
 !    Input, integer INCY, the increment between successive entries in DY.
 !
-!    Output, real ( kind = 8 ) DDOT, the sum of the product of the 
+!    Output, real ( kind = 8 ) DDOT, the sum of the product of the
 !    corresponding entries of DX and DY.
 
 
@@ -122,7 +122,7 @@ end function ddot
 !
 !  Discussion:
 !    This routine uses real(8) real arithmetic.
-!     DNRM2 ( X ) = sqrt ( X' * X )
+!     DNRM2 ( X ) = sqrt ( X´ * X )
 !
 !  Modified:
 !    16 May 2005
@@ -133,13 +133,13 @@ end function ddot
 !
 !  Reference:
 !    Jack Dongarra, Jim Bunch, Cleve Moler, Pete Stewart,
-!    LINPACK User's Guide,
+!    LINPACK User´s Guide,
 !    SIAM, 1979,
 !    ISBN13: 978-0-898711-72-1,
 !    LC: QA214.L56.
 !
 !    Charles Lawson, Richard Hanson, David Kincaid, Fred Krogh,
-!    Algorithm 539, 
+!    Algorithm 539,
 !    Basic Linear Algebra Subprograms for Fortran Usage,
 !    ACM Transactions on Mathematical Software,
 !    Volume 5, Number 3, September 1979, pages 308-323.
@@ -206,13 +206,13 @@ end function dnrm2
 !
 !  Reference:
 !    Jack Dongarra, Jim Bunch, Cleve Moler, Pete Stewart,
-!    LINPACK User's Guide,
+!    LINPACK User´s Guide,
 !    SIAM, 1979,
 !    ISBN13: 978-0-898711-72-1,
 !    LC: QA214.L56.
 !
 !    Charles Lawson, Richard Hanson, David Kincaid, Fred Krogh,
-!    Algorithm 539, 
+!    Algorithm 539,
 !    Basic Linear Algebra Subprograms for Fortran Usage,
 !    ACM Transactions on Mathematical Software,
 !    Volume 5, Number 3, September 1979, pages 308-323.

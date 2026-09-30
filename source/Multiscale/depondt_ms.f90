@@ -6,7 +6,8 @@
 !> Edgar Mendez
 !> Nikos Ntallis
 !> Anders Bergman
-!> Manuel Pereiro 
+!> Manuel Pereiro
+!> Nastaran Salehi
 !> @copyright
 !> GNU Public License.
 !> @details In principle the solver is of Heun type but uses rotations to
@@ -16,11 +17,10 @@
 !-------------------------------------------------------------------------------
 module Depondt_ms
    use MultiscaleDampingBand
-   use Multiscale, only : multiscaleBackbuffer, multiscaleBackbufferHead 
+   use Multiscale, only : multiscaleBackbuffer, multiscaleBackbufferHead
 !  use Depondt
    use Profiling
    use Parameters
-   use Profiling
    !
    implicit none
 
@@ -39,29 +39,29 @@ module Depondt_ms
 !     end function Dmdt
 !   end interface
 
-   private
+   private ::  mrod,btherm,bloc,bdup,dedt
 
    public :: depondt_evolve_first_ms, depondt_evolve_second_ms
 
 contains
 
-   subroutine depondt_evolve_first_ms(Natom,Nred,Mensemble,lambda1_array,beff,b2eff,   &
+   subroutine depondt_evolve_first_ms(Natom,Mensemble,lambda1_array,beff,b2eff,   &
          btorque, emom, emom2, emomM, mmom, delta_t, Temp_array, temprescale,stt,      &
-         thermal_field,do_she,she_btorque,do_sot,sot_btorque,red_atom_list,dband)
+         thermal_field,do_she,she_btorque,do_sot,sot_btorque,dband)
       !
       use Constants, only : k_bolt, gama, mub
-      use RandomNumbers, only : rng_gaussian, rng_gaussianP
+      use RandomNumbers, only : rng_gaussian, rng_gaussianP, use_vsl
 
       implicit none
       !
-      integer, intent(in) :: Nred            !< Number of atoms that evolve
+
       integer, intent(in) :: Natom           !< Number of atoms in system
       integer, intent(in) :: Mensemble       !< Number of ensembles
       real(dblprec), intent(in) :: delta_t   !< Time step
       character(len=1), intent(in) :: STT    !< Treat spin transfer torque?
       character(len=1), intent(in) :: do_she !< Treat the spin hall effect transfer torque
       character(len=1), intent(in) :: do_sot !< Treat the general SOT model
-      integer, dimension(Nred), intent(in) :: red_atom_list !< List of indices of atoms that evolve
+
       real(dblprec), dimension(Natom), intent(in) :: Temp_array !< Temperature (array)
       real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
       real(dblprec), dimension(Natom,Mensemble), intent(in) :: mmom !< Magnitude of magnetic moments
@@ -90,7 +90,7 @@ contains
          !!!$omp parallel do default(shared) private(i,ired,k)  schedule(static) collapse(2)
          do k=1,Mensemble
             do i=1,Natom
-               !i=red_atom_list(ired)
+
                ! Adding STT and SHE torques if present (prefactor instead of if-statement)
                bdup(:,i,k)=bdup(:,i,k)+stt_fac*btorque(:,i,k)
             end do
@@ -105,7 +105,7 @@ contains
          !!!$omp parallel do default(shared) private(i,ired,k)  schedule(static) collapse(2)
          do k=1,Mensemble
             do i=1,Natom
-               !i=red_atom_list(ired)
+
                ! Adding STT and SHE torques if present (prefactor instead of if-statement)
                bdup(:,i,k)= bdup(:,i,k)+she_fac*she_btorque(:,i,k)
             end do
@@ -119,7 +119,7 @@ contains
          !!!$omp parallel do default(shared) private(i,ired,k)  schedule(static) collapse(2)
          do k=1,Mensemble
             do i=1,Natom
-               !i=red_atom_list(ired)
+
                ! Adding STT, SHE and SOT torques if present (prefactor instead of if-statement)
                bdup(:,i,k)= bdup(:,i,k)+sot_fac*sot_btorque(:,i,k)
             end do
@@ -140,7 +140,7 @@ contains
       do k=1,Mensemble
          do i=1,Natom
 
-            !i=red_atom_list(ired)
+
             ! Thermal field
             !   LL equations ONE universal damping
             Dp=(2.0_dblprec*lambda1_array(i)*k_bolt)/(delta_t*gama*mub)   !LLG
@@ -208,7 +208,7 @@ contains
    contains
 
       function diff_first(atom,ensemble) result (d)
-         use Constants, only : gama      
+         use Constants, only : gama
          implicit none
          integer, intent(in) :: atom, ensemble
          real(dblprec), dimension(3) :: d
@@ -219,7 +219,7 @@ contains
 
          real(dblprec),dimension(3) :: numerator
          ! current previous and second previous
-         real(dblprec),dimension(3) :: emom_0, emom_1, emom_2 
+         real(dblprec),dimension(3) :: emom_0, emom_1, emom_2
          integer :: current, prev, prev2
          real(dblprec) :: dt
 
@@ -233,7 +233,7 @@ contains
             prev2 = prev2 + ubound(multiscaleBackbuffer,4)
             if (prev < 1) then
                prev = prev + ubound(multiscaleBackbuffer,4)
-            end if      
+            end if
          end if
 
          emom_0 = multiscaleBackbuffer(:,atom,ensemble,current)
@@ -255,22 +255,21 @@ contains
    !
    !> @author Anders Bergman
    !-----------------------------------------------------------------------------
-   subroutine depondt_evolve_second_ms(Natom,Nred,Mensemble,lambda1_array,beff,b2eff,  &
-         btorque, emom, emom2, delta_t, stt,do_she,she_btorque,do_sot,sot_btorque,  &
-         red_atom_list,dband)
+   subroutine depondt_evolve_second_ms(Natom,Mensemble,lambda1_array,beff,b2eff,  &
+         btorque, emom, emom2, delta_t, stt,do_she,she_btorque,do_sot,sot_btorque,dband)
 
       use Constants, only : gama
       !
       implicit none
       !
-      integer, intent(in) :: Nred   !< Number of atoms that evolve
+
       integer, intent(in) :: Natom  !< Number of atoms in system
       integer, intent(in) :: Mensemble !< Number of ensembles
       real(dblprec), intent(in) :: delta_t !< Time step
       character(len=1), intent(in) :: STT    !< Treat spin transfer torque?
       character(len=1), intent(in) :: do_she !< Treat the SHE spin transfer torque
       character(len=1), intent(in) :: do_sot !< Treat the general SOT model
-      integer, dimension(Nred), intent(in) :: red_atom_list !< List of indices of atoms that evolve
+
       real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: beff !< Total effective field from application of Hamiltonian
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: b2eff !< Temporary storage of magnetic field
@@ -306,7 +305,7 @@ contains
          !!$omp parallel do default(shared) private(i,ired,k)  schedule(static) collapse(2)
          do k=1,Mensemble
             do i=1,Natom
-               !i=red_atom_list(ired)
+
                ! Adding STT and SHE torques if present (prefactor instead of if-statement)
                bdup(:,i,k)=bdup(:,i,k)+stt_fac*btorque(:,i,k)+she_fac*she_btorque(:,i,k)
             end do
@@ -317,7 +316,7 @@ contains
          !!$omp parallel do default(shared) private(i,ired,k)  schedule(static) collapse(2)
          do k=1,Mensemble
             do i=1,Natom
-               !i=red_atom_list(ired)
+
                ! Adding STT and SHE torques if present (prefactor instead of if-statement)
                bdup(:,i,k)=bdup(:,i,k)+sot_fac*sot_btorque(:,i,k)
             end do
@@ -328,7 +327,7 @@ contains
          !!$omp parallel do default(shared) private(i,ired,k)  schedule(static) collapse(2)
          do k=1,Mensemble
             do i=1,Natom
-               !i=red_atom_list(ired)
+
                ! Adding STT and SHE torques if present (prefactor instead of if-statement)
                bdup(:,i,k)=bdup(:,i,k)+she_fac*she_btorque(:,i,k)
             end do
@@ -340,7 +339,7 @@ contains
       do k=1,Mensemble
          do i=1,Natom
 
-            !i=red_atom_list(ired)
+
             ! Construct local field
             bloc(:,i,k)=beff(:,i,k)+btherm(:,i,k)
 
@@ -413,7 +412,7 @@ contains
 
          real(dblprec),dimension(3) :: numerator
          ! current previous and second previous
-         real(dblprec),dimension(3) :: emom_0, emom_1, emom_2 
+         real(dblprec),dimension(3) :: emom_0, emom_1, emom_2
          integer :: current, prev
          real(dblprec) :: dt
 
@@ -432,7 +431,7 @@ contains
 
          numerator = A*emom_0 + B*emom_1 + C*emom_2
          d = numerator / dt
-         return      
+         return
       end function diff_second
    end subroutine depondt_evolve_second_ms
 
@@ -443,15 +442,15 @@ contains
       implicit none
       !
       integer, intent(in) :: Natom !< Number of atoms in system
-      integer, intent(in) :: Mensemble !< Number of ensembles 
+      integer, intent(in) :: Mensemble !< Number of ensembles
       real(dblprec), dimension(Natom), intent(in) :: lambda1_array !< Damping parameter
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: emom   !< Current unit moment vector
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: btorque !< Spin transfer torque
       real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: she_btorque !< SHE spin transfer torque
-      character(len=1), intent(in) :: STT !< Treat spin transfer torque? 
+      character(len=1), intent(in) :: STT !< Treat spin transfer torque?
       character(len=1), intent(in) :: do_she !< Treat SHE spin transfer torque
       type(DampingBandData), intent(in) :: dband !< Multiscale damping band parameters
-      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: dedt  !<  
+      real(dblprec), dimension(3,Natom,Mensemble), intent(in) :: dedt  !<
 
       !
       integer :: i, k, index
@@ -464,10 +463,10 @@ contains
             index = dband%interpolation%indices(i)
             do k=1,Mensemble
                if(index .ne. 0) then
-                  sdnorm = sum(dedt(:,i,k)**2) ** 0.25_dblprec         
+                  sdnorm = sum(dedt(:,i,k)**2) ** 0.25_dblprec
                   gamma = dband%coefficients(index) * sdnorm
                   ma1 = (1-lambda1_array(i)**2)*gamma*dband%preinterpolation(1,index,k)
-                  ma2 = (1-lambda1_array(i)**2)*gamma*dband%preinterpolation(2,index,k) 
+                  ma2 = (1-lambda1_array(i)**2)*gamma*dband%preinterpolation(2,index,k)
                   ma3 = (1-lambda1_array(i)**2)*gamma*dband%preinterpolation(3,index,k)
 
                   bdup(1,i,k) = bdup(1,i,k) + (emom(2,i,k)*ma3 - emom(3,i,k)*ma2)
@@ -480,5 +479,49 @@ contains
       end if
 
    end subroutine buildbeff_ms
+
+   !-----------------------------------------------------------------------------
+   !  SUBROUTINE: allocate_depondtms_fields
+   !> @brief
+   !> Allocates work arrays for the Depondtms solver
+   !-----------------------------------------------------------------------------
+   subroutine allocate_depondtms_fields(flag,Natom,Mensemble)
+
+      implicit none
+
+      integer, intent(in) :: Natom !< Number of atoms in system
+      integer, intent(in) :: Mensemble !< Number of ensembles
+      integer, intent(in) :: flag !< Allocate or deallocate (1/-1)
+
+      integer :: i_all, i_stat
+
+      if(flag>0) then
+         allocate(bloc(3,Natom,Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(bloc))*kind(bloc),'bloc','allocate_depondtms_fields')
+         bloc=0.0_dblprec
+         allocate(btherm(3,Natom,Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(btherm))*kind(btherm),'btherm','allocate_depondtms_fields')
+         btherm=0.0_dblprec
+         allocate(bdup(3,Natom,Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(bdup))*kind(bdup),'bdup','allocate_depondtms_fields')
+         bdup=0.0_dblprec
+         allocate(mrod(3,Natom,Mensemble),stat=i_stat)
+         call memocc(i_stat,product(shape(mrod))*kind(mrod),'mrod','allocate_depondtms_fields')
+         mrod=0.0_dblprec
+      else
+         i_all=-product(shape(bloc))*kind(bloc)
+         deallocate(bloc,stat=i_stat)
+         call memocc(i_stat,i_all,'bloc','allocate_depondtms_fields')
+         i_all=-product(shape(btherm))*kind(btherm)
+         deallocate(btherm,stat=i_stat)
+         call memocc(i_stat,i_all,'btherm','allocate_depondtms_fields')
+         i_all=-product(shape(bdup))*kind(bdup)
+         deallocate(bdup,stat=i_stat)
+         call memocc(i_stat,i_all,'bdup','allocate_depondtms_fields')
+         i_all=-product(shape(mrod))*kind(mrod)
+         deallocate(mrod,stat=i_stat)
+         call memocc(i_stat,i_all,'mrod','allocate_depondtms_fields')
+      end if
+   end subroutine allocate_depondtms_fields
 
 end module Depondt_ms

@@ -16,7 +16,7 @@ implicit none
         integer, dimension(:), pointer :: values
         integer :: length
     endtype
-    
+
     !> Initializes a dynamic array.
     !! @param array (out) the array to initialize
     !! @param size  (opt in) the number of elements to preallocate
@@ -25,7 +25,7 @@ implicit none
         procedure newRealArray
     end interface newArray
 
-    !> Releases a dynamic array's memory, effectively leaving it empty.
+    !> Releases a dynamic array´s memory, effectively leaving it empty.
     !! The array can still be used.
     !! @param array (inout) the array to release
     interface deallocArray
@@ -42,7 +42,7 @@ implicit none
         procedure addIntEntry
         procedure addRealEntry
     end interface
-    
+
     !> Erases all elements from the array but does not release
     !! the memory used to hold them.
     !! @param array  Array
@@ -51,7 +51,7 @@ implicit none
         procedure clearRealArray
     end interface clearArray
 
-    
+
     !> Ensures that the specified number of elements fits in the array.
     !! The array is expanded as needed to fit all the elements.
     !! @param array  Array
@@ -60,7 +60,7 @@ implicit none
         procedure ensureIntAllocLength
         procedure ensureRealAllocLength
     end interface ensureAllocLength
-    
+
 public newArray, addEntry, clearArray, ensureAllocLength, DynArrayReal, &
        DynArrayInt, deallocArray
 
@@ -71,10 +71,10 @@ subroutine newIntArray(array, size)
 implicit none
     type(DynArrayInt), intent(out) :: array
     Integer, optional, intent(in) :: size
-    
+
     nullify(array%values)
     array%length = 0
-    
+
     if(present(size)) then
         if (size > 0) then
             call ensureAllocLength(array,size)
@@ -86,10 +86,10 @@ subroutine newRealArray(array, size)
 implicit none
     type(DynArrayReal), intent(out) :: array
     integer, optional, intent(in) :: size
-    
+
     nullify(array%values)
     array%length = 0
-    
+
     if(present(size)) then
         if (size > 0) then
             call ensureAllocLength(array,size)
@@ -100,7 +100,7 @@ end subroutine newRealArray
 subroutine deallocIntArray(array)
 implicit none
     type(DynArrayInt), intent(inout) :: array
-    
+
     array%length = 0
     if (associated(array%values)) then
         deallocate(array%values)
@@ -111,7 +111,7 @@ end subroutine
 subroutine deallocRealArray(array)
 implicit none
     type(DynArrayReal), intent(inout) :: array
-    
+
     array%length = 0
     if (associated(array%values)) then
         deallocate(array%values)
@@ -123,7 +123,7 @@ subroutine addIntEntry(array, val)
 implicit none
     type(DynArrayInt), intent(inout) :: array
     integer, intent(in) :: val
-    
+
     integer :: allocated
 
     if (.not. associated(array%values)) then
@@ -133,13 +133,13 @@ implicit none
        allocated = ubound(array%values,1)
     endif
 
-    if (allocated < array%length + 1) then 
+    if (allocated < array%length + 1) then
        call ensureIntAllocLength(array, &
             max(initialSize, ceiling(array%length*growCoeff)))
     endif
     array%length = array%length + 1
     array%values(array%length) = val
-    
+
 end subroutine addIntEntry
 
 subroutine addRealEntry(array, val)
@@ -148,7 +148,7 @@ implicit none
     real(dblprec), intent(in) :: val
 
     integer :: allocated
-    
+
     if (.not. associated(array%values)) then
        allocated = -1
        array%length = 0
@@ -156,14 +156,14 @@ implicit none
        allocated = ubound(array%values,1)
     endif
 
-    if (allocated < array%length + 1) then 
+    if (allocated < array%length + 1) then
        call ensureRealAllocLength(array, &
             max(initialSize, ceiling(array%length*growCoeff)))
     endif
     array%length = array%length + 1
     array%values(array%length) = val
 end subroutine addRealEntry
-  
+
 pure subroutine clearRealArray(array)
 implicit none
     type(DynArrayReal), intent(inout) :: array
@@ -180,7 +180,7 @@ subroutine ensureRealAllocLength(array, length)
 implicit none
     type(DynArrayReal), intent(inout) :: array
     integer, intent(in) :: length
-    
+
     integer :: allocatedSize
     real(dblprec), dimension(:), pointer :: tmpValues
 
@@ -202,7 +202,7 @@ subroutine ensureIntAllocLength(array, length)
 implicit none
     type(DynArrayInt), intent(inout) :: array
     integer, intent(in) :: length
-    
+
     integer :: allocatedSize
     integer, dimension(:), pointer :: tmpValues
 

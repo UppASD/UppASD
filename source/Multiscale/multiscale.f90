@@ -16,7 +16,7 @@ module Multiscale
   use Parameters
   use ShapeModule
   use SparseMatrix
-  
+
   type MultiscaleRegions
      ! Indices of atoms that belongs to the fully coarse-grained region
      integer, dimension(:), allocatable :: coarseGrained
@@ -27,7 +27,7 @@ module Multiscale
      ! Indices of atoms in the damping band
      integer, dimension(:), allocatable :: dampingAtoms
      ! Indices outside the damping band
-     integer, dimension(:), allocatable :: nonDampingAtoms 
+     integer, dimension(:), allocatable :: nonDampingAtoms
   end type MultiscaleRegions
 
 
@@ -37,7 +37,7 @@ module Multiscale
      real(dblprec), pointer, dimension(:,:,:) :: anisotropyE  ! size (3,atoms,axes)
      real(dblprec), pointer, dimension(:,:)   :: anisotropyRatios ! size(atoms,axes)
   end type AtomAnisotropies
-  
+
   type MultiscaleSetup
      real(dblprec), allocatable, dimension(:,:) :: moments
 
@@ -50,7 +50,7 @@ module Multiscale
 
      type(SpMatrix) :: dampingBandWeights
      real(dblprec), allocatable, dimension(:) :: dampingBandAttenuation
-     
+
      type(AtomAnisotropies) :: anisotropies
      type(SpMatrix)         :: gradientLinks
   end type MultiscaleSetup
@@ -68,15 +68,15 @@ module Multiscale
        setupDampingBand, setupAnisotropies, createRegions, &
        multiscaleBackbuffer, multiscaleBackbufferHead, &
        deallocateRegions, deallocateSetup
-  
+
 contains
 
-  
+
   !> Prepare a multiscale setup.
   subroutine runMultiscaleSetup(options, setup,atomRegions)
     use SortModule, only: sort
     implicit none
-    type(MultiscaleOptions), intent(inout) :: options 
+    type(MultiscaleOptions), intent(inout) :: options
     type(MultiscaleSetup), intent(out) :: setup
     type(MultiscaleRegions), intent(out) :: atomRegions
 
@@ -90,8 +90,8 @@ contains
     integer :: nrOfFiniteDiff
 
 
-    
-    ! Set the sizes outside the dimensionality to 1, to avoid numerical problems with 0's
+
+    ! Set the sizes outside the dimensionality to 1, to avoid numerical problems with 0´s
     options%space%universeSize((options%space%spatDimension+1):3) = 1d0;
 
     call createFiniteDiffMesh(options%space, options%finiteDiffBoxes, &
@@ -114,14 +114,14 @@ contains
 
     call setupInterpolationWeights(options,mesh, setup%positions, realAtomsIndices, &
          paddingAtomsIndices%indices, finiteDiffIndices, &
-         setup%interpolationWeights)   
+         setup%interpolationWeights)
 
     call buildKdTree(nonDampingIndices, setup%positions, atomRegions%nonDampingAtoms)
     call setupDampingBand(mesh,options,setup%positions, realAtomsIndices,&
          paddingAtomsIndices,atomRegions%dampingAtoms, &
          nonDampingIndices, finiteDiffIndices, &
          setup%dampingBandWeights, setup%dampingBandAttenuation  )
-    call deallocTree(nonDampingIndices)  
+    call deallocTree(nonDampingIndices)
 
     call setupGradients(options, mesh, finiteDiffIndices, &
          realAtomsIndices, paddingAtomsIndices, setup%positions, setup%gradientLinks)
@@ -131,12 +131,12 @@ contains
     call sort(atomRegions%realAtoms)
     call sort(atomRegions%dampingAtoms)
     call sort(atomRegions%nonDampingAtoms)
-    
+
     call sortMatrixByRowAndColumn(setup%interpolationWeights)
     call sortMatrixByRow(setup%atomsExchange)
     call sortMatrixByRowAndColumn(setup%atomsDm)
     call sortMatrixByRow(setup%dampingBandWeights)
-    
+
     deallocate(finiteDiffIndices)
 
     call deallocTree(realAtomsIndices)
@@ -145,7 +145,7 @@ contains
     call finalizeGeometry()
 
   end subroutine runMultiscaleSetup
-  
+
   !> deallocate an atomRegions structure
   subroutine deallocateRegions(atomRegions)
     implicit none
@@ -185,15 +185,15 @@ contains
 
     if (associated(anisotropies%anisotropyTypes)) &
          deallocate(anisotropies%anisotropyTypes)
-    if(associated(anisotropies%anisotropyKs)) & 
+    if(associated(anisotropies%anisotropyKs)) &
          deallocate(anisotropies%anisotropyKs)
-    if(associated(anisotropies%anisotropyE)) & 
+    if(associated(anisotropies%anisotropyE)) &
          deallocate(anisotropies%anisotropyE)
-    if(associated(anisotropies%anisotropyRatios)) & 
+    if(associated(anisotropies%anisotropyRatios)) &
          deallocate(anisotropies%anisotropyRatios)
-        
+
   end subroutine deallocateAnisotropies
-  
+
   !> Given a finite difference mesh and a MultiscaleOptions,
   !! builds the corresponfing real and padding atoms.
   !! This is done iterating over regions in the mesh that are atomistic and adding
@@ -230,7 +230,7 @@ contains
     integer :: nrOfPaddingAtoms
     integer :: i
     type(MomentList), pointer :: p
-    
+
     call allocateAtomLinkedList(generatedAtomList)
 
     print *, 'Generating atoms...'
@@ -239,7 +239,7 @@ contains
          generatedAtomList, nrOfAtomsGenerated)
 
     allocate(realAtomPositions(3, nrOfAtomsGenerated))
-    call extractPositions(generatedAtomList, realAtomPositions)  
+    call extractPositions(generatedAtomList, realAtomPositions)
 
     call buildKdTree(realAtomIndices, realAtomPositions)
 
@@ -255,7 +255,7 @@ contains
     call allocateAtomSetupInfo(atomSetup, nrOfAtomsGenerated + nrOfPaddingAtoms)
     call extractTypes(generatedAtomList, atomSetup%atomTypes)
     call extractFromUnitcellLocation(generatedAtomList, atomSetup%fromUnitcellLocation)
-   
+
     call generateFiniteDifferenceAtoms(mesh, nrOfAtomsGenerated + nrOfPaddingAtoms, &
          opts%continuumMomentMagnitude, finiteDiffIndices, generatedAtomList, nrOfFiniteDiff)
     allocate(atomPositions(3, nrOfAtomsGenerated + nrOfPaddingAtoms + nrOfFiniteDiff))
@@ -269,7 +269,7 @@ contains
           atomMoments(:,i) = p%parameters%magnitude * p%parameters%direction
        end if
     end do
-   
+
     call buildKdTree(paddingAtomIndices, atomPositions, tmpPaddingIndices)
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     deallocate(tmpPaddingIndices)
@@ -298,7 +298,7 @@ contains
     real(dblprec)           , intent(in), dimension(:, :)    :: atomPositions
     type(AtomSetupInfo)     , intent(in)                     :: atomSetup
     integer                 , intent(in), dimension(:, :, :) :: finiteDiffIndices
-    type(MultiscaleRegions) , intent(in)                     :: atomRegions    
+    type(MultiscaleRegions) , intent(in)                     :: atomRegions
     type(SpMatrix)          , intent(out)                    :: atomsExchange
     type(SpMatrix)          , intent(out)                    :: atomsDm
 
@@ -308,7 +308,7 @@ contains
     type(KdTree) :: totalTree, realTree, partTree, coarseTree
     integer, dimension(:), allocatable :: atomIndices
     integer, dimension(3) :: maxNrOfUnitcellLocations
- 
+
     dim = opts%space%spatDimension
     maxNrOfUnitcellLocations = 1
     maxNrOfUnitcellLocations(1:dim) = &
@@ -329,12 +329,12 @@ contains
     call createFiniteDiffLinks(mesh, &
          opts%continuumExchangeCoef, opts%continuumDm, &
          finiteDiffIndices, atomsExchange, atomsDm)
-    
+
     print *, 'Creating links between the atoms...'
     realMaxRadius = &
          getMaxInteractionRadius(opts%realExchange, opts%unitcell%size) &
          + opts%linkErrorTolerance
-    
+
     coarseMaxRadius = &
          getMaxInteractionRadius(opts%coarseExchange, opts%unitcell%size) &
          + opts%linkErrorTolerance
@@ -347,17 +347,17 @@ contains
     realMaxRadius = &
          getMaxInteractionRadius(opts%realDm, opts%unitcell%size) &
          + opts%linkErrorTolerance
-    
+
     coarseMaxRadius = &
          getMaxInteractionRadius(opts%coarseDm, opts%unitcell%size) &
          + opts%linkErrorTolerance
-    
+
     call createDmMatrix(opts%space, atomPositions,opts%linkErrorTolerance,&
          totalTree, realTree, partTree, coarseTree, &
          realDmLaw, realMaxRadius, coarseDmLaw, coarseMaxRadius, &
          atomsDm)
 
-    
+
     call deallocTree(totalTree)
     call deallocTree(realTree)
     call deallocTree(partTree)
@@ -375,7 +375,7 @@ contains
            maxNrOfUnitcellLocations, atomPositions, atomSetup, atomI, atomJ, &
            opts%linkErrorTolerance)
       realExchangeLaw = iv(1)
-      
+
     end function realExchangeLaw
     pure real(dblprec) function coarseExchangeLaw(atomI, atomJ)
       use InteractionInput
@@ -387,9 +387,9 @@ contains
            maxNrOfUnitcellLocations, atomPositions, atomSetup, atomI, atomJ, &
            opts%linkErrorTolerance)
       coarseExchangeLaw = iv(1)
-      
+
     end function coarseExchangeLaw
-    
+
     pure function realDmLaw(atomI, atomJ) result(v)
       use InteractionInput
       integer, intent(in) :: atomI, atomJ
@@ -398,7 +398,7 @@ contains
       v = getInteractionValue(opts%realDm, opts%space, &
            maxNrOfUnitcellLocations, atomPositions, atomSetup, atomI, atomJ, &
            opts%linkErrorTolerance)
-            
+
     end function realDmLaw
     pure function coarseDmLaw(atomI, atomJ) result(v)
       use InteractionInput
@@ -408,10 +408,10 @@ contains
       v = getInteractionValue(opts%coarseDm, opts%space, &
            maxNrOfUnitcellLocations, atomPositions, atomSetup, atomI, atomJ, &
            opts%linkErrorTolerance)
-      
+
     end function coarseDmLaw
-    
-    
+
+
   end subroutine setupLinks
 
   !> Calculates weights used to calculate two interpolations in the interface between atomistic and continuum domains. All results are stored in files.
@@ -421,7 +421,7 @@ contains
   !! @param[in]  atomPositions Atom coordinates, dimensions (3, Natoms)
   !! @param[in]  realAtomIndices k-d tree indexing real atoms.
   !! @param[in]  paddingIndices Integer indices of atoms in the padding zone.
-  !! @param[in]  finiteDiffIndices 
+  !! @param[in]  finiteDiffIndices
   !! @param[out] interpolationWeights calculated interpolation weights.
   subroutine setupInterpolationWeights(opts, mesh, atomPositions, realAtomIndices,&
        paddingIndices, finiteDiffIndices, interpolationWeights)
@@ -437,18 +437,18 @@ contains
     type(SpMatrix), intent(out) :: interpolationWeights
 
     print *, 'Creating interpolation weights for the finite difference nodes...'
-    call allocSpMatrix(interpolationWeights)    
+    call allocSpMatrix(interpolationWeights)
     call createFiniteDiffInterpolationLinks(mesh, opts%space, atomPositions,&
          realAtomIndices, mesh%boxSize, opts%atomLatSp, finiteDiffIndices,&
          interpolationWeights)
     print *, 'Creating interpolation weights for the padding atoms...'
     call createPaddingInterpolationWeights(atomPositions, paddingIndices, mesh, finiteDiffIndices,&
          interpolationWeights)
-    
+
     call removeZeros(interpolationWeights)
 
   end subroutine setupInterpolationWeights
-  
+
   subroutine setupGradients(opts, mesh, finiteDiffIndices, realAtomIndices, paddingIndices, positions, indices)
     use GradientIndices
     implicit none
@@ -459,7 +459,7 @@ contains
     type(KdTree), intent(in) :: paddingIndices
     real(dblprec), dimension(:, :), intent(in) :: positions
     type(SpMatrix), intent(out) :: indices
-    
+
     !! Allocate output
     call allocSpMatrix(indices)
 
@@ -471,7 +471,7 @@ contains
             indices)
     end if
   end subroutine setupGradients
-  
+
 
   !> Calculates coefficients used in the damping band filter. These parameters are stored as files.
   !! @param[in]  mesh Finite difference mesh
@@ -508,27 +508,27 @@ contains
        print *, 'Damping band strength is zero; no damping band.'
        allocate(dampingSpCoeffs(0))
        call allocSpMatrix(dampingAvCoeffs)
-    else    
+    else
        print *, 'Calculating distance coefficients for damping band...'
        call dampingPositionalCoefficients(dampingIndices, nonDampingIndices, &
             opts%space, atomsPositions, paddingIndices, opts%atomLatSp, &
             opts%dampingBandStrength, opts%dampingbandWidth, dampingSpCoeffs)
-       
+
        print *, 'Calculating averaging coefficients for the damping band...'
-       
+
        call newArray(finiteIndices)
        call getNonInterpolationIndices(finiteDiffIndices, finiteIndices)
        allocate(allIndices(finiteIndices%length + ubound(realAtomIndices%indices, 1)))
        allIndices(1:finiteIndices%length) = finiteIndices%values(1:finiteIndices%length)
        allIndices((finiteIndices%length + 1):(ubound(allIndices, 1))) = realAtomIndices%indices
-       
+
        call buildKdTree(totalTree, atomsPositions, allIndices)
-       
+
        call allocSpMatrix(dampingAvCoeffs)
        call dampingAreaCoeff(mesh,opts%space, atomsPositions, totalTree, &
             dampingIndices, opts%atomLatSp, opts%windowSize, dampingAvCoeffs)
        print *, 'Multiscale setup ready.'
-       
+
        deallocate(allIndices)
        call deallocArray(finiteIndices)
        call deallocTree(totalTree)
@@ -542,13 +542,13 @@ contains
   !! @param[out] anisotropies Per-atom anisotropy parameters.
   subroutine setupAnisotropies(opts, atomPositions, anisotropies)
     use ShapeModule
-    use Anisotropy  
+    use Anisotropy
     implicit none
-    type(MultiscaleOptions), intent(inout) :: opts 
+    type(MultiscaleOptions), intent(inout) :: opts
     real(dblprec), dimension(:, :), allocatable,intent(in) :: atomPositions
     type(AtomAnisotropies), intent(out) :: anisotropies
-    
-    type(AnisotropyList), pointer :: p 
+
+    type(AnisotropyList), pointer :: p
     integer :: i, axes, nAtoms, axis
 
     nAtoms = ubound(atomPositions,2)
@@ -558,7 +558,7 @@ contains
     nullify(anisotropies%anisotropyKs)
     nullify(anisotropies%anisotropyE)
     nullify(anisotropies%anisotropyRatios)
-    
+
     if (axes > 0 .and. nAtoms > 0) then
        allocate(anisotropies%anisotropyTypes(nAtoms,axes))
        anisotropies%anisotropyTypes = 0
@@ -566,12 +566,12 @@ contains
        anisotropies%anisotropyKs = 0
        allocate(anisotropies%anisotropyE(3,nAtoms,axes))
        !! UppASD divides over the norm of e, cannot be 0
-       anisotropies%anisotropyE(1,:,:) = 1 
+       anisotropies%anisotropyE(1,:,:) = 1
        anisotropies%anisotropyE(2,:,:) = 0
        anisotropies%anisotropyE(3,:,:) = 0
        allocate(anisotropies%anisotropyRatios(nAtoms,axes))
        anisotropies%anisotropyRatios = 0
-       
+
        do i = 1, nAtoms
           p => anisotropyFromPoint(atomPositions(:,i),opts%anisotropies)
           if(associated(p)) then
@@ -586,7 +586,7 @@ contains
        end do
     end if
   end subroutine setupAnisotropies
-     
+
   !> Split the atomistic zone into regions
   !! @param[in]  space Space structure
   !! @param[in]  atomPositions Atom coordinates, dimensions (3, Natoms)

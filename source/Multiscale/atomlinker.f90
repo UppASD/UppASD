@@ -207,7 +207,7 @@ implicit none
     call newArray(distancesSquared)
     call allocSpMatrix(knownExchanges)
 
-    ! Find J's from fully coarse-grained and real atoms to pcg
+    ! Find J´s from fully coarse-grained and real atoms to pcg
     call linkAtomsToNeighbours(space, atomPositions, coarseTree, partTree%indices, &
          coarseExchangeLaw, maxCoarseRadius, knownExchanges)
     call linkAtomsToNeighbours(space, atomPositions, realTree, partTree%indices, &

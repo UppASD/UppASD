@@ -53,7 +53,7 @@ contains
          real(dp), intent(inout) :: y(m)
        end subroutine Aprod1
 
-       subroutine Aprod2(m,n,x,y)                   ! x := x + A'*y
+       subroutine Aprod2(m,n,x,y)                   ! x := x + A´*y
          use lsqrDataModule, only : dp
          integer,  intent(in)    :: m,n
          real(dp), intent(inout) :: x(n)
@@ -79,7 +79,7 @@ contains
     ! by means of subroutine calls with the following purpose:
     !
     ! call Aprod1(m,n,x,y)  must compute y = y + A*x  without altering x.
-    ! call Aprod2(m,n,x,y)  must compute x = x + A'*y without altering y.
+    ! call Aprod2(m,n,x,y)  must compute x = x + A´*y without altering y.
     !
     ! LSQR uses an iterative method to approximate the solution.
     ! The number of iterations required to reach a certain accuracy
@@ -179,7 +179,7 @@ contains
     !                    of damp in the range 0 to sqrt(eps)*norm(A)
     !                    will probably have a negligible effect.
     !                    Larger values of damp will tend to decrease
-    !                    the norm of x and reduce the number of 
+    !                    the norm of x and reduce the number of
     !                    iterations required by LSQR.
     !
     !                    The work per iteration and the storage needed
@@ -193,7 +193,7 @@ contains
     !                    Otherwise (m <= n  and  damp = 0) they do not
     !                    mean much.  Some time and storage can be saved
     !                    by setting wantse = .false. and using any
-    !                    convenient array for se(*), which won't be
+    !                    convenient array for se(*), which won´t be
     !                    touched.
     !
     ! b(m)    input      The rhs vector b.
@@ -305,7 +305,7 @@ contains
     !
     ! xnorm   output     An estimate of norm(x) for the final solution x.
     !
-    ! Subroutines and functions used              
+    ! Subroutines and functions used
     ! ------------------------------
     ! BLAS               dscal, dnrm2
     ! USER               Aprod1, Aprod2
@@ -391,7 +391,7 @@ contains
     intrinsic :: abs, sqrt
 
     ! Local arrays and variables
-    real(dp)  :: u(m), v(n), w(n)         
+    real(dp)  :: u(m), v(n), w(n)
     logical   :: damped, prnt
     integer   :: i, maxdx, nconv, nstop
     real(dp)  :: alfopt,                                    &
@@ -457,7 +457,7 @@ contains
 
     if (beta > zero) then
        call dscal (m, (one/beta), u, 1)
-       call Aprod2(m, n, v, u)          ! v = A'*u
+       call Aprod2(m, n, v, u)          ! v = A´*u
        alpha = dnrm2 (n, v, 1)
     end if
 
@@ -490,12 +490,12 @@ contains
     !===================================================================
     do
        itn = itn + 1
-	  
+
        !----------------------------------------------------------------
        ! Perform the next step of the bidiagonalization to obtain the
        ! next beta, u, alpha, v.  These satisfy
        !     beta*u = A*v  - alpha*u,
-       !    alpha*v = A'*u -  beta*v.
+       !    alpha*v = A´*u -  beta*v.
        !----------------------------------------------------------------
        call dscal (m,(- alpha), u, 1)
        call Aprod1(m, n, v, u)             ! u = A*v
@@ -510,7 +510,7 @@ contains
        if (beta > zero) then
           call dscal (m, (one/beta), u, 1)
           call dscal (n, (- beta), v, 1)
-          call Aprod2(m, n, v, u)          ! v = A'*u
+          call Aprod2(m, n, v, u)          ! v = A´*u
           alpha  = dnrm2 (n, v, 1)
           if (alpha > zero) then
              call dscal (n, (one/alpha), v, 1)

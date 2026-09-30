@@ -19,7 +19,7 @@
 !! Many of the operations are performed inplace to save memory and reduce allocations.
 !! The problem will be ill-conditioned when positions are too close to each other
 !! and unsolvable if too few or repeated positions are given.
-!! In such cases NaN's will appear, beware!
+!! In such cases NaN´s will appear, beware!
 !> authors
 !> Edgar Mendez
 !> Nikos  Ntallis
@@ -32,7 +32,7 @@ implicit none
   public  a_kt_diagw, invert, kt_diagw_k, Kcoeffs, ensureSize, rowMatrixProd, dot
 contains
 
-  
+
   !> Vector-vector scalar product
   function dot(row,col) result(r)
   implicit none
@@ -41,13 +41,13 @@ contains
 
     r = sum(row(:) * col(:))
   end function dot
-  
-  
+
+
   !> Multiplies one and only one row from A to the whole matrix B
   subroutine rowMatrixProd(A, B, nACols, nBCols, row, product)
     use DynamicArray
     implicit none
-    real(dblprec), dimension(:,:), intent(in) :: A       
+    real(dblprec), dimension(:,:), intent(in) :: A
     real(dblprec), dimension(:,:), intent(in) :: B
     integer, intent(in) :: nACols
     integer, intent(in) :: nBCols
@@ -64,7 +64,7 @@ contains
     end do
 
   end subroutine rowMatrixProd
-  
+
   !! Ensures that A shaped as n-by-m matrix.
   !! The values could be discarded, the size is never reduced, only grown.
   subroutine ensureSize(m, n, A)
@@ -73,7 +73,7 @@ contains
     real(dblprec), dimension(:,:), allocatable, intent(inout) :: A
 
     if (.not. allocated(A)) then
-       allocate(A(m,n))    
+       allocate(A(m,n))
     elseif(ubound(A,1) < m .or. ubound(A,2) < n) then
        deallocate(A)
        allocate(A(m,n))
@@ -102,7 +102,7 @@ contains
        !! Care, gets the direction considering periodic boundaries!
        !! Notice: When the domain is too thin, an atom that is specified twice
        !! (e.g: due to PBC) will be assigned the same vector twice.
-       !! This shouldn't be happening right now only because areaCoefficients will
+       !! This shouldn´t be happening right now only because areaCoefficients will
        !! list each atom once, but could generally cause tricky situations.
        call getDirectionalVector(space, &
             positions(:,atom), centre, normpos(:,i))
@@ -115,7 +115,7 @@ contains
     elseif(space%spatDimension == 2) then
        do i=1,ubound(normpos,2)
           K(i,1:6) = (/ normpos(1,i)**2, normpos(2,i)**2, normpos(1,i)*normpos(2,i), &
-               normpos(1,i),normpos(2,i), 1.0_dblprec /)          
+               normpos(1,i),normpos(2,i), 1.0_dblprec /)
        enddo
     else
        do i=1,ubound(normpos,2)
@@ -136,9 +136,9 @@ contains
 
     integer :: i,j,k
     real(dblprec) :: accum
-    !! E = (At diag(W) A), 
+    !! E = (At diag(W) A),
     !! thus E_ij = a_ik w_i a_kj
-    !! It's symmetric, we calculate each element once.
+    !! It´s symmetric, we calculate each element once.
     do j=1,ubound(A,2)
        do i=j,ubound(A,2)
           accum = 0
@@ -152,7 +152,7 @@ contains
 
   end subroutine kt_diagw_k
 
-  !> Calculates A's inverse in Inv using gaussian elimination
+  !> Calculates A´s inverse in Inv using gaussian elimination
   !! Destroys A in the process
   subroutine invert(A,Inv)
     real(dblprec), dimension(:,:), intent(inout)  :: A
@@ -192,7 +192,7 @@ contains
        !A(i,:) = A(i,:) / A(i,i)
     end do
   end subroutine invert
-  
+
   !! A Kt W
   subroutine a_kt_diagw(A,Ks,w, Out)
     implicit none
@@ -216,5 +216,5 @@ contains
     end do
   end subroutine a_kt_diagw
 
-  
+
 end module MomentInterpolant

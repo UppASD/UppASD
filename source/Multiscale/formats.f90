@@ -11,7 +11,7 @@ module Formats
   !! Identifies a file as a valid binary
   byte,dimension(4),parameter :: BIN_MAGIC = (/77_1,85_1,80_1,0_1/) !reads 'MUP\0'
   character(len=*), parameter :: MATLAB_HEADER = '% Multiscale auto-generated matlab file.' // new_line('a')
-  
+
   !! Size in bytes of the genType structure.
   integer, parameter :: GEN_TYPE_SZ = 16
   !! Identifiers for types accepted by genType
@@ -23,7 +23,7 @@ module Formats
   integer, parameter :: TYPE_STR     = 7
 
   !! Maximum length for a text or binary sequence representing a number
-  integer, parameter :: NUMBER_BUFFER_LEN = 31  
+  integer, parameter :: NUMBER_BUFFER_LEN = 31
 
   !! Format strings for plain text:
   !> Consider the output is trimmed, and MUST fit NUMBER_BUFFER_LEN-1
@@ -43,7 +43,7 @@ module Formats
      byte,dimension(GEN_TYPE_SZ) :: data
   end type genType
 
-  !! Interface for any function that dumps bytes somewhere.  
+  !! Interface for any function that dumps bytes somewhere.
   abstract interface
      subroutine writerIf(bytes)
        implicit none
@@ -162,8 +162,8 @@ module Formats
      procedure toByte_i
      procedure toByte_l
   end interface toByte
-     
-  
+
+
   !! Given a value or variable, finds the size in bytes required to hold it.
   interface sizeOf
      procedure sizeOf_d
@@ -191,46 +191,46 @@ contains
     character, dimension(:),intent(in) :: v
     byte, dimension(:), intent(inout)::bytearray
     integer, intent(out):: length
-    
+
     length = sizeof(v)
-    
+
   end subroutine toByte_s
   subroutine toByte_d(v, bytearray, length)
     real(dblprec),intent(in) :: v
     byte, dimension(:), intent(inout)::bytearray
     integer, intent(out):: length
-    
+
     length = sizeof(v)
-    
+
   end subroutine toByte_d
   subroutine toByte_r(v, bytearray, length)
     real,intent(in) :: v
     byte, dimension(:), intent(inout)::bytearray
     integer, intent(out):: length
-    
+
     length = sizeof(v)
-    
+
   end subroutine toByte_r
   subroutine toByte_i(v, bytearray, length)
     integer,intent(in) :: v
     byte, dimension(:), intent(inout)::bytearray
     integer, intent(out):: length
-    
+
     length = sizeof(v)
-    
+
   end subroutine toByte_i
   subroutine toByte_l(v, bytearray, length)
     logical,intent(in) :: v
     byte, dimension(:), intent(inout)::bytearray
     integer, intent(out):: length
-    
+
     length = sizeof(v)
-    
+
   end subroutine toByte_l
-    
-    
-    
-  
+
+
+
+
   subroutine formatGen(gt,binary,writer)
     implicit none
     type(genType), intent(in) :: gt
@@ -265,7 +265,7 @@ contains
     elseif (getGen(gt,bool)) then
        call fformat(bool,binary,buffer,length,stat)
     elseif (getGen(gt,str)) then
-       length = min(ubound(buffer,1),len(trim(str)))    
+       length = min(ubound(buffer,1),len(trim(str)))
        call strToBytes(str,buffer,length)
        stat = 0
     else
@@ -287,7 +287,7 @@ contains
        buffer(i) = ichar(str(i:i))
     end do
   end subroutine strToBytes
-  
+
   subroutine fformat_d(v, binary, raw, length, stat)
     implicit none
     real(dblprec), intent(in) :: v
@@ -376,28 +376,28 @@ contains
     type(genType) :: gt
     gt%type = TYPE_INTEGER
     gt%data = 0
-    gt%data = transfer(v,gt%data)
+    gt%data = transfer(v,gt%data,size(gt%data))
   end function gen_type_integer
   function gen_type_real_sp(v) result(gt)
     implicit none
     real, intent(in) :: v
     type(genType) :: gt
     gt%type = TYPE_REAL_SP
-    gt%data = transfer(v,gt%data)
+    gt%data = transfer(v,gt%data,size(gt%data))
   end function gen_type_real_sp
   function gen_type_real_dp(v) result(gt)
     implicit none
     real(dblprec), intent(in) :: v
     type(genType) :: gt
     gt%type = TYPE_REAL_DP
-    gt%data = transfer(v,gt%data)
+    gt%data = transfer(v,gt%data,size(gt%data))
   end function gen_type_real_dp
   function gen_type_logical(v) result(gt)
     implicit none
     logical, intent(in) :: v
     type(genType) :: gt
     gt%type = TYPE_LOGICAL
-    gt%data = transfer(v,gt%data)
+    gt%data = transfer(v,gt%data,size(gt%data))
   end function gen_type_logical
   function gen_type_str(v) result(gt)
     implicit none
@@ -408,12 +408,12 @@ contains
        stop "String too large for gen_type"
     end if
     gt%data = ichar(' ')
-    gt%data = transfer(v,gt%data)
+    gt%data = transfer(v,gt%data,size(gt%data))
   end function gen_type_str
 
 
 
-  !! Unpacking gen type  
+  !! Unpacking gen type
   function get_gen_type_none(gt) result(success)
     implicit none
     type(genType), intent(in) :: gt
@@ -430,7 +430,7 @@ contains
     logical :: success
     success = .false.
     if(gt%type == TYPE_INTEGER) then
-       v = transfer(gt%data,v) 
+       v = transfer(gt%data,v)
        success = .true.
     end if
   end function get_gen_type_integer
@@ -441,7 +441,7 @@ contains
     logical :: success
     success = .false.
     if(gt%type == TYPE_REAL_SP) then
-       v = transfer(gt%data,v) 
+       v = transfer(gt%data,v)
        success = .true.
     end if
   end function get_gen_type_real_sp
@@ -452,7 +452,7 @@ contains
     logical :: success
     success = .false.
     if(gt%type == TYPE_REAL_DP) then
-       v = transfer(gt%data,v) 
+       v = transfer(gt%data,v)
        success = .true.
     end if
 
@@ -464,7 +464,7 @@ contains
     logical :: success
     success = .false.
     if(gt%type == TYPE_LOGICAL) then
-       v = transfer(gt%data,v) 
+       v = transfer(gt%data,v)
        success = .true.
     end if
 
@@ -672,7 +672,7 @@ contains
 
     call formatGen(val,.false.,writer)
 
-    if(type == FORMAT_TYPE_SPARSE_MATRIX .or. & 
+    if(type == FORMAT_TYPE_SPARSE_MATRIX .or. &
          type == FORMAT_TYPE_ARRAY) then
        call formatGen(gen(new_line('a')),.false., writer)
     end if
@@ -690,7 +690,7 @@ contains
 
 
   ! MATLAB
-  
+
   subroutine matlab_writeMagic(writer)
     procedure(writerIf) :: writer
     byte,dimension(1) :: mold
@@ -706,7 +706,7 @@ contains
     byte,dimension(300) :: as_bytes
     character(len=300) :: buffer
     equivalence (buffer,as_bytes)
-    
+
     if (type == FORMAT_TYPE_SPARSE_MATRIX) then
        buffer = name // " = sparse([],[],[]);" // new_line('a')
     elseif (type == FORMAT_TYPE_ARRAY) then
@@ -741,7 +741,7 @@ contains
        write(buffer,*) trim(name),'(',position(1),',',position(2),') = '
        call writer(as_bytes(1:len(trim(buffer))))
        call formatGen(val,.false.,writer)
-       call formatGen(gen(';' // new_line('a')),.false.,writer)       
+       call formatGen(gen(';' // new_line('a')),.false.,writer)
     elseif(type == FORMAT_TYPE_ARRAY) then
        buffer = ''
        do i=1,rank-1

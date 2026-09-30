@@ -4,8 +4,8 @@
 !> Manuel Pereiro
  module MultiscaleInterpolation
   use Parameters
-  
-  ! Here is an example of use of the LocalInterpolationInfo structure (serializes it)  
+
+  ! Here is an example of use of the LocalInterpolationInfo structure (serializes it)
   ! do i=1,Natoms
   !    if(lii%indices(i) .ne. 0) then
   !       print *,"ATOM", i
@@ -33,14 +33,14 @@
 
   type(LocalInterpolationInfo) interfaceInterpolation
 contains
-  
+
   !> Initializes a new LocalInterpolationInfo structure
-  !! Don't use uninitialized structures, as non-nullified pointers inside them
+  !! Don´t use uninitialized structures, as non-nullified pointers inside them
   !! will cause crashes when deallocating or running solvers
   subroutine newLocalInterpolationInfo(localInterp)
     implicit none
     type(LocalInterpolationInfo), intent(inout) :: localInterp
-    
+
     localInterp%nrInterpAtoms = 0
     nullify(localInterp%indices)
     nullify(localInterp%firstNeighbour)
@@ -49,13 +49,13 @@ contains
   end subroutine newLocalInterpolationInfo
 
   !! Releases all allocated pointers in a LocalInterpolationInfo structure
-  !! and resets it. 
+  !! and resets it.
   subroutine deleteLocalInterpolationInfo(localInterp)
     use Profiling
   implicit none
     type(LocalInterpolationInfo), intent(inout) :: localInterp
     integer :: i_stat,var_size
-    
+
     localInterp%nrInterpAtoms = 0
     if(associated(localInterp%indices)) then
        var_size = product(shape(localInterp%indices))*kind(localInterp%indices)
@@ -107,10 +107,10 @@ contains
           v = (/ 0, 0, 0 /)
           div = 0
           norm = 0
-          do i=interp%firstNeighbour(index), &               
+          do i=interp%firstNeighbour(index), &
                interp%firstNeighbour(index+1)-1
              t = arr(:,interp%neighbours(i),ensemble) * interp%weights(i)
-             v = v + t 
+             v = v + t
              div = div + interp%weights(i)
              norm = norm + sqrt(sum(t**2))
           end do
@@ -123,7 +123,7 @@ contains
     end if
   end function denormalInterpolation
 
-  
+
   !> Evaluates the spherical interpolation
   !! (Σ(w_i m_i))  where w_i=weights
   !! The norm is also interpolated
@@ -143,14 +143,14 @@ contains
        if (index .ne. 0) then
           acc = (/ 0, 0, 0 /)
           div = 0
-          do i=interp%firstNeighbour(index), &               
+          do i=interp%firstNeighbour(index), &
                interp%firstNeighbour(index+1)-1
-             cart = arr(:,interp%neighbours(i),ensemble) 
+             cart = arr(:,interp%neighbours(i),ensemble)
              pol(1) = sqrt(sum(cart**2))
              pol(2) = atan2(cart(2),cart(1))
-             pol(3) = acos(cart(3)/pol(1))             
-             acc = acc + pol * interp%weights(i) 
-             div = div + interp%weights(i) 
+             pol(3) = acos(cart(3)/pol(1))
+             acc = acc + pol * interp%weights(i)
+             div = div + interp%weights(i)
           end do
           acc = acc / div
           v(1) = acc(1) * cos(acc(2)) * sin(acc(3))
@@ -161,8 +161,8 @@ contains
        end if
     end if
   end function denormalSlerp
-  
-  
+
+
   !> Evaluates the interpolation
   !! normalized(Σ(w_i m_i))  where w_i=weights
   !! and i iterates over the neighbours of atom defined by the interpolation
@@ -213,7 +213,7 @@ contains
     integer :: atom,index,ens
 
     !$omp parallel do private(atom,index,ens)
-    do atom=1,ubound(interfaceInterpolation%indices, 1) 
+    do atom=1,ubound(interfaceInterpolation%indices, 1)
        index = interfaceInterpolation%indices(atom)
        if (index .ne. 0) then
           do ens=1,ubound(emom,3)
@@ -228,15 +228,15 @@ contains
     !$omp end parallel do
   end subroutine multiscaleInterpolateInterfaces
 
-  
-   
+
+
   subroutine multiscaleInterpolateArray(array)
     implicit none
     real(dblprec), dimension(:,:,:), intent(inout) :: array
-    integer :: atom,index,ens    
-    
+    integer :: atom,index,ens
+
     !$omp parallel do private(atom,index,ens)
-    do atom=1,ubound(interfaceInterpolation%indices, 1) 
+    do atom=1,ubound(interfaceInterpolation%indices, 1)
        index = interfaceInterpolation%indices(atom)
        if (index .ne. 0) then
           do ens=1,ubound(array,3)
@@ -248,8 +248,8 @@ contains
     end do
     !$omp end parallel do
   end subroutine multiscaleInterpolateArray
-  
-  
+
+
   subroutine printInterpolationData(interp)
     implicit none
     type(LocalInterpolationInfo), intent(in) :: interp
@@ -264,6 +264,6 @@ contains
        endif
     end do
   end subroutine printInterpolationData
- 
-  
+
+
 end module MultiscaleInterpolation

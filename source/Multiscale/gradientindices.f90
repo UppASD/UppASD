@@ -27,18 +27,18 @@ contains
     type(KdTree), intent(in) :: realAtomTree
     type(KdTree), intent(in) :: paddingAtomTree
     real(dblprec), dimension(:, :), intent(in) :: positions
-    real(dblprec), intent(in) :: atomLatSp    
+    real(dblprec), intent(in) :: atomLatSp
     type(FiniteDiffMesh), intent(in) :: mesh
     integer, dimension(:, :, :), intent(in) :: finiteDiffIndices
     real(dblprec), dimension(3) :: windowSize, vector
     type(SpMatrix), intent(inout) :: gradientCoeffs
 
     integer :: i,j,k
-    type(DynArrayInt) :: paddingNodes 
+    type(DynArrayInt) :: paddingNodes
 
 
     call newArray(paddingNodes)
-        
+
     !! Calculate links between atoms
     call AddAtomLinks(mesh,realAtomTree%indices,realAtomTree, paddingAtomTree, &
          windowSize, vector, positions, atomLatSp, gradientCoeffs)
@@ -57,11 +57,11 @@ contains
        end do
     end do
 
-        
-    
+
+
     !! Sorting the matrix by row, the algorithm to convert an SpMatrix to
     !!  the UppASD interpolation structure is much simpler for sorted matrices.
-    !! Sorting by column too isn't more expensive and could (hopefully)
+    !! Sorting by column too isn´t more expensive and could (hopefully)
     !!  bring a small cache/branch pred. hit rate improvement.
     call sortMatrixByRowAndColumn(gradientCoeffs)
 
@@ -82,7 +82,7 @@ contains
 !                   print *,"Ref ", gradientCoeffs%col%values(j), &
 !                        " Mik ", gradientCoeffs%entries%values(j), &
 !                        "  Me ", reference%entries%values(k), &
-!                        " rt: ", gradientCoeffs%entries%values(j)/reference%entries%values(k)                
+!                        " rt: ", gradientCoeffs%entries%values(j)/reference%entries%values(k)
 !                end if
 !             end do
 !             j=j+1
@@ -94,7 +94,7 @@ contains
   end subroutine generateDirectionalDerivativeLinks
 
 
-  
+
   subroutine addMeshLink(index, mesh, finiteDiffIndices, &
        vector, gradientCoeffs)
     use FiniteDifference
@@ -123,27 +123,27 @@ contains
           neighIndex(dimIterator) = neighIndex(dimIterator) + offset
           call modularGrid(ubound(finiteDiffIndices), mesh%space%periodicBoundary,&
                neighIndex, lookup, inside)
-          
+
           weight = vector(dimIterator) / (2.0*mesh%boxSize(dimIterator))
-          weight = sign(weight, vector(dimIterator) * offset) 
-          
+          weight = sign(weight, vector(dimIterator) * offset)
+
           if(.not. inside) then
              selfWeight = selfWeight + weight
           else
              neighbour = abs(finiteDiffIndices(lookup(1),lookup(2),lookup(3)))
-             
+
              if(abs(weight) > 1.0d-10) then
                 call addMatrixEntry(gradientCoeffs,&
                      self,neighbour, weight)
              end if
           end if
        end do
-    end do           
+    end do
     if(abs(selfWeight) > 1.0d-10) then
        call addMatrixEntry(gradientCoeffs,&
             self,self, selfWeight)
     end if
-    
+
   end subroutine addMeshLink
 
   subroutine addAtomLinks(&
@@ -180,7 +180,7 @@ contains
     type(DynArrayReal) :: gradient_pre_weights
 
     real(dblprec), dimension(:,:), allocatable :: K
-    real(dblprec), dimension(:,:), allocatable :: M       
+    real(dblprec), dimension(:,:), allocatable :: M
     real(dblprec), dimension(:,:), allocatable :: A,Inv
 
     !! Number of columns of the matrix K
@@ -209,7 +209,7 @@ contains
     nKcoefficients = kCoefficientsPerDim(mesh%space%spatDimension)
     allocate(A(nKcoefficients,nKcoefficients))
     allocate(Inv(nKcoefficients,nKcoefficients))
-    
+
     ! Alloc locals (20 is an orientative size, may grow larger)
     call newArray(gradient_weights,20)
     call newArray(gradient_pre_weights,20)
@@ -229,7 +229,7 @@ contains
 
        call boxesAreaCoefficients(mesh,box, atomLatSp, positions, &
             totalTree, localAtoms, localAreas)
-       
+
        ! Remove zero elemets
        c=localAreas%length
        j = 1
@@ -246,7 +246,7 @@ contains
        nNeigh = localAreas%length
 
        !localAreas%values(1:nNeigh) = -1*localAreas%values(1:nNeigh)
-       
+
        !! Ensure K and M are N-by-nCoeff and nCoeff-by-N respectively,
        !!  where N is the number of atoms in scope
        call ensureSize(nNeigh, nKcoefficients, K)
@@ -256,7 +256,7 @@ contains
        call Kcoeffs(mesh%space, positions,box,localAtoms%values(1:nNeigh), K)
 
        !! Compute A = K^t·diag(w)·K
-       call kt_diagw_k(K,localAreas%values(1:nNeigh), A) 
+       call kt_diagw_k(K,localAreas%values(1:nNeigh), A)
        !! Compute Inv = A^-1
        call invert(A,Inv)
        !! Compute M = Inv·K^t·diag(w)
@@ -268,20 +268,20 @@ contains
 
        if(iatom == 3005) then
           print *,"iatom",iatom
-          print *,"neighs", localAtoms%values(1:nNeigh)          
+          print *,"neighs", localAtoms%values(1:nNeigh)
           print *,"Kcoefs",K
           print *,"M",M
        end if
-       
+
        !! Calculate K for solution positions
        call Kcoeffs(mesh%space, eval_positions,box,(/1,2/), K)
        !! Compute the weights at both eval points
        ! Note: gfortran will warn here that k is possibly uninitialized.
        ! It is allocated in ensureSize up there,
-       ! I don't know how to supress the warning here
+       ! I don´t know how to supress the warning here
        call rowMatrixProd(K, M, ubound(K,2), nNeigh, 1, gradient_weights)
        call rowMatrixProd(K, M, ubound(K,2), nNeigh, 2, gradient_pre_weights)
-       
+
        !! Normalize both coefficient vectors
        !! So that M·v gives a moment of adequate magnitude
        a_scale = sum(gradient_weights%values(1:nNeigh))
@@ -310,7 +310,7 @@ contains
 
     end do
   end subroutine addAtomLinks
-  
+
   ! Let @ denote the outer prod.
   ! Let V denote the differential operator (nabla).
   ! Let ~= mean 'approximately equal'.
@@ -350,35 +350,35 @@ contains
     integer :: nRealAtoms, nPaddingAtoms, i,iatom,j,k,l
     integer, allocatable, dimension(:) :: allIndices
     type(DynArrayInt) :: neighbours
-    real(dblprec), dimension(mesh%space%spatDimension) :: v,vBi 
+    real(dblprec), dimension(mesh%space%spatDimension) :: v,vBi
     real(dblprec), dimension(3,3) :: B,Bi ! Need not to be 3x3, may be smaller
     real(dblprec),dimension(3) :: position,s
     real(dblprec) :: weight
     type(KdTree) :: totalTree
 
     dim = mesh%space%spatDimension
-    
-    v = gradient_delta(1:dim)    
-    
+
+    v = gradient_delta(1:dim)
+
     call newArray(neighbours,10)
-    
+
     nRealAtoms = ubound(realAtomTree%indices,1)
     nPaddingAtoms = ubound(paddingAtomTree%indices,1)
     allocate(allIndices(nRealAtoms+nPaddingAtoms))
     allIndices(1:nRealAtoms) = realAtomTree%indices
     allIndices(nRealAtoms+1:nRealAtoms+nPaddingAtoms) = paddingAtomTree%indices
     call buildKdTree(totalTree, positions, allIndices)
-        
+
     do i = 1,ubound(indices,1)
        iatom = indices(i)
        position = positions(:,iatom)
-       
+
        call getNeighbours(mesh%space, positions, totalTree, position,&
             atomLatSp * 1.1_dblprec, neighbours)
 
-       ! B_i = sum_j s_ij@s_ij 
+       ! B_i = sum_j s_ij@s_ij
        B = 0.0_dblprec
-       do j = 1,neighbours%length          
+       do j = 1,neighbours%length
           ! s is our s_ij
           call getDirectionalVector(mesh%space, &
                position, positions(:,neighbours%values(j)), s)
@@ -394,20 +394,20 @@ contains
        do k=1,dim
           vBi(k) = dot(v,Bi(1:dim,k))
        end do
-       
-       do j = 1,neighbours%length          
+
+       do j = 1,neighbours%length
           ! s is our s_ij
           call getDirectionalVector(mesh%space, &
-               position, positions(:,neighbours%values(j)), s)          
+               position, positions(:,neighbours%values(j)), s)
           weight = dot(vBi,s(1:dim))
           if(abs(weight) > 1.0d-17) then
              call addMatrixEntry(gradientCoeffs,iatom,&
                   neighbours%values(j), weight)
-          end if           
+          end if
        end do
-       
+
     end do
-    
+
   end subroutine MikhaAddAtomLinks
-  
+
 end module GradientIndices
