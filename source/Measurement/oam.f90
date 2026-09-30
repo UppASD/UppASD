@@ -72,6 +72,9 @@ module orbital_angular_momentum
    logical :: oam_spectral_boundary = .false.
 
    real(dblprec), allocatable :: oam_coord(:,:)
+   real(dblprec), allocatable :: oam_reduced_coord(:,:)
+   real(dblprec), allocatable :: oam_reduced_sin(:,:)
+   real(dblprec), allocatable :: oam_reduced_cos(:,:)
    complex(dblprec), allocatable :: oam_psi(:)
    complex(dblprec), allocatable :: oam_fem_dx(:)
    complex(dblprec), allocatable :: oam_fem_dy(:)
@@ -122,9 +125,9 @@ contains
    !---------------------------------------------------------------------------------
    !> @brief Initialize the global frame and trajectory OAM work arrays.
    !---------------------------------------------------------------------------------
-   subroutine oam_init(Natom,Mensemble,NA,N1,N2,coord,C1,C2,BC1,BC2,emom,simid,rstep)
+   subroutine oam_init(Natom,Mensemble,NA,N1,N2,N3,coord,C1,C2,BC1,BC2,emom,simid,rstep)
 
-      integer, intent(in) :: Natom, Mensemble, NA, N1, N2, rstep
+      integer, intent(in) :: Natom, Mensemble, NA, N1, N2, N3, rstep
       real(dblprec), intent(in) :: coord(3,Natom), C1(3), C2(3)
       character(len=1), intent(in) :: BC1, BC2
       real(dblprec), intent(in) :: emom(3,Natom,Mensemble)
@@ -132,11 +135,15 @@ contains
 
       integer :: i, j, k, i_stat
       real(dblprec) :: mean_m(3), mean_norm, alignment, det_cell, seed_dot
-      real(dblprec) :: seed(3), ex(3), ey(3), ez(3)
+      real(dblprec) :: seed(3), ex(3), ey(3), ez(3), angle
 
       if (do_oam_traj /= 'Y') return
-      if (Natom < 1 .or. Mensemble < 1 .or. NA < 1 .or. N1 < 1 .or. N2 < 1) then
+      if (Natom < 1 .or. Mensemble < 1 .or. NA < 1 .or. N1 < 1 .or. N2 < 1 .or. N3 < 1) then
          write(*,'(1x,a)') 'Trajectory OAM disabled: invalid system dimensions.'
+         return
+      end if
+      if (Natom /= NA*N1*N2*N3) then
+         write(*,'(1x,a)') 'Trajectory OAM disabled: requires a full (non-dilute) lattice, Natom = NA*N1*N2*N3.'
          return
       end if
       if (oam_step_traj < 1) oam_step_traj = 1
@@ -173,15 +180,6 @@ contains
          if (.not.oam_gradient_auto) then
             write(*,'(1x,a)') 'Trajectory OAM disabled: spectral gradient requires a build with USE_FFTW.'
             return
-         end if
-#else
-         if (mod(Natom,NA*N1*N2) /= 0) then
-            if (oam_gradient_auto) then
-               oam_gradient_method = 'fem'
-            else
-               write(*,'(1x,a)') 'Trajectory OAM disabled: spectral grid dimensions do not tile the atom array.'
-               return
-            end if
          end if
 #endif
       end if
@@ -259,7 +257,7 @@ contains
       oam_n1 = N1
       oam_n2 = N2
       oam_na = NA
-      oam_nlayers = max(1,Natom/(NA*N1*N2))
+      oam_nlayers = N3
       oam_ncolumns = 9 + 3*oam_nsubblocks
       oam_rstep = rstep
       oam_simid = simid
@@ -289,6 +287,25 @@ contains
       oam_inv_cell(2,2) = oam_cell(1,1)/det_cell
       oam_half_short = 0.5_dblprec*min(sqrt(dot_product(oam_cell(:,1),oam_cell(:,1))), &
          sqrt(dot_product(oam_cell(:,2),oam_cell(:,2))))
+
+      allocate(oam_reduced_coord(2,Natom),stat=i_stat)
+      call memocc(i_stat,product(shape(oam_reduced_coord))*kind(oam_reduced_coord), &
+         'oam_reduced_coord','oam_init')
+      allocate(oam_reduced_sin(2,Natom),stat=i_stat)
+      call memocc(i_stat,product(shape(oam_reduced_sin))*kind(oam_reduced_sin), &
+         'oam_reduced_sin','oam_init')
+      allocate(oam_reduced_cos(2,Natom),stat=i_stat)
+      call memocc(i_stat,product(shape(oam_reduced_cos))*kind(oam_reduced_cos), &
+         'oam_reduced_cos','oam_init')
+      do i=1,Natom
+         oam_reduced_coord(:,i) = matmul(oam_inv_cell,oam_coord(1:2,i))
+         angle = 2.0_dblprec*acos(-1.0_dblprec)*oam_reduced_coord(1,i)
+         oam_reduced_sin(1,i) = sin(angle)
+         oam_reduced_cos(1,i) = cos(angle)
+         angle = 2.0_dblprec*acos(-1.0_dblprec)*oam_reduced_coord(2,i)
+         oam_reduced_sin(2,i) = sin(angle)
+         oam_reduced_cos(2,i) = cos(angle)
+      end do
 
       if (oam_gfactor > 0.0_dblprec) then
          oam_g = oam_gfactor
@@ -370,6 +387,7 @@ contains
       real(dblprec) :: origin_l_k(1+oam_nsubblocks), origin_n_k(1+oam_nsubblocks)
       real(dblprec) :: centroid_l_k(1+oam_nsubblocks), centroid_n_k(1+oam_nsubblocks)
       real(dblprec) :: nm_sum, rx_sum, ry_sum, sigma_sum, centroid_weight
+      real(dblprec) :: centroid_sin(2), centroid_cos(2), reduced_centroid(2), centroid_angle
       real(dblprec) :: sub_nm_sum(max(1,oam_nsubblocks))
 
       if (.not.oam_sample_due(mstep)) return
@@ -395,6 +413,8 @@ contains
       ry_sum = 0.0_dblprec
       sigma_sum = 0.0_dblprec
       centroid_weight = 0.0_dblprec
+      centroid_sin = 0.0_dblprec
+      centroid_cos = 0.0_dblprec
       excluded_origin = 0
       excluded_centroid = 0
       sub_nm_sum = 0.0_dblprec
@@ -416,8 +436,21 @@ contains
             excluded_centroid = excluded_centroid + 1
          else
             centroid_weight = centroid_weight + centroid_n_k(1)
-            rx_sum = rx_sum + centroid_n_k(1)*row(7)
-            ry_sum = ry_sum + centroid_n_k(1)*row(8)
+            reduced_centroid = matmul(oam_inv_cell,(/row(7),row(8)/))
+            if (is_periodic(1)) then
+               centroid_angle = 2.0_dblprec*acos(-1.0_dblprec)*reduced_centroid(1)
+               centroid_sin(1) = centroid_sin(1) + centroid_n_k(1)*sin(centroid_angle)
+               centroid_cos(1) = centroid_cos(1) + centroid_n_k(1)*cos(centroid_angle)
+            else
+               rx_sum = rx_sum + centroid_n_k(1)*reduced_centroid(1)
+            end if
+            if (is_periodic(2)) then
+               centroid_angle = 2.0_dblprec*acos(-1.0_dblprec)*reduced_centroid(2)
+               centroid_sin(2) = centroid_sin(2) + centroid_n_k(1)*sin(centroid_angle)
+               centroid_cos(2) = centroid_cos(2) + centroid_n_k(1)*cos(centroid_angle)
+            else
+               ry_sum = ry_sum + centroid_n_k(1)*reduced_centroid(2)
+            end if
             sigma_sum = sigma_sum + centroid_n_k(1)*row(9)
          end if
       end do
@@ -429,8 +462,18 @@ contains
          row(2) = centroid_l(1)/centroid_n(1)
          row(4) = row(3)*row(2)
          row(6) = row(5)+row(4)
-         row(7) = rx_sum/centroid_weight
-         row(8) = ry_sum/centroid_weight
+         do j=1,2
+            if (is_periodic(j)) then
+               centroid_angle = atan2(centroid_sin(j),centroid_cos(j))/(2.0_dblprec*acos(-1.0_dblprec))
+               reduced_centroid(j) = modulo(centroid_angle,1.0_dblprec)
+            else if (j==1) then
+               reduced_centroid(j) = rx_sum/centroid_weight
+            else
+               reduced_centroid(j) = ry_sum/centroid_weight
+            end if
+         end do
+         row(7) = oam_cell(1,1)*reduced_centroid(1)+oam_cell(1,2)*reduced_centroid(2)
+         row(8) = oam_cell(2,1)*reduced_centroid(1)+oam_cell(2,2)*reduced_centroid(2)
          row(9) = sigma_sum/centroid_weight
       end if
       do j=1,oam_nsubblocks
@@ -601,18 +644,16 @@ contains
          if (site_wsum(i) <= 0.0_dblprec) cycle
          weight = oam_site_weight(i)
          psi_weight = abs(oam_psi(i))**2*weight
-         reduced = matmul(oam_inv_cell,oam_coord(1:2,i))
+         reduced = oam_reduced_coord(:,i)
          if (is_periodic(1)) then
-            angle = 2.0_dblprec*acos(-1.0_dblprec)*reduced(1)
-            sin_sum(1) = sin_sum(1) + psi_weight*sin(angle)
-            cos_sum(1) = cos_sum(1) + psi_weight*cos(angle)
+            sin_sum(1) = sin_sum(1) + psi_weight*oam_reduced_sin(1,i)
+            cos_sum(1) = cos_sum(1) + psi_weight*oam_reduced_cos(1,i)
          else
             rx = rx + psi_weight*reduced(1)
          end if
          if (is_periodic(2)) then
-            angle = 2.0_dblprec*acos(-1.0_dblprec)*reduced(2)
-            sin_sum(2) = sin_sum(2) + psi_weight*sin(angle)
-            cos_sum(2) = cos_sum(2) + psi_weight*cos(angle)
+            sin_sum(2) = sin_sum(2) + psi_weight*oam_reduced_sin(2,i)
+            cos_sum(2) = cos_sum(2) + psi_weight*oam_reduced_cos(2,i)
          else
             ry = ry + psi_weight*reduced(2)
          end if
@@ -948,6 +989,21 @@ contains
          i_all=-product(shape(oam_coord))*kind(oam_coord)
          deallocate(oam_coord,stat=i_stat)
          call memocc(i_stat,i_all,'oam_coord','oam_release')
+      end if
+      if (allocated(oam_reduced_coord)) then
+         i_all=-product(shape(oam_reduced_coord))*kind(oam_reduced_coord)
+         deallocate(oam_reduced_coord,stat=i_stat)
+         call memocc(i_stat,i_all,'oam_reduced_coord','oam_release')
+      end if
+      if (allocated(oam_reduced_sin)) then
+         i_all=-product(shape(oam_reduced_sin))*kind(oam_reduced_sin)
+         deallocate(oam_reduced_sin,stat=i_stat)
+         call memocc(i_stat,i_all,'oam_reduced_sin','oam_release')
+      end if
+      if (allocated(oam_reduced_cos)) then
+         i_all=-product(shape(oam_reduced_cos))*kind(oam_reduced_cos)
+         deallocate(oam_reduced_cos,stat=i_stat)
+         call memocc(i_stat,i_all,'oam_reduced_cos','oam_release')
       end if
       if (allocated(oam_psi)) then
          i_all=-product(shape(oam_psi))*kind(oam_psi)

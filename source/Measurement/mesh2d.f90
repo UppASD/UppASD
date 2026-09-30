@@ -38,18 +38,18 @@ contains
    !> of each cell.  Open directions omit their wrap cells.  Every z layer gets
    !> its own independent xy triangulation; triangles never connect layers.
    !---------------------------------------------------------------------------------
-   subroutine mesh2d_build(N1,N2,N3,NA,coord,C1,C2,C3,BC1,BC2,BC3)
+   subroutine mesh2d_build(Natom,N1,N2,N3,NA,coord,C1,C2,C3,BC1,BC2,BC3)
 
       implicit none
 
-      integer, intent(in) :: N1, N2, N3, NA
-      real(dblprec), intent(in) :: coord(3,*)
+      integer, intent(in) :: Natom, N1, N2, N3, NA
+      real(dblprec), intent(in) :: coord(:,:)
       real(dblprec), intent(in) :: C1(3), C2(3), C3(3)
       character(len=1), intent(in) :: BC1, BC2, BC3
 
       integer :: i_stat, i_all, max_tri, tri_count, total_inc
       integer :: x, y, z, ixp, iyp, it, i00, i10, i01, i11, layer_offset
-      integer :: ia, iv, isite, tri_index, natom
+      integer :: ia, iv, isite, tri_index
       integer, allocatable :: simp_work(:,:), site_count(:), cursor(:)
       real(dblprec), allocatable :: area_work(:), b_work(:,:), c_work(:,:)
       real(dblprec) :: cell1(2), cell2(2), inv_cell(2,2), det_cell
@@ -64,13 +64,15 @@ contains
       if (N1 < 1 .or. N2 < 1 .or. N3 < 1 .or. NA < 1) then
          error stop 'Mesh2D: invalid mesh dimensions'
       end if
+      if (size(coord,1) /= 3) error stop 'Mesh2D: coordinate array must have three rows'
+      if (Natom /= size(coord,2)) error stop 'Mesh2D: Natom does not match coordinate array size'
+      if (Natom /= N1*N2*N3*NA) error stop 'Mesh2D: requires a full lattice'
       if (BC3 /= '0' .and. BC3 /= 'P') then
          error stop 'Mesh2D: invalid z boundary condition'
       end if
 
       call mesh2d_release()
 
-      natom = N1*N2*N3*NA
       max_tri = max(1,2*N1*N2*N3*NA)
       periodic_x = BC1=='P'
       periodic_y = BC2=='P'

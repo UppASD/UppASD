@@ -316,8 +316,23 @@ def evaluate_ensembles(fields, coords, simp, P, N1, N2, C1, C2, periodic,
     result["lambda_L_centroid"] = (centroid_l / centroid_n
                                     if centroid_n > 0 else float("nan"))
     if centroid_n > 0:
-        result["R_x"] = sum(ref["R_x"] * ref["norm_psi"] for ref in centroid_refs) / centroid_n
-        result["R_y"] = sum(ref["R_y"] * ref["norm_psi"] for ref in centroid_refs) / centroid_n
+        M = np.array([N1 * np.asarray(C1, float)[:2],
+                      N2 * np.asarray(C2, float)[:2]]).T
+        red = [np.linalg.solve(M, np.array([ref["R_x"], ref["R_y"]]))
+               for ref in centroid_refs]
+        red = np.asarray(red)
+        weights = np.asarray([ref["norm_psi"] for ref in centroid_refs])
+        combined = []
+        for ax in range(2):
+            if periodic[ax]:
+                angles = 2.0 * np.pi * red[:, ax]
+                s = np.sum(weights * np.sin(angles))
+                c = np.sum(weights * np.cos(angles))
+                combined.append((np.arctan2(s, c) / (2.0 * np.pi)) % 1.0)
+            else:
+                combined.append(np.sum(weights * red[:, ax]) / centroid_n)
+        R = M @ np.asarray(combined)
+        result["R_x"], result["R_y"] = float(R[0]), float(R[1])
         result["sigma_psi"] = sum(ref["sigma_psi"] * ref["norm_psi"] for ref in centroid_refs) / centroid_n
     else:
         result.update(R_x=float("nan"), R_y=float("nan"), sigma_psi=float("nan"))

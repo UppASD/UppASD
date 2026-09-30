@@ -429,6 +429,120 @@ def run_band_check(binary: str, workdir: Path) -> int:
                        f"max LSWT gap={max(lswt_errors):.3e}") else 1
 
 
+def write_band_dynamics_case(directory: Path, *, simid: str, ell: int,
+                             gradient: str) -> None:
+    """Write the undamped N=90 B5.5 band-packet conservation run."""
+
+    directory.mkdir(parents=True, exist_ok=True)
+    mkhoney.write(str(directory), C2, J=1.0, D=BAND_D,
+                  kgrid=(30, 30), nphi=64, nr=16)
+    coords = coords_honeycomb(BAND_N)
+    center = coords[:2].mean(axis=1)
+    field, _, _ = band_packet_with_gradient(coords, center, 1.0, ell)
+    moments = np.vstack((field.real, field.imag,
+                         np.sqrt(np.clip(1.0 - np.abs(field) ** 2, 0.0, None))))
+    write_restart(directory, moments)
+    origin = coords[:2].mean(axis=1)
+    (directory / "inpsd.dat").write_text(f"""simid {simid}
+ncell {BAND_N} {BAND_N} 1
+BC P P 0
+cell {C1[0]:.10f} {C1[1]:.10f} 0.0
+     {C2[0]:.10f} {C2[1]:.10f} 0.0
+     0.0 0.0 1.0
+Sym 0
+posfile ./posfile
+posfiletype C
+momfile ./momfile
+exchange ./jfile
+dm ./dmfile
+maptype 1
+do_prnstruct 0
+initmag 4
+restartfile ./restart.in
+ip_mode N
+mode S
+temp 0.0
+damping 0.0
+Nstep 3001
+timestep 1.0e-16
+do_avrg N
+do_tottraj N
+do_oam_traj Y
+oam_step 300
+oam_buff 16
+oam_gradient {gradient}
+oam_axis 0 0 1
+oam_sigma_max 0.6
+oam_origin {origin[0]:.16e} {origin[1]:.16e} 0.0
+do_chern N
+do_oam_lswt N
+""")
+
+
+def run_band_dynamics(binary: str, workdir: Path) -> int:
+    """Run the report-only conservative l=0/1 band-packet comparison."""
+
+    trajectories = {}
+    spectral_notice = ""
+    for gradient in ("spectral", "fem"):
+        for ell in (0, 1):
+            simid = f"{'s' if gradient == 'spectral' else 'f'}{ell}"
+            directory = workdir / simid
+            write_band_dynamics_case(directory, simid=simid, ell=ell,
+                                     gradient=gradient)
+            run_binary(binary, directory)
+            output = directory / f"oam_traj.{simid}.out"
+            log = (directory / "uppasd.log").read_text()
+            if not output.exists():
+                if gradient == "spectral":
+                    spectral_notice += log
+                    trajectories[(gradient, ell)] = None
+                    continue
+                raise RuntimeError(f"No FEM OAM output in {directory}")
+            rows = []
+            for line in output.read_text().splitlines():
+                if line.strip() and not line.lstrip().startswith("#"):
+                    rows.append([float(value) for value in line.split()])
+            trajectories[(gradient, ell)] = np.asarray(rows)
+            data = trajectories[(gradient, ell)]
+            print(f"band-dynamics {gradient} l={ell}: samples={len(data)}, "
+                  f"lambda0={data[0, 2]:.7f}, lambda_range="
+                  f"[{np.nanmin(data[:, 2]):.7f}, {np.nanmax(data[:, 2]):.7f}], "
+                  f"Nm_relative_drift={np.max(np.abs(data[:, 3] / data[0, 3] - 1.0)):.3e}")
+
+    if all(trajectories[("spectral", ell)] is None for ell in (0, 1)):
+        if "requires a build with USE_FFTW" in spectral_notice:
+            print("[SKIP] undamped band dynamics: binary lacks FFTW")
+            return 0
+        raise RuntimeError("spectral undamped band dynamics produced no output")
+    if any(trajectories[("spectral", ell)] is None for ell in (0, 1)):
+        raise RuntimeError("incomplete spectral undamped band dynamics output")
+
+    spectral = [trajectories[("spectral", ell)] for ell in (0, 1)]
+    if any(len(data) != len(spectral[0]) for data in spectral):
+        raise RuntimeError("l=0 and l=1 spectral runs have different sample counts")
+    shift_error = float(np.max(np.abs((spectral[1][:, 2] - spectral[0][:, 2]) - 1.0)))
+    nm_drift = max(float(np.max(np.abs(data[:, 3] / data[0, 3] - 1.0)))
+                   for data in spectral)
+    spectral_ok = (all(np.max(np.abs(data[:, 2] - data[0, 2])) <= 3.0e-3
+                       for data in spectral)
+                   and abs(spectral[1][0, 2] - 1.0006) <= 3.0e-3
+                   and shift_error <= 1.0e-3 and nm_drift <= 1.0e-4)
+    result("undamped B5.5 spectral band dynamics", spectral_ok,
+           f"lambda l1(t0)={spectral[1][0, 2]:.7f}, "
+           f"max shift error={shift_error:.3e}, max Nm relative drift={nm_drift:.3e}")
+
+    fem = [trajectories[("fem", ell)] for ell in (0, 1)]
+    fem_bias = abs(float(np.mean(fem[1][:, 2])) - 0.880) <= 0.01
+    fem_constant = all(np.max(np.abs(data[:, 2] - data[0, 2])) <= 3.0e-3
+                       for data in fem)
+    fem_ok = result("undamped B5.5 FEM control", fem_bias and fem_constant,
+                    f"lambda l1 mean={np.mean(fem[1][:, 2]):.7f}, "
+                    f"l1 range=[{np.min(fem[1][:, 2]):.7f}, {np.max(fem[1][:, 2]):.7f}]")
+    print(f"Outputs retained in {workdir}")
+    return 0 if spectral_ok and fem_ok else 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", default=os.environ.get("UPPASD", "uppasd"),
@@ -447,6 +561,8 @@ def main() -> int:
                         help="temperature for the generated packet")
     parser.add_argument("--band", action="store_true",
                         help="run the U5 B5.5 angular band-packet bridge check")
+    parser.add_argument("--band-dynamics", action="store_true",
+                        help="run the report-only undamped B5.5 band-packet conservation check")
     parser.add_argument("--clean", action="store_true",
                         help="run the one-step, grid-snapped clean control packet")
     parser.add_argument("--allow-known-bridge-gap", action="store_true",
@@ -462,6 +578,8 @@ def main() -> int:
 
     if args.band:
         return run_band_check(args.binary, workdir)
+    if args.band_dynamics:
+        return run_band_dynamics(args.binary, workdir)
 
     lswt_dir = workdir / "lswt"
     mkhoney.write(str(lswt_dir), C2, J=J, D=D, kgrid=(30, 30), nphi=64, nr=16,

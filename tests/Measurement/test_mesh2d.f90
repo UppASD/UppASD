@@ -30,7 +30,7 @@ program test_mesh2d
    coord_before=coord
 
    ! The periodic mesh must tile the cell without changing SystemData::coord.
-   call mesh2d_build(n,n,1,na,coord,c1,c2,c3,'P','P','0')
+   call mesh2d_build(natom,n,n,1,na,coord,c1,c2,c3,'P','P','0')
    if (nsimp/=2*n*n) error stop 'mesh2d periodic: wrong triangle count'
    total_area=sum(tri_area)
    if (abs(total_area-real(n*n,dblprec))>tol) error stop 'mesh2d periodic: wrong area'
@@ -61,7 +61,7 @@ program test_mesh2d
 
    ! On an open mesh, an affine field is globally single-valued.  Gather the
    ! triangle gradients through the CSR adjacency and check every supported site.
-   call mesh2d_build(n,n,1,na,coord,c1,c2,c3,'0','0','0')
+   call mesh2d_build(natom,n,n,1,na,coord,c1,c2,c3,'0','0','0')
    do isite=1,natom
       psi(isite)=alpha+beta*real(coord(1,isite),dblprec)+gamma*real(coord(2,isite),dblprec)
    end do
@@ -93,7 +93,7 @@ program test_mesh2d
          end do
       end do
    end do
-   call mesh2d_build(n,n,nlayer,na,coord_layers,c1,c2,c3,'P','P','0')
+   call mesh2d_build(natom_layers,n,n,nlayer,na,coord_layers,c1,c2,c3,'P','P','0')
    if (nsimp/=2*n*n*nlayer) error stop 'mesh2d multilayer: wrong triangle count'
    total_area=sum(tri_area)
    if (abs(total_area-real(n*n*nlayer,dblprec))>tol) error stop 'mesh2d multilayer: wrong area'

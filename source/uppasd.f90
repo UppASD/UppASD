@@ -274,7 +274,7 @@ contains
 
       integer :: cflag
 
-      call oam_init(Natom,Mensemble,NA,N1,N2,coord,C1,C2,BC1,BC2,emom,simid,rstep)
+      call oam_init(Natom,Mensemble,NA,N1,N2,N3,coord,C1,C2,BC1,BC2,emom,simid,rstep)
 
       if(do_diamag=='Y') then
          call timing(0,'SpinCorr      ','ON')
@@ -1309,10 +1309,14 @@ contains
 
       if (skyno=='T'.or.do_proj_skyno=='Y'.or.do_proj_skyno=='T'.or. &
          do_chiral=='Y'.or.do_oam_traj=='Y'.or.print_mesh=='Y') then
-         call mesh2d_build(N1,N2,N3,NA,coord,C1,C2,C3,BC1,BC2,BC3)
-         call mesh2d_report()
-         ! Print triangulation mesh to file for debugging/visualization
-         call print_triangulation_mesh('triangulation', coord, Natom, simid, C1, C2, C3, N1, N2, N3)
+         if (Natom == NA*N1*N2*N3) then
+            call mesh2d_build(Natom,N1,N2,N3,NA,coord,C1,C2,C3,BC1,BC2,BC3)
+            call mesh2d_report()
+            ! Print triangulation mesh to file for debugging/visualization
+            call print_triangulation_mesh('triangulation', coord, Natom, simid, C1, C2, C3, N1, N2, N3)
+         else
+            write(*,'(1x,a)') 'Mesh2D disabled: requires a full (non-dilute) lattice, Natom = NA*N1*N2*N3.'
+         end if
       end if
 
       if (mode=='W') then

@@ -1,13 +1,14 @@
 # OAM refactor status
 
-Updated 2026-09-29 for U5.
+Updated 2026-09-30 for U6.
 
 ## Validated
 
-- The trajectory harness passes C0–C15 and C18, including periodic/open and
-  non-FFTW `oam_gradient auto` resolution, norm-weighted ensemble λ columns,
-  arithmetic ensemble `N_m`/`dSz_hbar`, aggregate `Lz_tot_hbar`/`balance`,
-  centroid diagnostics, and the one-time exclusion warning.
+- The trajectory harness passes C0–C16 and C18, including periodic/open and
+  non-FFTW `oam_gradient auto` resolution, periodic circular C14c ensemble
+  centroids, norm-weighted ensemble λ columns, arithmetic ensemble
+  `N_m`/`dSz_hbar`, aggregate `Lz_tot_hbar`/`balance`, centroid diagnostics,
+  the one-time exclusion warning, and the Debug-bounds C16 dilute refusal.
 - The independent LSWT bridge passes its frequency and particle-field checks.
   B5.5 is registered as `oam-bridge-band`; its spectral values agree with the
   exact-gradient oracle to `4.46e-6`, the l-shift to `4.52e-6`, and LSWT to
@@ -17,6 +18,19 @@ Updated 2026-09-29 for U5.
   non-FFTW B5.5 and explicit spectral probes skip/refuse with their documented
   notices. The harness self-test passes, and the Resaro regression suite
   reports 20 tests performed with 0 failures.
+- The report-only undamped dynamic band check is available as
+  `python3 run_bridge_checks.py --band-dynamics`. It is not registered in
+  CTest and takes about 30 seconds. It uses the B5.5 honeycomb band packet at
+  `k0 = 1.0`, `l = 0, 1`, `mkhoney.write(J=1, D=1)`, `N = 90`, zero damping,
+  3001 steps at `1e-16 s`, `oam_step 300`, and `oam_axis 0 0 1`. The expected
+  spectral `lambda_L_centroid(t)` remains within `3e-3` of its initial value
+  (1.0006 for `l = 1`); the `l = 1` minus `l = 0` shift stays within `1e-3`
+  of 1.000 at every sample, and `N_m` stays within `1e-4` relative. FEM has a
+  time-independent short-wavelength bias, about 0.880 for `l = 1`. In a
+  single band with isotropic `|psi_k|^2`, `⟨∂_φ ω⟩ = 0`, so `lambda` is
+  conserved. The Release FFTW run measured spectral `l = 1` from 1.0006016
+  to 0.9984446, a maximum l-shift error of `2.246e-5`, and maximum relative
+  `N_m` drift of `3.642e-5`; FEM `l = 1` averaged 0.8806816.
 - The CUDA measurement path was verified by inspection: its existing
   `fortran_do_measurements` copy gate now receives the public
   `oam_sample_due(mstep)` trigger. No CUDA toolchain was available for a
@@ -28,7 +42,8 @@ The reference is a collinear ferromagnet. Spectral gradients require periodic
 in-plane cells and field content strictly inside the first Brillouin zone;
 coherent, localised packets are the intended observable. MKL-FFT/non-FFTW
 builds resolve `oam_gradient auto` to FEM. Explicit `spectral` remains strict
-and refuses unsupported cells or builds.
+and refuses unsupported cells or builds. Trajectory OAM supports full
+(non-dilute) lattices only; dilute systems are refused.
 
 ## U5f physical smoke runs
 
@@ -71,6 +86,8 @@ origin λ is finite and centroid λ is rejected by the spread guard throughout.
 
 ## Open items
 
+- No numerical GPU comparison yet: run the C12b fixture with `oam_step 10` on
+  a CUDA machine and compare with the CPU run to `1e-10`.
 - The LSWT magnitude gap remains `O₁,av(K) = 0.228` versus `0.236`
   published (−3.4%); the sign is confirmed.
 - The carrier-referenced gradient proposal remains open.

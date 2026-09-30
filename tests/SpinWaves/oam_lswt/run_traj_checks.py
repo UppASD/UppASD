@@ -300,6 +300,31 @@ deloc_ok = (deloc_meas is not None and np.isfinite(deloc_meas["lambda_L_origin"]
             and "excluded ensembles" in deloc_log)
 check("C14 delocalised ensemble: centroid excludes one with warning", deloc_ok)
 
+# C14c: combine valid ensemble centroids through the periodic cell.
+def periodic_vortex_at(xy, center, amp=0.05, r0=4.0):
+    d = xy[:2] - np.asarray(center)[:, None]
+    d -= N * np.round(d / N)
+    r = np.hypot(d[0], d[1])
+    phi = np.arctan2(d[1], d[0])
+    g = (r / r0) * np.exp(-r ** 2 / (2 * r0 ** 2))
+    g = amp * g / g.max()
+    psi = g * np.exp(1j * phi)
+    return np.stack([psi.real, psi.imag, np.sqrt(np.clip(1 - np.abs(psi) ** 2, 0, None))])
+
+seam_ensembles = run_case(
+    "ensemble_periodic_centroids", field=None,
+    ensemble_fields=[lambda xy: periodic_vortex_at(xy, (0.02 * N, 0.5 * N)),
+                     lambda xy: periodic_vortex_at(xy, (0.98 * N, 0.5 * N))],
+    keys={"oam_gradient": "fem"})
+seam_meas, seam_ref = seam_ensembles[1], seam_ensembles[0]
+seam_dx = (seam_meas["R_x"] - seam_ref["R_x"] + 0.5 * N) % N - 0.5 * N if seam_meas else np.inf
+seam_at_boundary = (seam_meas is not None and
+                    min(abs(seam_meas["R_x"]), abs(seam_meas["R_x"] - N)) < 1e-6)
+seam_ok = (seam_at_boundary and abs(seam_dx) <= 1e-10 and
+           agree(seam_ref, seam_meas, "R_y", tol=1e-10))
+check("C14c periodic ensemble centroids combine around cell", seam_ok,
+      "" if seam_meas is None else f"R_x={seam_meas['R_x']:.12g}")
+
 # C15: automatic gradient resolution.  A periodic FFTW binary must select
 # spectral; open boundaries always select FEM.  The periodic FEM result is
 # also the non-FFTW branch, which must not refuse.
@@ -314,19 +339,44 @@ auto_open_text = open(auto_open_header).read() if os.path.exists(auto_open_heade
 auto_periodic_method = "spectral" if "oam_gradient = spectral (auto)" in auto_periodic_text else "fem"
 auto_open_ok = (auto_open[1] is not None and "oam_gradient = fem (auto)" in auto_open_text
                 and "disabled" not in auto_open[3].lower())
-if auto_periodic_method == "spectral":
-    auto_periodic_ok = (auto_periodic[1] is not None
-                        and all(agree(auto_periodic[0], auto_periodic[1], key, tol=1.0e-10)
-                                for key in ("lambda_L_origin", "lambda_L_centroid", "N_m")))
-else:
-    auto_periodic_ok = (auto_periodic[1] is not None
-                        and "oam_gradient = fem (auto)" in auto_periodic_text
-                        and "requires a build with USE_FFTW" not in auto_periodic[3])
+auto_expected_method = "spectral" if has_fftw else "fem"
+auto_expected_header = f"oam_gradient = {auto_expected_method} (auto)"
+auto_periodic_ok = (auto_periodic[1] is not None
+                    and auto_expected_header in auto_periodic_text
+                    and "requires a build with USE_FFTW" not in auto_periodic[3])
+auto_periodic_ok = auto_periodic_ok and all(
+    agree(auto_periodic[0], auto_periodic[1], key, tol=1.0e-10)
+    for key in ("lambda_L_origin", "lambda_L_centroid", "N_m"))
 check("C15 auto periodic resolves without refusal", auto_periodic_ok,
       f"resolved={auto_periodic_method}")
 check("C15 auto open resolves to FEM", auto_open_ok)
 check("C15 auto non-FFTW branch has no refusal", auto_periodic_ok and
       (auto_periodic_method == "fem" or "requires a build with USE_FFTW" not in auto_periodic[3]))
+
+# C16: a dilute random-alloy lattice must refuse trajectory OAM and skip the
+# shared mesh before either path can index a full rectangular grid.
+if not SELFTEST:
+    d = os.path.join(WORK, "dilute")
+    shutil.rmtree(d, ignore_errors=True)
+    F.write_case(d, N=20, field=None)
+    with open(f"{d}/posfile", "w") as f:
+        f.write("1 1 1 0.5 0 0 0\n")
+    with open(f"{d}/jfile", "w") as f:
+        f.write("1 1 1 1 1 0 0 0 1.0\n")
+    with open(f"{d}/inpsd.dat") as f:
+        dilute_input = f.read().replace("do_oam_traj Y", "do_oam_traj Y\ndo_ralloy 1\nposfiletype C")
+    with open(f"{d}/inpsd.dat", "w") as f:
+        f.write(dilute_input)
+    dilute_run = subprocess.run([EXE], cwd=d, capture_output=True, text=True)
+    dilute_log = dilute_run.stdout + dilute_run.stderr
+    no_bounds_report = not any(token in dilute_log.lower() for token in
+                               ("out of bounds", "above upper bound", "below lower bound"))
+    dilute_ok = (dilute_run.returncode == 0 and
+                 "Trajectory OAM disabled: requires a full (non-dilute) lattice, Natom = NA*N1*N2*N3." in dilute_log and
+                 "Mesh2D disabled: requires a full (non-dilute) lattice" in dilute_log and
+                 not os.path.exists(f"{d}/oam_traj.oamtest.out") and no_bounds_report)
+    check("C16 dilute lattice refused without OAM output or bounds report", dilute_ok,
+          "" if dilute_ok else dilute_log[-600:].replace("\n", " | "))
 
 # C0: mesh diagnostic line (contract C7): periodic mesh tiles the cell exactly,
 # open mesh drops the wrap cells.  Parsed from stdout.

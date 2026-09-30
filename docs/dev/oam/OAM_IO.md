@@ -1,6 +1,7 @@
 # OAM input and output
 
-UppASD has two OAM observables. `do_oam_traj Y` measures the real-space,
+UppASD has two OAM observables. Trajectory OAM supports full (non-dilute)
+lattices only; dilute systems are refused. `do_oam_traj Y` measures the real-space,
 finite-amplitude trajectory field and writes `oam_traj.<simid>.out`. It reports
 intrinsic and envelope (extrinsic) OAM, so it is not the same quantity as the
 LSWT result. `do_oam_lswt Y` measures band- and wave-vector-resolved intrinsic
@@ -77,7 +78,12 @@ C2` as a reduced basis; for example replace `C2 = (1.5, 0.3)` by
 With `Mensemble > 1`, λ columns use norm-weighted first moments over valid
 ensembles. `N_m` and `dSz_hbar` are arithmetic means; `Lz_tot_hbar` and
 `balance` are then recomputed from the aggregate, and centroid diagnostics
-use norm weights over centroid-valid ensembles. A warning reports excluded
+use norm weights over centroid-valid ensembles. `R_x`, `R_y` are combined in
+reduced coordinates over the centroid-valid ensembles, weighted by `n_k`.
+Along a periodic axis the combination is a circular mean:
+`s = atan2(Σ_k n_k sin 2π s_k, Σ_k n_k cos 2π s_k)/2π mod 1`. Along an open
+axis it is the linear mean. The result is converted back to Cartesian.
+`sigma_psi` stays the `n_k`-weighted mean. A warning reports excluded
 ensembles once. For `Mensemble = 1`, output is unchanged.
 
 The observable is intended for coherent packets. In a finite-temperature run,
@@ -87,22 +93,23 @@ is expected, not a crash. An exactly saturated initial FM sample has zero
 transverse norm and is reported as `NaN` by the same guard before thermal
 fluctuations develop.
 
-The following Debug-build timing measurements use `OMP_NUM_THREADS=1`,
-`oam_step 10`, `NA = 2`, and a frozen FM packet on an Apple M-series host.
-The setup column is the one-step wall time (FFTW plan creation plus the first
-sample); the per-sample column is `(101-step wall − one-step wall) / 10`, and
-there are eleven OAM samples in the 101-step run. The OAM fraction subtracts
-the matched no-OAM baseline; values below one percent are within run noise.
-They are a performance reference, not an acceptance gate.
+Release timing measurements use `OMP_NUM_THREADS=1`, FFTW, and a frozen
+localized packet on an Apple MacBook Pro (M1, 8 CPU cores, macOS 26.7.1).
+No-OAM integration cost is the difference between matched 101-step and
+one-step runs divided by 100. OAM cost per sample is the corresponding
+101-step versus one-step difference with OAM enabled, minus that no-OAM
+baseline, divided by 100; this cancels startup, mesh, FFTW-plan, and first
+sample costs. These are reference timings, not an acceptance gate.
 
-| grid | spectral setup+first | spectral/sample | spectral OAM/total | FEM setup+first | FEM/sample | FEM OAM/total |
-|---:|---:|---:|---:|---:|---:|---:|
-| 128² | 0.826 s | 0.0647 s | <1% | 0.155 s | 0.1261 s | <1% |
-| 256² | 0.585 s | 0.5012 s | 7.8% | 0.601 s | 0.5061 s | 8.9% |
-| 512² | 2.411 s | 1.9976 s | 12.2% | 2.390 s | 1.9784 s | 11.4% |
+| grid | NA | no-OAM integration step | FEM OAM/sample | spectral OAM/sample |
+|---:|---:|---:|---:|---:|
+| 256² | 1 | 6.15 ms | 3.28 ms | 7.30 ms |
+| 256² | 2 | 11.07 ms | 14.65 ms | 21.41 ms |
+| 512² | 1 | 22.55 ms | 21.48 ms | 35.16 ms |
+| 512² | 2 | 50.08 ms | 58.57 ms | 95.78 ms |
 
-The 512² `FFTW_MEASURE` setup took 2.86 s, so the plans use
-`FFTW_ESTIMATE`; the table reports the post-switch measurements.
+Use `oam_step` ≥ 10 for large systems; at `oam_step 1` spectral OAM can cost
+several integration steps per step.
 
 For boosted, driven or restart-loaded states, use `oam_axis` for the
 ground-state axis. In the C13 check the default axis tilts by about `0.2°`
