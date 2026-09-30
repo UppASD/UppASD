@@ -355,7 +355,7 @@ if (USE_CUDA)
                                ${SRC}/gpu_files/correlations/fortranCorrelation.cpp ${SRC}/gpu_files/correlations/gpuCorrelations.cpp
                                ${SRC}/gpu_files/correlations/correlation_kernels.cpp
                                ${SRC}/gpu_files/measurement/autocorrelation_kernels.cpp
-                               ${SRC}/gpu_files/multiscale/interpolation_kernels.cpp ${SRC}/gpu_files/multiscale/gpuDepondtIntegrator_MS.cpp 
+                               ${SRC}/gpu_files/multiscale/imultiscale_kernels.cpp ${SRC}/gpu_files/multiscale/gpuDepondtIntegrator_MS.cpp 
                                ${SRC}/gpu_files/multiscale/gpuInterpolation.cpp ${SRC}/gpu_files/gpuMSSimulation.cpp  
                                ${SRC}/gpu_files/multiscale/gpuDampingBand.cpp ${SRC}/gpu_files/multiscale/gpuDampingBand.hpp PROPERTIES LANGUAGE CUDA)
    add_compile_definitions(CUDA_V)

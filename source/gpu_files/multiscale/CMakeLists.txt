@@ -5,8 +5,8 @@ target_sources(${UppASD_LIB} PRIVATE
         gpuInterpolation.cpp
         gpuDampingBand.hpp
         gpuDampingBand.hpp
-        interpolation_kernels.hpp
-        interpolation_kernels.cpp
+        multiscale_kernels.hpp
+        multiscale_kernels.cpp
 )
 
 target_include_directories(${UppASD_LIB}

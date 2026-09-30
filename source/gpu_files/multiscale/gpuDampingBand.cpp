@@ -9,7 +9,7 @@
 #include "gpuDampingBand.hpp"
 #include "gpuStructures.hpp"
 #include "gpu_wrappers.h"
-#include "interpolation_kernels.hpp"
+#include "multiscale_kernels.hpp"
 #include "real_type.h"
 #include "tensor.hpp"
 

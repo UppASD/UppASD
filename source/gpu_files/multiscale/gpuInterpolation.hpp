@@ -10,7 +10,7 @@
 #include "gpuStructures.hpp"
 #include "real_type.h"
 #include "gpu_wrappers.h"
-#include "interpolation_kernels.hpp"
+#include "multiscale_kernels.hpp"
 
 class GpuInterpolation {
 private:
