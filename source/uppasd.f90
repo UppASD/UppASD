@@ -298,7 +298,7 @@ contains
          endif
 
       elseif (mode=='MS') then
-         if (do_gpu == 'Y') then !HIP or CUDA
+         if (do_gpu == 'Y' .and. do_gpu_ms == 'Y') then !HIP or CUDA
             call ms_mphaseGPU()
          else ! FORTRAN            
             call ms_mphase() ! Multiscale measurement phase

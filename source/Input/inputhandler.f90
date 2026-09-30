@@ -1363,6 +1363,10 @@ contains
                read(ifile,*,iostat=i_err) do_gpu_mc
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
 
+            case('do_gpu_ms')
+               read(ifile,*,iostat=i_err) do_gpu_ms
+               if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err
+
             case('do_gpu_correlations')
                read(ifile,*,iostat=i_err) do_gpu_correlations
                if(i_err/=0) write(*,*) 'ERROR: Reading ',trim(keyword),' data',i_err

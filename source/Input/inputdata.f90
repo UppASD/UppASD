@@ -274,7 +274,8 @@ module InputData
    character(len=1) :: gpu_mc_bf   !< Use brute force CUDA Monte Carlo
    character(len=1) :: do_gpu      !< Use GPU functionalities (replaces gpu_mode) (Y/N)
    character(len=1) :: do_gpu_llg  !< Do LLG on GPU (Y/N)
-   character(len=1) :: do_gpu_mc   !< Do eventual MC on GPU (Y/N)
+   character(len=1) :: do_gpu_mc   !< Do MC on GPU (Y/N)
+   character(len=1) :: do_gpu_ms   !< Do multiscale on GPU (Y/N)
    character(len=1) :: do_gpu_measurements   !< Do measurements on GPU (Y/N)
    character(len=1) :: do_gpu_correlations   !< Do correlations on GPU (Y/N)
    !---------------------------------------------------------------------------------
@@ -536,6 +537,7 @@ contains
       do_gpu            = 'N'
       do_gpu_llg        = 'Y'
       do_gpu_mc         = 'N'
+      do_gpu_ms         = 'N'
       do_gpu_measurements = 'Y'
       do_gpu_correlations = 'N'
 
