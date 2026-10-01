@@ -1,0 +1,43 @@
+simid  CuMn0000
+ncell     80        80        80                System size
+BC        P         P         P                 Boundary conditions (0=vacuum,P=periodic)
+cell      0.50000   0.50000   0.00000
+          0.50000   0.00000   0.50000
+          0.00000   0.50000   0.50000
+
+Sym       1                                     Symmetry of lattice (0 for no, and 1 for cubic)
+do_ralloy 1
+do_prnstruct 0
+
+posfile   ./posfile
+momfile   ./momfile
+exchange  ./cumnjfilen40
+
+SDEalgh   1                                     SDE-solver. 1=smpt
+tseed     1                                     Temperature seed value
+Mensemble 1                                     Number of samples in ensemble averaging
+Initmag   1                                     (1=random, 2=cone, 3=spec., 4=file)
+
+mode      S                                     M for MC and S for SD
+Temp      010.000         K                     Temperature of the system
+damping   0.1                                   Damping coefficient
+Nstep     10000000                              Number of time-steps
+timestep  1.000e-16       s                     The time step-size for the SDE-solver
+
+do_avrg   Y                                     Measure averages
+avrg_step 10
+avrg_buff 100
+
+do_cumu Y
+cumu_step 10
+cumu_buff 100
+
+#plotenergy 1
+
+do_autocorr Y
+ac_step 10
+ac_buff 100
+
+acfile ./acfile
+
+gpu_mode 1
