@@ -17,7 +17,7 @@ module Chelper
    use Constants,        only : gama, mub, k_bolt, mry
    use HamiltonianData,  only : ham
 
-   use prn_averages,  
+   use prn_averages
    use prn_topology,     only : skyno, skyno_step, skyno_buff
    use Gradients,        only : dxyz_vec, dxyz_atom, dxyz_list
    use Energy,           only : eavg_buff, eavg2_buff, eavg4_buff, eavrg_step, eavrg_buff, calc_energy
