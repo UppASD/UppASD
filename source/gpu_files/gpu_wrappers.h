@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstdio>
+#include <stdexcept>
+
 #if defined(HIP_V)
   #include <hip/hip_runtime.h>
   #include <hiprand/hiprand.h>
@@ -46,7 +49,7 @@
   #define GPU_RAND_GENERATE_NORMAL_DOUBLE(generator, outputPtr, n, mean, stddev) hiprandGenerateNormalDouble(generator, outputPtr, n, mean, stddev)
   #define GPU_RAND_UNIFORM_DOUBLE(state) hiprand_uniform_double(state)
 
-  #define WARPSIZE warpSize
+  #define WARPSIZE 64
   #define SHFL_DOWN(val, offset) __shfl_down(val, offset)
 
 
@@ -108,11 +111,59 @@
 #endif
 
 
-/*#define ASSERT_GPU(call) \
-  do { \
-    GPU_ERROR_T err = call; \
-    if (err != GPU_SUCCESS) { \
-      fprintf(stderr, "GPU error at %s:%d: %s\n", __FILE__, __LINE__, GPU_GET_ERROR_STRING(err)); \
-      exit(1); \
-    } \
-  } while (0)*/
+// Post-kernel-launch check: queries the last asynchronous error from the GPU
+// runtime.  Takes an optional kernel name for diagnostics.
+#define ASSERT_GPU_KERNEL(name)                                                \
+   do {                                                                        \
+      GPU_ERROR_T _gpu_err = GPU_GET_LAST_ERROR();                             \
+      if (_gpu_err != GPU_SUCCESS) {                                           \
+         char _gpu_msg[512];                                                   \
+         std::snprintf(_gpu_msg, sizeof(_gpu_msg),                             \
+                       "GPU kernel '%s' launch error at %s:%d — %s",           \
+                       (name), __FILE__, __LINE__,                             \
+                       GPU_GET_ERROR_STRING(_gpu_err));                        \
+         throw std::runtime_error(_gpu_msg);                                   \
+      }                                                                        \
+   } while (0)
+
+// Runtime error check for HIP/CUDA calls that return GPU_ERROR_T.
+// Throws std::runtime_error with file, line, and the driver error string.
+#define ASSERT_GPU(call)                                                       \
+   do {                                                                        \
+      GPU_ERROR_T _gpu_err = (call);                                           \
+      if (_gpu_err != GPU_SUCCESS) {                                           \
+         char _gpu_msg[512];                                                   \
+         std::snprintf(_gpu_msg, sizeof(_gpu_msg),                             \
+                       "GPU error at %s:%d — %s",                              \
+                       __FILE__, __LINE__,                                     \
+                       GPU_GET_ERROR_STRING(_gpu_err));                        \
+         throw std::runtime_error(_gpu_msg);                                   \
+      }                                                                        \
+   } while (0)
+
+// Check the most recent asynchronous GPU error (useful after kernel launches).
+#define GPU_CHECK_LAST_ERROR()                                                 \
+   do {                                                                        \
+      GPU_ERROR_T _gpu_err = GPU_GET_LAST_ERROR();                             \
+      if (_gpu_err != GPU_SUCCESS) {                                           \
+         char _gpu_msg[512];                                                   \
+         std::snprintf(_gpu_msg, sizeof(_gpu_msg),                             \
+                       "GPU kernel error at %s:%d — %s",                       \
+                       __FILE__, __LINE__,                                     \
+                       GPU_GET_ERROR_STRING(_gpu_err));                        \
+         throw std::runtime_error(_gpu_msg);                                   \
+      }                                                                        \
+   } while (0)
+
+// Runtime error check for hiprand / curand calls that return a status code.
+#define ASSERT_GPU_RAND(call)                                                  \
+   do {                                                                        \
+      auto _rand_err = (call);                                                 \
+      if (_rand_err != GPU_RAND_STATUS_SUCCESS) {                              \
+         char _gpu_msg[512];                                                   \
+         std::snprintf(_gpu_msg, sizeof(_gpu_msg),                             \
+                       "GPU RNG error at %s:%d — status code %d",              \
+                       __FILE__, __LINE__, static_cast<int>(_rand_err));       \
+         throw std::runtime_error(_gpu_msg);                                   \
+      }                                                                        \
+   } while (0)

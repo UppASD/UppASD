@@ -160,10 +160,7 @@ bool GpuDepondtIntegrator::initiate(const SimulationParameters SimParam) {
    bdup.Allocate(static_cast <long int>(3), static_cast <long int>(SimParam.N), static_cast <long int>(SimParam.M));
 
    // All initialized?
-   if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS) {
-      release();
-      return false;
-   }
+   ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
 
    return true;
 }

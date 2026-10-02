@@ -210,6 +210,15 @@ INCLUDE(${CMAKE_MODULE_PATH}/SetFortranFlags.cmake)
 # Add OpenMP compiler/linker flags
 ##############################################################################################
 IF(USE_OPENMP)
+   # Cray wrappers and AMD Flang need OpenMP hints for CMake's FindOpenMP
+   IF(CMAKE_Fortran_COMPILER_ID STREQUAL "Cray")
+      SET(OpenMP_Fortran_FLAGS "-homp" CACHE STRING "" FORCE)
+      SET(OpenMP_Fortran_LIB_NAMES "" CACHE STRING "" FORCE)
+   ELSEIF(CMAKE_Fortran_COMPILER_ID STREQUAL "Flang" OR
+          CMAKE_Fortran_COMPILER_ID STREQUAL "LLVMFlang")
+      SET(OpenMP_Fortran_FLAGS "-fopenmp" CACHE STRING "" FORCE)
+      SET(OpenMP_Fortran_LIB_NAMES "omp" CACHE STRING "" FORCE)
+   ENDIF()
    FIND_PACKAGE(OpenMP)
    message(STATUS "Did we find OpenMP? ${OpenMP_Fortran_FOUND}")
    message(STATUS "Which are the OpenMP flags?  ${OpenMP_Fortran_FLAGS}")
@@ -305,8 +314,37 @@ endif()
 #   find_package(LAPACK REQUIRED)
 #endif()
 #set(BLA_STATIC ON)
-find_package(BLAS REQUIRED)
-find_package(LAPACK REQUIRED)
+# BLAS/LAPACK detection.
+# Case 1: Cray ftn wrapper — links cray-libsci automatically.
+# Case 2: ON_LUMI with Flang (non-wrapper) — use LIBSCI_DIR if provided.
+# Case 3: Everything else — use CMake's FindBLAS/FindLAPACK.
+IF(CMAKE_Fortran_COMPILER MATCHES "craype" AND
+   (CMAKE_Fortran_COMPILER_ID STREQUAL "Cray" OR
+    CMAKE_Fortran_COMPILER_ID STREQUAL "Flang" OR
+    CMAKE_Fortran_COMPILER_ID STREQUAL "LLVMFlang"))
+    message(STATUS "Cray PE detected with non-GNU compiler — assuming ftn provides BLAS/LAPACK")
+    SET(BLAS_FOUND TRUE)
+    SET(BLAS_LIBRARIES "")
+    SET(LAPACK_FOUND TRUE)
+    SET(LAPACK_LIBRARIES "")
+ELSEIF(ON_LUMI AND LIBSCI_DIR)
+    # Direct Flang/AMD compiler on LUMI — link cray-libsci explicitly
+    find_library(LIBSCI_LIBRARY NAMES sci_amd PATHS "${LIBSCI_DIR}/lib" NO_DEFAULT_PATH)
+    if(LIBSCI_LIBRARY)
+        message(STATUS "Found cray-libsci for BLAS/LAPACK: ${LIBSCI_LIBRARY}")
+        SET(BLAS_FOUND TRUE)
+        SET(BLAS_LIBRARIES "${LIBSCI_LIBRARY}")
+        SET(LAPACK_FOUND TRUE)
+        SET(LAPACK_LIBRARIES "${LIBSCI_LIBRARY}")
+    else()
+        message(WARNING "LIBSCI_DIR set but libsci_amd not found — falling back to FindBLAS")
+        find_package(BLAS REQUIRED)
+        find_package(LAPACK REQUIRED)
+    endif()
+ELSE()
+    find_package(BLAS REQUIRED)
+    find_package(LAPACK REQUIRED)
+ENDIF()
 message(STATUS "Math libs: 
 BLAS:${BLAS_FOUND} ${BLAS_LIBRARIES}  ${BLAS_LINKER_FLAGS}
 LAPACK:${LAPACK_FOUND} ${LAPACK_LIBRARIES}  ${LAPACK_LINKER_FLAGS}
@@ -413,21 +451,40 @@ message(STATUS "HIP CXX compiler: ${CMAKE_CXX_COMPILER}")
    
    
     set(ROCM_ROOT $ENV{ROCM_PATH})
-    #link_directories("/opt/rocm/lib")
-    
+    if(NOT ROCM_ROOT)
+        set(ROCM_ROOT "/opt/rocm")
+    endif()
+    message(STATUS "ROCM_ROOT: ${ROCM_ROOT}")
+
     target_include_directories(${UppASD_LIB} PRIVATE
         ${ROCM_ROOT}/include
     )
-    
 
-    # hiprand
+    # hiprand — use NO_DEFAULT_PATH so we pick up the library from
+    # ROCM_ROOT (e.g. rocm-afar) rather than a system rocm in CMAKE_PREFIX_PATH.
     find_library(HIPRAND_LIBRARY
         NAMES hiprand
-        PATHS /opt/rocm/lib /opt/rocm/lib64
+        HINTS ${ROCM_ROOT}/lib ${ROCM_ROOT}/lib64
+        NO_DEFAULT_PATH
         REQUIRED
     )
 
-    target_link_libraries(${UppASD_LIB} PRIVATE ${HIPRAND_LIBRARY})
+    # amdhip64 runtime — same: force ROCM_ROOT to avoid system rocm mismatch.
+    find_library(AMDHIP64_LIBRARY
+        NAMES amdhip64
+        HINTS ${ROCM_ROOT}/lib ${ROCM_ROOT}/lib64
+        NO_DEFAULT_PATH
+        REQUIRED
+    )
+
+    target_link_libraries(${UppASD_LIB} PRIVATE ${HIPRAND_LIBRARY} ${AMDHIP64_LIBRARY})
+
+    # When Fortran linker is Flang (not a Cray wrapper), it won't link
+    # the C++ standard library automatically — add it explicitly.
+    if(CMAKE_Fortran_COMPILER_ID STREQUAL "Flang" OR
+       CMAKE_Fortran_COMPILER_ID STREQUAL "LLVMFlang")
+        target_link_libraries(${UppASD_LIB} PRIVATE stdc++)
+    endif()
 
    if(NOT CMAKE_HIP_ARCHITECTURES)
       set(CMAKE_HIP_ARCHITECTURES "gfx90a")
