@@ -55,6 +55,8 @@ The code is documented in the [UppASD manual](https://uppasd.github.io/UppASD-ma
 
 A tutorial with examples and exercises on atomistic spin-dynamics are contained in the [UppASD tutorial](https://uppasd.github.io/UppASD-tutorial/).
 
+Example build and job scripts for UppASD on supercomputers can be found in the [UppASD-hpc-scripts](https://github.com/UppASD/UppASD-hpc-scripts) repository.
+
 **Developers please look at the development guidelines in the `CONTRIBUTING.md` file, about how to make your contributions to UppASD.**
 
 ---
