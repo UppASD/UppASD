@@ -18,3 +18,12 @@ __global__ void InitializeThermalSigmaFactor(real* sigmaFactor,
       sigmaFactor[site] = sqrt(damping * sigmaFactor[site]);
    }
 }
+
+__device__ inline void rotateDepondtVector(){}
+
+__device__ inline void BuildEffectiveField(){}
+
+_global__ void DepondtEvolveFirst(){};
+
+_global__ void DepondtEvolveSecond(){}; 
+

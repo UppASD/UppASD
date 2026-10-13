@@ -8,7 +8,7 @@
 #include "stopwatchDeviceSync.hpp"
 #include "gpuStructures.hpp"
 #include "gpu_wrappers.h"
-#include "depondt_kernels.h"
+#include "depondt_kernels.hpp"
 #if defined(HIP_V)
 #include <hiprand/hiprand.h>
 #elif defined(CUDA_V)
@@ -30,23 +30,22 @@ private:
    real timestep;
 
    // Class local matrices
-   GpuTensor<real, 3> mrod;
-   GpuTensor<real, 3> blocal;
-   GpuTensor<real, 3> bdup;
-ß
+   deviceLattice& gpuLattice;
+   GpuTensor<real, 3> thermfield;
+   GpuTensor<real, 1> sigmaFactor;
+   GpuTensor<GpuRngState, 1> rngStates;
+   bool dataInitiated{false};
+   bool constantsInitiated{false};
+   
 
    // Timer
    StopwatchDeviceSync stopwatch;
 
 
-   // Algorithm
-   void rotate(const GpuTensor<real, 3>& emom, real delta_t);
-   void buildbeff(const GpuTensor<real, 3>& emom, const GpuTensor<real, 3>& btorque);
-
 public:
 
    // Constructor
-   GpuDepondtIntegrator();
+   GpuDepondtIntegrator(const SimulationParameters SimParam, deviceLattice& p_gpuLattice);
 
    // Destructor
    ~GpuDepondtIntegrator();

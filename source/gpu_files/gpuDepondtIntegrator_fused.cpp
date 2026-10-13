@@ -8,7 +8,7 @@
 #include "stopwatchDeviceSync.hpp"
 #include "stopwatchPool.hpp"
 #include "gpuStructures.hpp"
-#include "depondt_kernels.h"
+#include "depondt_kernels.hpp"
 
 #include "gpu_wrappers.h"
 #if defined(HIP_V)
@@ -20,115 +20,17 @@
 #include <curand.h>
 #endif
 
-using ParallelizationHelper = GpuParallelizationHelper;
-////////////////////////////////////////////////////////////////////////////////
-// Parallelization helper classes
-////////////////////////////////////////////////////////////////////////////////
-
-class GpuDepondtIntegrator::BuildEffectiveField : public ParallelizationHelper::Atom {
-private:
-   real* bdup;
-   const real* blocal;
-   const real* emom;
-   real damping;
-
-public:
-   BuildEffectiveField(GpuTensor<real, 3>& p1, const GpuTensor<real, 3>& p2, const GpuTensor<real, 3>& p3, real p4) {
-      bdup = p1.data();
-      blocal = p2.data();
-      emom = p3.data();
-      damping = p4;
-   }
-
-   __device__ void each(unsigned int atom) {
-      real* my_bdup = &bdup[atom * 3];
-      const real* my_bloc = &blocal[atom * 3];
-      const real* my_emom = &emom[atom * 3];
-      my_bdup[0] = my_bloc[0] + damping * (my_emom[1] * my_bloc[2] - my_emom[2] * my_bloc[1]);
-      my_bdup[1] = my_bloc[1] + damping * (my_emom[2] * my_bloc[0] - my_emom[0] * my_bloc[2]);
-      my_bdup[2] = my_bloc[2] + damping * (my_emom[0] * my_bloc[1] - my_emom[1] * my_bloc[0]);
-      //if (atom == 0) printf("%.6lf \n", my_emom[0]); 
-   }
-};
-
-class GpuDepondtIntegrator::Rotate : public ParallelizationHelper::Atom {
-private:
-   real* mrod;
-   const real* emom;
-   const real* bdup;
-   real timestep;
-   real gamma;
-   real damping;
-
-public:
-   Rotate(GpuTensor<real, 3>& p1, const GpuTensor<real, 3>& p2, const GpuTensor<real, 3>& p3, real p4, real p5, real p6) {
-      mrod = p1.data();
-      emom = p2.data();
-      bdup = p3.data();
-      timestep = p4;
-      gamma = p5;
-      damping = p6;
-   }
-
-   __device__ void each(unsigned int atom) {
-      real* my_mrod = &mrod[atom * 3];
-      const real* my_emom = &emom[atom * 3];
-      const real* my_bdup = &bdup[atom * 3];
-
-      // Get effective field components and size
-      real x = my_bdup[0];
-      real y = my_bdup[1];
-      real z = my_bdup[2];
-      real norm = sqrt(x * x + y * y + z * z);
-
-      // Normalize components
-      x /= norm;
-      y /= norm;
-      z /= norm;
-
-      // Get precession angle
-      real angle = norm * timestep * gamma;
-
-      angle *= (real)1.0 / ((real)1.0 + damping * damping);
-
-      // Calculate sin and cos
-      real cosv, sinv;
-      sincos(angle, &sinv, &cosv);
-      real u = 1 - cosv;
-
-      // Calculate matrix
-      real M[3][3];
-      M[0][0] = x * x * u + cosv;
-      M[0][1] = x * y * u - z * sinv;
-      M[0][2] = x * z * u + y * sinv;
-      M[1][0] = x * y * u + z * sinv;
-      M[1][1] = y * y * u + cosv;
-      M[1][2] = y * z * u - x * sinv;
-      M[2][0] = x * z * u - y * sinv;
-      M[2][1] = z * y * u + x * sinv;
-      M[2][2] = z * z * u + cosv;
-
-      // Rotate
-      real mx = my_emom[0], my = my_emom[1], mz = my_emom[2];
-      my_mrod[0] = mx * M[0][0] + my * M[0][1] + mz * M[0][2];
-      my_mrod[1] = mx * M[1][0] + my * M[1][1] + mz * M[1][2];
-      my_mrod[2] = mx * M[2][0] + my * M[2][1] + mz * M[2][2];
-      // Alternative
-      //		real mx = my_emom[0], my = my_emom[1], mz = my_emom[2];
-      //		my_mrod[0] = mx*x*x*u+  cosv + my*y*x*u-z*sinv + mz*z*x*u+y*sinv;
-      //		my_mrod[1] = mx*x*y*u+z*sinv + my*y*y*u+  cosv + mz*z*y*u-x*sinv;
-      //		my_mrod[2] = mx*x*z*u-y*sinv + my*y*z*u+x*sinv + mz*z*z*u+  cosv;
-   }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-// Class members
-////////////////////////////////////////////////////////////////////////////////
 
 // ConstructoruDepondtIntegrator
-GpuDepondtIntegrator::GpuDepondtIntegrator()
+GpuDepondtIntegrator::GpuDepondtIntegrator(const SimulationParameters SimParam, deviceLattice& p_gpuLattice)
     : stopwatch(GlobalStopwatchPool::get("Cuda Depondt integrator")),
-      parallel(ParallelizationHelperInstance) {
+      gpuLattice(p_gpuLattice),
+
+      {
+         thermalField.Allocate(3, SimParam.N, SimParam.M);
+         sigmaFactor.Allocate(SimParam.N);
+         rngStates.Allocate(SimParam.N *SimParam.M);
+         dataInitiated = true;
 }
 
 // Destructor
@@ -192,9 +94,10 @@ void GpuDepondtIntegrator::resetConstants(const Tensor<real, 1> temperature, rea
 
 // Releaser
 void GpuDepondtIntegrator::release() {
-   mrod.Free();
-   blocal.Free();
-   bdup.Free();
+   thermfield.Free();
+   sigmaFactor.Free();
+   rngStates.Free();
+   dataInitiated = false;
 }
 
 // First step of Depond solver, calculates the stochastic field and rotates the

@@ -18,3 +18,7 @@ __global__ void InitializeDeviceRngStates(GpuRngState* states,
 __global__ void InitializeThermalSigmaFactor(real* sigmaFactor,
                                              unsigned int count,
                                              real damping);
+
+__global__ void DepondtEvolveFirst();
+
+__global__ void DepondtEvolveSecond(); 
