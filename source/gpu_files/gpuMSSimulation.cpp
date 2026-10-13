@@ -141,10 +141,10 @@ void GpuSimulation::GpuMSSimulation::MSmphase(GpuSimulation& gpuSim) {
       stopwatch.add("hamiltonian");
 
       // Perform first step of SDE solver
-      integrator.evolveFirst(gpuSim.gpuLattice); //TODO
+      integrator.evolveFirst(gpuSim.gpuLattice); 
       stopwatch.add("evolution");
 
-      interpolation.interpolateFirst();
+      interpolation.interpolateFirst();//IMPORTANT! have to be done before effective field
 
       measure_ene = ((gpuSim.Flags.do_ene > 0 ) && (gpuSim.Flags.do_gpu_measurements)&&
             (((mstep-1)%gpuSim.SimParam.ene_step == 0)||((gpuSim.Flags.do_cumu)&&((mstep-1)%gpuSim.SimParam.cumu_step == 0))));

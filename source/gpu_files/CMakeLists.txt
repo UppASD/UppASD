@@ -10,8 +10,8 @@ base.hpp
 ${GPU_PARALLEL}
 ${GPU_TOOLS}
 gpuCommon.hpp
-gpuDepondtIntegrator.cpp
-gpuDepondtIntegrator.hpp
+gpuDepondtIntegrator_fused.cpp
+gpuDepondtIntegrator_fused.hpp
 gpuEventPool.cpp
 gpuEventPool.hpp
 gpuHamiltonianCalculations.cpp
@@ -56,6 +56,7 @@ target_include_directories(${UppASD_LIB}
 add_subdirectory(measurement)
 add_subdirectory(correlations)
 add_subdirectory(multiscale)
+add_subdirectory(integrator)
 
 #common.cuh
 #cudaMatrix.hpp

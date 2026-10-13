@@ -12,6 +12,8 @@ namespace cg = cooperative_groups;
 
 #endif
 
+//Interpolation related kernels
+
 __global__ void interpolate_atoms1(const int interp_natoms, const int N, const int M,
                                   const int* indices, const int* first_neighbour,
                                   const int* neighbours, const real* weights, const real* mmom,

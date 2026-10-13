@@ -24,6 +24,7 @@
   #define GPU_MEMCPY_HOST_TO_HOST hipMemcpyHostToHost
   #define GPU_MEMSET(ptr, value, size) hipMemset(ptr, value, size)
   #define GPU_MEMSET_ASYNC(ptr, value, size, stream) hipMemsetAsync(ptr, value, size, stream)
+  #define GPU_NORMAL(d_state) hiprand_normal(d_state)
   #define GPU_NORMAL_DOUBLE(d_state) hiprand_normal_double(d_state)
   #define GPU_RAND_INIT(seed, subsequence, ffset,state) hiprand_init(seed, subsequence, ffset,state)
   #define GPU_SUCCESS hipSuccess
@@ -78,12 +79,13 @@
   #define GPU_MEMCPY_HOST_TO_HOST cudaMemcpyHostToHost
   #define GPU_MEMSET(ptr, value, size) cudaMemset(ptr, value, size)
   #define GPU_MEMSET_ASYNC(ptr, value, size, stream) cudaMemsetAsync(ptr, value, size, stream)
+  #define GPU_NORMAL(d_state) curand_normal(d_state)
   #define GPU_NORMAL_DOUBLE(d_state) curand_normal_double(d_state)
   #define GPU_RAND_INIT(seed, subsequence, ffset,state) curand_init(seed, subsequence, ffset,state)
   #define GPU_SUCCESS cudaSuccess
   #define GPU_RAND_STATE curandState
   #define GPU_STREAM_T cudaStream_t
-  #define GPU_STREAM_ADD_CALLBACK(stream, callback, userData, flags)	 cudaStreamAddCallback(stream, callback, userData, flags)	
+  #define GPU_STREAM_ADD_CALLBACK(stream, callback, userData, flags)\	 cudaStreamAddCallback(stream, callback, userData, flags)\	
   #define GPU_STREAM_CREATE(stream) cudaStreamCreate(stream)
   #define GPU_STREAM_DESTROY(stream) cudaStreamDestroy(stream)
   #define GPU_STREAM_SYNC(stream) cudaStreamSynchronize(stream)
@@ -112,7 +114,7 @@
   do { \
     GPU_ERROR_T err = call; \
     if (err != GPU_SUCCESS) { \
-      fprintf(stderr, "GPU error at %s:%d: %s\n", __FILE__, __LINE__, GPU_GET_ERROR_STRING(err)); \
+      fprintf(stderr, "GPU error at %s:%d: %s\\n", __FILE__, __LINE__, GPU_GET_ERROR_STRING(err)); \
       exit(1); \
     } \
   } while (0)*/

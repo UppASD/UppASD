@@ -11,6 +11,10 @@ namespace cg = cooperative_groups;
 #define M_PI (3.14159265358979323846)
 #endif
 
+/////////////////////////////////////////////////
+///////   Interpolation related kernels    //////
+/////////////////////////////////////////////////
+
 // atomInterpolation
 static __device__ void interpolate_atom(const int index, const int ensemble, const int N, const int* first_neighbour,
                  const int* neighbours, const GpuTensor<real, 3>  emom, const real* weights, real* v)
@@ -106,4 +110,14 @@ __global__ void interpolate_atoms2(const int interp_natoms, const int N, const i
     emom2[base + 2] = v[2];
 
 }
+
+/////////////////////////////////////////////////
+///////      Damping Band  kernels         //////
+/////////////////////////////////////////////////
+
+
+
+/////////////////////////////////////////////////
+///////     Midpoint Solver kernels        //////
+/////////////////////////////////////////////////
 
