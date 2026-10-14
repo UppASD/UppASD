@@ -892,7 +892,7 @@ bool GpuMeasurement::timeToMeasure(MeasurementType mtype, size_t mstep) const
             return do_skyno != SkyrmionMethod::None && ((mstep % *FortranData::skyno_step) == 0);
         
         case MeasurementType::Autocorrelation: {
-            return (do_autocorr=='Y') && (((mstep % ac_step) == 0)||(mstep== sw_curr));//TODO
+            return (do_autocorr) && (((mstep % ac_step) == 0)||(mstep== sw_curr));//TODO
         }
 
         case MeasurementType::Energy:
