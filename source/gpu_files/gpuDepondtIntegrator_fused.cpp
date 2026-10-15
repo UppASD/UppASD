@@ -35,6 +35,8 @@ GpuDepondtIntegrator_fused::GpuDepondtIntegrator_fused(const SimulationParameter
    stt = SimParam.stt;
    timestep = SimParam.delta_t;
 
+   applyTorque = ((stt =='Y') ? true : false);
+
    N = SimParam.N;
    M = SimParam.M;
 
@@ -47,7 +49,7 @@ GpuDepondtIntegrator_fused::GpuDepondtIntegrator_fused(const SimulationParameter
 
    thermfield.Allocate(3, N, M);
    sigmaFactor.Allocate(SimParam.N);
-   d_state.Allocate(3, N, M);
+   d_state.Allocate(N * M);
    dataInitiated = true;
 
    unsigned long long seed;
@@ -56,8 +58,8 @@ GpuDepondtIntegrator_fused::GpuDepondtIntegrator_fused(const SimulationParameter
          seed = (unsigned long long)rand();
       }
 
-   InitializeDeviceRngStates<<<task3NM, 1>>>(d_state.data(), seed, taskMax);
-   InitializeThermalSigmaFactor<<<blocks, threads>>>(sigmaFactor, gpuLttice.temperature, N, dp_factor);
+   InitializeDeviceRngStates<<<taskNM, 1>>>(d_state.data(), seed, taskNM);
+   InitializeThermalSigmaFactor<<<blocks, threads>>>(sigmaFactor, gpuLattice.temperature, N, dp_factor);
 
    if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS) {
       release();
@@ -66,54 +68,11 @@ GpuDepondtIntegrator_fused::GpuDepondtIntegrator_fused(const SimulationParameter
 }
 
 // Destructor
-GpuDepondtIntegrator::~GpuDepondtIntegrator() {
+GpuDepondtIntegrator_fused::~GpuDepondtIntegrator_fused() {
    release();
 }
 
-// Initiator
-bool GpuDepondtIntegrator::initiate(const SimulationParameters SimParam) {
-   // Assert that we're not already initialized
-   //release();
 
-   // Param
-   //stt = SimParam.stt;
-   //timestep = SimParam.delta_t;
-
-   // Initiate thermfield
-   if(!thermfield.initiate(SimParam.N, SimParam.M, SimParam.rngType, SimParam.randomSeed)) {
-      release();
-      return false;
-   }
-
-   // Allocate device matrices
-  // mrod.Allocate(static_cast <long int>(3),static_cast <long int>( SimParam.N), static_cast <long int>(SimParam.M));
-   //blocal.Allocate(static_cast <long int>(3), static_cast <long int>(SimParam.N), static_cast <long int>(SimParam.M));
-   //bdup.Allocate(static_cast <long int>(3), static_cast <long int>(SimParam.N), static_cast <long int>(SimParam.M));
-
-   // All initialized?
-   //if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS) {
-   //   release();
-   //   return false;
-   //}
-
-   return true;
-}
-
-bool GpuDepondtIntegrator::initiateConstants(const SimulationParameters SimParam, const Tensor<real, 1>temperature) {
-   // Set parameters
-   gamma = SimParam.gamma;
-   k_bolt = SimParam.k_bolt;
-   mub = SimParam.mub;
-   damping = SimParam.damping;
-   dp_factor = (2.0 * damping * k_bolt) / (gamma * mub * (1 + damping * damping));
-
-   // Initiate thermfield constants
-   if(!thermfield.initiateConstants(temperature, timestep, gamma, k_bolt, mub, damping)) {
-      return false; //TODO
-   }
-
-   return true;
-}
 
 
 void GpuDepondtIntegrator::resetConstants(const Tensor<real, 1> temperature, real phaseTimestep, real phaseDamping) {
@@ -138,30 +97,14 @@ void GpuDepondtIntegrator::release() {
 void GpuDepondtIntegrator::evolveFirst(deviceLattice& gpuLattice) {
    // Timing
    stopwatch.skip();
+   threads = {256, 1, 1};
+   blocks = {(N + threads.x - 1)/threads.x, M, 1};
 
-   //_dpr;
+   DepondtEvolveFirst<<<blocks, threads>>>(thermfield, sigmaFactor, d_state, gpuLattice.beff, gpuLattice.emom, gpuLattice.emom2, gpuLattice.mmom, 
+                                 gpuLattice.emomM, gpuLattice.btorque, N, M, applyTorque);
 
-   // Randomize stochastic field
-   thermfield.randomize(gpuLattice.mmom);
-   stopwatch.add("thermfield");
 
-   GpuCommon::Add cm(blocal, gpuLattice.beff, thermfield.getField());
-
-   //_dpr;
-   // Construct local field
-   parallel.gpuElementCall(GpuCommon::Add(blocal, gpuLattice.beff, thermfield.getField()));
-   stopwatch.add("localfield");
-
-   //_dpr;
-   // Construct effective field (including damping term)
-   buildbeff(gpuLattice.emom, gpuLattice.btorque);
-   stopwatch.add("buildbeff");
-
-   //_dpr;
-   // Set up rotation matrices and perform rotations
-   rotate(gpuLattice.emom, timestep);
-   stopwatch.add("rotate");
-
+///////////////////////////
    // copy m(t) to emom2 and m(t+dt) to emom for heisge, save b(t)
    parallel.gpuElementCall(GpuCommon::ScalarMult(gpuLattice.emomM, mrod, gpuLattice.mmom));
    gpuLattice.emom2.swap(gpuLattice.emom);  // Previous emom will not be needed

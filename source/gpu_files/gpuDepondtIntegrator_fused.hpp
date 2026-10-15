@@ -36,10 +36,11 @@ private:
    deviceLattice& gpuLattice;
    GpuTensor<real, 3> thermfield;
    GpuTensor<real, 1> sigmaFactor;
-   GpuTensor<GPU_RAND_STATE, 3> d_state;
+   GpuTensor<GPU_RAND_STATE, 1> d_state;
 
    bool dataInitiated{false};
    bool constantsInitiated{false};
+   bool applyTorque;
 
    dim3 threads;
    dim3 blocks;
