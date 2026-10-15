@@ -13,8 +13,7 @@
 #include "gpu_wrappers.h"
 #if defined(HIP_V)
 #include <hip/hip_runtime.h>
- #include <hiprand/hiprand.h>
- #include "hipThermfield.hpp"
+#include <hiprand/hiprand.h>
 #elif defined(CUDA_V)
 #include <cuda.h>
 #include <curand.h>
@@ -22,15 +21,48 @@
 
 
 // ConstructoruDepondtIntegrator
-GpuDepondtIntegrator::GpuDepondtIntegrator(const SimulationParameters SimParam, deviceLattice& p_gpuLattice)
+GpuDepondtIntegrator_fused::GpuDepondtIntegrator_fused(const SimulationParameters SimParam, deviceLattice& p_gpuLattice)
     : stopwatch(GlobalStopwatchPool::get("Cuda Depondt integrator")),
       gpuLattice(p_gpuLattice),
+{
+   gamma = SimParam.gamma;
+   k_bolt = SimParam.k_bolt;
+   mub = SimParam.mub;
+   damping = SimParam.damping;
+   dp_factor = (2.0 * damping * k_bolt) / (gamma * mub * (1 + damping * damping));
 
-      {
-         thermalField.Allocate(3, SimParam.N, SimParam.M);
-         sigmaFactor.Allocate(SimParam.N);
-         rngStates.Allocate(SimParam.N *SimParam.M);
-         dataInitiated = true;
+   // Integrator parameters
+   stt = SimParam.stt;
+   timestep = SimParam.delta_t;
+
+   N = SimParam.N;
+   M = SimParam.M;
+
+   tasks3NM = 3*N*M;
+   tasksNM = N*M;
+
+
+   threads = {256, 1, 1};
+   blocks = {(N + threads.x - 1) / threads.x, 1, 1};
+
+   thermfield.Allocate(3, N, M);
+   sigmaFactor.Allocate(SimParam.N);
+   d_state.Allocate(3, N, M);
+   dataInitiated = true;
+
+   unsigned long long seed;
+   if(SimParam.randomSeed == 0ULL) {
+         srand(time(NULL));
+         seed = (unsigned long long)rand();
+      }
+
+   InitializeDeviceRngStates<<<task3NM, 1>>>(d_state.data(), seed, taskMax);
+   InitializeThermalSigmaFactor<<<blocks, threads>>>(sigmaFactor, gpuLttice.temperature, N, dp_factor);
+
+   if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS) {
+      release();
+      return false;
+   }
 }
 
 // Destructor
@@ -41,11 +73,11 @@ GpuDepondtIntegrator::~GpuDepondtIntegrator() {
 // Initiator
 bool GpuDepondtIntegrator::initiate(const SimulationParameters SimParam) {
    // Assert that we're not already initialized
-   release();
+   //release();
 
    // Param
-   stt = SimParam.stt;
-   timestep = SimParam.delta_t;
+   //stt = SimParam.stt;
+   //timestep = SimParam.delta_t;
 
    // Initiate thermfield
    if(!thermfield.initiate(SimParam.N, SimParam.M, SimParam.rngType, SimParam.randomSeed)) {
@@ -54,15 +86,15 @@ bool GpuDepondtIntegrator::initiate(const SimulationParameters SimParam) {
    }
 
    // Allocate device matrices
-   mrod.Allocate(static_cast <long int>(3),static_cast <long int>( SimParam.N), static_cast <long int>(SimParam.M));
-   blocal.Allocate(static_cast <long int>(3), static_cast <long int>(SimParam.N), static_cast <long int>(SimParam.M));
-   bdup.Allocate(static_cast <long int>(3), static_cast <long int>(SimParam.N), static_cast <long int>(SimParam.M));
+  // mrod.Allocate(static_cast <long int>(3),static_cast <long int>( SimParam.N), static_cast <long int>(SimParam.M));
+   //blocal.Allocate(static_cast <long int>(3), static_cast <long int>(SimParam.N), static_cast <long int>(SimParam.M));
+   //bdup.Allocate(static_cast <long int>(3), static_cast <long int>(SimParam.N), static_cast <long int>(SimParam.M));
 
    // All initialized?
-   if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS) {
-      release();
-      return false;
-   }
+   //if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS) {
+   //   release();
+   //   return false;
+   //}
 
    return true;
 }
@@ -96,7 +128,7 @@ void GpuDepondtIntegrator::resetConstants(const Tensor<real, 1> temperature, rea
 void GpuDepondtIntegrator::release() {
    thermfield.Free();
    sigmaFactor.Free();
-   rngStates.Free();
+   d_state.Free();
    dataInitiated = false;
 }
 

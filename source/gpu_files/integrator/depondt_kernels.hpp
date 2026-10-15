@@ -2,6 +2,8 @@
 
 #include "gpu_wrappers.h"
 #include "real_type.h"
+#include "tensor.hpp"
+
 
 #if defined(HIP_V)
 #include <hiprand/hiprand_kernel.h>
@@ -11,11 +13,12 @@
 
 using GpuRngState = GPU_RAND_STATE;
 
-__global__ void InitializeDeviceRngStates(GpuRngState* states,
-                                         unsigned int count,
-                                         unsigned long long seed);
+__global__ void InitializeDeviceRngStates(GpuRngState* states,                                       
+                                         unsigned long long seed,
+                                         unsigned int count,);
 
-__global__ void InitializeThermalSigmaFactor(real* sigmaFactor,
+__global__ void InitializeThermalSigmaFactor(GpuTensor<real, 1> sigmaFactor,
+                                             const GpuTensor<real, 1> temperature,
                                              unsigned int count,
                                              real damping);
 

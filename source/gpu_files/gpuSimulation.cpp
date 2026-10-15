@@ -320,6 +320,7 @@ bool GpuSimulation::initiateMatrices() {
     gpuLattice.mmom0.Allocate(N, M);
     gpuLattice.mmom2.Allocate(N, M);
     gpuLattice.mmomi.Allocate(N, M);
+    gpuLattice.temperature.Allocate(N);
     //gpuLattice.ipTemp_array.Allocate(N);
 
     gpuLattice.eneff.zeros();
@@ -427,6 +428,7 @@ bool GpuSimulation::gpuHasNoData(){
                     gpuLattice.mmom0.empty() || 
                     gpuLattice.mmom2.empty() || 
                     gpuLattice.mmomi.empty() ||
+                    gpuLattice.temperature.empty()||
                    // gpuLattice.ipTemp.empty()||
                     (gpuLattice.btorque.empty()&& (FortranData::btorque != nullptr)));
     //TODO: add measurables
@@ -485,6 +487,7 @@ void GpuSimulation::release() {
     gpuLattice.mmom0.Free();  
     gpuLattice.mmom2.Free();  
     gpuLattice.mmomi.Free();
+    gpuLattice.temperature.Free();
    // gpuLattice.ipTemp.Free();
      if(FortranData::btorque) {gpuLattice.btorque.Free();  }
 
@@ -546,7 +549,8 @@ void GpuSimulation::copyFromFortran() {
     //printf("HERE - 8\n");  
     gpuLattice.mmom0.copy_sync(cpuLattice.mmom0);  
     gpuLattice.mmom2.copy_sync(cpuLattice.mmom2);  
-    gpuLattice.mmomi.copy_sync(cpuLattice.mmomi);  
+    gpuLattice.mmomi.copy_sync(cpuLattice.mmomi); 
+    gpuLattice.temperature.copy_sync(cpuLattice.temperature); 
     //printf("HERE - 9\n");
    // gpuLattice.ipTemp.copy_sync(cpuLattice.ipTemp);
    // printf("HERE - 10\n");

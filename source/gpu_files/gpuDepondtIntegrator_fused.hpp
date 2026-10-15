@@ -29,13 +29,22 @@ private:
    char stt;  // Spin transfer torque mode
    real timestep;
 
+   unsigned int N;
+   unsigned int M;
+
    // Class local matrices
    deviceLattice& gpuLattice;
    GpuTensor<real, 3> thermfield;
    GpuTensor<real, 1> sigmaFactor;
-   GpuTensor<GpuRngState, 1> rngStates;
+   GpuTensor<GPU_RAND_STATE, 3> d_state;
+
    bool dataInitiated{false};
    bool constantsInitiated{false};
+
+   dim3 threads;
+   dim3 blocks;
+   unsigned int tasks3NM;
+   unsigned int tasksNM;
    
 
    // Timer
