@@ -149,13 +149,7 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
          momUpdater.update();
          stopwatch.add("moments");
 
-         // Check for error
-         GPU_ERROR_T e = GPU_GET_LAST_ERROR();
-         if(e != GPU_SUCCESS) {
-            std::printf("Uncaught GPU error %d: %s\n", e, GPU_GET_ERROR_STRING(e));
-            GPU_DEVICE_RESET();
-            std::exit(EXIT_FAILURE);
-         }
+         ASSERT_GPU_KERNEL("SDiphase");
       }
 
       if(it < (ipnphase - 1)){
@@ -166,7 +160,7 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
       }  
       
    // Synchronize with device
-   GPU_DEVICE_SYNCHRONIZE();
+   ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
    // Explicitly export final initial-phase moments (emom/emom2/emomM/mmom/mmom2/mmomi)
    // so measurement phase can restart from this exact state.
    gpuSim.copyToFortran();
@@ -292,13 +286,8 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
 
       measurement->updateAC(mstep);
 
-      // Check for error
-      GPU_ERROR_T e = GPU_GET_LAST_ERROR();
-      if(e != GPU_SUCCESS) {
-         std::printf("Uncaught GPU error %d: %s\n", e, GPU_GET_ERROR_STRING(e));
-         GPU_DEVICE_RESET();
-         std::exit(EXIT_FAILURE);
-      }    real cv{};            // Specific heat
+      ASSERT_GPU_KERNEL("SDmphase");
+      real cv{};            // Specific heat
 
 
    }  // End loop over simulation steps
@@ -330,7 +319,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
 
 
    // Synchronize with device
-   GPU_DEVICE_SYNCHRONIZE();
+   ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
    stopwatch.add("final synchronize");
 }
 
