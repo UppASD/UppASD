@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+# SPDX-FileCopyrightText: 2026 CSC – IT Center for Science
+#
+# SPDX-License-Identifier: Apache-2.0
