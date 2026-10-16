@@ -51,7 +51,7 @@ GpuDepondtIntegrator_fused::GpuDepondtIntegrator_fused(const SimulationParameter
    blocks = {(N + threads.x - 1) / threads.x, 1, 1};
 
    thermfield.Allocate(3, N, M);
-   sigmaFactor.Allocate(SimParam.N);
+   sigmaFactor.Allocate(N);
    d_state.Allocate(N * M);
    dataInitiated = true;
 
@@ -67,7 +67,7 @@ GpuDepondtIntegrator_fused::GpuDepondtIntegrator_fused(const SimulationParameter
    sigmaFactor.copy_sync(temperature);
 
 
-   InitializeDeviceRngStates<<<rngBlocks, threads>>>(d_state.data(), seed, taskNM);
+   InitializeDeviceRngStates<<<rngBlocks, threads>>>(d_state.data(), seed, tasksNM);
    InitializeThermalSigmaFactor<<<blocks, threads>>>(sigmaFactor,  N, dp_factor);
 
    const GPU_ERROR_T err = GPU_DEVICE_SYNCHRONIZE();
