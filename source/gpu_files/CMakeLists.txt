@@ -12,6 +12,8 @@ ${GPU_TOOLS}
 gpuCommon.hpp
 gpuDepondtIntegrator_fused.cpp
 gpuDepondtIntegrator_fused.hpp
+gpuDepondtIntegrator.cpp
+gpuDepondtIntegrator.hpp
 gpuEventPool.cpp
 gpuEventPool.hpp
 gpuHamiltonianCalculations.cpp

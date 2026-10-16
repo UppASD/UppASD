@@ -1,4 +1,4 @@
-#include "depondt_kernals.hpp"
+#include "depondt_kernels.hpp"
 
 
 __global__ void InitializeDeviceRngStates(GpuRngState* states, unsigned long long seed, unsigned int count) {
@@ -9,28 +9,58 @@ __global__ void InitializeDeviceRngStates(GpuRngState* states, unsigned long lon
    }
 }
 
-__global__ void InitializeThermalSigmaFactor(GpuTensor<real, 1> sigmaFactor, const GpuTensor<real, 1> temperature,
-                                             unsigned int count, real damping) {
+__global__ void InitializeThermalSigmaFactor(GpuTensor<real, 1> sigmaFactor, unsigned int count, real dp_factor) {
 
    const unsigned int site = blockIdx.x * blockDim.x + threadIdx.x;
    if (site < count) {
-      sigmaFactor[site] = sqrt(damping * temperature[site]);
+      sigmaFactor[site] = sqrt(dp_factor * sigmaFactor[site]);
    }
 }
 
-__device__ inline void rotateDepondtVector(){}
+__device__ inline void rotateDepondtVector(real mx, real my, real mz, real bx, real by, real bz, real timestep, real gamma, 
+                                        real damping, real& outx, real& outy, real& outz){
+    const real norm = sqrt(bx * bx + by * by + bz * bz);
 
-__device__ inline void BuildEffectiveField(real& bx, real& by, real& bz, const real mx, const real my, const real mz,
-                                           const real lx, const real ly, const real lz, const real damping){
+    if (norm == real(0)) {
+        outx = mx;
+        outy = my;
+        outz = mz;
+        return;
+    }
+    bx /= norm;
+    by /= norm;
+    bz /= norm;
 
-    bx = lx + damping * (my * lz - mz * ly);
-    by = ly + damping * (mz * lx - mx * lz);
-    bz = lz + damping * (mx * ly - my * lx);
+    real angle = norm * timestep * gamma;
+    angle /= real(1.0) + damping * damping;
+
+    real cosv, sinv;
+    sincos(angle, &sinv, &cosv);
+    const real u = real(1.0) - cosv;
+
+    outx = mx * (bx * bx * u + cosv)
+         + my * (bx * by * u - bz * sinv)
+         + mz * (bx * bz * u + by * sinv);
+
+    outy = mx * (bx * by * u + bz * sinv)
+         + my * (by * by * u + cosv)
+         + mz * (by * bz * u - bx * sinv);
+
+    outz = mx * (bx * bz * u - by * sinv)
+         + my * (bz * by * u + bx * sinv)
+         + mz * (bz * bz * u + cosv);
 }
 
-__device__ inline void RandomField(real& x, real& y, real& z, GPU_RAND_STATE* d_state, unsigned int atom, unsigned int site, unsigned int ensemble,
-                                 GpuTensor<real, 1> sigmaFactor, GpuTensor<real, 2> mmom)
-{
+__device__ inline void BuildEffectiveField(real& ex, real& ey, real& ez, const real mx, const real my, const real mz,
+                                           const real lx, const real ly, const real lz, const real damping){
+
+    ex = lx + damping * (my * lz - mz * ly);
+    ey = ly + damping * (mz * lx - mx * lz);
+    ez = lz + damping * (mx * ly - my * lx);
+}
+
+__device__ inline void RandomField(real& x, real& y, real& z, GpuRngState* d_state, unsigned int atom, unsigned int site, unsigned int ensemble,
+                                 GpuTensor<real, 1> sigmaFactor, GpuTensor<real, 2> mmom){
     GPU_RAND_STATE state = d_state[atom];
 
 #if defined(SINGLE_PREC)
@@ -44,7 +74,7 @@ __device__ inline void RandomField(real& x, real& y, real& z, GPU_RAND_STATE* d_
 #endif
 
     d_state[atom] = state;
-.
+
     const real sigma = sigmaFactor(site) * rsqrt(mmom(site, ensemble));
 
     x *= sigma;
@@ -53,49 +83,119 @@ __device__ inline void RandomField(real& x, real& y, real& z, GPU_RAND_STATE* d_
 }
 
 __global__ void DepondtEvolveFirst(GpuTensor<real, 3> thermfield, const GpuTensor<real, 1> sigmaFactor, GpuTensor<GPU_RAND_STATE, 1> d_state,
-                                  const GpuTensor<real, 3> beff, GpuTensor<real, 3> emom, GpuTensor<real, 3> emom2, GpuTensor<real, 2> mmom, 
-                                  GpuTensor<real, 3> emomM, const GpuTensor<real, 3> btorque, int N, int M, bool applyTorque){
+                                  const GpuTensor<real, 3> beff, GpuTensor<real, 3> b2eff, GpuTensor<real, 3> emom, GpuTensor<real, 3> emom2, GpuTensor<real, 2> mmom, 
+                                  GpuTensor<real, 3> emomM, const GpuTensor<real, 3> btorque, int N, int M,  real timestep, real gamma, real damping, bool applyTorque){
 
-const unsigned int site = blockIdx.x * blockDim.x + threadIdx.x;
-const unsigned int ensemble = blockIdx.y;
 
-if (site >= N) return;
+    const unsigned int site = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int ensemble = blockIdx.y;
 
-const unsigned int atom = ensemble * N + site;
+    if (site >= N || ensemble >= M)
+        return;
 
-real tx, ty, tz, bx, by, bz, lx, ly, lz;
-real mx, my, mz;
+    const unsigned int atom = ensemble * N + site;
 
-const mx = emom(0, site, ensemble);
-const my = emom(1, site, ensemble);
-const mz = emom(2, site, ensemble);
+    real tx, ty, tz;
+    real ex, ey, ez;
+    real rx, ry, rz;
 
-const real bx = beff(0, site, ensemble);
-const real by = beff(1, site, ensemble);
-const real bz = beff(2, site, ensemble);
+    const real mx = emom(0, site, ensemble);
+    const real my = emom(1, site, ensemble);
+    const real mz = emom(2, site, ensemble);
 
-if (applyTorque) {
-    bx += btorque(0, site, ensemble);
-    by += btorque(1, site, ensemble);
-    bz += btorque(2, site, ensemble);
-}
+    const real bx = beff(0, site, ensemble);
+    const real by = beff(1, site, ensemble);
+    const real bz = beff(2, site, ensemble);
 
-BuildRandomField(tx, ty, tz, d_state.data(), atom, site, ensemble, sigmaFactor.data(), mmom.data());
+    RandomField(tx, ty, tz, d_state.data(), atom, site, ensemble, sigmaFactor, mmom);
 
-thermfield(0, site, ensemble) = tx;
-thermfield(1, site, ensemble) = ty;
-thermfield(2, site, ensemble) = tz;
+    thermfield(0, site, ensemble) = tx;
+    thermfield(1, site, ensemble) = ty;
+    thermfield(2, site, ensemble) = tz;
 
-lx = bx + tx;
-ly = by + ty;
-lz = bz + tz;
+    const real lx = bx + tx;
+    const real ly = by + ty;
+    const real lz = bz + tz;
 
-BuildEffectiveField(ex, ey, ez, mx, my, mz, lx, ly, lz, damping);
-   
+    BuildEffectiveField(ex, ey, ez, mx, my, mz, lx, ly, lz, damping);
 
+    if (applyTorque) {
+        ex += btorque(0, site, ensemble);
+        ey += btorque(1, site, ensemble);
+        ez += btorque(2, site, ensemble);
+    }
+
+    b2eff(0, site, ensemble) = ex;
+    b2eff(1, site, ensemble) = ey;
+    b2eff(2, site, ensemble) = ez;
+
+    rotateDepondtVector(mx, my, mz, ex, ey, ez, timestep, gamma, damping, rx, ry, rz);
+
+    emom2(0, site, ensemble) = mx;
+    emom2(1, site, ensemble) = my;
+    emom2(2, site, ensemble) = mz;
+
+    emom(0, site, ensemble) = rx;
+    emom(1, site, ensemble) = ry;
+    emom(2, site, ensemble) = rz;
+
+    const real moment = mmom(site, ensemble);
+
+    emomM(0, site, ensemble) = rx * moment;
+    emomM(1, site, ensemble) = ry * moment;
+    emomM(2, site, ensemble) = rz * moment;
 
    
 };
 
-__global__ void DepondtEvolveSecond(){}; 
+__global__ void DepondtEvolveSecond(const GpuTensor<real, 3> thermfield,const GpuTensor<real, 3> beff, const GpuTensor<real, 3> b2eff,
+                                    GpuTensor<real, 3> emom, GpuTensor<real, 3> emom2, const GpuTensor<real, 3> btorque,
+                                    int N, int M, real timestep, real gamma, real damping, bool applyTorque){
+    const unsigned int site = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int ensemble = blockIdx.y;
+
+    if (site >= N || ensemble >= M)
+        return;
+
+    real ex, ey, ez;
+    real rx, ry, rz;
+
+    const real mx = emom(0, site, ensemble);
+    const real my = emom(1, site, ensemble);
+    const real mz = emom(2, site, ensemble);
+
+    const real ox = emom2(0, site, ensemble);
+    const real oy = emom2(1, site, ensemble);
+    const real oz = emom2(2, site, ensemble);
+
+    const real bx = beff(0, site, ensemble);
+    const real by = beff(1, site, ensemble);
+    const real bz = beff(2, site, ensemble);
+
+    const real lx = bx + thermfield(0, site, ensemble);
+    const real ly = by + thermfield(1, site, ensemble);
+    const real lz = bz + thermfield(2, site, ensemble);
+
+    BuildEffectiveField(ex, ey, ez,mx, my, mz, lx, ly, lz,damping);
+
+    if (applyTorque) {
+        ex += btorque(0, site, ensemble);
+        ey += btorque(1, site, ensemble);
+        ez += btorque(2, site, ensemble);
+    }
+
+    ex = real(0.5) * (ex + b2eff(0, site, ensemble));
+    ey = real(0.5) * (ey + b2eff(1, site, ensemble));
+    ez = real(0.5) * (ez + b2eff(2, site, ensemble));
+
+    rotateDepondtVector(ox, oy, oz,ex, ey, ez,timestep, gamma, damping, rx, ry, rz);
+
+    emom(0, site, ensemble) = ox;
+    emom(1, site, ensemble) = oy;
+    emom(2, site, ensemble) = oz;
+
+    emom2(0, site, ensemble) = rx;
+    emom2(1, site, ensemble) = ry;
+    emom2(2, site, ensemble) = rz;
+}
 

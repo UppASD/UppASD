@@ -347,7 +347,7 @@ if (USE_CUDA)
    endif ()
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/chelper.f90)
    add_subdirectory(${SRC}/gpu_files)
-  set_source_files_properties(${SRC}/gpu_files/gpuDepondtIntegrator.cpp ${SRC}/gpu_files/gpuEventPool.cpp ${SRC}/gpu_files/gpuHamiltonianCalculations.cpp 
+  set_source_files_properties(${SRC}/gpu_files/gpuDepondtIntegrator.cpp ${SRC}/gpu_files/gpuDepondtIntegrator_fused.cpp ${SRC}/gpu_files/gpuEventPool.cpp ${SRC}/gpu_files/gpuHamiltonianCalculations.cpp 
                                ${SRC}/gpu_files/gpuMomentUpdater.cpp ${SRC}/gpu_files/gpuMeasurement.cpp  ${SRC}/gpu_files/gpuSDSimulation.cpp  
                                ${SRC}/gpu_files/gpuMCSimulation.cpp ${SRC}/gpu_files/gpuSimulation.cpp ${SRC}/gpu_files/gpuParallelizationHelper.cpp 
                                ${SRC}/gpu_files/gpuMetropolis.cpp ${SRC}/gpu_files/gpuMetropolis_bruteforce.cpp ${SRC}/gpu_files/measurement/fortranMeasurement.cpp 
@@ -355,7 +355,8 @@ if (USE_CUDA)
                                ${SRC}/gpu_files/correlations/fortranCorrelation.cpp ${SRC}/gpu_files/correlations/gpuCorrelations.cpp
                                ${SRC}/gpu_files/correlations/correlation_kernels.cpp
                                ${SRC}/gpu_files/measurement/autocorrelation_kernels.cpp
-                               ${SRC}/gpu_files/multiscale/imultiscale_kernels.cpp ${SRC}/gpu_files/multiscale/gpuDepondtIntegrator_MS.cpp 
+                               ${SRC}/gpu_files/measurement/integrator/depondt_kernels.cpp
+                               ${SRC}/gpu_files/multiscale/multiscale_kernels.cpp ${SRC}/gpu_files/multiscale/gpuDepondtIntegrator_MS.cpp 
                                ${SRC}/gpu_files/multiscale/gpuInterpolation.cpp ${SRC}/gpu_files/gpuMSSimulation.cpp  
                                ${SRC}/gpu_files/multiscale/gpuDampingBand.cpp ${SRC}/gpu_files/multiscale/gpuDampingBand.hpp PROPERTIES LANGUAGE CUDA)
    add_compile_definitions(CUDA_V)

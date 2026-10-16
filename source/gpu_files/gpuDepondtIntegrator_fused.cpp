@@ -1,6 +1,6 @@
 #include "c_headers.hpp"
 #include "gpuCommon.hpp"
-#include "gpuDepondtIntegrator.hpp"
+#include "gpuDepondtIntegrator_fused.hpp"
 #include "tensor.hpp"
 #include "printDebug.hpp"
 #include "real_type.h"
@@ -21,21 +21,24 @@
 
 
 // ConstructoruDepondtIntegrator
-GpuDepondtIntegrator_fused::GpuDepondtIntegrator_fused(const SimulationParameters SimParam, deviceLattice& p_gpuLattice)
+GpuDepondtIntegrator_fused::GpuDepondtIntegrator_fused(const SimulationParameters SimParam, deviceLattice& p_gpuLattice, const Tensor<real, 1> temperature)
     : stopwatch(GlobalStopwatchPool::get("Cuda Depondt integrator")),
-      gpuLattice(p_gpuLattice),
+      gpuLattice(p_gpuLattice)
 {
    gamma = SimParam.gamma;
    k_bolt = SimParam.k_bolt;
    mub = SimParam.mub;
    damping = SimParam.damping;
-   dp_factor = (2.0 * damping * k_bolt) / (gamma * mub * (1 + damping * damping));
+   timestep = SimParam.delta_t;
+
+   //dp_factor = (2.0 * damping * k_bolt) / (gamma * mub * (1 + damping * damping));
+    dp_factor = (2.0 * damping * k_bolt) / (timestep * gamma * mub *(1.0 + damping * damping));
+
 
    // Integrator parameters
    stt = SimParam.stt;
-   timestep = SimParam.delta_t;
 
-   applyTorque = ((stt =='Y') ? true : false);
+   applyTorque = ((stt !='N') ? true : false);
 
    N = SimParam.N;
    M = SimParam.M;
@@ -57,34 +60,63 @@ GpuDepondtIntegrator_fused::GpuDepondtIntegrator_fused(const SimulationParameter
          srand(time(NULL));
          seed = (unsigned long long)rand();
       }
-
-   InitializeDeviceRngStates<<<taskNM, 1>>>(d_state.data(), seed, taskNM);
-   InitializeThermalSigmaFactor<<<blocks, threads>>>(sigmaFactor, gpuLattice.temperature, N, dp_factor);
-
-   if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS) {
-      release();
-      return false;
+   else{
+      seed = (unsigned long long) SimParam.randomSeed;
    }
+   const dim3 rngBlocks((tasksNM + threads.x - 1) / threads.x, 1, 1);
+   sigmaFactor.copy_sync(temperature);
+
+
+   InitializeDeviceRngStates<<<rngBlocks, threads>>>(d_state.data(), seed, taskNM);
+   InitializeThermalSigmaFactor<<<blocks, threads>>>(sigmaFactor,  N, dp_factor);
+
+   const GPU_ERROR_T err = GPU_DEVICE_SYNCHRONIZE();
+    if (err != GPU_SUCCESS) {
+        std::fprintf(
+            stderr,
+            "Failed to reset Depondt thermal constants: %s\n",
+            GPU_GET_ERROR_STRING(err));
+
+         constantsInitiated = true;
+    }
+
+    constantsInitiated = true;
+
 }
 
 // Destructor
 GpuDepondtIntegrator_fused::~GpuDepondtIntegrator_fused() {
    release();
 }
+void GpuDepondtIntegrator_fused::resetConstants(const Tensor<real, 1> temperature, real phaseTimestep, real phaseDamping){
+    timestep = phaseTimestep;
+    damping = phaseDamping;
 
+    dp_factor = (2.0 * damping * k_bolt) / (timestep * gamma * mub *(1.0 + damping * damping));
 
+    const dim3 sigmaThreads(256, 1, 1);
+    const dim3 sigmaBlocks((N + sigmaThreads.x - 1) / sigmaThreads.x,  1, 1);
 
+    sigmaFactor.copy_sync(temperature);
+    InitializeThermalSigmaFactor<<<sigmaBlocks, sigmaThreads>>>(sigmaFactor, N, dp_factor);
 
-void GpuDepondtIntegrator::resetConstants(const Tensor<real, 1> temperature, real phaseTimestep, real phaseDamping) {
-   // Update per-phase constants before resetting thermfield state.
-   timestep = phaseTimestep;
-   damping = phaseDamping;
-   dp_factor = (2.0 * damping * k_bolt) / (gamma * mub * (1 + damping * damping));
-   thermfield.resetConstants(temperature, timestep, gamma, k_bolt, mub, damping); 
+    const GPU_ERROR_T err = GPU_DEVICE_SYNCHRONIZE();
+    if (err != GPU_SUCCESS) {
+        std::fprintf(
+            stderr,
+            "Failed to reset Depondt thermal constants: %s\n",
+            GPU_GET_ERROR_STRING(err));
+         constantsInitiated = false;
+
+    }
+
+    constantsInitiated = true;
 }
 
+
+
 // Releaser
-void GpuDepondtIntegrator::release() {
+void GpuDepondtIntegrator_fused::release() {
    thermfield.Free();
    sigmaFactor.Free();
    d_state.Free();
@@ -94,65 +126,22 @@ void GpuDepondtIntegrator::release() {
 // First step of Depond solver, calculates the stochastic field and rotates the
 // magnetic moments according to the effective field
 // Dupont recipe J. Phys.: Condens. Matter 21 (2009) 336005
-void GpuDepondtIntegrator::evolveFirst(deviceLattice& gpuLattice) {
-   // Timing
-   stopwatch.skip();
+void GpuDepondtIntegrator_fused::evolveFirst(deviceLattice& gpuLattice) {
    threads = {256, 1, 1};
    blocks = {(N + threads.x - 1)/threads.x, M, 1};
 
-   DepondtEvolveFirst<<<blocks, threads>>>(thermfield, sigmaFactor, d_state, gpuLattice.beff, gpuLattice.emom, gpuLattice.emom2, gpuLattice.mmom, 
-                                 gpuLattice.emomM, gpuLattice.btorque, N, M, applyTorque);
+   DepondtEvolveFirst<<<blocks, threads>>>(thermfield, sigmaFactor, d_state, gpuLattice.beff, gpuLattice.b2eff, gpuLattice.emom, gpuLattice.emom2, gpuLattice.mmom, 
+                                 gpuLattice.emomM, gpuLattice.btorque, N, M, timestep, gamma, damping, applyTorque);
 
-
-///////////////////////////
-   // copy m(t) to emom2 and m(t+dt) to emom for heisge, save b(t)
-   parallel.gpuElementCall(GpuCommon::ScalarMult(gpuLattice.emomM, mrod, gpuLattice.mmom));
-   gpuLattice.emom2.swap(gpuLattice.emom);  // Previous emom will not be needed
-   gpuLattice.emom.swap(mrod);   // Previous mrod will not be needed
-   gpuLattice.b2eff.swap(bdup);  // Previous bdup will not be needed
-   stopwatch.add("copy");
 }
 
 // Second step of Depond solver, calculates the corrected effective field from
 // the predicted effective fields. Rotates the moments in the corrected field
-void GpuDepondtIntegrator::evolveSecond(deviceLattice& gpuLattice) {
-   // Timing
-   stopwatch.skip();
+void GpuDepondtIntegrator_fused::evolveSecond(deviceLattice& gpuLattice) {
+   threads = {256, 1, 1};
+   blocks = {(N + threads.x - 1)/threads.x, M, 1};
+   DepondtEvolveSecond<<<blocks, threads>>>(thermfield, gpuLattice.beff, gpuLattice.b2eff, gpuLattice.emom,gpuLattice.emom2, gpuLattice.btorque,
+                                            N, M, timestep,gamma,damping,applyTorque);
 
-   // Construct local field
-   parallel.gpuElementCall(GpuCommon::Add(blocal, gpuLattice.beff, thermfield.getField()));
-   stopwatch.add("localfield");
-
-   // Construct effective field (including damping term)
-   buildbeff(gpuLattice.emom, gpuLattice.btorque);
-   stopwatch.add("buildbeff");
-
-   // Corrected field
-   parallel.gpuElementCall(GpuCommon::Avg(bdup, gpuLattice.b2eff));
-   gpuLattice.emom.swap(gpuLattice.emom2);  // Vaild as emom2 wont be used after its coming swap
-   stopwatch.add("corrfield");
-
-   // Final rotation
-   rotate(gpuLattice.emom, timestep);
-   stopwatch.add("rotate");
-
-   // Swap
-   gpuLattice.emom2.swap(mrod);  // Vaild as mrod wont be needed after this
-   stopwatch.add("copy");
-}
-
-void GpuDepondtIntegrator::rotate(const GpuTensor<real, 3>& emom, real delta_t) {
-   parallel.gpuAtomCall(Rotate(mrod, emom, bdup, timestep, gamma, damping));
-}
-
-// Constructs the effective field (including damping term)
-void GpuDepondtIntegrator::buildbeff(const GpuTensor<real, 3>& emom,
-                                      const GpuTensor<real, 3>& btorque) {
-   parallel.gpuAtomCall(BuildEffectiveField(bdup, blocal, emom, damping));
-
-   // TODO untested
-   if(stt != 'N') {
-      parallel.gpuElementCall(GpuCommon::AddTo(bdup, btorque));
-   }
 }
 

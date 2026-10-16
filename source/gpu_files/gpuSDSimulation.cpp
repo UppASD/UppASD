@@ -1,7 +1,7 @@
 
 #include "c_headers.hpp"
 #include "c_helper.h"
-#include "gpuDepondtIntegrator.hpp"
+#include "gpuDepondtIntegrator_fused.hpp"
 //#include "cudaGPUErrchk.hpp"
 #include "gpuHamiltonianCalculations.hpp"
 #include "gpuMeasurement.hpp"

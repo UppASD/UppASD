@@ -16,7 +16,7 @@
 #endif
 
 
-class GpuDepondtIntegrator {
+class GpuDepondtIntegrator_fused {
 private:
    // System parameters
    real gamma;
@@ -55,16 +55,11 @@ private:
 public:
 
    // Constructor
-   GpuDepondtIntegrator(const SimulationParameters SimParam, deviceLattice& p_gpuLattice);
+   GpuDepondtIntegrator_fused(const SimulationParameters SimParam, deviceLattice& p_gpuLattice, const Tensor<real, 1> temperature);
 
    // Destructor
-   ~GpuDepondtIntegrator();
+   ~GpuDepondtIntegrator_fused();
 
-   // Initiator
-   bool initiate(const SimulationParameters SimParam);
-
-   // Set up constants
-   bool initiateConstants(const SimulationParameters SimParam, const Tensor<real, 1>temperature);
    void resetConstants(const Tensor<real, 1> temperature, real phaseTimestep, real phaseDamping);
 
    // Releaser
