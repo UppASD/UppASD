@@ -637,12 +637,18 @@ contains
       whichphase = 1
       !cgk_flag = 0
 
-      if (do_gpu_measurements =='Y') then
-         if (do_spintemp=='Y') then
-            ntmp=nstep/spintemp_step
-            call spintemperature(Natom,Mensemble,mstep,ntmp,simid,emomM,beff,0)
+      ! Always allocate the spin temperature buffer, since it is deallocated
+      ! unconditionally at the end. The GPU loop runs over mcnstep and also
+      ! measures at the final step mcnstep+1 (twice, incl. flush).
+      if (do_spintemp=='Y') then
+         if (do_gpu_measurements /= 'Y') then
+            write(*,'(2x,a)') "Warning: do_spintemp Y requires do_gpu_measurements Y on GPU, spin temperature not sampled"
          end if
+         ntmp=mcnstep/spintemp_step+2
+         call spintemperature(Natom,Mensemble,mstep,ntmp,simid,emomM,beff,0)
+      end if
 
+      if (do_gpu_measurements =='Y') then
          if (do_pol=='Y') then
             call init_polarization(Natom,Mensemble,ham%max_no_neigh,ham%nlist,coord,1)
          end if

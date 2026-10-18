@@ -256,6 +256,11 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
 
    bool measure_ene;
 
+   // Effective field for the first measurement, which comes before the first
+   // heisge call in the loop (beff from Fortran may be unset after a restart)
+   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
+   stopwatch.add("hamiltonian");
+
    // Time step loop
    for(std::size_t mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
       // Measure
