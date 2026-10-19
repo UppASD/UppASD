@@ -106,6 +106,15 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
    Tensor<real, 1> ipTemp;
    ipTemp.AllocateHost(N);
 
+if (FortranData::ipnphase == nullptr ||*FortranData::ipnphase == 0) {
+    std::fprintf(stderr,
+        "GpuSDSimulation: cannot start SD initial phase: "
+        "ip_nphase is zero or unavailable. "
+        "Check the input file.\n");
+    std::exit(EXIT_FAILURE);
+}
+
+
    for(unsigned int k = 0; k < N; k++){
       ipTemp(k) = gpuSim.cpuLattice.ipTemp_array(k, 0);
    }
