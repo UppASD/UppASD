@@ -65,7 +65,13 @@ void GpuSimulation::initiateConstants() {
    // printf("cpp = %i, fortr = %i",  SimParam.ipnphase , *FortranData::ipnphase );
     // Constants 
     SimParam.stt = *FortranData::stt;
-    SimParam.rstep = *FortranData::rstep;
+    // rstep is a signed Fortran integer; a negative value (restart files with
+    // step -1) would otherwise wrap around to ~2^32 in all GPU step counters
+    const int rstep_signed = static_cast<int>(*FortranData::rstep);
+    if(rstep_signed < 0) {
+        std::printf("Warning: negative restart step %d reset to 0 for GPU simulation\n", rstep_signed);
+    }
+    SimParam.rstep = (rstep_signed < 0) ? 0 : static_cast<std::size_t>(rstep_signed);
     SimParam.nstep = *FortranData::nstep;
 
     SimParam.delta_t = *FortranData::delta_t;
