@@ -93,7 +93,10 @@ bool GpuCorrelations::initiate(const Flag Flags, const SimulationParameters SimP
     }
 
     // All initialized?
-    ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
+    if (GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS) {
+        release();
+        return false;
+    }
 
     return true;
 }
@@ -124,7 +127,6 @@ void GpuCorrelations::measure(std::size_t mstep){
     if((do_proj == 'C')||(do_proj == 'Q')||(do_proj == 'Y')){
         bl = (3 * nq *NT + numThreads - 1) / numThreads;
         setZero<3> <<<bl, numThreads >>> (sc_proj.q_block, 3 * blQproj.blocksNum * nq * NT);
-        ASSERT_GPU_KERNEL("unknown");
         measure_SC_proj(mstep, sc_proj, blQproj, do_proj, t_cur_proj);
 
     }
@@ -132,7 +134,6 @@ void GpuCorrelations::measure(std::size_t mstep){
     if((do_projch == 'C')||(do_projch == 'Q')||(do_projch == 'Y')){
         bl = (3 * nq *Nchmax + numThreads - 1) / numThreads;
         setZero<3> <<<bl, numThreads >>> (sc_projch.q_block, 3 * blQprojch.blocksNum * nq * Nchmax);
-        ASSERT_GPU_KERNEL("unknown");
         measure_SC_proj(mstep, sc_projch, blQprojch, do_projch, t_cur_projch);     
     }
     
@@ -153,7 +154,7 @@ void GpuCorrelations::flushCorrelations(hostCorrelations& cpuCorrelations, std::
         
     }
     
-    ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
+    GPU_DEVICE_SYNCHRONIZE();
     
     // Publish sampling info to Fortran (CRITICAL: updates sc_nsamp and sc_tidx)
     publishSamplingInfo(cpuCorrelations);
@@ -168,10 +169,8 @@ void GpuCorrelations::measure_SC(std::size_t mstep) {
     case 'C':
         if ((curstep % sc_sep) == 0) {
             GPUSqSum <<<blQ.blocks, threads >>> (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
-            ASSERT_GPU_KERNEL("GPUSqSum");
             GPUSqFinalSum_stat <<<nq, maxBlocks>>> (sc.q_block, sc.q, blQ.x);
-            ASSERT_GPU_KERNEL("GPUSqFinalSum_stat");
-            ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
+            GPU_DEVICE_SYNCHRONIZE();
             n_samples++;
         }
         break;
@@ -193,10 +192,8 @@ void GpuCorrelations::measure_SC(std::size_t mstep) {
             
             // Kernel writes to m_kt(:,:,t_cur)
             GPUSqSum <<<blQ.blocks, threads >>> (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
-            ASSERT_GPU_KERNEL("GPUSqSum");
             GPUSqFinalSum_dyn <<<nq, maxBlocks>>> (sc.q_block, sc.qt, blQ.x, t_cur);
-            ASSERT_GPU_KERNEL("GPUSqFinalSum_dyn");
-            ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
+            GPU_DEVICE_SYNCHRONIZE();
             t_cur++;  // Increment AFTER writing to that time slice
         } else {
             if ((curstep % sc_step) == 0) {
@@ -217,10 +214,8 @@ void GpuCorrelations::measure_SC(std::size_t mstep) {
             }
             
             GPUSqSum <<<blQ.blocks, threads >>> (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
-            ASSERT_GPU_KERNEL("GPUSqSum");
             GPUSqFinalSum_both <<<nq, maxBlocks >>> (sc.q_block, sc.q, sc.qt, blQ.x, t_cur, both_flag);
-            ASSERT_GPU_KERNEL("GPUSqFinalSum_both");
-            ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
+            GPU_DEVICE_SYNCHRONIZE();
             t_cur++;
             n_samples++;
 
@@ -237,20 +232,16 @@ void GpuCorrelations::measure_SC(std::size_t mstep) {
             }
             
             GPUSqSum <<<blQ.blocks, threads >>> (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
-            ASSERT_GPU_KERNEL("GPUSqSum");
             GPUSqFinalSum_both <<<nq, maxBlocks >>> (sc.q_block, sc.q, sc.qt, blQ.x, t_cur, both_flag);
-            ASSERT_GPU_KERNEL("GPUSqFinalSum_both");
-            ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
+            GPU_DEVICE_SYNCHRONIZE();
             t_cur++;
         }
         else if ((curstep % sc_sep) == 0) {
             both_flag = 0;
 
             GPUSqSum <<<blQ.blocks, threads >>> (emomM, coord, q, r_mid, sc.q_block, blQ.tasks, N);
-            ASSERT_GPU_KERNEL("GPUSqSum");
             GPUSqFinalSum_both <<<nq, maxBlocks >>> (sc.q_block, sc.q, sc.qt, blQ.x, t_cur, both_flag);
-            ASSERT_GPU_KERNEL("GPUSqFinalSum_both");
-            ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
+            GPU_DEVICE_SYNCHRONIZE();
             n_samples++;
         }
         break;
@@ -266,10 +257,8 @@ void GpuCorrelations::measure_SC_proj(std::size_t mstep, SC_proj& scp, blocksQWp
     case 'C':
         if ((curstep % sc_sep) == 0) {
             GPUSqProjSum <<<blQp.blocks, threads >>> (emomM, coord, q, r_mid, scp.aproj, scp.q_block, blQp.tasks, N);
-            ASSERT_GPU_KERNEL("GPUSqProjSum");
             GPUSqProjFinalSum_stat <<<blQp.blocksFin, maxBlocks>>> (scp.q_block, scp.q, blQp.x);
-            ASSERT_GPU_KERNEL("GPUSqProjFinalSum_stat");
-            ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
+            GPU_DEVICE_SYNCHRONIZE();
             n_samples++;
         }
         break;
@@ -291,10 +280,8 @@ void GpuCorrelations::measure_SC_proj(std::size_t mstep, SC_proj& scp, blocksQWp
             
             // Kernel writes to m_kt(:,:,t_cur)
             GPUSqProjSum <<<blQp.blocks, threads >>> (emomM, coord, q, r_mid, scp.aproj, scp.q_block, blQp.tasks, N);
-            ASSERT_GPU_KERNEL("GPUSqProjSum");
             GPUSqProjFinalSum_dyn <<<blQp.blocksFin, maxBlocks>>> (scp.q_block, scp.qt, blQp.x, t_cur_local);
-            ASSERT_GPU_KERNEL("GPUSqProjFinalSum_dyn");
-            ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
+            GPU_DEVICE_SYNCHRONIZE();
             t_cur_local++;  // Increment AFTER writing to that time slice
         } else {
             if ((curstep % sc_step) == 0) {
@@ -315,10 +302,8 @@ void GpuCorrelations::measure_SC_proj(std::size_t mstep, SC_proj& scp, blocksQWp
             }
             
             GPUSqProjSum <<<blQp.blocks, threads >>> (emomM, coord, q, r_mid, scp.aproj, scp.q_block, blQp.tasks, N);
-            ASSERT_GPU_KERNEL("GPUSqProjSum");
             GPUSqProjFinalSum_both <<<blQp.blocksFin, maxBlocks >>> (scp.q_block, scp.q, scp.qt, blQp.x, t_cur_local, both_flag);
-            ASSERT_GPU_KERNEL("GPUSqProjFinalSum_both");
-            ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
+            GPU_DEVICE_SYNCHRONIZE();
             t_cur_local++;
             n_samples++;
 
@@ -335,20 +320,16 @@ void GpuCorrelations::measure_SC_proj(std::size_t mstep, SC_proj& scp, blocksQWp
             }
             
             GPUSqProjSum <<<blQp.blocks, threads >>> (emomM, coord, q, r_mid, scp.aproj, scp.q_block, blQp.tasks, N);
-            ASSERT_GPU_KERNEL("GPUSqProjSum");
             GPUSqProjFinalSum_both <<<blQp.blocksFin, maxBlocks >>> (scp.q_block, scp.q, scp.qt, blQp.x, t_cur_local, both_flag);
-            ASSERT_GPU_KERNEL("GPUSqProjFinalSum_both");
-            ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
+            GPU_DEVICE_SYNCHRONIZE();
             t_cur_local++;
         }
         else if ((curstep % sc_sep) == 0) {
             both_flag = 0;
 
             GPUSqProjSum <<<blQp.blocks, threads >>> (emomM, coord, q, r_mid, scp.aproj, scp.q_block, blQp.tasks, N);
-            ASSERT_GPU_KERNEL("GPUSqProjSum");
             GPUSqProjFinalSum_both <<<blQp.blocksFin, maxBlocks >>> (scp.q_block, scp.q, scp.qt, blQp.x, t_cur_local, both_flag);
-            ASSERT_GPU_KERNEL("GPUSqProjFinalSum_both");
-            ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
+            GPU_DEVICE_SYNCHRONIZE();
             n_samples++;
         }
         break;
@@ -372,9 +353,7 @@ void GpuCorrelations::flush_SC(std::size_t mstep, hostCorrelations& cpuCorrelati
         
         // Compute partial S(q,ω) from S(q,t) using Fourier transform
         GPUSwSum <<<blW.blocks, threads >>> (sc.qt, dt, w, sc.w_block, blW.tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
-        ASSERT_GPU_KERNEL("GPUSwSum");
         GPUSwFinalSum <<<nq * nw, maxBlocks >>> (sc.w_block, sc.qw, blW.x, nq);
-        ASSERT_GPU_KERNEL("GPUSwFinalSum");
         
         // Transfer time-domain correlations for Fortran reference
         if (sc.qt.extent(0) == cpuCorrelations.m_kt.extent(0) &&
@@ -399,9 +378,7 @@ void GpuCorrelations::flush_SC(std::size_t mstep, hostCorrelations& cpuCorrelati
         
         // Compute partial S(q,ω) from S(q,t) using Fourier transform
         GPUSwSum <<<blW.blocks, threads >>> (sc.qt, dt, w, sc.w_block, blW.tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
-        ASSERT_GPU_KERNEL("GPUSwSum");
         GPUSwFinalSum <<<nq * nw, maxBlocks >>> (sc.w_block, sc.qw, blW.x, nq);
-        ASSERT_GPU_KERNEL("GPUSwFinalSum");
         
         // Transfer static S(q)
         cpuCorrelations.m_k.copy_sync(sc.q);
@@ -430,7 +407,7 @@ void GpuCorrelations::flush_SC(std::size_t mstep, hostCorrelations& cpuCorrelati
     }
     }  // end switch
     
-    ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
+    GPU_DEVICE_SYNCHRONIZE();
 
 }
 
@@ -455,9 +432,7 @@ void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, int nproj, hostCo
         //const GpuTensor<thrust::complex<real>, 4> sq, const GpuTensor<real, 1> dt, const GpuTensor<real, 1> w, GpuTensor<thrust::complex<real>, 4> scblock, unsigned int blokN, int tasks, unsigned int tSize, unsigned int nq, int sc_max_nstep, int sc_window_fun
         // Compute partial S(q,ω) from S(q,t) using Fourier transform
         GPUSwProjSum <<<blWp.blocks, threads >>> (scp.qt, dt, w, scp.w_block, blWp.blocksNum, tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
-        ASSERT_GPU_KERNEL("GPUSwProjSum");
         GPUSwProjFinalSum <<<blWp.blocksFin, maxBlocks >>> (scp.w_block, scp.qw, blWp.blocksNum, nq);
-        ASSERT_GPU_KERNEL("GPUSwProjFinalSum");
         
         // Transfer time-domain correlations for Fortran reference
         if (p == 'p'){
@@ -506,10 +481,8 @@ void GpuCorrelations::flush_SC_proj(std::size_t mstep, char p, int nproj, hostCo
         tasks = blWp.tasks;  // per-projection tasks; pInd is derived from blockIdx.x in the kernel
 
         GPUSwProjSum <<<blWp.blocks, threads >>> (scp.qt, dt, w, scp.w_block, blWp.blocksNum, tasks, sc_max_nstep, nq, sc_max_nstep, sc_window_fun);
-        ASSERT_GPU_KERNEL("GPUSwProjSum");
         GPUSwProjFinalSum <<<blWp.blocksFin, maxBlocks >>> (scp.w_block, scp.qw, blWp.blocksNum, nq);
-        ASSERT_GPU_KERNEL("GPUSwProjFinalSum");
-        ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
+        GPU_DEVICE_SYNCHRONIZE();
         
         // Transfer static S(q) only when extents match host buffers
         if (p == 'p') {

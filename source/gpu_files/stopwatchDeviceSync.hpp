@@ -22,7 +22,7 @@ class StopwatchDeviceSync {
    }
 #else
    inline void sync() {
-      ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
+      GPU_DEVICE_SYNCHRONIZE();
    }
 #endif
 public:

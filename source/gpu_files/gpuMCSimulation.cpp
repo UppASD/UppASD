@@ -138,14 +138,26 @@ void GpuSimulation::GpuMCSimulation::MCiphase(GpuSimulation& gpuSim) {
             stopwatch.add("hamiltonian");
          }
 
-         ASSERT_GPU_KERNEL("MCiphase");
+         // Check for error gpuSim.Energies,
+         GPU_ERROR_T e = GPU_GET_LAST_ERROR();
+         if(e != GPU_SUCCESS) {
+            std::printf("Uncaught GPU error %d: %s\n", e, GPU_GET_ERROR_STRING(e));
+            GPU_DEVICE_RESET();
+            std::exit(EXIT_FAILURE);
+         }
+        // printf("mcs = %i\n", mstep);
 
    }  
    // End loop over simulation steps
+   // Synchronize with device
+   //cudaDeviceSynchronize();
+   //printf("HERE - 3\n");
+   //printf("HERE - 5\n");
 
    gpuMC.mom_update(gpuSim.gpuLattice);
+   //printf("HERE - 6\n");
 
-   ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
+   GPU_DEVICE_SYNCHRONIZE();   
    }
 
 
@@ -239,7 +251,13 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
 
 
 
-      ASSERT_GPU_KERNEL("MCmphase");
+      // Check for error
+      GPU_ERROR_T e = GPU_GET_LAST_ERROR();
+      if(e != GPU_SUCCESS) {
+         std::printf("Uncaught GPU error %d: %s\n", e, GPU_GET_ERROR_STRING(e));
+         GPU_DEVICE_RESET();
+         std::exit(EXIT_FAILURE);
+      }
 
    }  // End loop over simulation steps
 
@@ -259,7 +277,8 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
    stopwatch.add("flush measurement");
 
    // Synchronize with device
-   ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
+   GPU_DEVICE_SYNCHRONIZE();
+   //cudaMC.release();
    stopwatch.add("final synchronize");
 }
 
@@ -333,12 +352,22 @@ void GpuSimulation::GpuMCSimulation::MCiphase_bf(GpuSimulation& gpuSim) {
             stopwatch.add("hamiltonian");
          
 
-      ASSERT_GPU_KERNEL("MCiphase_bf");
+         // Check for error
+      GPU_ERROR_T e = GPU_GET_LAST_ERROR();
+      if(e != GPU_SUCCESS) {
+         std::printf("Uncaught GPU error %d: %s\n", e, GPU_GET_ERROR_STRING(e));
+         GPU_DEVICE_RESET();
+         std::exit(EXIT_FAILURE);
+      }
+        // printf("mcs = %i\n", mstep);
 
    }  
    // End loop over simulation steps
+   // Synchronize with device
+   //cudaDeviceSynchronize();
+   //printf("HERE - 3\n");
    gpuMC_bf.mom_update(gpuSim.gpuLattice);
-   ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
+   GPU_DEVICE_SYNCHRONIZE();   
    }
 
 
@@ -435,7 +464,13 @@ const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cp
 
 
 
-      ASSERT_GPU_KERNEL("MCmphase_bf");
+      // Check for error
+      GPU_ERROR_T e = GPU_GET_LAST_ERROR();
+      if(e != GPU_SUCCESS) {
+         std::printf("Uncaught GPU error %d: %s\n", e, GPU_GET_ERROR_STRING(e));
+         GPU_DEVICE_RESET();
+         std::exit(EXIT_FAILURE);
+      }
 
    }  // End loop over simulation steps
 
@@ -455,6 +490,7 @@ const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cp
    stopwatch.add("flush measurement");
 
    // Synchronize with device
-   ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
+   GPU_DEVICE_SYNCHRONIZE();
+   //cudaMC.release();
    stopwatch.add("final synchronize");
 }

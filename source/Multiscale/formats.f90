@@ -374,41 +374,30 @@ contains
     implicit none
     integer, intent(in) :: v
     type(genType) :: gt
-    integer :: nb
     gt%type = TYPE_INTEGER
     gt%data = 0
-    nb = storage_size(v) / 8
-    gt%data(1:nb) = transfer(v, gt%data(1:nb))
+    gt%data = transfer(v,gt%data)
   end function gen_type_integer
   function gen_type_real_sp(v) result(gt)
     implicit none
     real, intent(in) :: v
     type(genType) :: gt
-    integer :: nb
     gt%type = TYPE_REAL_SP
-    gt%data = 0
-    nb = storage_size(v) / 8
-    gt%data(1:nb) = transfer(v, gt%data(1:nb))
+    gt%data = transfer(v,gt%data)
   end function gen_type_real_sp
   function gen_type_real_dp(v) result(gt)
     implicit none
     real(dblprec), intent(in) :: v
     type(genType) :: gt
-    integer :: nb
     gt%type = TYPE_REAL_DP
-    gt%data = 0
-    nb = storage_size(v) / 8
-    gt%data(1:nb) = transfer(v, gt%data(1:nb))
+    gt%data = transfer(v,gt%data)
   end function gen_type_real_dp
   function gen_type_logical(v) result(gt)
     implicit none
     logical, intent(in) :: v
     type(genType) :: gt
-    integer :: nb
     gt%type = TYPE_LOGICAL
-    gt%data = 0
-    nb = storage_size(v) / 8
-    gt%data(1:nb) = transfer(v, gt%data(1:nb))
+    gt%data = transfer(v,gt%data)
   end function gen_type_logical
   function gen_type_str(v) result(gt)
     implicit none

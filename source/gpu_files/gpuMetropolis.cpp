@@ -327,7 +327,6 @@ void GpuMetropolis::rnd_init() {
     srand(time(NULL));
     unsigned long long seed = (unsigned long long)rand();
     InitGenerator<<<taskMax, 1>>>(d_state.data(), seed, taskMax);
-    ASSERT_GPU_KERNEL("InitGenerator");
 }
 
 unsigned int GpuMetropolis::initiate(const SimulationParameters SimParam, const hostHamiltonian& cpuHam, const hostLattice& cpuLattice) {
@@ -408,7 +407,8 @@ void GpuMetropolis::MCrun(deviceLattice& gpuLattice, real beta, unsigned int sub
         task_num = subL_spnum_cpu(sub);
         //printf("blocks = %i, M = %i\n", static_cast <unsigned int>(block_subL_cpu(i)),  static_cast <unsigned int>(M));
         MCSweep<<<blocks, threads>>>(d_state, gpuLattice.mmom,gpuLattice.emomM,gpuLattice.emom, gpuLattice.eneff, subIdx_gpu, beta, N, task_num, sub, max_spins, k_bolt, mub);
-        ASSERT_GPU_KERNEL("MCSweep");
+        //hamCalc.heisge(gpuLattice);
+
     
     
 }
@@ -416,6 +416,6 @@ void GpuMetropolis::MCrun(deviceLattice& gpuLattice, real beta, unsigned int sub
 void GpuMetropolis::mom_update(deviceLattice& gpuLattice){
     threads = {thread_num, 1, 1};
     blocks = dim3((N + thread_num - 1) / thread_num, M, 1);
+    //blocks = {(N + thread_num - 1)/thread_num, M, 1};
      moms<<<blocks, threads>>>(N, gpuLattice.mmom, gpuLattice.emomM, gpuLattice.emom, gpuLattice.emom2, gpuLattice.mmom0, gpuLattice.mmom2, gpuLattice.mmomi);
-     ASSERT_GPU_KERNEL("moms");
 }

@@ -13,7 +13,6 @@
       dim3 block, grid;
       gridHelper.dim1d(&block, &grid, N * M);
       atom_kernel<THREAD_COUNT, USE_BIG_GRID><<<grid, block, 0, workStream>>>(op);
-      ASSERT_GPU_KERNEL("gpuAtomCall");
    }
 
    template <typename O>
@@ -29,7 +28,6 @@
       dim3 block, grid;
       gridHelper.dim1d(&block, &grid, N);
       site_kernel<THREAD_COUNT, USE_BIG_GRID><<<grid, block, 0, workStream>>>(op);
-      ASSERT_GPU_KERNEL("gpuSiteCall");
    }
 
    template <typename O>
@@ -45,7 +43,6 @@
       dim3 block, grid;
       gridHelper.dim2d(&block, &grid, N, M);
       atom_site_kernel<THREAD_COUNT, USE_BIG_GRID><<<grid, block, 0, workStream>>>(op);
-      ASSERT_GPU_KERNEL("gpuAtomSiteCall");
    }
 
    template <typename O>
@@ -62,7 +59,6 @@
       dim3 block, grid;
       gridHelper.dim2d(&block, &grid, N, M);
       atom_site_ensemble_kernel<THREAD_COUNT, USE_BIG_GRID><<<grid, block, 0, workStream>>>(op);
-      ASSERT_GPU_KERNEL("gpuAtomSiteEnsembleCall");
    }
 
    template <typename O>
@@ -79,7 +75,6 @@
       dim3 block, grid;
       gridHelper.dim3d(&block, &grid, 3, N, M);
       element_axis_site_ensemble_kernel<THREAD_COUNT, USE_BIG_GRID><<<grid, block, 0, workStream>>>(op);
-      ASSERT_GPU_KERNEL("gpuElementAxisSiteEnsembleCall");
    }
 
    // Call helpers
@@ -95,5 +90,7 @@
       dim3 block, grid;
       gridHelper.dim1d(&block, &grid, N * M * 3);
       element_kernel<THREAD_COUNT, USE_BIG_GRID><<<grid, block, 0, workStream>>>(op);
-      ASSERT_GPU_KERNEL("gpuElementCall");
+      // gpuErrchk(cudaPeekAtLastError());
+      // gpuErrchk(cudaDeviceSynchronize());
    }
+

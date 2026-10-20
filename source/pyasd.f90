@@ -250,8 +250,10 @@ contains
 
    subroutine RunLLGCUDA()
       implicit none
-      ! sd_mphaseCUDA no longer exists; use the GPU measurement phase instead
-      call sd_mphaseGPU()
+
+      integer :: one = 1
+
+      call sd_mphaseCUDA(one, one)
    end subroutine RunLLGCUDA
 
    subroutine RunLD()

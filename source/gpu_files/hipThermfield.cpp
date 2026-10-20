@@ -65,7 +65,7 @@ HipThermfield::HipThermfield()
 
 HipThermfield::~HipThermfield() {
    if(dataInitiated) {
-      ASSERT_GPU_RAND(hiprandDestroyGenerator(gen));
+      hiprandDestroyGenerator(gen);
    }
 }
 
@@ -82,13 +82,17 @@ bool HipThermfield::initiate(std::size_t N, std::size_t M, hiprandRngType_t rngT
    //field.Allocate(3, N, M);
    //sigmaFactor.Allocate(N);
    if(!field.empty() && !sigmaFactor.empty()) {
-      ASSERT_GPU_RAND(hiprandCreateGenerator(&gen, rngType));
-      if(seed == 0ULL) {
-         seed = time(nullptr);
+      if(hiprandCreateGenerator(&gen, rngType) == HIPRAND_STATUS_SUCCESS) {
+         if(seed == 0ULL) {
+            seed = time(nullptr);
+         }
+         hiprandSetPseudoRandomGeneratorSeed(gen, seed);
+         hiprandSetStream(gen, parallel.getWorkStream());
+         dataInitiated = true;
+      } else {
+         field.Free();
+         sigmaFactor.Free();
       }
-      ASSERT_GPU_RAND(hiprandSetPseudoRandomGeneratorSeed(gen, seed));
-      ASSERT_GPU_RAND(hiprandSetStream(gen, parallel.getWorkStream()));
-      dataInitiated = true;
    }
    stopwatch.add("initiate");
    return dataInitiated;
@@ -140,9 +144,9 @@ void  HipThermfield::randomize(const GpuTensor<real, 2>& mmom) {
 
 // Generate random vector
 #ifdef SINGLE_PREC
-   ASSERT_GPU_RAND(hiprandGenerateNormal(gen, field.data(), field.size(), 0.0, 1.0));
+   hiprandGenerateNormal(gen, field.data(), field.size(), 0.0, 1.0);
 #else
-   ASSERT_GPU_RAND(hiprandGenerateNormalDouble(gen, field.data(), field.size(), 0.0, 1.0));
+   hiprandGenerateNormalDouble(gen, field.data(), field.size(), 0.0, 1.0);
 #endif
    stopwatch.add("RNG");
 

@@ -20,18 +20,13 @@
 using index_t = long int;
 
 
-// ASSERT_GPU, GPU_CHECK_LAST_ERROR, and ASSERT_GPU_RAND are defined in
-// gpu_wrappers.h (included above).  The guard below is a safety net in case
-// this header is somehow included before gpu_wrappers.h.
-#ifndef ASSERT_GPU
-#define ASSERT_GPU(gpuCall)                                                    \
-   do {                                                                        \
-      GPU_ERROR_T _gpu_err = (gpuCall);                                        \
-      if (_gpu_err != GPU_SUCCESS) {                                           \
-         throw std::runtime_error(GPU_GET_ERROR_STRING(_gpu_err));             \
-      }                                                                        \
-   } while (0)
-#endif
+#define ASSERT_GPU(gpuCall)                            \
+   {                                                     \
+      GPU_ERROR_T error = gpuCall;                      \
+      if(error != GPU_SUCCESS) {                         \
+          throw std::runtime_error(GPU_GET_ERROR_STRING(error)); \
+      }                                                  \
+   }
 
 
 template <index_t dim>
