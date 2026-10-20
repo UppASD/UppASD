@@ -149,133 +149,64 @@ public:
       eneff[atom * 3 + 1] = y + ay_en + ext_y;
       eneff[atom * 3 + 2] = z + az_en + ext_z;
 };*/
-__global__ void Jij(GpuTensor<real, 3> beff, GpuTensor<real, 3> eneff, const GpuTensor<real, 3> emomM, const GpuTensor<real, 3>ext_f, 
-                const GpuTensor<unsigned int, 1> nlistsize, const GpuTensor<unsigned int, 2> nlist, const GpuTensor<real, 2> ncoup, 
-                const GpuTensor<unsigned int, 1> taniso, const GpuTensor<real, 2> eaniso, const GpuTensor<real, 2> kaniso, const GpuTensor<real, 1> sb,
-                const GpuTensor<unsigned int, 1> cell_index, const GpuTensor<unsigned int, 1> macro_alistsize, const GpuTensor<unsigned int, 2> macro_atom_alist,
-                const GpuTensor<unsigned int, 1> macro_halo_nlistsize, const GpuTensor<unsigned int, 2> macro_halo_to_global, const GpuTensor<unsigned int, 2> macro_atom_to_global,
-                const GpuTensor<unsigned int, 2> macro_atom_local_nlistsize, const GpuTensor<unsigned int, 3> macro_atom_local_nlist, 
-                const GpuTensor<unsigned int, 1> macro_cell_nlistsize, const GpuTensor<unsigned int, 2> macro_cell_nlist,
-                const unsigned int max_macro_halo_size, const unsigned int max_num_atom_macro_cell, const unsigned int max_macro_atom_local_neigh)
+__global__ void Jij(GpuTensor<real, 3> beff, GpuTensor<real, 3> eneff, const GpuTensor<real, 3> emomM, const GpuTensor<real, 2> ncoup,
+                const GpuTensor<unsigned int, 1> macro_alistsize, const GpuTensor<unsigned int, 1> macro_halo_nlistsize,
+                const GpuTensor<unsigned int, 2> macro_halo_to_global, const GpuTensor<unsigned int, 2> macro_atom_to_global,
+                const GpuTensor<unsigned int, 2> macro_atom_local_nlistsize, const GpuTensor<unsigned int, 3> macro_atom_local_nlist,
+                const unsigned int max_macro_halo_size)
 {
-    //TODO: ADD MACROCELLS <= blockIdx.y check
-   // threads = {maxThreads, 1, 1};
-   // blocks = {Num_macro, M, 1};
    unsigned int tid = threadIdx.x;
    unsigned int threadNum = blockDim.x;
-   unsigned int mcInd = blockIdx.x; //macrocell index
-   unsigned int mInd = blockIdx.y; //Mensemble index
+   unsigned int mcInd = blockIdx.x;
+   unsigned int mInd = blockIdx.y;
+
+   if(mcInd >= macro_alistsize.extent(0) || mInd >= emomM.extent(2)) return;
 
    unsigned int unique_neigb_in_cell = macro_halo_nlistsize(mcInd);
    unsigned int atoms_in_cell = macro_alistsize(mcInd);
-   //unsigned int local_neighb = macro_atom_local_nlistsize();
-   unsigned int tasks = max_macro_atom_local_neigh * atoms_in_cell;
 
-   //max_macro_halo_size     - max neighb
-   //max_num_atom_macro_cell - max atoms
-    //sh_neighb[3][max_macro_halo_size]; 
-    //sh_beff[3][max_num_atom_macro_cell]; 
+   extern __shared__ real shmem[];
+   real* sh_neighb = shmem;
 
-    extern __shared__ real shmem[];
-    real* sh_neighb = shmem;
-    real* sh_beff = sh_neighb + 3 * max_macro_halo_size;
+   #define SH_N(component, halo) sh_neighb[(component)*max_macro_halo_size + (halo)]
 
-    #define SH_N(j,i) sh_neighb[(i)*max_macro_halo_size + (j)]
-    #define SH_B(j,i) sh_beff[(i)*max_num_atom_macro_cell + (j)]
+   for(unsigned int loc_nInd = tid; loc_nInd < unique_neigb_in_cell; loc_nInd += threadNum){
+      unsigned int global_nInd = macro_halo_to_global(loc_nInd, mcInd) - 1;
+      SH_N(0, loc_nInd) = emomM(0, global_nInd, mInd);
+      SH_N(1, loc_nInd) = emomM(1, global_nInd, mInd);
+      SH_N(2, loc_nInd) = emomM(2, global_nInd, mInd);
+   }
 
-    for(int i = tid; i < (3*(max_macro_halo_size + max_num_atom_macro_cell)); i+=threadNum){
-        shmem[i] = 0;
-    }
+   __syncthreads();
 
-   for(unsigned int loc_nInd = tid; loc_nInd < unique_neigb_in_cell; loc_nInd+= threadNum){
-        if(loc_nInd >= unique_neigb_in_cell) break;
-        unsigned int global_nInd = macro_halo_to_global(loc_nInd, mcInd) - 1;
-        SH_N(0, loc_nInd) = emomM(0, global_nInd, mInd);
-        SH_N(1, loc_nInd) = emomM(1, global_nInd, mInd);
-        SH_N(2, loc_nInd) = emomM(2, global_nInd, mInd);
+   for(unsigned int loc_aInd = tid; loc_aInd < atoms_in_cell; loc_aInd += threadNum){
+      unsigned int global_aInd = macro_atom_to_global(loc_aInd, mcInd) - 1;
+      unsigned int neighbour_count = macro_atom_local_nlistsize(loc_aInd, mcInd);
 
-    }
+      real bx = (real)0.0;
+      real by = (real)0.0;
+      real bz = (real)0.0;
 
-    __syncthreads();
+      for(unsigned int k = 0; k < neighbour_count; ++k){
+         unsigned int halo_nInd = macro_atom_local_nlist(k, loc_aInd, mcInd) - 1;
+         real c = ncoup(global_aInd, k);
 
-   // for(int i = 0; i < atoms_in_cell; i++ ){
-   // for(int k = 0; k < unique_neigb_in_cell; k++ ){
-     //   printf("mc = %i, nn = %i\n", mcInd, macro_atom_local_nlist(k, i, mcInd));
+         bx += c * SH_N(0, halo_nInd);
+         by += c * SH_N(1, halo_nInd);
+         bz += c * SH_N(2, halo_nInd);
+      }
 
-     //   }
-    //}
+      beff(0, global_aInd, mInd) = bx;
+      beff(1, global_aInd, mInd) = by;
+      beff(2, global_aInd, mInd) = bz;
 
-
-    for(unsigned int i = tid; i < tasks; i+= threadNum){
-        if(i >= tasks) break;
-        unsigned int loc_nInd = i % max_macro_atom_local_neigh; //neighbour index in halo
-        unsigned int loc_aInd = i / max_macro_atom_local_neigh; //atom index in cell
-
-        unsigned int global_nInd = macro_halo_to_global(loc_nInd, mcInd) - 1;
-        unsigned int global_aInd = macro_atom_to_global(loc_aInd, mcInd) - 1;
-
-        printf("ga=%u gn=%u ncoup=(%u,%u)\n",
-       global_aInd,
-       global_nInd,
-       ncoup.extent(0),
-       ncoup.extent(1));
-       
-        real c = ncoup(global_aInd, global_nInd);
-        //real c = 1;
-
-        /*if(loc_nInd >= macro_atom_local_nlist.extent(0) ||
-        loc_aInd >= macro_atom_local_nlist.extent(1) ||
-        mcInd >= macro_atom_local_nlist.extent(2))
-        {
-            printf("IDX: n=%u a=%u mc=%u | ext=(%u,%u,%u)\n",
-            loc_nInd,
-            loc_aInd,
-            mcInd,
-            macro_atom_local_nlist.extent(0),
-            macro_atom_local_nlist.extent(1),
-            macro_atom_local_nlist.extent(2));
-
-            printf("OUT OF BOUNDS!\n");
-            return;
-        }*/
-
-        unsigned int nn = macro_atom_local_nlist(loc_nInd, loc_aInd, mcInd) - 1;
-        //unsigned int nn = 1;
-        //printf("mc_num = %i, mc = %i, neighbours = %i, atoms = %i, i = %i, loc_nInd = %i, loc_aInd = %i\n", macro_atom_local_nlist.extent(2), mcInd, unique_neigb_in_cell,
-                //atoms_in_cell, i, loc_nInd, loc_aInd);
-       // printf("mc_num = %i, mc = %i, neighbours = %i, atoms = %i, i = %i, loc_nInd = %i, loc_aInd = %i\n", macro_atom_local_nlist.extent(2), mcInd, unique_neigb_in_cell,
-         //       atoms_in_cell, i, loc_nInd, loc_aInd);
-
-        //atomicAdd(&SH_B(0, loc_aInd), c*SH_N(0, nn));
-       // atomicAdd(&SH_B(1, loc_aInd), c*SH_N(1, nn));
-       // atomicAdd(&SH_B(2, loc_aInd), c*SH_N(2, nn));
-
-         /*for(unsigned int i = 0; i < mnn; i++) {
-         const auto x_offset = site_pos[i * N] * 3;
-         const auto c = site_coup[i * NH];
-         // printf("%f\n", c);
-         x += c * my_emomM[x_offset + 0];
-         y += c * my_emomM[x_offset + 1];
-         z += c * my_emomM[x_offset + 2];
-        }*/
-
-    }
-
-       for(unsigned int loc_aInd = tid; loc_aInd < atoms_in_cell; loc_aInd+= threadNum){
-        if(loc_aInd >= atoms_in_cell) break;
-        unsigned int global_aInd = macro_atom_to_global(loc_aInd, mcInd) - 1;
-
-        beff(0, global_aInd, mInd) = SH_B(0, loc_aInd);
-        beff(1, global_aInd, mInd) = SH_B(1, loc_aInd);
-        beff(2, global_aInd, mInd) = SH_B(2, loc_aInd);
-
-        //eneff(0, global_aInd, mInd) = SH_B(0, loc_aInd);
-        //eneff(1, global_aInd, mInd) = SH_B(1, loc_aInd);
-        //eneff(2, global_aInd, mInd) = SH_B(2, loc_aInd);
-    
-    }
-
+      eneff(0, global_aInd, mInd) = bx;
+      eneff(1, global_aInd, mInd) = by;
+      eneff(2, global_aInd, mInd) = bz;
+   }
 }
+
+#undef SH_N
 
 __global__ void aniso(GpuTensor<real, 3> beff, GpuTensor<real, 3> eneff, const GpuTensor<real, 3> emomM, const GpuTensor<real, 3>ext_f, 
                 const GpuTensor<unsigned int, 1> taniso, const GpuTensor<real, 2> eaniso, const GpuTensor<real, 2> kaniso, const GpuTensor<real, 1> sb,
@@ -416,21 +347,17 @@ void GpuMacroHamiltonianCalculations::calculate(deviceLattice& gpuLattice, devic
         else{
             if(do_aniso !=0) {
                 //Jij aniso  
-                size_t shmem_size = sizeof(float) * (3 * macro.max_halo_size + 3 * macro.max_num_atom);
+                size_t shmem_size = sizeof(real) * 3ull * macro.max_halo_size;
 
-                Jij<<<blocks_jij, threads_jij, shmem_size>>>(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, extfield, 
-                                            nlistsize, nlist, ncoup, taniso, eaniso, kaniso, sb,
-                                            macro.cell_index, macro.alistsize, macro.atom_alist,
-                                            macro.halo_nlistsize, macro.halo_to_global, macro.atom_to_global,
-                                            macro.atom_local_nlistsize, macro.atom_local_nlist, 
-                                            macro.cell_nlistsize, macro.cell_nlist,
-                                            macro.max_halo_size, macro.max_num_atom, macro.max_atom_local_neigh);
-                aniso<<<blocks_ani, threads_ani, shmem_size>>>(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, extfield, 
+                Jij<<<blocks_jij, threads_jij, shmem_size>>>(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, ncoup,
+                                            macro.alistsize, macro.halo_nlistsize, macro.halo_to_global, macro.atom_to_global,
+                                            macro.atom_local_nlistsize, macro.atom_local_nlist, macro.max_halo_size);
+                aniso<<<blocks_ani, threads_ani>>>(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, extfield,
                                             taniso, eaniso, kaniso, sb, N);
             }
             else {
                 //Jji
-                size_t shmem_size = sizeof(float) * (3 * macro.max_halo_size + 3 * macro.max_num_atom);
+                size_t shmem_size = sizeof(real) * (3 * macro.max_halo_size + 3 * macro.max_num_atom);
 
                /* Jij<<<blocks_jij, threads_jij, shmem_size>>>(gpuLattice.beff, gpuLattice.eneff, gpuLattice.emomM, extfield, 
                                             nlistsize, nlist, ncoup, taniso, eaniso, kaniso, sb,
