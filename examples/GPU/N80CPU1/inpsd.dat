@@ -25,19 +25,17 @@ Nstep     10000000                              Number of time-steps
 timestep  1.000e-16       s                     The time step-size for the SDE-solver
 
 do_avrg   Y                                     Measure averages
-avrg_step 10
+avrg_step 100
 avrg_buff 100
 
 do_cumu Y
-cumu_step 10
+cumu_step 100
 cumu_buff 100
 
-#plotenergy 1
+plotenergy 1
 
 do_autocorr Y
-ac_step 10
+ac_step 100
 ac_buff 100
 
 acfile ./acfile
-
-gpu_mode 1

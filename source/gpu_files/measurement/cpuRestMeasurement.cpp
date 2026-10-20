@@ -157,7 +157,7 @@ void CpuRestMeasurement::copyQueueSlow(std::size_t mstep) {
    fortran_emomM.copy_sync(emomM);
    fortran_mmom.copy_sync(mmom);
    fortran_emom.copy_sync(emom);
-   fortran_beff.copy_sync(emom);
+   fortran_beff.copy_sync(beff);
 
 
    // emomM.write(FortranData::emomM);
