@@ -21,7 +21,7 @@ Initmag   1                                     (1=random, 2=cone, 3=spec., 4=fi
 mode      S                                     M for MC and S for SD
 Temp      010.000         K                     Temperature of the system
 damping   0.1                                   Damping coefficient
-Nstep     1000000                               Number of time-steps
+Nstep     10000                                 Number of time-steps
 timestep  1.000e-16       s                     The time step-size for the SDE-solver
 
 do_avrg   Y                                     Measure averages
@@ -32,7 +32,7 @@ do_cumu Y
 cumu_step 10
 cumu_buff 100
 
-#plotenergy 1
+plotenergy 1
 
 do_autocorr Y
 ac_step 10

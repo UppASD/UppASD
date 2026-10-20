@@ -567,10 +567,8 @@ void GpuMeasurement::flushMeasurements(std::size_t mstep)
 
     if (do_autocorr)
     {
-        //measureAutocorrelation(mstep);
-        //ac_count++;
-        //stopwatch.add("autocorrelation");
-        //saveToFile(MeasurementType::Autocorrelation);
+        if (ac_count > 0)
+            saveToFile(MeasurementType::Autocorrelation);
     }
 
     cpuMeas.flushMeasurements(mstep + 1); 
@@ -729,14 +727,15 @@ void GpuMeasurement::measureAutocorrelation(std::size_t mstep)
    // printf("sw_next = %i, mstep = %i\n", sw_next, mstep);
 
     if (((mstep % ac_step) == 0)||(mstep == sw_curr)){
-        ac_blocks = {ac_blocksX, sw_curIdx + 1, 1};
+        // All waiting times are evaluated, unsampled ones give zero (as in the CPU buffer_autocorr)
+        ac_blocks = {ac_blocksX, nspinwait, 1};
         real norm = 1/(static_cast<real>(gpuLattice.emom.extent(1)*gpuLattice.emom.extent(2)));
         //printf("cur swIdx = %i,  max sw = %i\n\n", sw_curIdx, nspinwait);
         //if (mstep == sw_curr) printf("HERE!\n");
 
 
         calc_autocorr_block<<<ac_blocks, ac_threads>>>(ac_block_gpu, spinwait_gpu, gpuLattice.emom);
-        calc_autocorr_final<<<(sw_curIdx + 1), ac_maxBlocks>>>(ac_block_gpu, autocorr_buff_gpu, norm, ac_count, ac_blocksX);
+        calc_autocorr_final<<<nspinwait, ac_maxBlocks>>>(ac_block_gpu, autocorr_buff_gpu, norm, ac_count, ac_blocksX);
     
 
         fill_index(indxb_ac, mstep + 1, ac_count);
@@ -754,13 +753,16 @@ void GpuMeasurement::measureAutocorrelation(std::size_t mstep)
 void GpuMeasurement::updateAC(std::size_t mstep)
 {
  
-    if ((mstep == sw_next)&&(sw_curIdx < (spinwaittable_cpu.extent(0) - 1) )){
-        printf("sw_next = %i, mstep = %i, swId = %i, \n\n", sw_next,  mstep, sw_curIdx);
+    if (!do_autocorr)
+        return;
 
-        sw_curIdx++;
+    // Slot j holds the moments at the end of step spinwaitt(j), as in the CPU autocorr_sample
+    while ((sw_curIdx < nspinwait) && (mstep == spinwaittable_cpu(sw_curIdx))){
         fill_spinwait<<<sw_blocks, sw_threads>>>(spinwait_gpu, gpuLattice.emom, sw_tasks, sw_curIdx);
-        sw_curr = sw_next;
-        sw_next = spinwaittable_cpu(sw_curIdx); 
+        sw_curr = mstep;
+        sw_curIdx++;
+        if (sw_curIdx < nspinwait)
+            sw_next = spinwaittable_cpu(sw_curIdx);
     }
    
 }
@@ -855,7 +857,7 @@ void GpuMeasurement::saveToFile(MeasurementType mtype)
     case MeasurementType::Autocorrelation:
         autocorr_buff_cpu.copy_sync(autocorr_buff_gpu);
 
-        for (size_t i = 0; i < ac_buff; ++i)
+        for (size_t i = 0; i < ac_count; ++i)
         {
             AutocorrelationData row{
                 .values = autocorr_buff_cpu.data() + i * nspinwait,
