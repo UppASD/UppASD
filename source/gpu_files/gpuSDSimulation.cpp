@@ -106,15 +106,6 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
    Tensor<real, 1> ipTemp;
    ipTemp.AllocateHost(N);
 
-if (FortranData::ipnphase == nullptr ||*FortranData::ipnphase == 0) {
-    std::fprintf(stderr,
-        "GpuSDSimulation: cannot start SD initial phase: "
-        "ip_nphase is zero or unavailable. "
-        "Check the input file.\n");
-    std::exit(EXIT_FAILURE);
-}
-
-
    for(unsigned int k = 0; k < N; k++){
       ipTemp(k) = gpuSim.cpuLattice.ipTemp_array(k, 0);
    }
@@ -158,13 +149,7 @@ if (FortranData::ipnphase == nullptr ||*FortranData::ipnphase == 0) {
          momUpdater.update();
          stopwatch.add("moments");
 
-         // Check for error
-         GPU_ERROR_T e = GPU_GET_LAST_ERROR();
-         if(e != GPU_SUCCESS) {
-            std::printf("Uncaught GPU error %d: %s\n", e, GPU_GET_ERROR_STRING(e));
-            GPU_DEVICE_RESET();
-            std::exit(EXIT_FAILURE);
-         }
+         ASSERT_GPU_KERNEL("SDiphase");
       }
 
       if(it < (ipnphase - 1)){
@@ -175,7 +160,7 @@ if (FortranData::ipnphase == nullptr ||*FortranData::ipnphase == 0) {
       }  
       
    // Synchronize with device
-   GPU_DEVICE_SYNCHRONIZE();
+   ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
    // Explicitly export final initial-phase moments (emom/emom2/emomM/mmom/mmom2/mmomi)
    // so measurement phase can restart from this exact state.
    gpuSim.copyToFortran();
@@ -265,11 +250,6 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
 
    bool measure_ene;
 
-   // Effective field for the first measurement, which comes before the first
-   // heisge call in the loop (beff from Fortran may be unset after a restart)
-   hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
-   stopwatch.add("hamiltonian");
-
    // Time step loop
    for(std::size_t mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
       // Measure
@@ -306,13 +286,8 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
 
       measurement->updateAC(mstep);
 
-      // Check for error
-      GPU_ERROR_T e = GPU_GET_LAST_ERROR();
-      if(e != GPU_SUCCESS) {
-         std::printf("Uncaught GPU error %d: %s\n", e, GPU_GET_ERROR_STRING(e));
-         GPU_DEVICE_RESET();
-         std::exit(EXIT_FAILURE);
-      }    real cv{};            // Specific heat
+      ASSERT_GPU_KERNEL("SDmphase");
+      real cv{};            // Specific heat
 
 
    }  // End loop over simulation steps
@@ -344,7 +319,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
 
 
    // Synchronize with device
-   GPU_DEVICE_SYNCHRONIZE();
+   ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
    stopwatch.add("final synchronize");
 }
 

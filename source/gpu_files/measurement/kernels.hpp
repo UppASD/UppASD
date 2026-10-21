@@ -165,7 +165,7 @@ namespace kernels::measurement
 
     inline uint nwarps(const dim3& threads)
     {
-        return ceil_div(threads.x * threads.y * threads.z, (uint)WARPSIZE);
+        return ceil_div((uint)threads.x * (uint)threads.y * (uint)threads.z, (uint)WARPSIZE);
     }
 
 

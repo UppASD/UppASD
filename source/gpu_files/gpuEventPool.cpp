@@ -20,7 +20,7 @@
 
 // Event class methods
 GpuEventPool::Event::Event() {
-   GPU_EVENT_CREATE(&_event);
+   ASSERT_GPU(GPU_EVENT_CREATE(&_event));
    active = true;
 }
 
