@@ -103,7 +103,14 @@
   #define GPU_RAND_GENERATE_NORMAL_DOUBLE(generator, outputPtr, n, mean, stddev) curandGenerateNormalDouble(generator, outputPtr, n, mean, stddev)
   #define GPU_RAND_UNIFORM_DOUBLE(state) curand_uniform_double(state)
 
+  #if defined(__HIP_PLATFORM_NVIDIA__)
   #define WARPSIZE 32
+#elif defined(__GFX8__) || defined(__GFX9__)
+  #define WARPSIZE 64
+#else
+  #define WARPSIZE 32
+#endif
+
   #define FULL_MASK 0xffffffff
   #define SHFL_DOWN(val, offset) __shfl_down_sync(FULL_MASK, val, offset)
 

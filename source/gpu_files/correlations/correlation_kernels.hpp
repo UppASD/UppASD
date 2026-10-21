@@ -17,7 +17,7 @@ __inline__ __device__
 void warpReduceSum(real &sum_re, real &sum_im)
 {
     #pragma unroll
-    for (int offset = warpSize / 2; offset > 0; offset >>= 1)
+    for (int offset = WARPSIZE / 2; offset > 0; offset >>= 1)
     {
         sum_re += SHFL_DOWN(sum_re, offset);
         sum_im += SHFL_DOWN(sum_im, offset);
@@ -40,14 +40,47 @@ void complexScalarMulAdd(real &sum_re, real &sum_im, real a, real c, real d) {
     sum_im += a * d;
 }
 
-__device__ real sc_window_fac(int sc_window_fun, unsigned int step, unsigned int nstep);
-
 template <size_t dim>
 __global__ void setZero(GpuTensor<gpu_complex, dim> sc, unsigned int size) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < size) {
         sc[idx] = MAKE_GPU_COMPLEX(0, 0);
     }
+}
+
+__device__ real sc_window_fac(int sc_window_fun, unsigned int step, unsigned int nstep) {
+    real dum = 1.0;
+    switch (sc_window_fun) {
+        //Hann
+    case 2:
+        dum = (0.5 - 0.5 * cos(2.0 * M_PI * ((real)step - 1.0) / ((real)nstep - 1.0)));
+        break;
+            //Hamming
+    case 3:
+        dum = (0.54 - 0.46 * cos(2.0 * M_PI * ((real)step - 1.0) / ((real)nstep - 1.0)));
+        break;
+            //Hamming v2
+    case 32:
+        dum = (0.53836 - 0.46164 * cos(2.0 * M_PI * ((real)step - 1.0) / ((real)nstep - 1.0)));
+        break;
+            //Blackman - Harris
+    case 4:
+        dum =
+            (0.35785 - 0.48829 * cos(2.0 * M_PI * ((real)step - 1.0) / ((real)nstep - 1.0)) +
+                0.14128 * cos(4.0 * M_PI * ((real)step - 1.0) / ((real)nstep - 1.0)) -
+                0.01168 * cos(6.0 * M_PI * ((real)step - 1.0) / ((real)nstep - 1.0)));
+        break;
+            //Nuttal
+    case 5:
+        dum =
+            (0.355768 - 0.478396 * cos(2.0 * M_PI * ((real)step - 1.0) / ((real)nstep - 1.0)) +
+                0.144232 * cos(4.0 * M_PI * ((real)step - 1.0) / ((real)nstep - 1.0)) -
+                0.012604 * cos(6.0 * M_PI * ((real)step - 1.0) / ((real)nstep - 1.0)));
+        break;
+    }
+ 
+        
+    return dum;
 }
 
 __global__ void GPUSqSum(const GpuTensor<real, 3> spin, const GpuTensor<real, 2> coord, const GpuTensor<real, 2> q, const GpuTensor<real, 1> r_mid, GpuTensor<gpu_complex, 2> scblock, int tasks, unsigned int N);

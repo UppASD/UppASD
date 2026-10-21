@@ -167,7 +167,15 @@ if(USE_CUDA AND USE_HIP)
   message(FATAL_ERROR "Cannot use both CUDA and HIP simultaneously.")
 endif()
 CMAKE_DEPENDENT_OPTION(USE_CUCOMPLEX_CORRELATIONS "Use native cuDoubleComplex for GPU correlations (Thrust by default)" OFF "USE_CUDA" OFF)
-CMAKE_DEPENDENT_OPTION(ON_LUMI "Use Thrust complex for HIP correlations on LUMI (hipComplex by default)" OFF "USE_HIP" OFF)
+CMAKE_DEPENDENT_OPTION(ON_LUMI "Use Thrust complex for HIP correlations on LUMI (Thrust by default)" OFF "USE_HIP" OFF)
+CMAKE_DEPENDENT_OPTION(USE_HIP_COMPLEX "Use native hipComplex for HIP correlations (Thrust is the default)" OFF "USE_HIP" OFF)
+
+if(USE_HIP AND ON_LUMI AND USE_HIP_COMPLEX)
+    message(FATAL_ERROR
+        "ON_LUMI selects thrust::complex, but USE_HIP_COMPLEX selects native hipComplex. "
+        "Set USE_HIP_COMPLEX=OFF when building with ON_LUMI."
+    )
+endif()
 # Uncomment below to make gnu defaults without MKL
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
    CMAKE_DEPENDENT_OPTION(USE_MKL "Use Intel MKL for BLAS/LAPACK" OFF "MKL_FOUND" OFF)
@@ -429,6 +437,11 @@ elseif(USE_HIP)
    if(ON_LUMI)
      add_compile_definitions(ON_LUMI)
      message(STATUS "ON_LUMI: using Thrust complex for HIP correlations")
+   elseif(USE_HIP_COMPLEX)
+        add_compile_definitions(USE_HIP_COMPLEX)
+        message(STATUS "HIP correlations: using native hipComplex")
+    else()
+        message(STATUS "HIP correlations: using thrust::complex")
    endif()
 
    ENABLE_LANGUAGE(HIP C CXX)
