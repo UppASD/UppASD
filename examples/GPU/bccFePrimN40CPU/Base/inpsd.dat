@@ -1,0 +1,34 @@
+simid     bccFe000
+ncell     NX        NY        NZ
+BC        P         P         P
+cell      -1.000    1.000    1.000
+           1.000   -1.000    1.000
+           1.000    1.000   -1.000
+Sym       0
+do_prnstruct 0
+
+posfiletype  D
+posfile   ./posfile
+momfile   ./momfileFe
+exchange  ./jfileDIr6dir.dat
+
+Initmag   INITMAG
+#restartfile ./restart.bccFe000.out
+
+SDEalgh   5
+mode      S
+Nstep     NSTEP
+timestep  1e-16
+damping   DAMP
+Temp      TEMP
+
+do_avrg   Y
+avrg_step   10
+avrg_buff   10
+
+do_cumu Y
+cumu_step 10
+cumu_buff 10
+
+plotenergy   1
+do_spintemp  Y
