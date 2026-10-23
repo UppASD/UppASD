@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -A pdc.staff          # Set the allocation to be charged for this job
+#SBATCH -A <project>          # Set the allocation to be charged for this job
 #SBATCH -J uppasd             # The name of the script is myjob
 #SBATCH -t 24:00:00           # 24 hours wall-clock time
 #SBATCH -p gpu                # The partition
@@ -11,7 +11,7 @@ ml PrgEnv-gnu
 ml rocm/7.2.1
 ml craype-accel-amd-gfx90a
 
-export SD_BINARY=/cfs/klemming/home/h/hellsvik/Thora/GitProjects/sfantao/UppASD/bin/sd.hip.gpu_gnu
+export SD_BINARY=
 export OMP_NUM_THREADS=16
 
 echo "Script initiated at `date` on `hostname`"

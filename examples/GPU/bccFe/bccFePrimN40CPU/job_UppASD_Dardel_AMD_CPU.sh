@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -A pdc.staff          # Set the allocation to be charged for this job
+#SBATCH -A <project>          # Set the allocation to be charged for this job
 #SBATCH -J uppasd             # The name of the script is myjob
 #SBATCH -t 24:00:00           # 24 hours wall-clock time
 #SBATCH -p shared             # The partition
@@ -7,10 +7,9 @@
 #SBATCH -n 1                  # Number of ranks
 #SBATCH -c 16                 # Number of cpus per task
 
-
 ml PrgEnv-gnu
 
-export SD_BINARY=/cfs/klemming/home/h/hellsvik/Thora/GitProjects/sfantao/UppASD/bin/sd.cpu.gnu
+export SD_BINARY=
 export OMP_NUM_THREADS=16
 
 echo "Script initiated at `date` on `hostname`"
