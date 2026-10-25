@@ -547,7 +547,21 @@ if(USE_MKL)
    if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "NVHPC")
       target_include_directories(${UppASD_LIB} PRIVATE ${MKL_INCLUDE})
    endif()
-   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -D__INTEL_MKL__")
+   # sparse.f90 uses the legacy MKL sparse-BLAS entry points. Recent oneMKL
+   # releases no longer export these symbols, so keep the generic sparse
+   # implementation when they are unavailable while still using MKL for
+   # BLAS/LAPACK.
+   include(CheckFortranFunctionExists)
+   set(_ASD_SAVED_REQUIRED_LIBRARIES "${CMAKE_REQUIRED_LIBRARIES}")
+   set(CMAKE_REQUIRED_LIBRARIES ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+   check_fortran_function_exists(mkl_dcsrmm ASD_MKL_HAS_DCSRMM)
+   check_fortran_function_exists(mkl_dbsrmv ASD_MKL_HAS_DBSRMV)
+   set(CMAKE_REQUIRED_LIBRARIES "${_ASD_SAVED_REQUIRED_LIBRARIES}")
+   if(ASD_MKL_HAS_DCSRMM AND ASD_MKL_HAS_DBSRMV)
+      set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -D__INTEL_MKL__")
+   else()
+      message(STATUS "MKL legacy sparse-BLAS routines not found; using built-in sparse implementation")
+   endif()
 
 endif()
 ##############################################################################################
@@ -761,6 +775,23 @@ TARGET_LINK_LIBRARIES(${UppASD_EXE} PRIVATE
    #    ${hiprand_LIBRARIES}
 #    ${HIP_LIBRARIES}
    )
+
+# BLAS/LAPACK may be discovered as raw shared-library paths (rather than
+# imported CMake targets). Preserve their locations in the build executable's
+# runtime search path so oneMKL's versioned .so dependencies can be loaded.
+set(_ASD_MATH_LIBRARY_DIRS)
+foreach(_asd_math_lib IN LISTS BLAS_LIBRARIES LAPACK_LIBRARIES)
+   if(IS_ABSOLUTE "${_asd_math_lib}" AND EXISTS "${_asd_math_lib}" AND
+      "${_asd_math_lib}" MATCHES "\\.so(\\..*)?$")
+      get_filename_component(_asd_math_lib_dir "${_asd_math_lib}" DIRECTORY)
+      list(APPEND _ASD_MATH_LIBRARY_DIRS "${_asd_math_lib_dir}")
+   endif()
+endforeach()
+if(_ASD_MATH_LIBRARY_DIRS)
+   list(REMOVE_DUPLICATES _ASD_MATH_LIBRARY_DIRS)
+   set_property(TARGET ${UppASD_EXE} APPEND PROPERTY BUILD_RPATH "${_ASD_MATH_LIBRARY_DIRS}")
+   set_property(TARGET ${UppASD_EXE} PROPERTY INSTALL_RPATH_USE_LINK_PATH TRUE)
+endif()
 
 
 ##############################################################################################
