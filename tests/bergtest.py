@@ -119,7 +119,8 @@ def runexternal(runcmd, wd):
         args=popenargs,
         cwd=wd,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE)
+        stderr=subprocess.PIPE,
+        universal_newlines=True)
     out, err = com = sp.communicate()
     # print the output if needed
     # for elem in com: pprint(elem.split("\n"))
@@ -196,17 +197,25 @@ def execcase(case, externallabel=None, reallyrun=True):
         out, err = runexternal(runcmd, wd)
         if err:
             print("Something fishy")
-            map(pprint, ("===== Error(s) occured: =====", err.split("\n"), "-"*25))
+            pprint("===== Error(s) occurred: =====")
+            pprint(err.splitlines())
+            pprint("-" * 25)
 
     ccoms = case['comparisons']
 
     for ccom in ccoms:
         for test in ccom['testlist']:
             if os.path.isfile(ccom['outfile']):
-                test['cmpoutcome'], test['extracted'] = extractandcompare(
+                result = extractandcompare(
                     test,
                     ccom['outfile'],
                     headers=ccom.get('headers'), skiprows=ccom.get('skiprows'))
+                if result is None:
+                    test['cmpoutcome'] = [False] * len(test.get('expected', []))
+                    test['extracted'] = [float('nan')] * len(test.get('expected', []))
+                    test['extraction_error'] = "NO_MATCHING_ROW_ERROR"
+                else:
+                    test['cmpoutcome'], test['extracted'] = result
             else:
                 test['cmpoutcome'], test['extracted'] = (
                     [False], "NO_SUCH_FILE_ERROR")
@@ -286,6 +295,9 @@ def presentresults(case):
                 if(test.get('extracted') == 'NO_SUCH_FILE_ERROR'):
                     printfun("    Working directory: %s, Output file: %s does not exist." % (
                         case.get('workingdir'), ccom.get('outfile')))
+                elif(test.get('extraction_error') == 'NO_MATCHING_ROW_ERROR'):
+                    printfun("    No row matched selector %s in %s." % (
+                        test.get('select'), ccom.get('outfile')))
                 else:
                     printfun("    (Working directory: %s, Output file: %s )" % (
                         case.get('workingdir'), ccom.get('outfile')))
