@@ -519,8 +519,6 @@ void GpuMeasurement::measure(std::size_t mstep)
 
 void GpuMeasurement::flushMeasurements(std::size_t mstep)
 {
-    cpuMeas.measure(mstep);  
-
     --mstep; // this is because the simulation loop begins at 1 because of Fortran indexing
 
     if (do_avrg || do_cumu)

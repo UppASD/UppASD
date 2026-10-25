@@ -48,7 +48,7 @@ __global__ void setZero(GpuTensor<gpu_complex, dim> sc, unsigned int size) {
     }
 }
 
-__device__ real sc_window_fac(int sc_window_fun, unsigned int step, unsigned int nstep) {
+__device__ inline real sc_window_fac(int sc_window_fun, unsigned int step, unsigned int nstep) {
     real dum = 1.0;
     switch (sc_window_fun) {
         //Hann

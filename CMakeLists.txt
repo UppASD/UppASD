@@ -391,6 +391,21 @@ if (USE_CUDA)
    else ()
    	find_package(CUDAToolkit)
    endif ()
+   # CUDA 13 ships Thrust as part of CCCL under include/cccl. Older CUDA
+   # toolkits put thrust/ directly under the toolkit include directory.
+   find_path(UPPASD_THRUST_INCLUDE_DIR
+      NAMES thrust/complex.h
+      HINTS ${CUDAToolkit_INCLUDE_DIRS} ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
+      PATH_SUFFIXES cccl
+   )
+   if(NOT UPPASD_THRUST_INCLUDE_DIR)
+      message(FATAL_ERROR
+         "CUDA support requires the Thrust headers (thrust/complex.h). "
+         "Install the CUDA Core Compute Libraries (CCCL) or set "
+         "UPPASD_THRUST_INCLUDE_DIR to the directory containing thrust/."
+      )
+   endif()
+   target_include_directories(${UppASD_LIB} PRIVATE ${UPPASD_THRUST_INCLUDE_DIR})
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/chelper.f90)
    add_subdirectory(${SRC}/gpu_files)
   set_source_files_properties(${SRC}/gpu_files/gpuDepondtIntegrator.cpp ${SRC}/gpu_files/gpuEventPool.cpp ${SRC}/gpu_files/gpuHamiltonianCalculations.cpp 
