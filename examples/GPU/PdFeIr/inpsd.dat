@@ -1,0 +1,73 @@
+simid PdFeIr_1
+ncell 128 128 1
+BC         P P 0 
+cell 0.1830127019      0.6830127019      0.000000
+     0.6830127019      0.1830127019      0.000000
+     0.0000000000      0.0000000000      1.000000
+Sym       0                                     Symmetry of lattice (0 for no, 1 for cubic, 2 for 2d cubic, 3 for hexagonal)
+
+posfile  ./posfile
+exchange ./jfile.sym
+momfile  ./momfile
+dm ./dm.sym
+anisotropy ./kfile.4mev
+
+Mensemble 1
+maptype 1
+posfiletype C
+
+do_prnstruct 2                                  Print lattice structure (0=no, 1=yes)
+
+Initmag   3                                     (1=random, 2=cone, 3=spec., 4=file)
+restartfile ./restart.2
+
+ip_mode Y                                         Initial phase parameters
+qm_nvec 0 0 1
+qm_svec 1 -1 0 
+
+ip_nphase 1
+        10000   300.00  2.0e-15 1.0
+        20000   100.00  1.0e-15 1.0
+        30000   35.000  1.0e-15 1.0
+        50000   0.1000  1.0e-15 1.0
+        50000   0.0010  1.0e-15 1.0
+        50000   0.0001  1.0e-15 1.0
+ip_hfield 0 0  2.0 
+
+mode      S                                     S=SD, M=MC           
+Temp      85.0000         K                     Measurement phase parameters
+damping   0.11                              Damping parameter
+Nstep     75000                                   Number of time-steps
+timestep  1.000e-15        s                    The time step-size for the SDE-solver
+hfield 0.0 0.0 0.0
+SDEalgh 5
+
+do_avrg Y
+do_proj_avrg Y
+avrg_step 100
+avrg_buff 10
+
+do_tottraj N                                    Measure moments
+tottraj_step       100
+tottraj_buff       10                           time step, buffer size
+alat 3.84e-10
+
+plotenergy   1
+ene_step 100
+
+do_cumu Y
+cumu_step 100
+cumu_buff 10
+
+gpu_mode 1
+do_gpu_convolution Y
+do_gpu_measurements Y
+do_reduced Y
+
+do_spintemp Y
+skyno T
+
+qpoints F
+qfile ./qfile.min
+
+
