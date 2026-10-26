@@ -139,7 +139,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         cumu_buff_cpu.zeros();
 
         if (do_ene==0) cumu_partial_buff.Allocate(cumu_kernel_blocks.x);
-        else cumu_ene_partial_buff.Allocate(cumu_ene_kernel_blocks.x);
+        else cumu_ene_partial_buff.Allocate(cumu_ene_kernel_blocks.x * cumu_ene_kernel_blocks.y);
 
         if(do_cumu_proj == 'Y'){
             cumu_proj_kernel_blocks = {1,1,1};

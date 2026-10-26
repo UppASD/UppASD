@@ -419,6 +419,8 @@ __global__ void kernels::measurement::binderCumulantEnergy_finalize(
     int warp = tid / WARPSIZE;
 
 
+    const real fcinv = mub / mry;
+
     if (tid < nblocks)
     {
         #pragma unroll
@@ -503,11 +505,11 @@ __global__ void kernels::measurement::binderCumulantEnergy_finalize(
         const real avrgm2_b = m2 / w_new;
         const real avrgm4_b = m4 / w_new;
 
-        const real exch_mean  = exch1 / w_new;
-        const real exch2_mean = exch2 / w_new;
+        const real exch_mean  = exch1 * fcinv / w_new;
+        const real exch2_mean = exch2 * fcinv * fcinv/ w_new;
 
-        const real total_mean  = total1 / w_new;
-        const real total2_mean = total2 / w_new;
+        const real total_mean  = total1 * fcinv/ w_new;
+        const real total2_mean = total2 * fcinv* fcinv/ w_new;
 
         d.avrgmcum  = (d.avrgmcum  * d.cumutotw + avrgme   * w_new) / tot;
         d.avrgm2cum = (d.avrgm2cum * d.cumutotw + avrgm2_b * w_new) / tot;
@@ -844,7 +846,7 @@ __global__ void kernels::measurement::averageEnergy_partial(const GpuTensor<real
 
     if (tid == 0)
     {
-        EnePart& part = block_parts[blockIdx.y * gridDim.x + blockIdx.x];
+        EnePart& part = block_parts[ blockIdx.x];
 
         part.sum[etype]  = ene;
         part.sum2[etype] = ene2;

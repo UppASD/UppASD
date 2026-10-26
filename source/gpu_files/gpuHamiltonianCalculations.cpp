@@ -314,7 +314,7 @@ public:
       Sz = emomM[atom * 3 + 2];
 
        real exchange = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
-       real external = ext_x * Sx + ext_y * Sy + ext_z * Sz;
+       real external = -(ext_x * Sx + ext_y * Sy + ext_z * Sz);
 
        sum_warp_energy(exchange);
        sum_warp_energy(external);
@@ -392,6 +392,9 @@ public:
       real Dx = (real)0.0;
       real Dy = (real)0.0;
       real Dz = (real)0.0;
+      real dmx = (real)0.0;
+      real dmy = (real)0.0;
+      real dmz = (real)0.0;
       unsigned int neighborPosIndex = (unsigned int)0;
 
       // Pointers with fixed indices
@@ -421,9 +424,9 @@ public:
          Dy = dmcoup[1 + 3 * i + rsite * dmmnn * 3];
          Dz = dmcoup[2 + 3 * i + rsite * dmmnn * 3];
 
-         x += -Dz * Sy + Dy * Sz;
-         y += -Dx * Sz + Dz * Sx;
-         z += -Dy * Sx + Dx * Sy;
+         dmx += -Dz * Sy + Dy * Sz;
+         dmy += -Dx * Sz + Dz * Sx;
+         dmz += -Dy * Sx + Dx * Sy;
       }
 
       const real ext_x = ext_f[atom * 3 + 0];
@@ -431,13 +434,13 @@ public:
       const real ext_z = ext_f[atom * 3 + 2];
 
       // Save field
-      beff[atom * 3 + 0] = x + ext_x;
-      beff[atom * 3 + 1] = y + ext_y;
-      beff[atom * 3 + 2] = z + ext_z;
+      beff[atom * 3 + 0] = x + dmx + ext_x;
+      beff[atom * 3 + 1] = y + dmy + ext_y;
+      beff[atom * 3 + 2] = z + dmz + ext_z;
 
-      eneff[atom * 3 + 0] = x + ext_x;
-      eneff[atom * 3 + 1] = y + ext_y;
-      eneff[atom * 3 + 2] = z + ext_z;
+      eneff[atom * 3 + 0] = x + dmx + ext_x;
+      eneff[atom * 3 + 1] = y + dmy + ext_y;
+      eneff[atom * 3 + 2] = z + dmz + ext_z;
 
       if(!measure) return;
 
@@ -448,8 +451,9 @@ public:
       Sz = emomM[atom * 3 + 2];
 
       real exchange = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
-      real DM = ((-Dz * Sy + Dy * Sz)*Sx + (-Dx * Sz + Dz * Sx) * Sy + (-Dy * Sx + Dx * Sy)*Sz)* (real)-0.5;
-      real external = ext_x * Sx + ext_y * Sy + ext_z * Sz;
+      real DM = (dmx * Sx + dmy * Sy + dmz * Sz)* (real)-0.5;
+      real external = -(ext_x * Sx + ext_y * Sy + ext_z * Sz);
+
 
       sum_warp_energy(exchange);
       sum_warp_energy(DM);
@@ -620,7 +624,8 @@ public:
 
        real exchange = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
        real anisotropy = (ax_en * Sx + ay_en * Sy + az_en * Sz) * (real)-0.5;
-       real external = ext_x * Sx + ext_y * Sy + ext_z * Sz;
+       real external = -(ext_x * Sx + ext_y * Sy + ext_z * Sz);
+
 
        sum_warp_energy(exchange);
        sum_warp_energy(anisotropy);
@@ -715,6 +720,9 @@ public:
       real Dx = (real)0.0;
       real Dy = (real)0.0;
       real Dz = (real)0.0;
+      real dmx = (real)0.0;
+      real dmy = (real)0.0;
+      real dmz = (real)0.0;
       real ax = (real)0.0;
       real ay = (real)0.0;
       real az = (real)0.0;
@@ -753,9 +761,9 @@ public:
          Dy = dmcoup[1 + 3 * i + rsite * dmmnn * 3];
          Dz = dmcoup[2 + 3 * i + rsite * dmmnn * 3];
 
-         x += -Dz * Sy + Dy * Sz;
-         y += -Dx * Sz + Dz * Sx;
-         z += -Dy * Sx + Dx * Sy;
+         dmx += -Dz * Sy + Dy * Sz;
+         dmy += -Dx * Sz + Dz * Sx;
+         dmz += -Dy * Sx + Dx * Sy;
       }
 
       //Anisotropy
@@ -815,22 +823,22 @@ public:
       const real ext_y = ext_f[atom * 3 + 1];
       const real ext_z = ext_f[atom * 3 + 2];
 
-      beff[atom * 3 + 0] = x + ax + ext_x;
-      beff[atom * 3 + 1] = y + ay + ext_y;
-      beff[atom * 3 + 2] = z + az + ext_z;
+      beff[atom * 3 + 0] = x + dmx + ax + ext_x;
+      beff[atom * 3 + 1] = y + dmy + ay + ext_y;
+      beff[atom * 3 + 2] = z + dmz + az + ext_z;
 
-      eneff[atom * 3 + 0//0 - exch, 1 - ani, 2 - dm, 3 - tensor, 4 - external, 5 - total
-] = x + ax_en + ext_x;
-      eneff[atom * 3 + 1] = y + ay_en + ext_y;
-      eneff[atom * 3 + 2] = z + az_en + ext_z;
+      eneff[atom * 3 + 0] = x + dmx + ax_en + ext_x;
+      eneff[atom * 3 + 1] = y + dmy + ay_en + ext_y;
+      eneff[atom * 3 + 2] = z + dmz + az_en + ext_z;
       
       if(!measure) return;
       int mInd = blockIdx.y;
 
       real exchange = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
       real anisotropy = (ax_en * Sx + ay_en * Sy + az_en * Sz) * (real)-0.5;
-      real DM = ((-Dz * Sy + Dy * Sz)*Sx + (-Dx * Sz + Dz * Sx) * Sy + (-Dy * Sx + Dx * Sy)*Sz)* (real)-0.5;
-      real external = ext_x * Sx + ext_y * Sy + ext_z * Sz;
+      real DM = (dmx * Sx +dmy * Sy + dmz * Sz)* (real)-0.5;
+      real external = -(ext_x * Sx + ext_y * Sy + ext_z * Sz);
+
 
       sum_warp_energy(exchange);
       sum_warp_energy(anisotropy);
@@ -961,7 +969,8 @@ public:
       Sz = emomM[atom * 3 + 2];
 
       real tensor = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
-      real external = ext_x * Sx + ext_y * Sy + ext_z * Sz;
+      real external = -(ext_x * Sx + ext_y * Sy + ext_z * Sz);
+
 
       sum_warp_energy(tensor);
       sum_warp_energy(external);
@@ -1160,6 +1169,8 @@ public:
       eneff[atom * 3 + 0] = x + ax_en + ext_f[atom * 3 + 0];
       eneff[atom * 3 + 1] = y + ay_en + ext_f[atom * 3 + 1];
       eneff[atom * 3 + 2] = z + az_en + ext_f[atom * 3 + 2];
+      
+      if(!measure) return;
 
       int mInd = blockIdx.y;
 
@@ -1169,7 +1180,8 @@ public:
 
       real tensor = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
       real anisotropy = (ax_en * Sx + ay_en * Sy + az_en * Sz) * (real)-0.5;
-      real external = ext_x * Sx + ext_y * Sy + ext_z * Sz;
+      real external = -(ext_x * Sx + ext_y * Sy + ext_z * Sz);
+
 
       sum_warp_energy(tensor);
       sum_warp_energy(anisotropy);
