@@ -424,9 +424,9 @@ public:
          Dy = dmcoup[1 + 3 * i + rsite * dmmnn * 3];
          Dz = dmcoup[2 + 3 * i + rsite * dmmnn * 3];
 
-         dmx += -Dz * Sy + Dy * Sz;
-         dmy += -Dx * Sz + Dz * Sx;
-         dmz += -Dy * Sx + Dx * Sy;
+         dmx += Dz * Sy - Dy * Sz;
+         dmy += Dx * Sz - Dz * Sx;
+         dmz += Dy * Sx - Dx * Sy;
       }
 
       const real ext_x = ext_f[atom * 3 + 0];
@@ -761,9 +761,9 @@ public:
          Dy = dmcoup[1 + 3 * i + rsite * dmmnn * 3];
          Dz = dmcoup[2 + 3 * i + rsite * dmmnn * 3];
 
-         dmx += -Dz * Sy + Dy * Sz;
-         dmy += -Dx * Sz + Dz * Sx;
-         dmz += -Dy * Sx + Dx * Sy;
+         dmx += Dz * Sy - Dy * Sz;
+         dmy += Dx * Sz - Dz * Sx;
+         dmz += Dy * Sx - Dx * Sy;
       }
 
       //Anisotropy
