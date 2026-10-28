@@ -849,22 +849,66 @@ add_subdirectory(${SRC})
 ###############################################################################################
 set(TestBinary ${BIN}/${UppASD_EXE})
 set(TestDIR ${CMAKE_SOURCE_DIR}/tests)
+# The tests run in a copy of the tests directory inside the build directory, so that
+# test runs of different builds, and parallel runs (ctest -j), do not interfere
+set(TestRunDIR ${CMAKE_BINARY_DIR}/tests)
+
+# Add one ctest test per working directory of the cases in a bergtest yaml file.
+# Cases sharing a directory are run together, in their order in the yaml file,
+# since later cases may only check the output of an earlier one.
+# Optional ENVIRONMENT and RESOURCE_LOCK values are set on all the tests.
+function(uppasd_add_bergtests group yamlfile)
+   cmake_parse_arguments(ARG "" "" "ENVIRONMENT;RESOURCE_LOCK" ${ARGN})
+   file(STRINGS ${TestDIR}/${yamlfile} _lines REGEX "^[ \t]*-[ \t]*workingdir:")
+   set(_dirs)
+   set(_case 0)
+   foreach(_line IN LISTS _lines)
+      math(EXPR _case "${_case}+1")
+      string(REGEX REPLACE "^[ \t]*-[ \t]*workingdir:[ \t]*\"?(\\./)?([^\"#/ \t]+).*$" "\\2" _dir "${_line}")
+      if (NOT _dir IN_LIST _dirs)
+         list(APPEND _dirs ${_dir})
+         set(_cases_${_dir})
+      endif()
+      list(APPEND _cases_${_dir} ${_case})
+   endforeach()
+   if (NOT _dirs)
+      message(FATAL_ERROR "No test cases found in ${TestDIR}/${yamlfile}")
+   endif()
+   foreach(_dir IN LISTS _dirs)
+      set(_locks ${_dir} ${ARG_RESOURCE_LOCK})
+      add_test(NAME ${group}.${_dir}
+         COMMAND python3 -u bergtest.py --file ${yamlfile} --case ${_cases_${_dir}} --binary ${TestBinary}
+         WORKING_DIRECTORY ${TestRunDIR})
+      set_tests_properties(${group}.${_dir} PROPERTIES
+         FIXTURES_REQUIRED uppasd_testdir
+         LABELS ${group}
+         RESOURCE_LOCK "${_locks}")
+      if (ARG_ENVIRONMENT)
+         set_tests_properties(${group}.${_dir} PROPERTIES ENVIRONMENT "${ARG_ENVIRONMENT}")
+      endif()
+   endforeach()
+endfunction()
+
+if (BUILD_TESTING)
+add_test(NAME copy-testdir COMMAND ${CMAKE_COMMAND} -E copy_directory ${TestDIR} ${TestRunDIR})
+set_tests_properties(copy-testdir PROPERTIES FIXTURES_SETUP uppasd_testdir)
+endif (BUILD_TESTING)
 if (RUN_REG_TESTS)
-add_test(NAME regression-test  COMMAND python3 -u bergtest.py --file regressionResaro.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
+uppasd_add_bergtests(regression-test regressionResaro.yaml)
 endif (RUN_REG_TESTS)
 if (RUN_ASD_TESTS)
-add_test(NAME asd-tests  COMMAND python3 -u bergtest.py --file regulartests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
-set_property(TEST asd-tests PROPERTY ENVIRONMENT "OMP_NUM_THREADS=1")
+uppasd_add_bergtests(asd-tests regulartests.yaml ENVIRONMENT "OMP_NUM_THREADS=1")
 endif (RUN_ASD_TESTS)
 if (RUN_SLD_TESTS)
-add_test(NAME sld-tests  COMMAND python3 -u ./bergtest.py --file sldtests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
+uppasd_add_bergtests(sld-tests sldtests.yaml)
 endif (RUN_SLD_TESTS)
 if (RUN_GNEB_TESTS)
-add_test(NAME gneb-tests  COMMAND python3 -u ./bergtest.py --file regressionGNEB_15d7169b.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
+uppasd_add_bergtests(gneb-tests regressionGNEB_15d7169b.yaml)
 endif (RUN_GNEB_TESTS)
 #######hip here????
 if (RUN_CUDA_TESTS)
-add_test(NAME cuda-tests  COMMAND python3 -u bergtest.py --file cudatests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
+# Run the GPU tests one at a time
+uppasd_add_bergtests(cuda-tests cudatests.yaml RESOURCE_LOCK gpu)
 endif (RUN_CUDA_TESTS)
 message(STATUS "Output binary:  ${TestBinary}")
 ##############################################################################################
