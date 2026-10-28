@@ -48,27 +48,27 @@ SET(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
 ##############################################################################################
 # Create lib directory if missing
+# All build output (bin, lib, mod) is placed in the build directory, so that several
+# builds of the same source tree (e.g. CUDA and HIP) do not overwrite each other.
 ##############################################################################################
-set(LIB ${CMAKE_SOURCE_DIR}/lib)
+set(LIB ${CMAKE_BINARY_DIR}/lib)
 #message(STATUS "The lib is ${LIB}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${LIB})
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${LIB})
 message(STATUS "The lib is ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 file(MAKE_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
-set(LEGACY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/source)
-message(STATUS "The legacy output directory is ${LEGACY_OUTPUT_DIRECTORY}")
 ##############################################################################################
 
 
 ##############################################################################################
 # Defines the directories for source, modules and object filed
 SET(SRC ${CMAKE_SOURCE_DIR}/source)
-SET(MOD ${CMAKE_SOURCE_DIR}/source/mod)
-#SET(MOD ${CMAKE_BINARY_DIR}/mod)
-SET(BIN ${CMAKE_SOURCE_DIR}/bin)
-# Have the .mod files placed in the lib folder
+SET(MOD ${CMAKE_BINARY_DIR}/mod)
+SET(BIN ${CMAKE_BINARY_DIR}/bin)
+# Have the .mod files placed in the mod folder
 SET(CMAKE_Fortran_MODULE_DIRECTORY ${MOD})
-# Have the .o files placed in the bin folder
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+# Have the executable placed in the bin folder
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BIN})
 ##############################################################################################
 
 
@@ -726,7 +726,7 @@ if(BUILD_PYTHON)
          # Uncomment if f90wrap needs to be invoked
          #DEPENDS ${UppASD_LIB} ${F2PY_sources}
          WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-         COMMAND f2py -c ${F2PY_compiler}  ${F2PY_sources} -m _${f2py_module_name} -I${CMAKE_Fortran_MODULE_DIRECTORY} -L${CMAKE_BINARY_DIR} -l${UppASD_LIB} ${F2PY_libs} --link-blas_opt --link-lapack_opt
+         COMMAND f2py -c ${F2PY_compiler}  ${F2PY_sources} -m _${f2py_module_name} -I${CMAKE_Fortran_MODULE_DIRECTORY} -L${LIB} -l${UppASD_LIB} ${F2PY_libs} --link-blas_opt --link-lapack_opt
          COMMENT "Generating Python modules"
          VERBATIM 
          )
@@ -838,28 +838,6 @@ if (NOT BUILD_PYTHON)
 endif(NOT BUILD_PYTHON)
 ##############################################################################################
 
-##############################################################################################
-# Copy static library to ./lib
-##############################################################################################
-add_custom_command(
-   TARGET ${UppASD_LIB} POST_BUILD
-   COMMAND ${CMAKE_COMMAND} -E copy
-   ${CMAKE_BINARY_DIR}/lib${UppASD_LIB}.a
-   ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
-   )
-
-#################################################################################################
-#### Copy binary to ./source/sd for legacy purposes
-#### currently disabled..
-#################################################################################################
-###add_custom_command(
-###   TARGET ${UppASD_EXE} POST_BUILD
-###   COMMAND ${CMAKE_COMMAND} -E copy
-###   ${CMAKE_SOURCE_DIR}/bin/${UppASD_EXE}
-###   ${LEGACY_OUTPUT_DIRECTORY}/sd
-###   )
-
-
 ###############################################################################################
 ## Add Sources in sub-directories
 ###############################################################################################
@@ -869,7 +847,7 @@ add_subdirectory(${SRC})
 ###############################################################################################
 ## Add tests directory
 ###############################################################################################
-set(TestBinary ${CMAKE_SOURCE_DIR}/bin/${UppASD_EXE})
+set(TestBinary ${BIN}/${UppASD_EXE})
 set(TestDIR ${CMAKE_SOURCE_DIR}/tests)
 if (RUN_REG_TESTS)
 add_test(NAME regression-test  COMMAND python3 -u bergtest.py --file regressionResaro.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
