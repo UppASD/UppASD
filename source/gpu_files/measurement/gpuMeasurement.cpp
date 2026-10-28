@@ -78,8 +78,8 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , mub(9.274009994e-24)
 , mry(2.179872325e-21)
 , fcinv(mub / mry)
-, energySums_kernel_threads(256, 1, 1);
-, energySums_kernel_blocks(mm::ceil_div(N, energySums_kernel_threads.x), M, 1);
+, energySums_kernel_threads(256, 1, 1)
+, energySums_kernel_blocks(mm::ceil_div(N, energySums_kernel_threads.x), M, 1)
 
 {
     
@@ -490,6 +490,12 @@ void GpuMeasurement::measure(std::size_t mstep)
         stopwatch.add("sum reduction of emomM for shared use");
     }
 
+    if (do_ene > 0 && (energy || cumu))
+    {
+        calculateEnergySumsOverAtoms();
+        stopwatch.add("sum reduction of energy contributions");
+    }
+
     if (avrg)
     {
         measureAverageMagnetization(mstep);
@@ -719,10 +725,10 @@ void GpuMeasurement::measureEnergy(size_t mstep)
            // 1 * sizeof(EnergyData), GPU_MEMCPY_DEVICE_TO_DEVICE);
            
            
-    mm::averageEnergy_partial<<<ene_kernel_blocks, ene_kernel_threads>>>(gpuEnergies.energyM, M, energy_partial_buff.data());
+    mm::averageEnergy_partial<<<ene_kernel_blocks, ene_kernel_threads, 0, workStream>>>(gpuEnergies.energyM, M, energy_partial_buff.data());
     ASSERT_GPU_KERNEL("averageEnergy_partial");
 
-    mm::averageEnergy_final<<<1, ene_maxBlocks>>>(
+    mm::averageEnergy_final<<<1, ene_maxBlocks, 0, workStream>>>(
             energy_partial_buff.data(), ene_kernel_blocks.x, M, fcinv, energy_buff_gpu.data()[energy_count]);
             ASSERT_GPU_KERNEL("averageEnergy_final");
 
@@ -806,6 +812,21 @@ void GpuMeasurement::calculateEmomMSum()
             emomMEnsembleSums
     );
     ASSERT_GPU_KERNEL("sumOverAtoms_finalize");
+}
+
+void GpuMeasurement::calculateEnergySumsOverAtoms()
+{
+    size_t smem = mm::nwarps(energySums_kernel_threads) * sizeof(real);
+    mm::sumEnergyOverAtoms_partial<<<energySums_kernel_blocks, energySums_kernel_threads, smem, workStream>>>(gpuEnergies.ene_jij, gpuEnergies.ene_dmi, gpuEnergies.ene_ani,
+                                                                                                                gpuEnergies.ene_ext, gpuEnergies.ene_ten,energySums_partial);
+    ASSERT_GPU_KERNEL("sumEnergyOverAtoms_partial");
+
+    const dim3 threads = 256;
+    const dim3 grid = 6 * M;
+    smem = mm::nwarps(threads) * sizeof(real);
+
+    mm::sumEnergyOverAtoms_finalize<<<grid, threads, smem, workStream>>>(energySums_partial,energySums_kernel_blocks.x, N, gpuEnergies.energyM);
+    ASSERT_GPU_KERNEL("sumEnergyOverAtoms_finalize");
 }
 
 
