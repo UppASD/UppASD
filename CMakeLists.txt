@@ -417,8 +417,13 @@ if (USE_CUDA)
                                ${SRC}/gpu_files/correlations/correlation_kernels.cpp
                                ${SRC}/gpu_files/measurement/autocorrelation_kernels.cpp PROPERTIES LANGUAGE CUDA)
    add_compile_definitions(CUDA_V)
-   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} -DDEBUG")
-   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
+   # The toolkit include directories form a list (CUDA 13 adds include/cccl),
+   # so add one -I per entry rather than interpolating the list into the flags.
+   foreach(_cuda_inc_dir IN LISTS CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES)
+      set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -I${_cuda_inc_dir}")
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${_cuda_inc_dir}")
+   endforeach()
+   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -DDEBUG")
    if (DEFINED CUDAToolkit_MATH_INCLUDE_DIR )
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CUDAToolkit_MATH_INCLUDE_DIR}")
    endif()
@@ -430,20 +435,23 @@ if (USE_CUDA)
    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -D__${PP_CUDA_COMPILER_FLAG}__")
    message(STATUS "CUDA PPFLAG: __${PP_CUDA_COMPILER_FLAG}__, ${CMAKE_Fortran_COMPILER_ID}")
 
-   # Find CUDA arch on local machine
-   include(FindCUDA/select_compute_arch)
-   CUDA_DETECT_INSTALLED_GPUS(INSTALLED_GPU_CCS_1)
-   string(STRIP "${INSTALLED_GPU_CCS_1}" INSTALLED_GPU_CCS_2)
-   string(REPLACE " " ";" INSTALLED_GPU_CCS_3 "${INSTALLED_GPU_CCS_2}")
-   string(REPLACE "." "" CUDA_ARCH_LIST "${INSTALLED_GPU_CCS_3}")
-   SET(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCH_LIST})
-   # Workaround to avoid +PTX specification
-   if (CMAKE_CUDA_ARCHITECTURES MATCHES "^[__86+PTX]")
-     set(CMAKE_CUDA_ARCHITECTURES 86)
-     SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES CUDA_ARCHITECTURES 86)
+   # CUDA arch: use UPPASD_CUDA_ARCH if given (e.g. -DUPPASD_CUDA_ARCH=90),
+   # otherwise detect it on the local machine
+   set(UPPASD_CUDA_ARCH "" CACHE STRING "CUDA architectures to build for (e.g. 90). Empty means auto-detect.")
+   if (UPPASD_CUDA_ARCH)
+     set(CUDA_ARCH_LIST ${UPPASD_CUDA_ARCH})
    else()
-     SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES CUDA_ARCHITECTURES "${CUDA_ARCH_LIST}")
+     include(FindCUDA/select_compute_arch)
+     CUDA_DETECT_INSTALLED_GPUS(INSTALLED_GPU_CCS_1)
+     string(STRIP "${INSTALLED_GPU_CCS_1}" INSTALLED_GPU_CCS_2)
+     string(REPLACE " " ";" INSTALLED_GPU_CCS_3 "${INSTALLED_GPU_CCS_2}")
+     string(REPLACE "." "" CUDA_ARCH_LIST "${INSTALLED_GPU_CCS_3}")
+     # Workaround to avoid +PTX specification
+     string(REPLACE "+PTX" "" CUDA_ARCH_LIST "${CUDA_ARCH_LIST}")
+     list(REMOVE_DUPLICATES CUDA_ARCH_LIST)
    endif()
+   SET(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCH_LIST})
+   SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES CUDA_ARCHITECTURES "${CUDA_ARCH_LIST}")
    message(STATUS "CUDA_ARCH_LIST: __${CUDA_ARCH_LIST}__")
    message(STATUS "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
 elseif(USE_HIP)
@@ -460,6 +468,9 @@ elseif(USE_HIP)
    endif()
 
    ENABLE_LANGUAGE(HIP C CXX)
+    # The GPU sources are .cpp files compiled as CXX, so hipcc is forced as the
+    # CXX compiler for the build rules. This overrides any -DCMAKE_CXX_COMPILER
+    # given on the command line (CMakeCache.txt still shows the original value).
     set(CMAKE_HIP_COMPILER hipcc)
     set(CMAKE_CXX_COMPILER hipcc)
    #set(CMAKE_CXX_COMPILER "/opt/rocm-6.3.3/bin/hipcc")
@@ -518,7 +529,10 @@ message(STATUS "HIP CXX compiler: ${CMAKE_CXX_COMPILER}")
       set(CMAKE_HIP_ARCHITECTURES "gfx90a")
    endif()
    SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES HIP_ARCHITECTURES "${CMAKE_HIP_ARCHITECTURES}")
-   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --offload-arch=${CMAKE_HIP_ARCHITECTURES}")
+   # One --offload-arch per entry, since CMAKE_HIP_ARCHITECTURES may be a list
+   foreach(_hip_arch IN LISTS CMAKE_HIP_ARCHITECTURES)
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --offload-arch=${_hip_arch}")
+   endforeach()
    message(STATUS "HIP GPU architecture: ${CMAKE_HIP_ARCHITECTURES}")
 
 else ()
@@ -748,9 +762,15 @@ mark_as_advanced( ENABLE_BLACS ENABLE_BLAS95 ENABLE_CDFT ENABLE_CPARDISO ENABLE_
 ##############################################################################################
 # Add the needed libraries and special compiler flags
 ##############################################################################################
+# libgfortran is only needed (and only available) with the GNU Fortran compiler
+if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+   set(ASD_FORTRAN_RUNTIME_LIB -lgfortran)
+else()
+   set(ASD_FORTRAN_RUNTIME_LIB "")
+endif()
 ########hip here?????
 TARGET_LINK_LIBRARIES(${UppASD_LIB} PRIVATE
-   -lgfortran
+   ${ASD_FORTRAN_RUNTIME_LIB}
    ${BLAS_LIBRARIES}
    ${LAPACK_LIBRARIES}
    ${CMAKE_THREAD_LIBS_INIT} 
@@ -763,7 +783,7 @@ TARGET_LINK_LIBRARIES(${UppASD_LIB} PRIVATE
    )
 
 TARGET_LINK_LIBRARIES(${UppASD_EXE} PRIVATE
-   -lgfortran
+   ${ASD_FORTRAN_RUNTIME_LIB}
    ${UppASD_LIB}
    ${BLAS_LIBRARIES}
    ${LAPACK_LIBRARIES}
@@ -796,18 +816,24 @@ endif()
 
 ##############################################################################################
 # Tell where to install this executable
+# Set the destination with -DCMAKE_INSTALL_PREFIX=<prefix> (default /usr/local) and run
+# `cmake --install <build dir>`. This installs to <prefix>/bin, <prefix>/lib,
+# <prefix>/mod (Fortran modules) and <prefix>/include (C/C++ headers of the GPU code).
 ##############################################################################################
-IF(WIN32)
-   SET(CMAKE_INSTALL_PREFIX "C:\\Program Files")
-ELSE()
-   SET(CMAKE_INSTALL_PREFIX /usr/local)
-ENDIF(WIN32)
-
-
 SET_TARGET_PROPERTIES(${UppASD_EXE} PROPERTIES LINKER_LANGUAGE "Fortran")
 if (NOT BUILD_PYTHON)
    INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
-   INSTALL(TARGETS ${UppASD_LIB} RUNTIME DESTINATION lib)
+   INSTALL(TARGETS ${UppASD_LIB} ARCHIVE DESTINATION lib LIBRARY DESTINATION lib)
+   INSTALL(DIRECTORY ${MOD}/ DESTINATION mod
+      FILES_MATCHING PATTERN "*.mod" PATTERN "*.smod")
+   if (USE_CUDA OR USE_HIP)
+      INSTALL(DIRECTORY ${SRC}/gpu_files/ DESTINATION include
+         FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp" PATTERN "*.cuh" PATTERN "*.tpp"
+         PATTERN "old" EXCLUDE)
+   else()
+      # No C/C++ headers in a CPU-only build, but keep the directory layout
+      INSTALL(DIRECTORY DESTINATION include)
+   endif()
    #INSTALL(TARGETS UppASD_F90w RUNTIME DESTINATION bin)
 endif(NOT BUILD_PYTHON)
 ##############################################################################################
@@ -850,6 +876,7 @@ add_test(NAME regression-test  COMMAND python3 -u bergtest.py --file regressionR
 endif (RUN_REG_TESTS)
 if (RUN_ASD_TESTS)
 add_test(NAME asd-tests  COMMAND python3 -u bergtest.py --file regulartests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
+set_property(TEST asd-tests PROPERTY ENVIRONMENT "OMP_NUM_THREADS=1")
 endif (RUN_ASD_TESTS)
 if (RUN_SLD_TESTS)
 add_test(NAME sld-tests  COMMAND python3 -u ./bergtest.py --file sldtests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
@@ -861,6 +888,5 @@ endif (RUN_GNEB_TESTS)
 if (RUN_CUDA_TESTS)
 add_test(NAME cuda-tests  COMMAND python3 -u bergtest.py --file cudatests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
 endif (RUN_CUDA_TESTS)
-set_property(TEST asd-tests PROPERTY ENVIRONMENT "OMP_NUM_THREADS=1")
 message(STATUS "Output binary:  ${TestBinary}")
 ##############################################################################################
