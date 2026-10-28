@@ -43,6 +43,7 @@ private:
     template<typename T> inline void fill_index(Vector<real>& iter, T step, size_t& count);
     void saveToFile(MeasurementType mtype);
     void calculateEmomMSum();
+    void calculateEnergySumsOverAtoms();    
     void measureAverageMagnetization(size_t mstep);
     void measureBinderCumulant(size_t mstep);
     void measureSkyrmionNumber(size_t mstep);
@@ -195,6 +196,11 @@ private:
 
     Vector<real> energy_iter;
     size_t energy_count = 0;
+    GpuTensor<real, 3> energySums_partial;
+
+    dim3 energySums_kernel_threads;
+    dim3 energySums_kernel_blocks;
+
 
 
     // Autocorrelations 

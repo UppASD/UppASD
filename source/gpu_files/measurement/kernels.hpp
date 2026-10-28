@@ -60,6 +60,12 @@ namespace kernels::measurement
                                           uint nblocks,
                                           GpuTensor<real, 2> emomMEnsembleSums);
 
+    //Sum over atoms - energy
+    __global__ void sumEnergyOverAtoms_partial(const GpuTensor<real, 2> ene_jij, const GpuTensor<real, 2> ene_ani, const GpuTensor<real, 2> ene_dmi, 
+                                            const GpuTensor<real, 2> ene_ten, const GpuTensor<real, 2> ene_ext, GpuTensor<real, 3> block_parts);
+                                            
+    __global__ void sumEnergyOverAtoms_finalize(const GpuTensor<real, 3> block_parts, uint nblocks, uint N, GpuTensor<real, 2> energyM);
+
     // Average magnetization over ensembles (two-phase)
     __global__ void averageMagnetization_partial(const GpuTensor<real, 2> emomMSum,
                                                  uint atoms,

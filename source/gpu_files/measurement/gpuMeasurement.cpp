@@ -78,6 +78,9 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , mub(9.274009994e-24)
 , mry(2.179872325e-21)
 , fcinv(mub / mry)
+, energySums_kernel_threads(256, 1, 1);
+, energySums_kernel_blocks(mm::ceil_div(N, energySums_kernel_threads.x), M, 1);
+
 {
     
     isAllocated = false;
@@ -303,7 +306,12 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         energy_iter.zeros();
         energy_partial_buff.Allocate(ene_kernel_blocks.x, ene_types);
 
-        printf("WARNING: DO NOT USE BIG_GRID WITH GPU CALCULATIONS OF ENERGY\n");
+
+        energySums_partial.Allocate(energySums_kernel_blocks.x, 6, M);
+        energySums_partial.zeros();
+
+
+       // printf("WARNING: DO NOT USE BIG_GRID WITH GPU CALCULATIONS OF ENERGY\n");
     }
     if (do_autocorr){
         sw_threads = 256;
@@ -444,6 +452,7 @@ void GpuMeasurement::release(){
         energy_partial_buff.Free();
         energy_buff_cpu.FreeHost();
         energy_iter.FreeHost();
+        energySums_partial.Free();
     }
       
     if (do_autocorr)
