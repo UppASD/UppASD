@@ -1,6 +1,6 @@
 The tests are normally run with ctest from the build directory:
 ctest                      (all enabled tests)
-ctest -L asd-tests         (one group: asd-tests, regression-test, sld-tests, gneb-tests, cuda-tests)
+ctest -L asd-tests         (one group: asd-tests, regression-test, sld-tests, gneb-tests, cuda-tests, hip-tests)
 ctest -R asd-tests.bccFe   (a single test directory)
 ctest -j 8                 (in parallel)
 ctest runs the tests in a copy of this directory, <build>/tests.

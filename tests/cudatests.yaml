@@ -1,5 +1,5 @@
 caselist:
-  - workingdir: "./kagome_cuda"
+  - workingdir: "./kagome_gpu"
     run: "./runtest.sh"
     name: "Kagome lattice (tensor)" 
     comparisons:
@@ -22,7 +22,7 @@ caselist:
             expected:   [0.00645474392, 4.39332491e-05, 2.39469977e-09, 0.586435576]
             type: "Cumulant"
 
-  - workingdir: "./bccFe_cuda/"
+  - workingdir: "./bccFe_gpu/"
     run: "./runtest.sh"
     name: "bcc Fe (scalar)"
     comparisons:
@@ -47,7 +47,7 @@ caselist:
             expected: [2.01306397, 4.06983767, 16.834752, 0.661209446]
             type: "Cumulants"
 
-  - workingdir: "./FeCo_cuda/"
+  - workingdir: "./FeCo_gpu/"
     run: "./runtest.sh"
     name: "FeCo B2 (reduced)"
     comparisons:
