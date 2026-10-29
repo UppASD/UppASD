@@ -10,33 +10,33 @@ jobs:
     strategy:
       matrix:
         include:
-          - { icon: '🟦', os: macos-latest ,sys: macos, arch: x86_64 } 
-          - { icon: '🟦', os: macos-latest ,sys: macos, arch: arm64 } 
-          - { icon: '🟦', os: macos-13 ,sys: macos, arch: x86_64 } 
-          - { icon: '🟦', os: macos-13 ,sys: macos, arch: arm64 } 
+          # macos-latest runs on Apple silicon; macos-15-intel is the remaining Intel runner
+          - { icon: '🟦', os: macos-latest ,sys: macos, arch: arm64 }
+          - { icon: '🟦', os: macos-15-intel ,sys: macos, arch: x86_64 }
         #os: [ ubuntu-latest,  macOS-latest]
         #os: [ubuntu-20.04, ubuntu-latest,  macOS-11, macOS-latest]
 
     steps:
-      - name: Provide fftw  (macOS)
+      - name: Provide gfortran and fftw  (macOS)
         if: runner.os == 'macOS'
         run: |
-          # fftw3 
-          brew install fftw
+          # gfortran (from Homebrew gcc) and fftw3
+          brew install gcc fftw
+          gfortran --version
           fftw-wisdom -V
-            
-      - uses: actions/checkout@v3
+
+      - uses: actions/checkout@v6
 
       - name: Build binaries
         run: |
-             FC=gfortran-13 cmake -S . -B build 
+             FC=gfortran cmake -S . -B build
              cmake --build build --parallel
              mkdir ./dist
              uname -a
              echo ${{runner.name}}
              cp ./build/bin/sd.* ./dist/uppasd.${{matrix.sys}}.${{matrix.arch}}
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v7
         with:
           name: uppasd.${{matrix.sys}}.${{matrix.arch}}
           path: ./dist/

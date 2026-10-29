@@ -24,7 +24,7 @@ jobs:
     steps:
 
     - name: '🧰 Checkout'
-      uses: actions/checkout@v3
+      uses: actions/checkout@v6
       with:
         fetch-depth: 0
 
@@ -46,7 +46,7 @@ jobs:
           fftw:p
           cmake:p
           ninja:p
-          
+
     - name: '${{ matrix.icon }} Setup MSYS2 clang'
       if: ${{ matrix.sys == 'clang64' }}
       uses: msys2/setup-msys2@v2
@@ -66,17 +66,17 @@ jobs:
           cmake:p
           ninja:p
 
-          
+
     - name: '🚧 Build TOOL'
       run: |
         cmake -S . -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
-        cmake --build build 
+        cmake --build build
         ls ./build/bin
         cp ./build/bin/sd.gfortran.exe ./build/bin/sd.gfortran.${{matrix.sys}}.${{matrix.arch}}.exe
         cp ./build/bin/sd.gfortran.exe ./build/bin/uppasd.${{matrix.sys}}.${{matrix.arch}}.exe
         ls ./build/bin
-        
-    - uses: actions/upload-artifact@v3
+
+    - uses: actions/upload-artifact@v7
       with:
        name: uppasd.${{matrix.sys}}.${{matrix.arch}}
        path: ./build/bin/uppasd*.exe
