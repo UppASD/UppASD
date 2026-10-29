@@ -416,7 +416,7 @@ contains
          avrg_step, avrg_buff, cumu_step, cumu_buff, ene_step, ene_buff, &
          tottraj_step, tottraj_buff, skyno_step, skyno_buff, nq, sc_window_fun, &
          cc%nw, cc%sc_sep, cc%sc_step, cc%sc_max_nstep, nspinwait, ac_step, ac_buff, &
-         NT_meta, Nchmax, mry, NA, Natom_full)
+         NT_meta, Nchmax, mry, NA, Natom_full, N1, N2, N3)
 
       call FortranData_setHamiltonian(ham%ncoup,ham%nlist,ham%nlistsize, &
          ham%dm_vect,ham%dmlist,ham%dmlistsize, &

@@ -681,7 +681,7 @@ __global__ void kernels::measurement::delaunay_tri_tri(uint nx, uint ny, uint nz
     const uint xm1 = (x + nx - 1u) % nx;
 
     const auto vid = [nx, ny, nt](uint cx, uint cy, uint cz, uint it0) -> uint {
-        const uint lin = cz * ny + cy * nx + cx;
+        const uint lin = (cz * ny + cy) * nx + cx;
         return nt * lin + it0;
     };
 

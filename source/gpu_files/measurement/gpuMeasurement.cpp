@@ -25,17 +25,13 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , mqueue(mq)
 , N(gpuLattice.emomM.extent(1))
 , M(gpuLattice.emomM.extent(2))
-, NX(0) // TODO: dont hardcode these values, needs to be imported from Fortran
-, NY(0)
-, NZ(0)
-, NT(0)
+, NX(*FortranData::N1)
+, NY(*FortranData::N2)
+, NZ(*FortranData::N3)
+, NT(*FortranData::NT)
 , NA(*FortranData::NA)
-, Nchmax(*FortranData::Nchmax)
 , Natom_full(*FortranData::Natom_full)
-//, NX(128) // TODO: dont hardcode these values, needs to be imported from Fortran
-//, NY(128)
-//, NZ(1)
-//, NT(1)
+, Nchmax(*FortranData::Nchmax)
 , do_jtensor(p_do_jtensor)
 , measurementWriter(do_jtensor)
 , cpuMeas(gpuLattice.emomM, gpuLattice.emom, gpuLattice.mmom, gpuLattice.beff, f_emomM, f_emom, f_mmom, f_beff, mq)
@@ -68,7 +64,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , ac_maxBlocks(1024)
 , ac_count(0)
 , do_skyno(skyrmionMethodFromFlag(*FortranData::do_skyno))
-, nsimp(2 * NX * NY * NZ * NT)
+, nsimp(2 * NX * NY * NZ * NA)
 , skyno_kernel_threads(128, 1)
 , skyno_kernel_blocks(skyrmionKernelNumBlocks(do_skyno, N, M, nsimp, skyno_kernel_threads.x))
 , do_ene(*FortranData::do_ene)
@@ -82,6 +78,13 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
     
     isAllocated = false;
     asitealloc = false;
+
+    if (do_avrg_proj == 'Y' || do_avrg_proj == 'A' || do_avrg_projch
+        || do_cumu_proj == 'Y' || do_cumu_proj == 'A')
+    {
+        std::cout << "Warning: projected averages/cumulants are not yet computed on GPU, "
+                  << "no projected output will be written" << std::endl;
+    }
 
     if (do_avrg)
     {
@@ -201,7 +204,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             atype_cpu.set(FortranData::atype, static_cast<long int>(N));
             atype_gpu.copy_sync(atype_cpu);
 
-            if((!asitealloc)&&(!do_ralloy)){
+            if((!asitealloc)&&(do_ralloy)){
                 asite_ch_gpu.Allocate(Natom_full);
                 asite_ch_cpu.set(FortranData::asite_ch, static_cast<long int>(Natom_full));
                 asite_ch_gpu.copy_sync(asite_ch_cpu);
@@ -214,7 +217,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             emomMEnsembleNASums.zeros();
             emomMEnsembleNASums_partial.Allocate(sumOverAtoms_NA_kernel_blocks.x, 3, NA, M);
             emomMEnsembleNASums_partial.zeros();
-            if((!asitealloc)&&(!do_ralloy)){
+            if((!asitealloc)&&(do_ralloy)){
                 asite_ch_gpu.Allocate(Natom_full);
                 asite_ch_cpu.set(FortranData::asite_ch, static_cast<long int>(Natom_full));
                 asite_ch_gpu.copy_sync(asite_ch_cpu);
@@ -273,7 +276,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
     if (do_skyno == SkyrmionMethod::Triangulation)
     {
         if (nsimp == 0)
-            throw std::invalid_argument("NX, NY, NZ and NT needs to be set from Fortran. Currently only works with hard coded values.");
+            throw std::invalid_argument("Triangulation requires N1, N2, N3 and NA > 0.");
 
         simp.Allocate(3, nsimp);
         skyno_partial_buff.Allocate(skyno_kernel_blocks.x);
@@ -282,7 +285,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         const uint threads = 256;
         const uint blocks = mm::ceil_div(pairs, threads);
 
-        mm::delaunay_tri_tri<<<blocks, threads, 0, workStream>>>(NX, NY, NZ, NT, simp);
+        mm::delaunay_tri_tri<<<blocks, threads, 0, workStream>>>(NX, NY, NZ, NA, simp);
         ASSERT_GPU_KERNEL("delaunay_tri_tri");
     }
 
@@ -397,7 +400,7 @@ void GpuMeasurement::release(){
             emomMEnsembleNTSums.Free();
             emomMEnsembleNTSums_partial.Free();
             atype_gpu.Free();
-            if((asitealloc)&&(!do_ralloy)){
+            if(asitealloc){
                 asite_ch_gpu.Free();
                 asitealloc = false;
             }
@@ -405,7 +408,7 @@ void GpuMeasurement::release(){
         if((do_avrg_proj=='A')||(do_cumu_proj=='A')){
             emomMEnsembleNASums.Free();
             emomMEnsembleNASums_partial.Free();
-            if((asitealloc)&&(!do_ralloy)){
+            if(asitealloc){
                 asite_ch_gpu.Free();
                 asitealloc = false;
             }

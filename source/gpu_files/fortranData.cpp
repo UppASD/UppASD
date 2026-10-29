@@ -20,6 +20,9 @@ unsigned int* FortranData::mcnstep;
 unsigned int* FortranData::ipnphase;
 unsigned int* FortranData::NA;
 unsigned int* FortranData::Natom_full;
+unsigned int* FortranData::N1;
+unsigned int* FortranData::N2;
+unsigned int* FortranData::N3;
 
 unsigned int* FortranData::nq;
 unsigned int* FortranData::sc_step;
@@ -191,7 +194,8 @@ void FortranData::setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int*
                                       unsigned int* p_skyno_step, unsigned int* p_skyno_buff, unsigned int* p_nq, unsigned int* p_sc_window_fun, unsigned int* p_nw,
                                       unsigned int* p_sc_sep, unsigned int* p_sc_step, unsigned int* p_sc_max_nstep,
                                       unsigned int* p_nspinwait, unsigned int* p_ac_step, unsigned int* p_ac_buff,
-                                      unsigned int* p_nt, unsigned int* p_Nchmax, real* p_mry, unsigned int* p_NA, unsigned int* p_Natom_full){
+                                      unsigned int* p_nt, unsigned int* p_Nchmax, real* p_mry, unsigned int* p_NA, unsigned int* p_Natom_full,
+                                      unsigned int* p_N1, unsigned int* p_N2, unsigned int* p_N3){
 
    stt = p_stt;
    SDEalgh = p_SDEalgh;
@@ -246,6 +250,9 @@ void FortranData::setConstantPointers(char* p_stt, int* p_SDEalgh, unsigned int*
    Nchmax = p_Nchmax;
    NA = p_NA;
    Natom_full = p_Natom_full;
+   N1 = p_N1;
+   N2 = p_N2;
+   N3 = p_N3;
 }
 
 void FortranData::setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
@@ -458,14 +465,16 @@ extern "C" void fortrandata_setconstants_(char* p_stt, int* p_SDEalgh, unsigned 
    unsigned int* p_skyno_step, unsigned int* p_skyno_buff,  unsigned int* p_nq, unsigned int* p_sc_window_fun, unsigned int* p_nw,
    unsigned int* p_sc_sep, unsigned int* p_sc_step, unsigned int* p_sc_max_nstep,
    unsigned int* p_nspinwait, unsigned int* p_ac_step, unsigned int* p_ac_buff, unsigned int* p_nt, unsigned int* p_Nchmax,
-   real* p_mry, unsigned int* p_NA, unsigned int* p_Natom_full) {
+   real* p_mry, unsigned int* p_NA, unsigned int* p_Natom_full,
+   unsigned int* p_N1, unsigned int* p_N2, unsigned int* p_N3) {
 FortranData::setConstantPointers(
    p_stt, p_SDEalgh, p_rstep, p_nstep, p_Natom, p_Mensemble, p_max_no_neigh, p_delta_t, p_gamma, 
    p_k_bolt, p_mub, p_mplambda1, p_binderc, p_mavg, p_mompar, p_initexc, p_max_no_dmneigh, p_nHam, 
    p_Temp, p_ipmcnphase, p_mcnstep, p_ipnphase,
    p_avrg_step, p_avrg_buff, p_cumu_step, p_cumu_buff, p_ene_step, p_ene_buff, p_tottraj_step, p_tottraj_buff,
    p_skyno_step, p_skyno_buff, p_nq, p_sc_window_fun, p_nw, p_sc_sep, p_sc_step, p_sc_max_nstep,
-   p_nspinwait, p_ac_step, p_ac_buff, p_nt, p_Nchmax, p_mry, p_NA, p_Natom_full);
+   p_nspinwait, p_ac_step, p_ac_buff, p_nt, p_Nchmax, p_mry, p_NA, p_Natom_full,
+   p_N1, p_N2, p_N3);
 }
 
 extern "C" void fortrandata_sethamiltonian_(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
