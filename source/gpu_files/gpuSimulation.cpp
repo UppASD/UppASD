@@ -323,7 +323,7 @@ bool GpuSimulation::initiateMatrices() {
         //gpuEnergies.dmM.Allocate(M);
         //gpuEnergies.extM.Allocate(M);
         //gpuEnergies.tensorM.Allocate(M);
-       // gpuEnergies.energyM.Allocate(M, static_cast <long int>(6));
+        gpuEnergies.energyM.Allocate(M, static_cast <long int>(6));
         gpuEnergies.jij.Allocate(N, M);
         gpuEnergies.dmi.Allocate(N, M);
         gpuEnergies.ani.Allocate(N, M);
@@ -332,15 +332,15 @@ bool GpuSimulation::initiateMatrices() {
 
 
     }
-  //  else{ 
+    else{ 
         //gpuEnergies.totalM.Allocate(1);
         //gpuEnergies.exchM.Allocate(1);
         //gpuEnergies.aniM.Allocate(1);
         //gpuEnergies.dmM.Allocate(1);
         //gpuEnergies.extM.Allocate(1);
         //gpuEnergies.tensorM.Allocate(1);
-       // gpuEnergies.energyM.Allocate(1, 1);
-   // }
+        gpuEnergies.energyM.Allocate(1, 1);
+    }
 
         //gpuEnergies.totalM.zeros();
        // gpuEnergies.exchM.zeros();
@@ -424,7 +424,7 @@ void GpuSimulation::release() {
     gpuHamiltonian.nlist.Free();  
     gpuHamiltonian.nlistsize.Free(); 
 
-    //gpuEnergies.energyM.Free();
+    gpuEnergies.energyM.Free();
     if(Flags.do_ene > 0) {
         gpuEnergies.jij.Free(); 
         gpuEnergies.dmi.Free(); 

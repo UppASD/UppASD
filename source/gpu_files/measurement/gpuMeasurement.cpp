@@ -557,7 +557,7 @@ void GpuMeasurement::flushMeasurements(std::size_t mstep)
             saveToFile(MeasurementType::AverageMagnetization);
     }
 
-    if (do_gpu_measurements && (do_ene==1))
+    if (do_gpu_measurements && (do_ene>0))
     {
         measureEnergy(mstep);
         stopwatch.add("energy");

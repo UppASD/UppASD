@@ -253,8 +253,9 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    // Time step loop
    for(std::size_t mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
 
-      measure_ene = ((gpuSim.Flags.do_ene > 0 ) && (gpuSim.Flags.do_gpu_measurements)&&
-         (((mstep-1)%gpuSim.SimParam.ene_step == 0)||((gpuSim.Flags.do_cumu)&&((mstep-1)%gpuSim.SimParam.cumu_step == 0))));
+   const bool energy_step = ((mstep - 1) % gpuSim.SimParam.ene_step == 0);
+   const bool cumu_step = gpuSim.Flags.do_cumu && ((mstep - 1) % gpuSim.SimParam.cumu_step == 0);
+   measure_ene = (gpuSim.Flags.do_ene > 0)&& (gpuSim.Flags.do_gpu_measurements) && (energy_step || cumu_step);
 
       hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
       stopwatch.add("hamiltonian");
