@@ -1,6 +1,8 @@
 #! /bin/bash
 
 # Perform a loop over various values of the temperature
+: "${SD_BINARY:?Set SD_BINARY to the full path of the UppASD executable}"
+
 for TEMP in 1 2 3 4 5 10
 do
 
@@ -37,7 +39,7 @@ do
             sed -i '' "s/Mensemble 1/Mensemble $ENS/g" inpsd.dat
             echo -e "Performing simulation for temperature $TEMP and $ENS emsembles"
             # Running the ASD simulation
-            ../../../../../source/sd > out.out
+            ${SD_BINARY} > out.out
             echo -e "done"
 
          cd ../
@@ -59,7 +61,7 @@ do
             sed -i '' "s/Mensemble 1/Mensemble 1/g" inpsd.dat
             echo -e "Performing simulation for temperature $TEMP and 1 emsembles"
             # Running the ASD simulation
-            ../../../../../source/sd > out.out
+            ${SD_BINARY} > out.out
             echo -e "done"
 
 

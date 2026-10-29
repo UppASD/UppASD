@@ -13,6 +13,7 @@ import time
 import datetime
 import sys
 import glob
+import shutil
 
 from pprint import pprint
 from ast import literal_eval
@@ -282,6 +283,12 @@ def getargs():
     parsed = parser.parse_args()
 
     if parsed.binary:
+        # The cases run in their own directories, so make the path absolute.
+        # A bare name (no directory part) is looked up in PATH first.
+        binary = parsed.binary
+        if os.path.dirname(binary) == '' and shutil.which(binary):
+            binary = shutil.which(binary)
+        parsed.binary = os.path.abspath(os.path.expanduser(binary))
         os.environ["SD_BINARY"] = parsed.binary
     elif not (parsed.cleanup or parsed.dryrun):
         parser.error('no binary given, use --binary or set SD_BINARY')

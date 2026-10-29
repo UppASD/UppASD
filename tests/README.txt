@@ -10,7 +10,9 @@ For help
 
 For a standard simulation run as
 ./bergtest.py --binary /home/user/.../build/bin/sd.gfortran
-The binary can also be given with the SD_BINARY environment variable.
+The binary can also be given with the SD_BINARY environment variable. A relative path is
+taken relative to the directory where bergtest.py is started, and a name without a
+directory is looked up in PATH.
 
 Before the first case in a directory is run, old output files in that directory are removed.
 If one still wished to append out files from previous simulation, use the dirty flag:

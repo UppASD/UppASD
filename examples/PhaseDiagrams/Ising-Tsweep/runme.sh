@@ -1,4 +1,6 @@
 #! /bin/bash 
+: "${SD_BINARY:?Set SD_BINARY to the full path of the UppASD executable}"
+
 for temp in `seq 0 25 1500` 
 do
    Temp=`echo $temp | awk '{ printf "%04i",$1}'`
@@ -7,7 +9,7 @@ do
    cp Base/* T$Temp/
    cd T$Temp/
    sed -i "s/TEMP/$Temp/g" inpsd.dat
-   ../../../../source/sd > out.log
+   ${SD_BINARY} > out.log
    cd ..
 done
 exit
