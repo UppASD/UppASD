@@ -31,23 +31,17 @@ O. Eriksson et. al,  Oxford University Press 2017][1]
 
 
 ---
-Quick-start:
-```python
-./setup_UppASD.sh   
-make <profile>
-```
-
-Where `<profile>` is a suitable compiler profile, i.e. `ifort`, `gfortran`, `gfortran-osx`, `gfortran-ftn`, `aocc-ftn` and so on.   
-
----
-Quick-start alternative (using cmake):
+Quick-start (using cmake):
 ```python
 cmake -S . -B build   
 cmake --build build
 ```
 
 ---
-The binary is compiled to the `./bin/` directory. 
+The binary, library and Fortran module files are placed in `bin/`, `lib/` and `mod/`
+inside the build directory (`./build/bin/` for the example above). The binary and library
+can be installed with `cmake --install build --prefix <destination>`, which gives
+`<destination>/bin`, `<destination>/lib` and `<destination>/include`.
 
 Examples are provided in `./examples/`
 

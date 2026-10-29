@@ -1,6 +1,8 @@
 # Script to run all the examples
 #!/bin/bash
 
+: "${SD_BINARY:?Set SD_BINARY to the full path of the UppASD executable}"
+
 for n in \
 FeCo
 do
@@ -11,7 +13,7 @@ do
     do
         cd $m
         echo Starts example $n''/$m
-        time ../../../../source/sd > out.log
+        time ${SD_BINARY} > out.log
         echo Ends example $n $m
         cd ../
     done
@@ -27,7 +29,7 @@ bccFe-variants
 do
     cd $n
     echo Starts example $n
-    time ../../../source/sd > out.log
+    time ${SD_BINARY} > out.log
     echo Ends example $n
     cd ../
 done

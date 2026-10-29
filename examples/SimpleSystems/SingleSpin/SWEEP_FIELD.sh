@@ -1,6 +1,8 @@
 #! /bin/bash
 
 # Perform a loop over various values of the field
+: "${SD_BINARY:?Set SD_BINARY to the full path of the UppASD executable}"
+
 for Field in 0 20 25 30 35 40 45
 do
 
@@ -28,7 +30,7 @@ do
 
       echo -e "Performing simulation for bfield $bfield"
       # Running the ASD simulation
-      ../../../../source/sd > out.out
+      ${SD_BINARY} > out.out
       echo -e "done"
 
    cd ../

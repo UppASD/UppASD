@@ -1,6 +1,8 @@
 # Script to run all the examples
 #!/bin/bash
 
+: "${SD_BINARY:?Set SD_BINARY to the full path of the UppASD executable}"
+
 for n in \
 Mappings \
 PhaseDiagrams \

@@ -1,4 +1,3 @@
-Makefile.backup
 *.dbg
 *.out
 temp.*
@@ -28,20 +27,11 @@ docs/latex/**
 docs/html
 docs/html/**
 examples_revision_controlled/bccFe-Tsweep/T*
-source/make/user_profiles
-source/make/objs_c.make
 mod
 obj
-makefileCUDA.backup
-source/make/dependencies.dot
-source/make/dependencies.make
-source/make/cobjs.make
-source/make/dependencies_c.make
-source/make/objs.make
 .profile
 codeTester/extractoutput.pyc
 codeTester/tests.log
-source/Makefile
 inp.*.yaml
 *.gcno
 fort.*
