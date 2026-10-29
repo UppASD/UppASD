@@ -39,9 +39,9 @@ cmake --build build
 
 ---
 The binary, library and Fortran module files are placed in `bin/`, `lib/` and `mod/`
-inside the build directory (`./build/bin/` for the example above). They can be installed with
-`cmake --install build --prefix <destination>`, which gives `<destination>/bin`,
-`<destination>/lib`, `<destination>/mod` and `<destination>/include`.
+inside the build directory (`./build/bin/` for the example above). The binary and library
+can be installed with `cmake --install build --prefix <destination>`, which gives
+`<destination>/bin`, `<destination>/lib` and `<destination>/include`.
 
 Examples are provided in `./examples/`
 

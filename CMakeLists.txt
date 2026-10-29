@@ -205,7 +205,7 @@ CMAKE_DEPENDENT_OPTION(RUN_SLD_TESTS "Run sld-tests"  OFF "BUILD_TESTING" OFF)
 CMAKE_DEPENDENT_OPTION(RUN_GNEB_TESTS "Run gneb-tests"  OFF "BUILD_TESTING" OFF)
 CMAKE_DEPENDENT_OPTION(RUN_REG_TESTS "Run regression-test"  ON "BUILD_TESTING" OFF)
 CMAKE_DEPENDENT_OPTION(RUN_CUDA_TESTS "Run cuda-test"  ON "BUILD_TESTING;USE_CUDA" OFF)
-#######hip here????
+CMAKE_DEPENDENT_OPTION(RUN_HIP_TESTS "Run hip-test"  ON "BUILD_TESTING;USE_HIP" OFF)
 ##############################################################################################
 
 ##############################################################################################
@@ -817,15 +817,13 @@ endif()
 ##############################################################################################
 # Tell where to install this executable
 # Set the destination with -DCMAKE_INSTALL_PREFIX=<prefix> (default /usr/local) and run
-# `cmake --install <build dir>`. This installs to <prefix>/bin, <prefix>/lib,
-# <prefix>/mod (Fortran modules) and <prefix>/include (C/C++ headers of the GPU code).
+# `cmake --install <build dir>`. This installs to <prefix>/bin, <prefix>/lib and
+# <prefix>/include (C/C++ headers of the GPU code).
 ##############################################################################################
 SET_TARGET_PROPERTIES(${UppASD_EXE} PROPERTIES LINKER_LANGUAGE "Fortran")
 if (NOT BUILD_PYTHON)
    INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
    INSTALL(TARGETS ${UppASD_LIB} ARCHIVE DESTINATION lib LIBRARY DESTINATION lib)
-   INSTALL(DIRECTORY ${MOD}/ DESTINATION mod
-      FILES_MATCHING PATTERN "*.mod" PATTERN "*.smod")
    if (USE_CUDA OR USE_HIP)
       INSTALL(DIRECTORY ${SRC}/gpu_files/ DESTINATION include
          FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp" PATTERN "*.cuh" PATTERN "*.tpp"
@@ -905,10 +903,12 @@ endif (RUN_SLD_TESTS)
 if (RUN_GNEB_TESTS)
 uppasd_add_bergtests(gneb-tests regressionGNEB_15d7169b.yaml)
 endif (RUN_GNEB_TESTS)
-#######hip here????
-if (RUN_CUDA_TESTS)
 # Run the GPU tests one at a time
+if (RUN_CUDA_TESTS)
 uppasd_add_bergtests(cuda-tests cudatests.yaml RESOURCE_LOCK gpu)
 endif (RUN_CUDA_TESTS)
+if (RUN_HIP_TESTS)
+uppasd_add_bergtests(hip-tests hiptests.yaml RESOURCE_LOCK gpu)
+endif (RUN_HIP_TESTS)
 message(STATUS "Output binary:  ${TestBinary}")
 ##############################################################################################
