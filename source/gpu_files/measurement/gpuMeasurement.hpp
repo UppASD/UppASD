@@ -65,9 +65,9 @@ private:
     const uint NX, NY, NZ, NT;
     const uint NA, Natom_full, Nchmax;
     const char do_avrg_proj;
-    const bool do_avrg_projch;
+    const char do_avrg_projch;
     const char do_cumu_proj;
-    const bool do_cumu_projch;
+    const char do_cumu_projch;
 
     bool do_jtensor;
     const int do_ralloy;

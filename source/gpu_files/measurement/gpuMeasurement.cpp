@@ -823,8 +823,8 @@ void GpuMeasurement::calculateEmomMSum()
 void GpuMeasurement::calculateEnergySumsOverAtoms()
 {
     size_t smem = mm::nwarps(energySums_kernel_threads) * sizeof(real);
-    mm::sumEnergyOverAtoms_partial<<<energySums_kernel_blocks, energySums_kernel_threads, smem, workStream>>>(gpuEnergies.ene_jij, gpuEnergies.ene_dmi, gpuEnergies.ene_ani,
-                                                                                                                gpuEnergies.ene_ext, gpuEnergies.ene_ten,energySums_partial);
+    mm::sumEnergyOverAtoms_partial<<<energySums_kernel_blocks, energySums_kernel_threads, smem, workStream>>>(gpuEnergies.jij, gpuEnergies.dmi, gpuEnergies.ani,
+                                                                                                                gpuEnergies.external, gpuEnergies.tensor, energySums_partial);
     ASSERT_GPU_KERNEL("sumEnergyOverAtoms_partial");
 
     const dim3 threads = 256;
