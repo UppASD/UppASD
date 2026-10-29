@@ -58,6 +58,9 @@ public:
    static unsigned int* ipnphase;
    static unsigned int* NA;
    static unsigned int* Natom_full;
+   static unsigned int* N1;
+   static unsigned int* N2;
+   static unsigned int* N3;
    
 
    static unsigned int* nq;
@@ -224,7 +227,8 @@ public:
                                     unsigned int* p_sc_sep, unsigned int* p_sc_step, unsigned int* p_sc_max_nstep,
                                     unsigned int* p_nspinwait, unsigned int* p_ac_step, unsigned int* p_ac_buff,
                                     unsigned int* p_nt, unsigned int* p_Nchmax, real* p_mry,
-                                    unsigned int* p_NA, unsigned int* p_Natom_full);
+                                    unsigned int* p_NA, unsigned int* p_Natom_full,
+                                    unsigned int* p_N1, unsigned int* p_N2, unsigned int* p_N3);
 
     static void setHamiltonianPointers(real* p_ncoup, unsigned int* p_nlist, unsigned int* p_nlistsize,
                                        real* p_dmvect, unsigned int* p_dmlist, unsigned int* p_dmlistsize,
