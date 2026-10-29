@@ -542,6 +542,12 @@ void GpuMeasurement::flushMeasurements(std::size_t mstep)
         stopwatch.add("sum reduction of emomM for shared use");
     }
 
+    if (do_ene > 0 && ((do_gpu_measurements && (do_ene == 1)) || do_cumu))
+    {
+        calculateEnergySumsOverAtoms();
+        stopwatch.add("sum reduction of energy contributions");
+    }
+
     if (do_avrg)
     {
         measureAverageMagnetization(mstep);

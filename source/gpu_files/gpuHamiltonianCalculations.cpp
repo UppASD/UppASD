@@ -1306,20 +1306,21 @@ else{
 void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergies& gpuEnergies, const bool write_energy) {
 
    if(write_energy) {
-         gpuEnergies.ene_jij.zeros();
-         gpuEnergies.ene_ten.zeros();
-         gpuEnergies.ene_dmi.zeros();
-         gpuEnergies.ene_ani.zeros();
+         gpuEnergies.jij.zeros();
+         gpuEnergies.tensor.zeros();
+         gpuEnergies.dmi.zeros();
+         gpuEnergies.ani.zeros();
+         gpuEnergies.external.zeros();
    }
    
 
    if(do_j_tensor) {
       if(do_aniso != 0) {
-         parallel.gpuAtomSiteEnsembleCall(HeisgeJijTensorAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.ene_ten, gpuEnergies.ene_ani, gpuEnergies.ene_ext,
+         parallel.gpuAtomSiteEnsembleCall(HeisgeJijTensorAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.tensor, gpuEnergies.ani, gpuEnergies.external,
                                           gpuLattice.emomM, external_field, tenEx, aniso, redHam, write_energy));
       }
       else {
-         parallel.gpuAtomSiteEnsembleCall(HeisgeJijTensor(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.ene_ten, gpuEnergies.ene_ext,
+         parallel.gpuAtomSiteEnsembleCall(HeisgeJijTensor(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.tensor, gpuEnergies.external,
                                           gpuLattice.emomM, external_field, tenEx, redHam, write_energy));
       }
       return;
@@ -1327,22 +1328,22 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
 
    if(do_dm) {
       if(do_aniso != 0) {
-         parallel.gpuAtomSiteEnsembleCall(HeisgeJijDMAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.ene_jij, gpuEnergies.ene_dmi, gpuEnergies.ene_ani, gpuEnergies.ene_ext,
+         parallel.gpuAtomSiteEnsembleCall(HeisgeJijDMAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.jij, gpuEnergies.dmi, gpuEnergies.ani, gpuEnergies.external,
                                           gpuLattice.emomM, external_field, ex, dm, aniso, redHam, do_ene, write_energy));
       }
       else {
-         parallel.gpuAtomSiteEnsembleCall(HeisgeJijDM(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.ene_jij, gpuEnergies.ene_dmi, gpuEnergies.ene_ext,
+         parallel.gpuAtomSiteEnsembleCall(HeisgeJijDM(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.jij, gpuEnergies.dmi, gpuEnergies.external,
                                           gpuLattice.emomM, external_field, ex, dm, redHam, write_energy));
       }
       return;
    }
 
    if(do_aniso != 0) {
-      parallel.gpuAtomSiteEnsembleCall(HeisgeJijAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.ene_jij, gpuEnergies.ene_ani, gpuEnergies.ene_ext,
+      parallel.gpuAtomSiteEnsembleCall(HeisgeJijAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.jij, gpuEnergies.ani, gpuEnergies.external,
                                        gpuLattice.emomM, external_field, ex, dm, aniso, redHam, write_energy));
    }
    else {
-      parallel.gpuAtomSiteEnsembleCall(HeisgeJij(gpuLattice.beff, gpuLattice.eneff,gpuEnergies.ene_jij, gpuEnergies.ene_ext,
+      parallel.gpuAtomSiteEnsembleCall(HeisgeJij(gpuLattice.beff, gpuLattice.eneff,gpuEnergies.jij, gpuEnergies.external,
                                         gpuLattice.emomM, external_field, ex, redHam, write_energy));
    }
 }
