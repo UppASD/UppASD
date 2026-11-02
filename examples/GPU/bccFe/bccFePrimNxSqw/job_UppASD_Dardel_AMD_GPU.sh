@@ -11,12 +11,12 @@ ml PrgEnv-gnu
 ml rocm/7.2.1
 ml craype-accel-amd-gfx90a
 
-export SD_BINARY=
+# The executable is in the bin directory of the build directory, e.g. <UppASD dir>/build_GPU_GNU/bin/sd.hip
+export SD_BINARY=<UppASD executable>
 export OMP_NUM_THREADS=16
 
 echo "Script initiated at `date` on `hostname`"
 
-time -p ./runme.sh
-#time -p $SD_BINARY > out.log
+time -p $SD_BINARY > out.log
 
 echo "Script finished at `date` on `hostname`"
