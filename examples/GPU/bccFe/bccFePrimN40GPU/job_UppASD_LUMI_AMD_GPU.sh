@@ -2,12 +2,14 @@
 #SBATCH -A <project>          # Set the allocation to be charged for this job
 #SBATCH -J uppasd             # The name of the script is myjob
 #SBATCH -t 24:00:00           # 24 hours wall-clock time
-#SBATCH -p standard-g         # The partition
+#SBATCH -p small-g            # The partition
+#SBATCH -G 1                  # Number of GPUs
 #SBATCH -n 1                  # Number of ranks
-#SBATCH -c 16                 # Number of cpus per task
+#SBATCH -c 14                 # Number of cpus per task
 
-export SD_BINARY=
-export OMP_NUM_THREADS=16
+# The executable is in the bin directory of the build directory, e.g. <UppASD dir>/build_GPU_GNU/bin/sd.hip
+export SD_BINARY=<UppASD executable>
+export OMP_NUM_THREADS=14
 
 echo "Script initiated at `date` on `hostname`"
 
