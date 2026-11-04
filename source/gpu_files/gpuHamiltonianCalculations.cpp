@@ -582,9 +582,9 @@ public:
          ay += (real)2.0 * k1_cubic * Sy * (Sz * Sz + Sx * Sx) + (real)2.0 * k2_cubic * Sy * Sz * Sz * Sx * Sx;
          az += (real)2.0 * k1_cubic * Sz * (Sx * Sx + Sy * Sy) + (real)2.0 * k2_cubic * Sz * Sx * Sx * Sy * Sy;
 
-         ax_en += k1_cubic * Sx * (Sy * Sy + Sz * Sz)/((real)2.0) + k2_cubic * Sx * Sy * Sy * Sz * Sz/((real)3.0);//To Anders: sign???
-         ay_en += k1_cubic * Sy * (Sz * Sz + Sx * Sx)/((real)2.0) + k2_cubic * Sy * Sz * Sz * Sx * Sx/((real)3.0);
-         az_en += k1_cubic * Sz * (Sx * Sx + Sy * Sy)/((real)2.0) + k2_cubic * Sz * Sx * Sx * Sy * Sy/((real)3.0);
+         ax_en += k1_cubic * Sx * (Sy * Sy + Sz * Sz) + (real)2.0 / (real)3.0 * k2_cubic * Sx * Sy * Sy * Sz * Sz;
+         ay_en += k1_cubic * Sy * (Sz * Sz + Sx * Sx) + (real)2.0 / (real)3.0 * k2_cubic * Sy * Sz * Sz * Sx * Sx;
+         az_en += k1_cubic * Sz * (Sx * Sx + Sy * Sy) + (real)2.0 / (real)3.0 * k2_cubic * Sz * Sx * Sx * Sy * Sy;
       }
 
       const real ext_x = ext_f[atom * 3 + 0];
@@ -603,7 +603,7 @@ public:
       if(!measure) return;
 
        real exchange = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
-       real anisotropy = (ax_en * Sx + ay_en * Sy + az_en * Sz) * (real)-0.5;
+       real anisotropy = -(ax_en * Sx + ay_en * Sy + az_en * Sz);
        real external = -(ext_x * Sx + ext_y * Sy + ext_z * Sz);
 
       ene_jij(atom, ensemble) = exchange;
@@ -783,9 +783,9 @@ public:
          ay += (real)2.0 * k1_cubic * Sy * (Sz * Sz + Sx * Sx) + (real)2.0 * k2_cubic * Sy * Sz * Sz * Sx * Sx;
          az += (real)2.0 * k1_cubic * Sz * (Sx * Sx + Sy * Sy) + (real)2.0 * k2_cubic * Sz * Sx * Sx * Sy * Sy;
 
-         ax_en += k1_cubic * Sx * (Sy * Sy + Sz * Sz)/((real)2.0) + k2_cubic * Sx * Sy * Sy * Sz * Sz/((real)3.0);//To Anders: sign???
-         ay_en += k1_cubic * Sy * (Sz * Sz + Sx * Sx)/((real)2.0) + k2_cubic * Sy * Sz * Sz * Sx * Sx/((real)3.0);
-         az_en += k1_cubic * Sz * (Sx * Sx + Sy * Sy)/((real)2.0) + k2_cubic * Sz * Sx * Sx * Sy * Sy/((real)3.0);
+         ax_en += k1_cubic * Sx * (Sy * Sy + Sz * Sz) + (real)2.0 / (real)3.0 * k2_cubic * Sx * Sy * Sy * Sz * Sz;
+         ay_en += k1_cubic * Sy * (Sz * Sz + Sx * Sx) + (real)2.0 / (real)3.0 * k2_cubic * Sy * Sz * Sz * Sx * Sx;
+         az_en += k1_cubic * Sz * (Sx * Sx + Sy * Sy) + (real)2.0 / (real)3.0 * k2_cubic * Sz * Sx * Sx * Sy * Sy;
       }
 
 
@@ -805,7 +805,7 @@ public:
       if(!measure) return;
 
       real exchange = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
-      real anisotropy = (ax_en * Sx + ay_en * Sy + az_en * Sz) * (real)-0.5;
+      real anisotropy = -(ax_en * Sx + ay_en * Sy + az_en * Sz);
       real DM = (dmx * Sx +dmy * Sy + dmz * Sz)* (real)-0.5;
       real external = -(ext_x * Sx + ext_y * Sy + ext_z * Sz);
 
@@ -1100,9 +1100,9 @@ public:
          ay += (real)2.0 * k1_cubic * Sy * (Sz * Sz + Sx * Sx) + (real)2.0 * k2_cubic * Sy * Sz * Sz * Sx * Sx;
          az += (real)2.0 * k1_cubic * Sz * (Sx * Sx + Sy * Sy) + (real)2.0 * k2_cubic * Sz * Sx * Sx * Sy * Sy;
 
-         ax_en += k1_cubic * Sx * (Sy * Sy + Sz * Sz)/((real)2.0) + k2_cubic * Sx * Sy * Sy * Sz * Sz/((real)3.0);//To Anders: sign???
-         ay_en += k1_cubic * Sy * (Sz * Sz + Sx * Sx)/((real)2.0) + k2_cubic * Sy * Sz * Sz * Sx * Sx/((real)3.0);
-         az_en += k1_cubic * Sz * (Sx * Sx + Sy * Sy)/((real)2.0) + k2_cubic * Sz * Sx * Sx * Sy * Sy/((real)3.0);
+         ax_en += k1_cubic * Sx * (Sy * Sy + Sz * Sz) + (real)2.0 / (real)3.0 * k2_cubic * Sx * Sy * Sy * Sz * Sz;
+         ay_en += k1_cubic * Sy * (Sz * Sz + Sx * Sx) + (real)2.0 / (real)3.0 * k2_cubic * Sy * Sz * Sz * Sx * Sx;
+         az_en += k1_cubic * Sz * (Sx * Sx + Sy * Sy) + (real)2.0 / (real)3.0 * k2_cubic * Sz * Sx * Sx * Sy * Sy;
       }
 
       // Save field
@@ -1125,7 +1125,7 @@ public:
       Sz = emomM[atom * 3 + 2];
 
       real tensor = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
-      real anisotropy = (ax_en * Sx + ay_en * Sy + az_en * Sz) * (real)-0.5;
+      real anisotropy = -(ax_en * Sx + ay_en * Sy + az_en * Sz);
       real external = -(ext_x * Sx + ext_y * Sy + ext_z * Sz);
 
       ene_ten(atom, ensemble) = tensor;
