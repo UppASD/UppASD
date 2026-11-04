@@ -582,9 +582,9 @@ public:
          ay += (real)2.0 * k1_cubic * Sy * (Sz * Sz + Sx * Sx) + (real)2.0 * k2_cubic * Sy * Sz * Sz * Sx * Sx;
          az += (real)2.0 * k1_cubic * Sz * (Sx * Sx + Sy * Sy) + (real)2.0 * k2_cubic * Sz * Sx * Sx * Sy * Sy;
 
-         ax_en += k1_cubic * Sx * (Sy * Sy + Sz * Sz) + (real)2.0 / (real)3.0 * k2_cubic * Sx * Sy * Sy * Sz * Sz;
-         ay_en += k1_cubic * Sy * (Sz * Sz + Sx * Sx) + (real)2.0 / (real)3.0 * k2_cubic * Sy * Sz * Sz * Sx * Sx;
-         az_en += k1_cubic * Sz * (Sx * Sx + Sy * Sy) + (real)2.0 / (real)3.0 * k2_cubic * Sz * Sx * Sx * Sy * Sy;
+         ax_en += k1_cubic * Sx * (Sy * Sy + Sz * Sz) + (real)1.0 / (real)3.0 * k2_cubic * Sx * Sy * Sy * Sz * Sz;
+         ay_en += k1_cubic * Sy * (Sz * Sz + Sx * Sx) + (real)1.0 / (real)3.0 * k2_cubic * Sy * Sz * Sz * Sx * Sx;
+         az_en += k1_cubic * Sz * (Sx * Sx + Sy * Sy) + (real)1.0 / (real)3.0 * k2_cubic * Sz * Sx * Sx * Sy * Sy;
       }
 
       const real ext_x = ext_f[atom * 3 + 0];
@@ -783,9 +783,9 @@ public:
          ay += (real)2.0 * k1_cubic * Sy * (Sz * Sz + Sx * Sx) + (real)2.0 * k2_cubic * Sy * Sz * Sz * Sx * Sx;
          az += (real)2.0 * k1_cubic * Sz * (Sx * Sx + Sy * Sy) + (real)2.0 * k2_cubic * Sz * Sx * Sx * Sy * Sy;
 
-         ax_en += k1_cubic * Sx * (Sy * Sy + Sz * Sz) + (real)2.0 / (real)3.0 * k2_cubic * Sx * Sy * Sy * Sz * Sz;
-         ay_en += k1_cubic * Sy * (Sz * Sz + Sx * Sx) + (real)2.0 / (real)3.0 * k2_cubic * Sy * Sz * Sz * Sx * Sx;
-         az_en += k1_cubic * Sz * (Sx * Sx + Sy * Sy) + (real)2.0 / (real)3.0 * k2_cubic * Sz * Sx * Sx * Sy * Sy;
+         ax_en += k1_cubic * Sx * (Sy * Sy + Sz * Sz) + (real)1.0 / (real)3.0 * k2_cubic * Sx * Sy * Sy * Sz * Sz;
+         ay_en += k1_cubic * Sy * (Sz * Sz + Sx * Sx) + (real)1.0 / (real)3.0 * k2_cubic * Sy * Sz * Sz * Sx * Sx;
+         az_en += k1_cubic * Sz * (Sx * Sx + Sy * Sy) + (real)1.0 / (real)3.0 * k2_cubic * Sz * Sx * Sx * Sy * Sy;
       }
 
 
@@ -1100,9 +1100,9 @@ public:
          ay += (real)2.0 * k1_cubic * Sy * (Sz * Sz + Sx * Sx) + (real)2.0 * k2_cubic * Sy * Sz * Sz * Sx * Sx;
          az += (real)2.0 * k1_cubic * Sz * (Sx * Sx + Sy * Sy) + (real)2.0 * k2_cubic * Sz * Sx * Sx * Sy * Sy;
 
-         ax_en += k1_cubic * Sx * (Sy * Sy + Sz * Sz) + (real)2.0 / (real)3.0 * k2_cubic * Sx * Sy * Sy * Sz * Sz;
-         ay_en += k1_cubic * Sy * (Sz * Sz + Sx * Sx) + (real)2.0 / (real)3.0 * k2_cubic * Sy * Sz * Sz * Sx * Sx;
-         az_en += k1_cubic * Sz * (Sx * Sx + Sy * Sy) + (real)2.0 / (real)3.0 * k2_cubic * Sz * Sx * Sx * Sy * Sy;
+         ax_en += k1_cubic * Sx * (Sy * Sy + Sz * Sz) + (real)1.0 / (real)3.0 * k2_cubic * Sx * Sy * Sy * Sz * Sz;
+         ay_en += k1_cubic * Sy * (Sz * Sz + Sx * Sx) + (real)1.0 / (real)3.0 * k2_cubic * Sy * Sz * Sz * Sx * Sx;
+         az_en += k1_cubic * Sz * (Sx * Sx + Sy * Sy) + (real)1.0 / (real)3.0 * k2_cubic * Sz * Sx * Sx * Sy * Sy;
       }
 
       // Save field
