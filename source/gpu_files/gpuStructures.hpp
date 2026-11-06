@@ -226,6 +226,11 @@ struct deviceEnergies {
    //GpuTensor<real, 1> extM;
 
    GpuTensor<real,2> energyM; //0 - exch, 1 - ani, 2 - dm, 3 - tensor, 4 - external, 5 - total
+   GpuTensor<real,2> jij;
+   GpuTensor<real,2> dmi;
+   GpuTensor<real,2> ani;
+   GpuTensor<real,2> tensor;
+   GpuTensor<real,2> external;
 
 };
 

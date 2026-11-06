@@ -74,6 +74,9 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , mub(9.274009994e-24)
 , mry(2.179872325e-21)
 , fcinv(mub / mry)
+, energySums_kernel_threads(256, 1, 1)
+, energySums_kernel_blocks(mm::ceil_div(N, energySums_kernel_threads.x), M, 1)
+
 {
     
     isAllocated = false;
@@ -202,12 +205,12 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             emomMEnsembleNTSums_partial.zeros();
             atype_gpu.Allocate(N);
             atype_cpu.set(FortranData::atype, static_cast<long int>(N));
-            atype_gpu.copy_sync(atype_cpu);
+            //atype_gpu.copy_sync(atype_cpu);
 
             if((!asitealloc)&&(do_ralloy)){
                 asite_ch_gpu.Allocate(Natom_full);
                 asite_ch_cpu.set(FortranData::asite_ch, static_cast<long int>(Natom_full));
-                asite_ch_gpu.copy_sync(asite_ch_cpu);
+                //asite_ch_gpu.copy_sync(asite_ch_cpu);
                 asitealloc = true;
             }
 
@@ -220,7 +223,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             if((!asitealloc)&&(do_ralloy)){
                 asite_ch_gpu.Allocate(Natom_full);
                 asite_ch_cpu.set(FortranData::asite_ch, static_cast<long int>(Natom_full));
-                asite_ch_gpu.copy_sync(asite_ch_cpu);
+                //asite_ch_gpu.copy_sync(asite_ch_cpu);
                 asitealloc = true;
             }
 
@@ -232,7 +235,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             emomMEnsembleNCSums_partial.zeros();
             achem_ch_gpu.Allocate(N);
             achem_ch_cpu.set(FortranData::achem_ch, static_cast<long int>(N));
-            achem_ch_gpu.copy_sync(achem_ch_cpu);
+           // achem_ch_gpu.copy_sync(achem_ch_cpu);
             
         }
     }
@@ -306,7 +309,12 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         energy_iter.zeros();
         energy_partial_buff.Allocate(ene_kernel_blocks.x, ene_types);
 
-        printf("WARNING: DO NOT USE BIG_GRID WITH GPU CALCULATIONS OF ENERGY\n");
+
+        energySums_partial.Allocate(energySums_kernel_blocks.x, 6, M);
+        energySums_partial.zeros();
+
+
+       // printf("WARNING: DO NOT USE BIG_GRID WITH GPU CALCULATIONS OF ENERGY\n");
     }
     if (do_autocorr){
         sw_threads = 256;
@@ -447,6 +455,7 @@ void GpuMeasurement::release(){
         energy_partial_buff.Free();
         energy_buff_cpu.FreeHost();
         energy_iter.FreeHost();
+        energySums_partial.Free();
     }
       
     if (do_autocorr)
@@ -482,6 +491,12 @@ void GpuMeasurement::measure(std::size_t mstep)
     {
         calculateEmomMSum();
         stopwatch.add("sum reduction of emomM for shared use");
+    }
+
+    if (do_ene > 0 && (energy || cumu))
+    {
+        calculateEnergySumsOverAtoms();
+        stopwatch.add("sum reduction of energy contributions");
     }
 
     if (avrg)
@@ -530,6 +545,12 @@ void GpuMeasurement::flushMeasurements(std::size_t mstep)
         stopwatch.add("sum reduction of emomM for shared use");
     }
 
+    if (do_ene > 0 && ((do_gpu_measurements && (do_ene == 1)) || do_cumu))
+    {
+        calculateEnergySumsOverAtoms();
+        stopwatch.add("sum reduction of energy contributions");
+    }
+
     if (do_avrg)
     {
         measureAverageMagnetization(mstep);
@@ -539,7 +560,7 @@ void GpuMeasurement::flushMeasurements(std::size_t mstep)
             saveToFile(MeasurementType::AverageMagnetization);
     }
 
-    if (do_gpu_measurements && (do_ene==1))
+    if (do_gpu_measurements && (do_ene>0))
     {
         measureEnergy(mstep);
         stopwatch.add("energy");
@@ -713,10 +734,10 @@ void GpuMeasurement::measureEnergy(size_t mstep)
            // 1 * sizeof(EnergyData), GPU_MEMCPY_DEVICE_TO_DEVICE);
            
            
-    mm::averageEnergy_partial<<<ene_kernel_blocks, ene_kernel_threads>>>(gpuEnergies.energyM, M, energy_partial_buff.data());
+    mm::averageEnergy_partial<<<ene_kernel_blocks, ene_kernel_threads, 0, workStream>>>(gpuEnergies.energyM, M, energy_partial_buff.data());
     ASSERT_GPU_KERNEL("averageEnergy_partial");
 
-    mm::averageEnergy_final<<<1, ene_maxBlocks>>>(
+    mm::averageEnergy_final<<<1, ene_maxBlocks, 0, workStream>>>(
             energy_partial_buff.data(), ene_kernel_blocks.x, M, fcinv, energy_buff_gpu.data()[energy_count]);
             ASSERT_GPU_KERNEL("averageEnergy_final");
 
@@ -800,6 +821,21 @@ void GpuMeasurement::calculateEmomMSum()
             emomMEnsembleSums
     );
     ASSERT_GPU_KERNEL("sumOverAtoms_finalize");
+}
+
+void GpuMeasurement::calculateEnergySumsOverAtoms()
+{
+    size_t smem = mm::nwarps(energySums_kernel_threads) * sizeof(real);
+    mm::sumEnergyOverAtoms_partial<<<energySums_kernel_blocks, energySums_kernel_threads, smem, workStream>>>(gpuEnergies.jij, gpuEnergies.dmi, gpuEnergies.ani,
+                                                                                                                gpuEnergies.external, gpuEnergies.tensor, energySums_partial);
+    ASSERT_GPU_KERNEL("sumEnergyOverAtoms_partial");
+
+    const dim3 threads = 256;
+    const dim3 grid = 6 * M;
+    smem = mm::nwarps(threads) * sizeof(real);
+
+    mm::sumEnergyOverAtoms_finalize<<<grid, threads, smem, workStream>>>(energySums_partial,energySums_kernel_blocks.x, N, gpuEnergies.energyM);
+    ASSERT_GPU_KERNEL("sumEnergyOverAtoms_finalize");
 }
 
 
