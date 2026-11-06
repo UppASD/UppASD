@@ -202,12 +202,12 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             emomMEnsembleNTSums_partial.zeros();
             atype_gpu.Allocate(N);
             atype_cpu.set(FortranData::atype, static_cast<long int>(N));
-            atype_gpu.copy_sync(atype_cpu);
+            //atype_gpu.copy_sync(atype_cpu);
 
             if((!asitealloc)&&(!do_ralloy)){
                 asite_ch_gpu.Allocate(Natom_full);
                 asite_ch_cpu.set(FortranData::asite_ch, static_cast<long int>(Natom_full));
-                asite_ch_gpu.copy_sync(asite_ch_cpu);
+                //asite_ch_gpu.copy_sync(asite_ch_cpu);
                 asitealloc = true;
             }
 
@@ -220,7 +220,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             if((!asitealloc)&&(!do_ralloy)){
                 asite_ch_gpu.Allocate(Natom_full);
                 asite_ch_cpu.set(FortranData::asite_ch, static_cast<long int>(Natom_full));
-                asite_ch_gpu.copy_sync(asite_ch_cpu);
+                //asite_ch_gpu.copy_sync(asite_ch_cpu);
                 asitealloc = true;
             }
 
@@ -232,7 +232,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             emomMEnsembleNCSums_partial.zeros();
             achem_ch_gpu.Allocate(N);
             achem_ch_cpu.set(FortranData::achem_ch, static_cast<long int>(N));
-            achem_ch_gpu.copy_sync(achem_ch_cpu);
+           // achem_ch_gpu.copy_sync(achem_ch_cpu);
             
         }
     }

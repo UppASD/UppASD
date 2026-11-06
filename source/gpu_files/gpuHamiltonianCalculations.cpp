@@ -316,8 +316,8 @@ public:
       real exchange = (x * Sx + y * Sy + z * Sz) * (real)-0.5;
       real external = -(ext_x * Sx + ext_y * Sy + ext_z * Sz);
 
-      ene_jij(atom, ensemble) = exchange;
-      ene_ext(atom, ensemble) = external;
+      ene_jij(site, ensemble) = exchange;
+      ene_ext(site, ensemble) = external;
 
 
    }
@@ -445,9 +445,9 @@ public:
       real external = -(ext_x * Sx + ext_y * Sy + ext_z * Sz);
 
 
-      ene_jij(atom, ensemble) = exchange;
-      ene_dmi(atom, ensemble) = DM;
-      ene_ext(atom, ensemble) = external;
+      ene_jij(site, ensemble) = exchange;
+      ene_dmi(site, ensemble) = DM;
+      ene_ext(site, ensemble) = external;
    }
 };
 
@@ -606,9 +606,9 @@ public:
        real anisotropy = -(ax_en * Sx + ay_en * Sy + az_en * Sz);
        real external = -(ext_x * Sx + ext_y * Sy + ext_z * Sz);
 
-      ene_jij(atom, ensemble) = exchange;
-      ene_ani(atom, ensemble) = anisotropy;
-      ene_ext(atom, ensemble) = external;
+      ene_jij(site, ensemble) = exchange;
+      ene_ani(site, ensemble) = anisotropy;
+      ene_ext(site, ensemble) = external;
    }
    
    
@@ -809,10 +809,10 @@ public:
       real DM = (dmx * Sx +dmy * Sy + dmz * Sz)* (real)-0.5;
       real external = -(ext_x * Sx + ext_y * Sy + ext_z * Sz);
 
-      ene_jij(atom, ensemble) =exchange;
-      ene_ani(atom, ensemble) = anisotropy;
-      ene_dmi(atom, ensemble) = DM ; 
-      ene_ext(atom, ensemble) = external; 
+      ene_jij(site, ensemble) =exchange;
+      ene_ani(site, ensemble) = anisotropy;
+      ene_dmi(site, ensemble) = DM ; 
+      ene_ext(site, ensemble) = external; 
 
        
    }
@@ -927,8 +927,8 @@ public:
       real external = -(ext_x * Sx + ext_y * Sy + ext_z * Sz);
 
 
-      ene_ten(atom, ensemble) = tensor;
-      ene_ext(atom, ensemble) = external;
+      ene_ten(site, ensemble) = tensor;
+      ene_ext(site, ensemble) = external;
 
    }
 };
@@ -1128,9 +1128,9 @@ public:
       real anisotropy = -(ax_en * Sx + ay_en * Sy + az_en * Sz);
       real external = -(ext_x * Sx + ext_y * Sy + ext_z * Sz);
 
-      ene_ten(atom, ensemble) = tensor;
-      ene_ani(atom, ensemble) = anisotropy;
-      ene_ext(atom, ensemble) = external;
+      ene_ten(site, ensemble) = tensor;
+      ene_ani(site, ensemble) = anisotropy;
+      ene_ext(site, ensemble) = external;
 
    }
 };
@@ -1318,6 +1318,7 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
       if(do_aniso != 0) {
          parallel.gpuAtomSiteEnsembleCall(HeisgeJijTensorAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.tensor, gpuEnergies.ani, gpuEnergies.external,
                                           gpuLattice.emomM, external_field, tenEx, aniso, redHam, write_energy));
+                                             // ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
       }
       else {
          parallel.gpuAtomSiteEnsembleCall(HeisgeJijTensor(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.tensor, gpuEnergies.external,
@@ -1330,6 +1331,7 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
       if(do_aniso != 0) {
          parallel.gpuAtomSiteEnsembleCall(HeisgeJijDMAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.jij, gpuEnergies.dmi, gpuEnergies.ani, gpuEnergies.external,
                                           gpuLattice.emomM, external_field, ex, dm, aniso, redHam, do_ene, write_energy));
+                                              //ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
       }
       else {
          parallel.gpuAtomSiteEnsembleCall(HeisgeJijDM(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.jij, gpuEnergies.dmi, gpuEnergies.external,
@@ -1341,6 +1343,7 @@ void GpuHamiltonianCalculations::heisge(deviceLattice& gpuLattice, deviceEnergie
    if(do_aniso != 0) {
       parallel.gpuAtomSiteEnsembleCall(HeisgeJijAniso(gpuLattice.beff, gpuLattice.eneff, gpuEnergies.jij, gpuEnergies.ani, gpuEnergies.external,
                                        gpuLattice.emomM, external_field, ex, dm, aniso, redHam, write_energy));
+                                          // ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
    }
    else {
       parallel.gpuAtomSiteEnsembleCall(HeisgeJij(gpuLattice.beff, gpuLattice.eneff,gpuEnergies.jij, gpuEnergies.external,
