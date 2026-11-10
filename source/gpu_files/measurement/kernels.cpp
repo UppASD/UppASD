@@ -702,7 +702,7 @@ __global__ void kernels::measurement::pontryagin_no_partial(const GpuTensor<real
 __global__ void kernels::measurement::pontryagin_no_finalize(const SumPart* __restrict__ block_parts,
                                                 uint nblocks_total,
                                                 uint ensembles,
-                                                uint sk_num_count,
+                                                SkyrmionNumberData& stats,
                                                 SkyrmionNumberData& d)
 {
     real sum = real(0);
@@ -717,9 +717,16 @@ __global__ void kernels::measurement::pontryagin_no_finalize(const SumPart* __re
 
     if (threadIdx.x == 0) {
         d.skyno = s[0] / (M_PI * static_cast<real>(ensembles));
-        const real prev = d.skyno_avg;
-        d.skyno_avg  = prev + (d.skyno - prev) / static_cast<real>(sk_num_count);
-        d.skyno_stdv += (d.skyno - prev) * (d.skyno - d.skyno_avg) / static_cast<real>(sk_num_count);
+
+        ++stats.sample_count;
+        const real n = static_cast<real>(stats.sample_count);
+        const real delta = d.skyno - stats.skyno_avg;
+
+        stats.skyno_avg += delta / n;
+        stats.skyno_m2 += delta * (d.skyno - stats.skyno_avg);
+
+        d.skyno_avg = stats.skyno_avg;
+        d.skyno_stdv = stats.skyno_m2 / n;
     }
 }
 
@@ -825,8 +832,9 @@ __global__ void kernels::measurement::pontryagin_tri_partial(const GpuTensor<rea
 // Phase B: reduce partials, scale by (4π·M), update SkyrmionNumberData (Welford-like)
 __global__ void kernels::measurement::pontryagin_tri_finalize(const SumPart* __restrict__ block_parts,
                                                  uint nblocks_total,
+                                                 uint Natom,
                                                  uint ensembles,
-                                                 uint sk_num_count,
+                                                 SkyrmionNumberData& stats,
                                                  SkyrmionNumberData& d)
 {
     real sum = real(0);
@@ -843,11 +851,17 @@ __global__ void kernels::measurement::pontryagin_tri_finalize(const SumPart* __r
 
     if (threadIdx.x == 0) {
         // Fortran: pontryagin_tri = thesum / (4*pi) / Mensemble
-        d.skyno = s[0] / (real(4) * real(M_PI) * static_cast<real>(ensembles));
+        d.skyno = s[0] / (real(4) * real(M_PI) * static_cast<real>(ensembles)* static_cast<real>(Natom));
+        
+        ++stats.sample_count;
+        const real n = static_cast<real>(stats.sample_count);
+        const real delta = d.skyno - stats.skyno_avg;
 
-        const real prev = d.skyno_avg;
-        d.skyno_avg  = prev + (d.skyno - prev) / static_cast<real>(sk_num_count);
-        d.skyno_stdv += (d.skyno - prev) * (d.skyno - d.skyno_avg) / static_cast<real>(sk_num_count);
+        stats.skyno_avg += delta / n;
+        stats.skyno_m2 += delta * (d.skyno - stats.skyno_avg);
+
+        d.skyno_avg = stats.skyno_avg;
+        d.skyno_stdv = stats.skyno_m2 / n;
     }
 }
 

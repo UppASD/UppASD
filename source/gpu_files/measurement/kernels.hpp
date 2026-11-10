@@ -127,7 +127,7 @@ namespace kernels::measurement
     __global__ void pontryagin_no_finalize(const SumPart* __restrict__ block_parts,
                                            uint nblocks_total,
                                            uint ensembles,
-                                           uint sk_num_count,
+                                           SkyrmionNumberData& stats,
                                            SkyrmionNumberData& d);
 
     // Delaunay triangulation (0-based vertex ids), simp has extents (3, nsimp)
@@ -143,8 +143,9 @@ namespace kernels::measurement
 
     __global__ void pontryagin_tri_finalize(const SumPart* __restrict__ block_parts,
                                             uint nblocks_total,
+                                            uint Natom,
                                             uint ensembles,
-                                            uint sk_num_count,
+                                            SkyrmionNumberData& stats,
                                             SkyrmionNumberData& d);
 
     __global__ void averageEnergy_partial(const GpuTensor<real, 2> energyM,

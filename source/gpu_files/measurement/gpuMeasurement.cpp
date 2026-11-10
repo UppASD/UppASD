@@ -244,10 +244,10 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
     {
         assert(*FortranData::skyno_step > 0 && *FortranData::skyno_buff > 0);
 
-        skyno_buff_gpu.Allocate(*FortranData::skyno_buff);
+        skyno_buff_gpu.Allocate(*FortranData::skyno_buff + 1);
         skyno_buff_gpu.zeros();
 
-        skyno_buff_cpu.AllocateHost(*FortranData::skyno_buff);
+        skyno_buff_cpu.AllocateHost(*FortranData::skyno_buff + 1);
         skyno_buff_cpu.zeros();
 
         skyno_iter.AllocateHost(*FortranData::skyno_buff);
@@ -680,10 +680,12 @@ void GpuMeasurement::measureBinderCumulant(std::size_t mstep)
 
 void GpuMeasurement::measureSkyrmionNumber(std::size_t mstep)
 {
+    const size_t stats_index = *FortranData::skyno_buff;
+
     if (do_skyno == SkyrmionMethod::BruteForce)
     {
         mm::grad_moments<<<skyno_kernel_blocks, skyno_kernel_threads, 0, workStream>>>(
-                gpuLattice.emomM, dxyz_vec, dxyz_atom, dxyz_list, grad_mom
+                gpuLattice.emom, dxyz_vec, dxyz_atom, dxyz_list, grad_mom
         );
         ASSERT_GPU_KERNEL("grad_moments");
 
@@ -696,7 +698,7 @@ void GpuMeasurement::measureSkyrmionNumber(std::size_t mstep)
 
         smem = skyno_kernel_threads.x * sizeof(real);
         mm::pontryagin_no_finalize<<<1, skyno_kernel_threads, smem, workStream>>>(
-                skyno_partial_buff.data(), skyno_kernel_blocks.x, M, skyno_count + 1, skyno_buff_gpu.data()[skyno_count]
+                skyno_partial_buff.data(), skyno_kernel_blocks.x, M, skyno_buff_gpu.data()[stats_index], skyno_buff_gpu.data()[skyno_count]
         );
         ASSERT_GPU_KERNEL("pontryagin_no_finalize");
     }
@@ -711,7 +713,7 @@ void GpuMeasurement::measureSkyrmionNumber(std::size_t mstep)
 
         smem = skyno_kernel_threads.x * sizeof(real);
         mm::pontryagin_tri_finalize<<<1, skyno_kernel_threads, smem, workStream>>>(
-                skyno_partial_buff.data(), skyno_kernel_blocks.x, M, skyno_count + 1, skyno_buff_gpu.data()[skyno_count]
+                skyno_partial_buff.data(), skyno_kernel_blocks.x, N, M, skyno_buff_gpu.data()[stats_index], skyno_buff_gpu.data()[skyno_count]
         );
         ASSERT_GPU_KERNEL("pontryagin_tri_finalize");
     }
@@ -877,7 +879,7 @@ void GpuMeasurement::saveToFile(MeasurementType mtype)
                 skyno_count
         );
 
-        skyno_buff_gpu.zeros();
+        //skyno_buff_gpu.zeros();
         skyno_buff_cpu.zeros();
         skyno_iter.zeros();
         skyno_count = 0;
