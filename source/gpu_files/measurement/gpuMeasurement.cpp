@@ -713,7 +713,7 @@ void GpuMeasurement::measureSkyrmionNumber(std::size_t mstep)
 
         smem = skyno_kernel_threads.x * sizeof(real);
         mm::pontryagin_tri_finalize<<<1, skyno_kernel_threads, smem, workStream>>>(
-                skyno_partial_buff.data(), skyno_kernel_blocks.x, N, M, skyno_buff_gpu.data()[stats_index], skyno_buff_gpu.data()[skyno_count]
+                skyno_partial_buff.data(), skyno_kernel_blocks.x, NA, M, skyno_buff_gpu.data()[stats_index], skyno_buff_gpu.data()[skyno_count]
         );
         ASSERT_GPU_KERNEL("pontryagin_tri_finalize");
     }

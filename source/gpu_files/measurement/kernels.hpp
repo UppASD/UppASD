@@ -6,6 +6,10 @@
 #include "gpuStructures.hpp"
 #include "gpu_wrappers.h"
 
+#ifndef M_PI
+#define M_PI (3.14159265358979323846)
+#endif
+
 
 //#include "device_launch_parameters.h"
 
