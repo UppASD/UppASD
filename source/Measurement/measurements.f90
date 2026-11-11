@@ -30,7 +30,7 @@ contains
    !> Niklas Fejes
    !-----------------------------------------------------------------------------
    subroutine do_measurements(mstep,do_avrg,do_tottraj,avrg_step,ntraj,tottraj_step,&
-      traj_step,do_cumu,cumu_step,logsamp,do_copy,do_gpu_measurements)
+      traj_step,do_cumu,cumu_step, skyno, skyno_step, logsamp,do_copy,do_gpu_measurements)
       !
       implicit none
       !
@@ -46,6 +46,9 @@ contains
       character(len=1)             :: logsamp            !< Sample measurements logarithmically (Y/N)
       integer, intent(out)         :: do_copy            !< Flag if moment must be copied
       character(len=1),intent(in)  :: do_gpu_measurements  !< Measurements (Y/N) with CUDA
+      character(len=1),intent(in)  :: skyno              !< Skyno  with CUDA
+      integer, intent(in)          :: skyno_step         !< Interval for sampling skyno
+
 
       integer :: i
       integer :: sstep
@@ -90,6 +93,13 @@ contains
             return
          end if
       end if
+
+      if (skyno == 'Y' .or. skyno == 'T') then
+         if (mod(sstep-1,skyno_step) == 0) then
+            do_copy = 1
+            return
+         endif
+      endif
 
       ! If not returned yet, don't copy
       do_copy = 0

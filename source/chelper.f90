@@ -268,7 +268,7 @@ contains
       integer, intent(out) :: do_copy !< Flag if copy or not
 
       call do_measurements(cmstep,do_avrg,do_tottraj,avrg_step,ntraj,tottraj_step,  &
-           traj_step,do_cumu,cumu_step,logsamp,do_copy,do_gpu_measurements)
+           traj_step,do_cumu,cumu_step,skyno,skyno_step,logsamp,do_copy,do_gpu_measurements)
 
       ! Spin temperature (sampled in fortran_measure_rest) also needs beff copied
       if (do_spintemp=='Y') then
