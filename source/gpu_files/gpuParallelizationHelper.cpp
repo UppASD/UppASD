@@ -38,17 +38,17 @@ GpuParallelizationHelper ParallelizationHelperInstance;
       free();
 
       // Create streams
-      GPU_STREAM_CREATE(&workStream);
-      GPU_STREAM_CREATE(&copyStream);
+      ASSERT_GPU(GPU_STREAM_CREATE(&workStream));
+      ASSERT_GPU(GPU_STREAM_CREATE(&copyStream));
    }
 
    // Free
    void GpuParallelizationHelper::free() {
       if(workStream != 0) {
-         GPU_STREAM_DESTROY(workStream);
+         ASSERT_GPU(GPU_STREAM_DESTROY(workStream));
       }
       if(copyStream != 0) {
-         GPU_STREAM_DESTROY(copyStream);
+         ASSERT_GPU(GPU_STREAM_DESTROY(copyStream));
       }
       workStream = copyStream = 0;
    }

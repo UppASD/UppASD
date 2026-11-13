@@ -322,23 +322,18 @@ or in the case of git
 git clone github:uppasd
 \end{verbatim}
 %(\texttt{UppASD_dist.tar.gz}) or alternatively using git (\texttt{git clone github:uppasd}. 
-\item Generate the dependencies needed for compiling the code
+\item Configure the build with cmake
 \begin{verbatim}
-make deps
+cmake -S . -B build
 \end{verbatim}
-\item (Optional) Perform a system check for available compiler profiles
+\item Compile the code
 \begin{verbatim}
-make probe
-\end{verbatim} 
-\item Compile the code with the selected compiler profile
-\begin{verbatim}
-make <profile>
+cmake --build build
 \end{verbatim}
-where \texttt{<profile>}is the name of the profile, i.e. \texttt{ifort}, \texttt{ifort-cuda}, \texttt{gfortran}, \\
-\texttt{gfortran-osx}, and so on. Eg. \texttt{make ifort} \\
+The executable is placed in \texttt{build/bin}.
 \item (Optional) Test the compiled program against a selection of realistic runs
 \begin{verbatim}
-make tests
+ctest --test-dir build
 \end{verbatim}
 \end{enumerate}
 \end{gBox}

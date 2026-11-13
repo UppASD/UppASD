@@ -66,7 +66,13 @@ void GpuSimulation::initiateConstants() {
    // printf("cpp = %i, fortr = %i",  SimParam.ipnphase , *FortranData::ipnphase );
     // Constants 
     SimParam.stt = *FortranData::stt;
-    SimParam.rstep = *FortranData::rstep;
+    // rstep is a signed Fortran integer; a negative value (restart files with
+    // step -1) would otherwise wrap around to ~2^32 in all GPU step counters
+    const int rstep_signed = static_cast<int>(*FortranData::rstep);
+    if(rstep_signed < 0) {
+        std::printf("Warning: negative restart step %d reset to 0 for GPU simulation\n", rstep_signed);
+    }
+    SimParam.rstep = (rstep_signed < 0) ? 0 : static_cast<std::size_t>(rstep_signed);
     SimParam.nstep = *FortranData::nstep;
 
     SimParam.delta_t = *FortranData::delta_t;
@@ -333,6 +339,12 @@ bool GpuSimulation::initiateMatrices() {
         //gpuEnergies.extM.Allocate(M);
         //gpuEnergies.tensorM.Allocate(M);
         gpuEnergies.energyM.Allocate(M, static_cast <long int>(6));
+        gpuEnergies.jij.Allocate(N, M);
+        gpuEnergies.dmi.Allocate(N, M);
+        gpuEnergies.ani.Allocate(N, M);
+        gpuEnergies.tensor.Allocate(N, M);
+        gpuEnergies.external.Allocate(N, M);
+
 
     }
     else{ 
@@ -351,7 +363,7 @@ bool GpuSimulation::initiateMatrices() {
         //gpuEnergies.dmM.zeros();
         //gpuEnergies.extM.zeros();
         //gpuEnergies.tensorM.zeros();
-        gpuEnergies.energyM.zeros();
+       // gpuEnergies.energyM.zeros();
 
 
 
@@ -445,13 +457,13 @@ void GpuSimulation::release() {
     gpuHamiltonian.nlistsize.Free(); 
 
     gpuEnergies.energyM.Free();
-    //gpuEnergies.totalM.Free();
-    //gpuEnergies.extM.Free();
-    //gpuEnergies.tensorM.Free();
-    //gpuEnergies.exchM.Free();
-    //gpuEnergies.dmM.Free();
-    //gpuEnergies.aniM.Free();
-
+    if(Flags.do_ene > 0) {
+        gpuEnergies.jij.Free(); 
+        gpuEnergies.dmi.Free(); 
+        gpuEnergies.ani.Free(); 
+        gpuEnergies.tensor.Free(); 
+        gpuEnergies.external.Free(); 
+    }
     if(Flags.do_jtensor != 0) {
         gpuHamiltonian.j_tensor.Free();
     }

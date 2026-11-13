@@ -1,0 +1,78 @@
+# Tests for the HIP backend. They use the same inputs as cudatests.yaml (the *_gpu
+# directories only set gpu_mode 1, which selects whichever GPU backend the binary was
+# built with). All cases run at T=0 without an initial phase, so the GPU random number
+# generator is not used and the CUDA reference values apply.
+caselist:
+  - workingdir: "./kagome_gpu"
+    run: "./runtest.sh"
+    name: "Kagome lattice (tensor, HIP)" 
+    comparisons:
+      - outfile:   averages.kagome_T.out
+        headers: ["#_Iter.", "M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+        testlist:
+          - select:
+              "#_Iter.": 1300
+            extract: ["M_avg_x", "M_avg_y", "M_avg_z", "M_avg"]
+            expected:  [0.000376432611, 0.00431880575, -0.00287422668, 0.00520143861]
+              #expected:  [-3.57739023E-02,  7.00515945E-02,  4.98643602E-03,  7.88153698E-02 ]
+            type: "Magnetization"
+
+      - outfile:   cumulants.kagome_T.out
+        headers: ["#_Iter.", "M_avg", "M_avg^2", "M_avg^4", "U_binder", "Susc.", "Cv"]
+        testlist:
+          - select:
+              "#_Iter.": 171
+            extract: ["M_avg", "M_avg^2", "M_avg^4", "U_binder"]
+            expected:   [0.00645474392, 4.39332491e-05, 2.39469977e-09, 0.586435576]
+            type: "Cumulant"
+
+  - workingdir: "./bccFe_gpu/"
+    run: "./runtest.sh"
+    name: "bcc Fe (scalar, HIP)"
+    comparisons:
+      - outfile:   ./averages.test
+        headers: ["#_Iter.", "M_avg_x", "M_avg_y", "M_avg_z", "M_avg", "M_avg_d"]
+        testlist:
+          - select:
+              "#_Iter.": 1700
+            extract: ["M_avg"]
+            comparison_func: sloppy
+            #expected: [-1.34689935, -1.14393121, -0.120127619, 1.77119935]
+            expected:  [2.16117297]
+            type: "Magnetization"
+
+      - outfile:   ./cumulants.test
+        headers: ["#_Iter.", "M_avg", "M_avg^2", "M_avg^4", "U_binder", "Susc.", "Cv"]
+        testlist:
+          - select:
+              "#_Iter.": 41
+            extract: ["M_avg", "M_avg^2", "M_avg^4", "U_binder"]
+            comparison_func: sloppy
+            expected: [2.01306397, 4.06983767, 16.834752, 0.661209446]
+            type: "Cumulants"
+
+  - workingdir: "./FeCo_gpu/"
+    run: "./runtest.sh"
+    name: "FeCo B2 (reduced, HIP)"
+    comparisons:
+      - outfile:   ./averages.test
+        headers: ["#_Iter.", "M_avg_x", "M_avg_y", "M_avg_z", "M_avg", "M_avg_d"]
+        testlist:
+          - select:
+              "#_Iter.": 4700
+            extract: ["M_avg"]
+            comparison_func: sloppy
+            #expected: [-1.34689935, -1.14393121, -0.120127619, 1.77119935]
+            expected:  [1.97771406]
+            type: "Magnetization"
+
+      - outfile:   ./cumulants.test
+        headers: ["#_Iter.", "M_avg", "M_avg^2", "M_avg^4", "U_binder", "Susc.", "Cv"]
+        testlist:
+          - select:
+              "#_Iter.": 221
+            extract: ["M_avg", "M_avg^2", "M_avg^4", "U_binder"]
+            comparison_func: sloppy
+            expected: [1.80043719, 3.25207765, 10.710877, 0.662415915]
+            type: "Cumulants"
+

@@ -1155,12 +1155,18 @@ contains
       cgk_flag = 0
       dummy_mstep = 0
 
-      if (do_gpu_measurements =='Y') then
-         if (do_spintemp=='Y') then
-            ntmp=nstep/spintemp_step
-            call spintemperature(Natom,Mensemble,mstep,ntmp,simid,emomM,beff,0)
+      ! Always allocate the spin temperature buffer, since it is deallocated
+      ! unconditionally at the end. The GPU loop also measures at the final
+      ! step rstep+nstep+1 (twice, incl. flush), hence the extra samples.
+      if (do_spintemp=='Y') then
+         if (do_gpu_measurements /= 'Y') then
+            write(*,'(2x,a)') "Warning: do_spintemp Y requires do_gpu_measurements Y on GPU, spin temperature not sampled"
          end if
+         ntmp=nstep/spintemp_step+2
+         call spintemperature(Natom,Mensemble,mstep,ntmp,simid,emomM,beff,0)
+      end if
 
+      if (do_gpu_measurements =='Y') then
          if (do_pol=='Y') then
             call init_polarization(Natom,Mensemble,ham%max_no_neigh,ham%nlist,coord,1)
          end if
@@ -1170,6 +1176,13 @@ contains
          !call correlation_wrapper(Natom,Mensemble,coord,simid,emomM,dummy_mstep,delta_t,  &
          !   NT_meta,atype_meta,Nchmax,achtype,sc,do_sc,do_sr,cgk_flag)
       !endif
+
+      ! Restart files written by earlier GPU runs could carry step -1, which the
+      ! GPU code (unsigned rstep) would turn into a wrapped-around step counter
+      if (rstep<0) then
+         write(*,'(2x,a,i0,a)') "Warning: negative restart step ", rstep, " reset to 0"
+         rstep=0
+      end if
 
       ! Copy core fortran data needed by CPP and CUDA solver to local cpp class
       !!! TEMPORARY COMMENTED OUT
@@ -1195,6 +1208,11 @@ contains
       !   stop "Invalid do_gpu"
       !endif
       call timing(0,'Measurement   ','OF')
+
+      ! The GPU time loop does not advance the Fortran step counter. Set it as
+      ! after the CPU loop in sd_mphase, so the final restart file gets step
+      ! rstep+nstep (uppasd.f90 writes mstep-1)
+      mstep=rstep+nstep+1
 
             ! Print final polarization, chirality and local polarization
       if (do_pol=='Y') then

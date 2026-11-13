@@ -1,6 +1,8 @@
 #! /bin/bash
 
 # Perform a loop over various values of the damping
+: "${SD_BINARY:?Set SD_BINARY to the full path of the UppASD executable}"
+
 for damp in 0 1 10 100 1000 10000 100000
 do
 
@@ -25,7 +27,7 @@ do
 
       echo -e "Performing simulation for damping $damping"
       # Running the ASD simulation
-      ../../../../source/sd > out.out
+      ${SD_BINARY} > out.out
       echo -e "done"
 
    cd ../

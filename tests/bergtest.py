@@ -12,6 +12,8 @@ import shlex
 import time
 import datetime
 import sys
+import glob
+import shutil
 
 from pprint import pprint
 from ast import literal_eval
@@ -119,7 +121,8 @@ def runexternal(runcmd, wd):
         args=popenargs,
         cwd=wd,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE)
+        stderr=subprocess.PIPE,
+        universal_newlines=True)
     out, err = com = sp.communicate()
     # print the output if needed
     # for elem in com: pprint(elem.split("\n"))
@@ -170,6 +173,24 @@ def extractandcompare(test, outfile, headers=None, skiprows=None):
         return None
 
 
+# Output files removed before a simulation is run (and by --cleanup)
+CLEANUP_PATTERNS = ['*.out', 'meminfo', 'fort.*', 'tempfile', '*.yaml', '*.json',
+                    'out*', 'averages.*', 'totenergy.*', 'cumulants.*']
+
+
+def cleandir(directory):
+    for pattern in CLEANUP_PATTERNS:
+        for filename in glob.glob(os.path.join(directory, pattern)):
+            if os.path.isfile(filename):
+                os.remove(filename)
+
+
+# Directories already cleaned in this run. Several cases may share a
+# directory, where later cases (e.g. nulltest.sh) only check the output of
+# an earlier one, so each directory is cleaned only before its first case.
+cleaneddirs = set()
+
+
 def execcase(case, externallabel=None, reallyrun=True):
     externaltestname = externallabel if externallabel else ""
     internaltestname = case.get('name') if case.get('name') else ""
@@ -191,22 +212,33 @@ def execcase(case, externallabel=None, reallyrun=True):
             externaltestname, internaltestname, definitionfilename))
 
     if path_to_executable and reallyrun:
+        if not args.dirty and wd not in cleaneddirs:
+            cleandir(wd)
+            cleaneddirs.add(wd)
         # may wish to add args here for some cases
         runcmd = (path_to_executable)
         out, err = runexternal(runcmd, wd)
         if err:
             print("Something fishy")
-            map(pprint, ("===== Error(s) occured: =====", err.split("\n"), "-"*25))
+            pprint("===== Error(s) occurred: =====")
+            pprint(err.splitlines())
+            pprint("-" * 25)
 
     ccoms = case['comparisons']
 
     for ccom in ccoms:
         for test in ccom['testlist']:
             if os.path.isfile(ccom['outfile']):
-                test['cmpoutcome'], test['extracted'] = extractandcompare(
+                result = extractandcompare(
                     test,
                     ccom['outfile'],
                     headers=ccom.get('headers'), skiprows=ccom.get('skiprows'))
+                if result is None:
+                    test['cmpoutcome'] = [False] * len(test.get('expected', []))
+                    test['extracted'] = [float('nan')] * len(test.get('expected', []))
+                    test['extraction_error'] = "NO_MATCHING_ROW_ERROR"
+                else:
+                    test['cmpoutcome'], test['extracted'] = result
             else:
                 test['cmpoutcome'], test['extracted'] = (
                     [False], "NO_SUCH_FILE_ERROR")
@@ -239,17 +271,27 @@ def getargs():
         help='Dry run, i.e. do not run simulation code before testing',
         default=False, action="store_true")
     parser.add_argument(
-        '--binary', help='Full path to the execeutable to be tested',
-        metavar='binary', default='../../source/sd')
+        '--binary', help='Full path to the execeutable to be tested '
+        '(default: the SD_BINARY environment variable)',
+        metavar='binary', default=os.environ.get('SD_BINARY'))
     parser.add_argument(
         '--dirty',  help='Avoid automatic cleanup before simulation',
         default=False, action="store_true")
     parser.add_argument(
-        '--case',   help='Run specific simulation',
-        dest='selectedcase', type=int, default=-1)
+        '--case',   help='Run specific simulation(s), numbered from 1',
+        dest='selectedcases', type=int, nargs='+', default=[])
     parsed = parser.parse_args()
 
-    os.environ["SD_BINARY"] = parsed.binary
+    if parsed.binary:
+        # The cases run in their own directories, so make the path absolute.
+        # A bare name (no directory part) is looked up in PATH first.
+        binary = parsed.binary
+        if os.path.dirname(binary) == '' and shutil.which(binary):
+            binary = shutil.which(binary)
+        parsed.binary = os.path.abspath(os.path.expanduser(binary))
+        os.environ["SD_BINARY"] = parsed.binary
+    elif not (parsed.cleanup or parsed.dryrun):
+        parser.error('no binary given, use --binary or set SD_BINARY')
 
     if(parsed.dryrun):
         parsed.reallyrun = 0
@@ -286,6 +328,9 @@ def presentresults(case):
                 if(test.get('extracted') == 'NO_SUCH_FILE_ERROR'):
                     printfun("    Working directory: %s, Output file: %s does not exist." % (
                         case.get('workingdir'), ccom.get('outfile')))
+                elif(test.get('extraction_error') == 'NO_MATCHING_ROW_ERROR'):
+                    printfun("    No row matched selector %s in %s." % (
+                        test.get('select'), ccom.get('outfile')))
                 else:
                     printfun("    (Working directory: %s, Output file: %s )" % (
                         case.get('workingdir'), ccom.get('outfile')))
@@ -348,24 +393,22 @@ def mainscript():
 
     numtests = 0
     numfails = 0
-    if all(validnames):
-        for definitionfilename in definitionfilenames:
-            yamlob = readconfig(definitionfilename)
+    for definitionfilename in definitionfilenames:
+        yamlob = readconfig(definitionfilename)
 
-            # Start working through the cases:
-            caselist = yamlob["caselist"]
-            if args.selectedcase > 0:
-                case = caselist[args.selectedcase-1]
+        # Start working through the cases:
+        caselist = yamlob["caselist"]
+        if args.selectedcases:
+            for n in args.selectedcases:
+                if not 1 <= n <= len(caselist):
+                    print("Case %d does not exist in %s, which has %d cases." % (
+                        n, definitionfilename, len(caselist)))
+                    sys.exit(1)
                 numtests, numfails = runcase(
-                    case, args.selectedcase-1, numtests, numfails)
-            else:
-                for k, case in enumerate(caselist):
-                    numtests, numfails = runcase(case, k, numtests, numfails)
-
-    else:
-        print(definitionfilenames)
-        missing = [n for n, t in zip(definitionfilenames, validnames) if not t]
-        map(printfun, ["Can not find file(s) named:"]+missing+[''])
+                    caselist[n-1], n-1, numtests, numfails)
+        else:
+            for k, case in enumerate(caselist):
+                numtests, numfails = runcase(case, k, numtests, numfails)
 
     return numtests, numfails
     os.chdir(startdir)
@@ -379,13 +422,10 @@ if __name__ == "__main__":
 
     reallyrunexternal = True if (args and args.reallyrun) else False
 
-    if not args.dirty:
-        print("\nCleaning up directories and examples")
-        execstr = "rm -f */*.out */meminfo */fort.* */tempfile */*.yaml */*.json"
-        os.system(execstr)
-        execstr = "rm -f */out* */averages.* */totenergy.* */cumulants.* "
-        os.system(execstr)
     if(args.cleanup):
+        print("\nCleaning up directories and examples")
+        for directory in glob.glob('*/'):
+            cleandir(directory)
         quit()
 
     #os.system('cls' if os.name == 'nt' else 'clear')
@@ -400,7 +440,10 @@ if __name__ == "__main__":
 
     definitionfilenames = args.descriptorfiles if (
         args and (0 < len(args.descriptorfiles))) else ['./test_initialtests.yaml']
-    validnames = map(os.path.isfile, definitionfilenames)
+    missing = [n for n in definitionfilenames if not os.path.isfile(n)]
+    if missing:
+        print("Can not find file(s) named: " + ", ".join(missing))
+        sys.exit(1)
 
     tic = time.time()
     numtests, numfails = mainscript()
@@ -430,7 +473,10 @@ if __name__ == "__main__":
         (numtests, snumfails))
     print("-----------------------------------------------")
 
-    if (numfails == 0):
+    if (numtests == 0):
+        print("No tests were performed, exiting with error")
+        sys.exit(1)
+    elif (numfails == 0):
         print("Exiting without errors")
         sys.exit(0)
     else:

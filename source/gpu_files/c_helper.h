@@ -13,6 +13,13 @@
 #error "both __GNU__ and __Intel__ defined!"
 #elif defined(__GNU__)
 #define FORTNAME(mod, func) __##mod##_MOD_##func
+#elif defined(__LLVMFlang__)
+// New LLVM Flang (amdflang 24+) uses _QM<mod>P<func> symbol convention
+#define FORTNAME(mod, func) _QM##mod##P##func
+#elif defined(__Flang__)
+#define FORTNAME(mod, func) __##mod##_MOD_##func
+#elif defined(__Cray__)
+#define FORTNAME(mod, func) func##$##mod##_
 #elif defined(__Intel__)
 #define FORTNAME(mod, func) mod##_mp_##func##_
 #elif defined(__IntelLLVM__)

@@ -6,6 +6,8 @@
 #SBATCH --mail-type=ALL  
 #SBATCH --mail-user=andrea.taroni@fysik.uu.se
 
+: "${SD_BINARY:?Set SD_BINARY to the full path of the UppASD executable}"
+
 export OMP_NUM_THREADS=8
-time /home/x_andta/UppASD_3.0/source/sd > out.dm
+time ${SD_BINARY} > out.dm
 gzip --best *.out

@@ -1,6 +1,8 @@
 # Script to run all the examples
 #!/bin/bash
 
+: "${SD_BINARY:?Set SD_BINARY to the full path of the UppASD executable}"
+
 for n in \
 DimerauSLD \
 DimerpuSLDcoupled \
@@ -11,7 +13,7 @@ DimerpuSLDuncoupled
 do
     cd $n
     echo Starts example $n
-    ../../../../source/sd > out.log
+    ${SD_BINARY} > out.log
     echo Ends example $n
     cd ../
 done

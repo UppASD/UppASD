@@ -1,4 +1,6 @@
 #! /bin/bash 
+: "${SD_BINARY:?Set SD_BINARY to the full path of the UppASD executable}"
+
 export OMP_NUM_THREADS=4 
 for Temp in 010 100 200 300 400 500 600 700 800 900 950 1000 1050 1100 1150 1200 1250 1300 1500
 do
@@ -12,7 +14,7 @@ do
    sed -i "s/#restart/restart/" inpsd.dat 
    cp ../restart.bccFe100.out .
  fi
- ../../../source/sd > out.log
+ ${SD_BINARY} > out.log
  cp restart.bccFe100.out ../
  cd ..
 done

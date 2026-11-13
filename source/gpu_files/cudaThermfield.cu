@@ -106,8 +106,9 @@ bool CudaThermfield::initiateConstants(const Tensor<real, 1>& temperature, real 
       return false;
    }
 
-   // Damping parameter
-   real dp = (2.0 * damping * k_bolt) / (timestep * gamma * mub * (1 + damping * damping));
+   // Damping parameter (same as CPU depondt_evolve_first: no 1/(1+damping^2) here,
+   // that factor is applied to the rotation angle of the total local field)
+   real dp = (2.0 * damping * k_bolt) / (timestep * gamma * mub);
 
    // Set up sigmaFactor
    sigmaFactor.copy_sync(temperature);
@@ -124,7 +125,7 @@ void CudaThermfield::resetConstants(const Tensor<real, 1>& temperature, real tim
                                        real k_bolt, real mub, real damping) {
    // Set up sigmaFactor
    sigmaFactor.copy_sync(temperature);
-   real dp = (2.0 * damping * k_bolt) / (timestep * gamma * mub * (1 + damping * damping));
+   real dp = (2.0 * damping * k_bolt) / (timestep * gamma * mub);
    // sF = sqrt(dp*sF) ( = sqrt(dp*temp))
    parallel.gpuSiteCall(SetupSigmaFactor(sigmaFactor, dp));
    stopwatch.add("initiate constants");

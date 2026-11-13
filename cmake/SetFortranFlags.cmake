@@ -49,6 +49,32 @@ ENDIF(CMAKE_Fortran_FLAGS_RELEASE AND CMAKE_Fortran_FLAGS_TESTING AND CMAKE_Fort
 # flag is given in the call).  This way unknown compiles are supported.
 #######################################################################
 
+########################################################################
+# Cray CCE and AMD Flang compilers (used via the Cray ftn wrapper)
+# need their flags set directly because the TRY_COMPILE flag-probing
+# mechanism fails with the Cray compiler wrappers.
+########################################################################
+IF(CMAKE_Fortran_COMPILER_ID STREQUAL "Cray")
+    message(STATUS "Detected Cray Fortran compiler — setting flags directly")
+    SET(CMAKE_Fortran_FLAGS         "-eZ -hfp3 -ef" CACHE STRING "" FORCE)
+    SET(CMAKE_Fortran_FLAGS_RELEASE "-O3"            CACHE STRING "" FORCE)
+    SET(CMAKE_Fortran_FLAGS_DEBUG   "-O0 -G0 -Rb"   CACHE STRING "" FORCE)
+    SET(CMAKE_Fortran_FLAGS_TESTING "-O2"            CACHE STRING "" FORCE)
+    mark_as_advanced(CMAKE_Fortran_FLAGS_TESTING)
+    RETURN()
+ELSEIF(CMAKE_Fortran_COMPILER_ID STREQUAL "Flang" OR
+       CMAKE_Fortran_COMPILER_ID STREQUAL "LLVMFlang")
+    message(STATUS "Detected Flang (AMD) Fortran compiler — setting flags directly")
+    SET(CMAKE_Fortran_FLAGS         "-cpp"           CACHE STRING "" FORCE)
+    SET(CMAKE_Fortran_FLAGS_RELEASE "-O3"            CACHE STRING "" FORCE)
+    SET(CMAKE_Fortran_FLAGS_DEBUG   "-O0 -g"         CACHE STRING "" FORCE)
+    SET(CMAKE_Fortran_FLAGS_TESTING "-O2"            CACHE STRING "" FORCE)
+    # Fortran trampolines need executable stack; ld.lld rejects by default
+    SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-z,execstack" CACHE STRING "" FORCE)
+    mark_as_advanced(CMAKE_Fortran_FLAGS_TESTING)
+    RETURN()
+ENDIF()
+
 #####################
 ### GENERAL FLAGS ###
 #####################

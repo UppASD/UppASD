@@ -109,14 +109,14 @@ void FortranCorrelation::copyQueueFast(std::size_t mstep) {
    GpuEventPool::Event& copyDone = eventPool.get();
 
    // The copying must wait for the work stream to finish
-   GPU_EVENT_RECORD(workDone.event(), workStream);
-   GPU_STREAM_WAIT_EVENT(copyStream, workDone.event(), 0);
+   ASSERT_GPU(GPU_EVENT_RECORD(workDone.event(), workStream));
+   ASSERT_GPU(GPU_STREAM_WAIT_EVENT(copyStream, workDone.event(), 0));
 
    // Async copy in copy stream (device -> temp. device)
    tmp_emomM.copy_async(emomM, copyStream);
    tmp_emom.copy_async(emom, copyStream);
    tmp_mmom.copy_async(mmom, copyStream);
-   GPU_EVENT_RECORD(copyDone.event(), copyStream);
+   ASSERT_GPU(GPU_EVENT_RECORD(copyDone.event(), copyStream));
    stopwatch.add("fast - D2D");
 
    // Then write to host in copy stream (asynchronously with work stream)
@@ -126,7 +126,7 @@ void FortranCorrelation::copyQueueFast(std::size_t mstep) {
    pinned_mmom.copy_async(tmp_mmom, copyStream);
 
    // Make the work stream wait out the copying
-   GPU_STREAM_WAIT_EVENT(workStream, copyDone.event(), 0);
+   ASSERT_GPU(GPU_STREAM_WAIT_EVENT(workStream, copyDone.event(), 0));
    copyDone.addDeactivateCallback(workStream);
    workDone.addDeactivateCallback(workStream);
 
@@ -177,7 +177,7 @@ void FortranCorrelation::flushCorrelations(hostCorrelations& cpuCorrelations, st
    stopwatch.skip();
 
    // Wait out possible queue callbacks
-   GPU_STREAM_SYNC(parallel.getWorkStream());
+   ASSERT_GPU(GPU_STREAM_SYNC(parallel.getWorkStream()));
 
    // Flush internal queue
   //correlationQueue.finish();

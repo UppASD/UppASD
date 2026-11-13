@@ -112,6 +112,70 @@ __global__ void kernels::measurement::sumOverAtoms_finalize(const GpuTensor<real
         emomMEnsembleSums(i, k) = sum;
 }
 
+// ============================================================================
+// Energy sum over atoms (two-phase across ensembles)
+// ============================================================================
+__global__ void kernels::measurement::sumEnergyOverAtoms_partial(const GpuTensor<real, 2> ene_jij,
+        const GpuTensor<real, 2> ene_dmi,
+        const GpuTensor<real, 2> ene_ani,
+        const GpuTensor<real, 2> ene_ext,
+        const GpuTensor<real, 2> ene_ten,
+        GpuTensor<real, 3> block_parts)
+{
+    const uint N_atoms = static_cast<uint>(ene_jij.extent(0));
+    const uint M_ensembles = static_cast<uint>(ene_jij.extent(1));
+    const uint k = blockIdx.y;
+    if (k >= M_ensembles) return;
+    real local_jij{};
+    real local_dmi{};
+    real local_ani{};
+    real local_ext{};
+    real local_ten{};
+    for (uint j = blockIdx.x * blockDim.x + threadIdx.x; j < N_atoms; j += blockDim.x * gridDim.x)
+    {
+        local_jij += ene_jij(j, k);
+        local_dmi += ene_dmi(j, k);
+        local_ani += ene_ani(j, k);
+        local_ext += ene_ext(j, k);
+        local_ten += ene_ten(j, k);
+    }
+    extern __shared__ real s[];
+    real block_sum_jij = block_reduce_sum_1d(local_jij, s);
+    real block_sum_dmi = block_reduce_sum_1d(local_dmi, s);
+    real block_sum_ani = block_reduce_sum_1d(local_ani, s);
+    real block_sum_ext = block_reduce_sum_1d(local_ext, s);
+    real block_sum_ten = block_reduce_sum_1d(local_ten, s);
+    if (threadIdx.x == 0)
+    {
+        block_parts(blockIdx.x, 0, k) = block_sum_jij;
+        block_parts(blockIdx.x, 1, k) = block_sum_dmi;
+        block_parts(blockIdx.x, 2, k) = block_sum_ani;
+        block_parts(blockIdx.x, 3, k) = block_sum_ext;
+        block_parts(blockIdx.x, 4, k) = block_sum_ten;
+        block_parts(blockIdx.x, 5, k) = block_sum_jij + block_sum_dmi + block_sum_ani + block_sum_ext + block_sum_ten;
+    }
+}
+
+__global__ void kernels::measurement::sumEnergyOverAtoms_finalize(const GpuTensor<real, 3> block_parts, uint nblocks, uint N, GpuTensor<real, 2> energyM)
+{
+    const uint M_ensembles = static_cast<uint>(energyM.extent(0));
+    const uint q = blockIdx.x;      // 0..(6*M_ensembles-1)
+    const uint i = q % 6u;          // energy type, including total
+    const uint k = q / 6u;          // ensemble
+    if (k >= M_ensembles) return;
+    extern __shared__ real s[];
+    real local = 0;
+
+    for (uint bid = threadIdx.x; bid < nblocks; bid += blockDim.x){
+
+        local += block_parts(bid, i, k);
+    }
+    real sum = block_reduce_sum_1d(local, s);
+
+    if (threadIdx.x == 0)
+    
+        energyM(k, i) = sum / static_cast<real>(N);
+}
 
 // ============================================================================
 // averageMagnetization (two-phase across ensembles)
@@ -419,6 +483,8 @@ __global__ void kernels::measurement::binderCumulantEnergy_finalize(
     int warp = tid / WARPSIZE;
 
 
+    const real fcinv = mub / mry;
+
     if (tid < nblocks)
     {
         #pragma unroll
@@ -503,11 +569,11 @@ __global__ void kernels::measurement::binderCumulantEnergy_finalize(
         const real avrgm2_b = m2 / w_new;
         const real avrgm4_b = m4 / w_new;
 
-        const real exch_mean  = exch1 / w_new;
-        const real exch2_mean = exch2 / w_new;
+        const real exch_mean  = exch1 * fcinv / w_new;
+        const real exch2_mean = exch2 * fcinv * fcinv/ w_new;
 
-        const real total_mean  = total1 / w_new;
-        const real total2_mean = total2 / w_new;
+        const real total_mean  = total1 * fcinv/ w_new;
+        const real total2_mean = total2 * fcinv* fcinv/ w_new;
 
         d.avrgmcum  = (d.avrgmcum  * d.cumutotw + avrgme   * w_new) / tot;
         d.avrgm2cum = (d.avrgm2cum * d.cumutotw + avrgm2_b * w_new) / tot;
@@ -636,7 +702,7 @@ __global__ void kernels::measurement::pontryagin_no_partial(const GpuTensor<real
 __global__ void kernels::measurement::pontryagin_no_finalize(const SumPart* __restrict__ block_parts,
                                                 uint nblocks_total,
                                                 uint ensembles,
-                                                uint sk_num_count,
+                                                SkyrmionNumberData& stats,
                                                 SkyrmionNumberData& d)
 {
     real sum = real(0);
@@ -651,9 +717,16 @@ __global__ void kernels::measurement::pontryagin_no_finalize(const SumPart* __re
 
     if (threadIdx.x == 0) {
         d.skyno = s[0] / (M_PI * static_cast<real>(ensembles));
-        const real prev = d.skyno_avg;
-        d.skyno_avg  = prev + (d.skyno - prev) / static_cast<real>(sk_num_count);
-        d.skyno_stdv += (d.skyno - prev) * (d.skyno - d.skyno_avg) / static_cast<real>(sk_num_count);
+
+        ++stats.sample_count;
+        const real n = static_cast<real>(stats.sample_count);
+        const real delta = d.skyno - stats.skyno_avg;
+
+        stats.skyno_avg += delta / n;
+        stats.skyno_m2 += delta * (d.skyno - stats.skyno_avg);
+
+        d.skyno_avg = stats.skyno_avg;
+        d.skyno_stdv = stats.skyno_m2 / n;
     }
 }
 
@@ -679,7 +752,7 @@ __global__ void kernels::measurement::delaunay_tri_tri(uint nx, uint ny, uint nz
     const uint xm1 = (x + nx - 1u) % nx;
 
     const auto vid = [nx, ny, nt](uint cx, uint cy, uint cz, uint it0) -> uint {
-        const uint lin = cz * ny + cy * nx + cx;
+        const uint lin = (cz * ny + cy) * nx + cx;
         return nt * lin + it0;
     };
 
@@ -759,8 +832,9 @@ __global__ void kernels::measurement::pontryagin_tri_partial(const GpuTensor<rea
 // Phase B: reduce partials, scale by (4π·M), update SkyrmionNumberData (Welford-like)
 __global__ void kernels::measurement::pontryagin_tri_finalize(const SumPart* __restrict__ block_parts,
                                                  uint nblocks_total,
+                                                 uint NA,
                                                  uint ensembles,
-                                                 uint sk_num_count,
+                                                 SkyrmionNumberData& stats,
                                                  SkyrmionNumberData& d)
 {
     real sum = real(0);
@@ -777,11 +851,17 @@ __global__ void kernels::measurement::pontryagin_tri_finalize(const SumPart* __r
 
     if (threadIdx.x == 0) {
         // Fortran: pontryagin_tri = thesum / (4*pi) / Mensemble
-        d.skyno = s[0] / (real(4) * real(M_PI) * static_cast<real>(ensembles));
+        d.skyno = s[0] / (real(4) * real(M_PI) * static_cast<real>(ensembles)* static_cast<real>(NA));
 
-        const real prev = d.skyno_avg;
-        d.skyno_avg  = prev + (d.skyno - prev) / static_cast<real>(sk_num_count);
-        d.skyno_stdv += (d.skyno - prev) * (d.skyno - d.skyno_avg) / static_cast<real>(sk_num_count);
+        ++stats.sample_count;
+        const real n = static_cast<real>(stats.sample_count);
+        const real delta = d.skyno - stats.skyno_avg;
+
+        stats.skyno_avg += delta / n;
+        stats.skyno_m2 += delta * (d.skyno - stats.skyno_avg);
+
+        d.skyno_avg = stats.skyno_avg;
+        d.skyno_stdv = stats.skyno_m2 / n;
     }
 }
 
@@ -844,7 +924,7 @@ __global__ void kernels::measurement::averageEnergy_partial(const GpuTensor<real
 
     if (tid == 0)
     {
-        EnePart& part = block_parts[blockIdx.y * gridDim.x + blockIdx.x];
+        EnePart& part = block_parts[ blockIdx.x];
 
         part.sum[etype]  = ene;
         part.sum2[etype] = ene2;

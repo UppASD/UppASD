@@ -1,7 +1,7 @@
 #pragma once
 
 #ifdef HIP_V
-    #ifdef ON_LUMI
+    #ifndef USE_HIP_COMPLEX
         // LUMI (AMD GPU): use thrust::complex for improved interoperability with CUDA code
         #include <thrust/complex.h>
         #ifdef SINGLE_PREC

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstdio>
+#include <stdexcept>
+
 #if defined(HIP_V)
   #include <hip/hip_runtime.h>
   #include <hiprand/hiprand.h>
@@ -24,13 +27,12 @@
   #define GPU_MEMCPY_HOST_TO_HOST hipMemcpyHostToHost
   #define GPU_MEMSET(ptr, value, size) hipMemset(ptr, value, size)
   #define GPU_MEMSET_ASYNC(ptr, value, size, stream) hipMemsetAsync(ptr, value, size, stream)
-  #define GPU_NORMAL(d_state) hiprand_normal(d_state)
   #define GPU_NORMAL_DOUBLE(d_state) hiprand_normal_double(d_state)
   #define GPU_RAND_INIT(seed, subsequence, ffset,state) hiprand_init(seed, subsequence, ffset,state)
   #define GPU_SUCCESS hipSuccess
   #define GPU_RAND_STATE hiprandState_t
   #define GPU_STREAM_T hipStream_t
-  #define GPU_STREAM_ADD_CALLBACK(stream, callback, userData, flags)	 hipStreamAddCallback(stream, callback, userData, flags)	
+  #define GPU_STREAM_ADD_CALLBACK(stream, callback, userData, flags)	 hipStreamAddCallback(stream, callback, userData, flags)
   #define GPU_STREAM_CREATE(stream) hipStreamCreate(stream)
   #define GPU_STREAM_DESTROY(stream) hipStreamDestroy(stream)
   #define GPU_STREAM_SYNC(stream) hipStreamSynchronize(stream)
@@ -47,7 +49,7 @@
   #define GPU_RAND_GENERATE_NORMAL_DOUBLE(generator, outputPtr, n, mean, stddev) hiprandGenerateNormalDouble(generator, outputPtr, n, mean, stddev)
   #define GPU_RAND_UNIFORM_DOUBLE(state) hiprand_uniform_double(state)
 
-  #define WARPSIZE warpSize
+  #define WARPSIZE 64
   #define SHFL_DOWN(val, offset) __shfl_down(val, offset)
 
 
@@ -79,13 +81,12 @@
   #define GPU_MEMCPY_HOST_TO_HOST cudaMemcpyHostToHost
   #define GPU_MEMSET(ptr, value, size) cudaMemset(ptr, value, size)
   #define GPU_MEMSET_ASYNC(ptr, value, size, stream) cudaMemsetAsync(ptr, value, size, stream)
-  #define GPU_NORMAL(d_state) curand_normal(d_state)
   #define GPU_NORMAL_DOUBLE(d_state) curand_normal_double(d_state)
   #define GPU_RAND_INIT(seed, subsequence, ffset,state) curand_init(seed, subsequence, ffset,state)
   #define GPU_SUCCESS cudaSuccess
   #define GPU_RAND_STATE curandState
   #define GPU_STREAM_T cudaStream_t
-  #define GPU_STREAM_ADD_CALLBACK(stream, callback, userData, flags)\	 cudaStreamAddCallback(stream, callback, userData, flags)\	
+  #define GPU_STREAM_ADD_CALLBACK(stream, callback, userData, flags)	 cudaStreamAddCallback(stream, callback, userData, flags)
   #define GPU_STREAM_CREATE(stream) cudaStreamCreate(stream)
   #define GPU_STREAM_DESTROY(stream) cudaStreamDestroy(stream)
   #define GPU_STREAM_SYNC(stream) cudaStreamSynchronize(stream)
@@ -102,7 +103,14 @@
   #define GPU_RAND_GENERATE_NORMAL_DOUBLE(generator, outputPtr, n, mean, stddev) curandGenerateNormalDouble(generator, outputPtr, n, mean, stddev)
   #define GPU_RAND_UNIFORM_DOUBLE(state) curand_uniform_double(state)
 
+  #if defined(__HIP_PLATFORM_NVIDIA__)
   #define WARPSIZE 32
+#elif defined(__GFX8__) || defined(__GFX9__)
+  #define WARPSIZE 64
+#else
+  #define WARPSIZE 32
+#endif
+
   #define FULL_MASK 0xffffffff
   #define SHFL_DOWN(val, offset) __shfl_down_sync(FULL_MASK, val, offset)
 
@@ -110,11 +118,59 @@
 #endif
 
 
-/*#define ASSERT_GPU(call) \
-  do { \
-    GPU_ERROR_T err = call; \
-    if (err != GPU_SUCCESS) { \
-      fprintf(stderr, "GPU error at %s:%d: %s\\n", __FILE__, __LINE__, GPU_GET_ERROR_STRING(err)); \
-      exit(1); \
-    } \
-  } while (0)*/
+// Post-kernel-launch check: queries the last asynchronous error from the GPU
+// runtime.  Takes an optional kernel name for diagnostics.
+#define ASSERT_GPU_KERNEL(name)                                                \
+   do {                                                                        \
+      GPU_ERROR_T _gpu_err = GPU_GET_LAST_ERROR();                             \
+      if (_gpu_err != GPU_SUCCESS) {                                           \
+         char _gpu_msg[512];                                                   \
+         std::snprintf(_gpu_msg, sizeof(_gpu_msg),                             \
+                       "GPU kernel '%s' launch error at %s:%d — %s",           \
+                       (name), __FILE__, __LINE__,                             \
+                       GPU_GET_ERROR_STRING(_gpu_err));                        \
+         throw std::runtime_error(_gpu_msg);                                   \
+      }                                                                        \
+   } while (0)
+
+// Runtime error check for HIP/CUDA calls that return GPU_ERROR_T.
+// Throws std::runtime_error with file, line, and the driver error string.
+#define ASSERT_GPU(call)                                                       \
+   do {                                                                        \
+      GPU_ERROR_T _gpu_err = (call);                                           \
+      if (_gpu_err != GPU_SUCCESS) {                                           \
+         char _gpu_msg[512];                                                   \
+         std::snprintf(_gpu_msg, sizeof(_gpu_msg),                             \
+                       "GPU error at %s:%d — %s",                              \
+                       __FILE__, __LINE__,                                     \
+                       GPU_GET_ERROR_STRING(_gpu_err));                        \
+         throw std::runtime_error(_gpu_msg);                                   \
+      }                                                                        \
+   } while (0)
+
+// Check the most recent asynchronous GPU error (useful after kernel launches).
+#define GPU_CHECK_LAST_ERROR()                                                 \
+   do {                                                                        \
+      GPU_ERROR_T _gpu_err = GPU_GET_LAST_ERROR();                             \
+      if (_gpu_err != GPU_SUCCESS) {                                           \
+         char _gpu_msg[512];                                                   \
+         std::snprintf(_gpu_msg, sizeof(_gpu_msg),                             \
+                       "GPU kernel error at %s:%d — %s",                       \
+                       __FILE__, __LINE__,                                     \
+                       GPU_GET_ERROR_STRING(_gpu_err));                        \
+         throw std::runtime_error(_gpu_msg);                                   \
+      }                                                                        \
+   } while (0)
+
+// Runtime error check for hiprand / curand calls that return a status code.
+#define ASSERT_GPU_RAND(call)                                                  \
+   do {                                                                        \
+      auto _rand_err = (call);                                                 \
+      if (_rand_err != GPU_RAND_STATUS_SUCCESS) {                              \
+         char _gpu_msg[512];                                                   \
+         std::snprintf(_gpu_msg, sizeof(_gpu_msg),                             \
+                       "GPU RNG error at %s:%d — status code %d",              \
+                       __FILE__, __LINE__, static_cast<int>(_rand_err));       \
+         throw std::runtime_error(_gpu_msg);                                   \
+      }                                                                        \
+   } while (0)

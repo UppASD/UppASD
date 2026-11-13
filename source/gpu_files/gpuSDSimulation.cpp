@@ -1,6 +1,6 @@
 #include "c_headers.hpp"
 #include "c_helper.h"
-#include "gpuDepondtIntegrator_fused.hpp"
+#include "gpuDepondtIntegrator.hpp"
 //#include "cudaGPUErrchk.hpp"
 #include "gpuHamiltonianCalculations.hpp"
 #include "gpuMeasurement.hpp"
@@ -69,6 +69,8 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
 
    // Initiate default parallelization helper
    ParallelizationHelperInstance.initiate(gpuSim.SimParam.N, gpuSim.SimParam.M, gpuSim.SimParam.NH);
+   // Depontd integrator
+   GpuDepondtIntegrator integrator;
 
    // Hamiltonian calculations
    GpuHamiltonianCalculations hamCalc;
@@ -77,7 +79,11 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
    GpuMomentUpdater momUpdater(gpuSim.gpuLattice, gpuSim.SimParam.mompar, gpuSim.SimParam.initexc);
 
 
-   // Initiate Hamiltonian
+   // Initiate integrator and Hamiltonian
+   if(!integrator.initiate(gpuSim.SimParam)) {
+      std::fprintf(stderr, "GpuSDSimulation: integrator failed to initiate!\n");
+      return;
+   }
    if(!hamCalc.initiate(gpuSim.Flags, gpuSim.SimParam, gpuSim.gpuHamiltonian)) {
       std::fprintf(stderr, "GpuSDSimulation: Hamiltonian failed to initiate!\n");
       return;
@@ -102,12 +108,13 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
    for(unsigned int k = 0; k < N; k++){
       ipTemp(k) = gpuSim.cpuLattice.ipTemp_array(k, 0);
    }
-   GpuDepondtIntegrator_fused integrator(gpuSim.SimParam, gpuSim.gpuLattice, ipTemp);
+   // Initiate constants for integrator
+   integrator.initiateConstants(gpuSim.SimParam, ipTemp);
    // Timing
    stopwatch.add("initiate");
 
    unsigned int steps;
-   int ipnphase = gpuSim.SimParam.ipnphase; 
+   int ipnphase = gpuSim.SimParam.ipnphase;
    for(unsigned int it = 0; it < ipnphase; it++){
        const real phaseDt = gpuSim.cpuLattice.ipdelta_t(it);
        const real phaseDamp = gpuSim.cpuLattice.iplambda1(it);
@@ -141,13 +148,7 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
          momUpdater.update();
          stopwatch.add("moments");
 
-         // Check for error
-         GPU_ERROR_T e = GPU_GET_LAST_ERROR();
-         if(e != GPU_SUCCESS) {
-            std::printf("Uncaught GPU error %d: %s\n", e, GPU_GET_ERROR_STRING(e));
-            GPU_DEVICE_RESET();
-            std::exit(EXIT_FAILURE);
-         }
+         ASSERT_GPU_KERNEL("SDiphase");
       }
 
       if(it < (ipnphase - 1)){
@@ -155,10 +156,10 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
             ipTemp(k) = gpuSim.cpuLattice.ipTemp_array(k, it + 1);
           }
          }
-      }  
+      }
 
    // Synchronize with device
-   GPU_DEVICE_SYNCHRONIZE();
+   ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
    // Explicitly export final initial-phase moments (emom/emom2/emomM/mmom/mmom2/mmomi)
    // so measurement phase can restart from this exact state.
    gpuSim.copyToFortran();
@@ -193,6 +194,8 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
 
    // Initiate default parallelization helper
     ParallelizationHelperInstance.initiate(gpuSim.SimParam.N, gpuSim.SimParam.M, gpuSim.SimParam.NH);
+   // Depontd integrator
+   GpuDepondtIntegrator integrator;
 
    // Hamiltonian calculations
    GpuHamiltonianCalculations hamCalc;
@@ -204,15 +207,18 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    // Measurement
    const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, gpuSim.gpuEnergies, mqueue, gpuSim.Flags.do_jtensor);
    //CPU residing measurements
-   //CpuRestMeasurement cpuMeas(gpuSim.gpuLattice.emomM, gpuSim.gpuLattice.emom, gpuSim.gpuLattice.mmom, 
+   //CpuRestMeasurement cpuMeas(gpuSim.gpuLattice.emomM, gpuSim.gpuLattice.emom, gpuSim.gpuLattice.mmom,
    //                gpuSim.gpuLattice.beff, gpuSim.cpuLattice.emomM, gpuSim.cpuLattice.emom,
     //               gpuSim.cpuLattice.mmom, gpuSim.cpuLattice.beff, mqueue);
    //Corrrelations
-   const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice, 
+   const auto correlation = CorrelationFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice,
             gpuSim.Flags, gpuSim.SimParam, gpuSim.cpuCorrelations, mqueue);
 
    // Initiate integrator and Hamiltonian
-   GpuDepondtIntegrator_fused integrator(gpuSim.SimParam, gpuSim.gpuLattice, gpuSim.cpuLattice.temperature);
+   if(!integrator.initiate(gpuSim.SimParam)) {  // TODO
+      std::fprintf(stderr, "GpuSDSimulation: integrator failed to initiate!\n");
+      return;
+   }
 
    if(!hamCalc.initiate(gpuSim.Flags, gpuSim.SimParam, gpuSim.gpuHamiltonian)) {  // TODO
       std::fprintf(stderr, "GpuSDSimulation: Hamiltonian failed to initiate!\n");
@@ -232,6 +238,9 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
    int NH = gpuSim.cpuHamiltonian.j_tensor.extent(3);
    std::printf("_______________________________________________\n");
 
+   // Initiate constants for integrator
+   integrator.initiateConstants(gpuSim.SimParam, gpuSim.cpuLattice.temperature);
+
    // Timing
    stopwatch.add("initiate");
 
@@ -242,6 +251,14 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
 
    // Time step loop
    for(std::size_t mstep = rstep + 1; mstep <= rstep + nstep; mstep++) {
+
+   const bool energy_step = ((mstep - 1) % gpuSim.SimParam.ene_step == 0);
+   const bool cumu_step = gpuSim.Flags.do_cumu && ((mstep - 1) % gpuSim.SimParam.cumu_step == 0);
+   measure_ene = (gpuSim.Flags.do_ene > 0)&& (gpuSim.Flags.do_gpu_measurements) && (energy_step || cumu_step);
+
+      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
+      stopwatch.add("hamiltonian");
+
       // Measure
       measurement->measure(mstep);
       correlation->measure(mstep);
@@ -251,19 +268,12 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
       // Print simulation status for each 5% of the simulation length
       printMdStatus(mstep, gpuSim);
 
-      // Apply Hamiltonian to obtain effective field
-      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
-      stopwatch.add("hamiltonian");
-
       // Perform first step of SDE solver
       integrator.evolveFirst(gpuSim.gpuLattice);
       stopwatch.add("evolution");
 
-      measure_ene = ((gpuSim.Flags.do_ene > 0 ) && (gpuSim.Flags.do_gpu_measurements)&&
-            (((mstep-1)%gpuSim.SimParam.ene_step == 0)||((gpuSim.Flags.do_cumu)&&((mstep-1)%gpuSim.SimParam.cumu_step == 0))));
-
       // Apply Hamiltonian to obtain effective field
-      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
+      hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
       stopwatch.add("hamiltonian");
 
 
@@ -276,24 +286,16 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
 
       measurement->updateAC(mstep);
 
-      // Check for error
-      GPU_ERROR_T e = GPU_GET_LAST_ERROR();
-      if(e != GPU_SUCCESS) {
-         std::printf("Uncaught GPU error %d: %s\n", e, GPU_GET_ERROR_STRING(e));
-         GPU_DEVICE_RESET();
-         std::exit(EXIT_FAILURE);
-      }    real cv{};            // Specific heat
-
+      ASSERT_GPU_KERNEL("SDmphase");
 
    }  // End loop over simulation steps
 
    // Final measure and print remaining measurements to file
 
    measure_ene = ((gpuSim.Flags.do_ene > 0 ) && (gpuSim.Flags.do_gpu_measurements));
-
    hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, measure_ene);
 
-   measurement->measure(rstep + nstep + 1);    
+   measurement->measure(rstep + nstep + 1);
    correlation->measure(rstep + nstep + 1);  // TODO
    stopwatch.add("measurement");
 
@@ -301,7 +303,7 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
 
    // Print remaining measurements
    measurement->flushMeasurements(rstep + nstep + 1);  // TODO
-   correlation->flushCorrelations(gpuSim.cpuCorrelations, rstep + nstep + 1); 
+   correlation->flushCorrelations(gpuSim.cpuCorrelations, rstep + nstep + 1);
 
    // Transfer GPU sample count back to Fortran for averaging
    if (FortranData::sc_nsamp_ptr != nullptr) {
@@ -315,6 +317,6 @@ void GpuSimulation::GpuSDSimulation::SDmphase(GpuSimulation& gpuSim) {
 
 
    // Synchronize with device
-   GPU_DEVICE_SYNCHRONIZE();
+   ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
    stopwatch.add("final synchronize");
 }

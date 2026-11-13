@@ -17,7 +17,7 @@ module Chelper
    use Constants,        only : gama, mub, k_bolt, mry
    use HamiltonianData,  only : ham
 
-   use prn_averages,  
+   use prn_averages
    use prn_topology,     only : skyno, skyno_step, skyno_buff
    use Gradients,        only : dxyz_vec, dxyz_atom, dxyz_list
    use Energy,           only : eavg_buff, eavg2_buff, eavg4_buff, eavrg_step, eavrg_buff, calc_energy
@@ -308,7 +308,12 @@ contains
       integer, intent(out) :: do_copy !< Flag if copy or not
 
       call do_measurements(cmstep,do_avrg,do_tottraj,avrg_step,ntraj,tottraj_step,  &
-           traj_step,do_cumu,cumu_step,logsamp,do_copy,do_gpu_measurements)
+           traj_step,do_cumu,cumu_step,skyno,skyno_step,logsamp,do_copy,do_gpu_measurements)
+
+      ! Spin temperature (sampled in fortran_measure_rest) also needs beff copied
+      if (do_spintemp=='Y') then
+         if (mod(cmstep,spintemp_step)==0) do_copy = 1
+      end if
    end subroutine fortran_do_measurements
 
 
@@ -363,8 +368,8 @@ contains
       logical(c_bool) :: c_do_multiscale
       
       !!!TODO: replace those with actual variables 
-      integer :: ene_step = 10
-      integer :: ene_buff = 100
+      !integer :: ene_step = 10
+      !integer :: ene_buff = 100
       !character(len=1)::do_projch_avrg = 'Y'
       !character(len=1)::do_cumu_proj = 'Y'
       c_do_multiscale = do_multiscale
@@ -453,7 +458,7 @@ contains
          avrg_step, avrg_buff, cumu_step, cumu_buff, ene_step, ene_buff, &
          tottraj_step, tottraj_buff, skyno_step, skyno_buff, nq, sc_window_fun, &
          cc%nw, cc%sc_sep, cc%sc_step, cc%sc_max_nstep, nspinwait, ac_step, ac_buff, &
-         NT_meta, Nchmax, mry, NA, Natom_full)
+         NT_meta, Nchmax, mry, NA, Natom_full, N1, N2, N3)
 
       call FortranData_setHamiltonian(ham%ncoup,ham%nlist,ham%nlistsize, &
          ham%dm_vect,ham%dmlist,ham%dmlistsize, &

@@ -48,27 +48,27 @@ SET(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 
 ##############################################################################################
 # Create lib directory if missing
+# All build output (bin, lib, mod) is placed in the build directory, so that several
+# builds of the same source tree (e.g. CUDA and HIP) do not overwrite each other.
 ##############################################################################################
-set(LIB ${CMAKE_SOURCE_DIR}/lib)
+set(LIB ${CMAKE_BINARY_DIR}/lib)
 #message(STATUS "The lib is ${LIB}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${LIB})
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${LIB})
 message(STATUS "The lib is ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 file(MAKE_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
-set(LEGACY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/source)
-message(STATUS "The legacy output directory is ${LEGACY_OUTPUT_DIRECTORY}")
 ##############################################################################################
 
 
 ##############################################################################################
 # Defines the directories for source, modules and object filed
 SET(SRC ${CMAKE_SOURCE_DIR}/source)
-SET(MOD ${CMAKE_SOURCE_DIR}/source/mod)
-#SET(MOD ${CMAKE_BINARY_DIR}/mod)
-SET(BIN ${CMAKE_SOURCE_DIR}/bin)
-# Have the .mod files placed in the lib folder
+SET(MOD ${CMAKE_BINARY_DIR}/mod)
+SET(BIN ${CMAKE_BINARY_DIR}/bin)
+# Have the .mod files placed in the mod folder
 SET(CMAKE_Fortran_MODULE_DIRECTORY ${MOD})
-# Have the .o files placed in the bin folder
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+# Have the executable placed in the bin folder
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BIN})
 ##############################################################################################
 
 
@@ -167,7 +167,15 @@ if(USE_CUDA AND USE_HIP)
   message(FATAL_ERROR "Cannot use both CUDA and HIP simultaneously.")
 endif()
 CMAKE_DEPENDENT_OPTION(USE_CUCOMPLEX_CORRELATIONS "Use native cuDoubleComplex for GPU correlations (Thrust by default)" OFF "USE_CUDA" OFF)
-CMAKE_DEPENDENT_OPTION(ON_LUMI "Use Thrust complex for HIP correlations on LUMI (hipComplex by default)" OFF "USE_HIP" OFF)
+CMAKE_DEPENDENT_OPTION(ON_LUMI "Use Thrust complex for HIP correlations on LUMI (Thrust by default)" OFF "USE_HIP" OFF)
+CMAKE_DEPENDENT_OPTION(USE_HIP_COMPLEX "Use native hipComplex for HIP correlations (Thrust is the default)" OFF "USE_HIP" OFF)
+
+if(USE_HIP AND ON_LUMI AND USE_HIP_COMPLEX)
+    message(FATAL_ERROR
+        "ON_LUMI selects thrust::complex, but USE_HIP_COMPLEX selects native hipComplex. "
+        "Set USE_HIP_COMPLEX=OFF when building with ON_LUMI."
+    )
+endif()
 # Uncomment below to make gnu defaults without MKL
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
    CMAKE_DEPENDENT_OPTION(USE_MKL "Use Intel MKL for BLAS/LAPACK" OFF "MKL_FOUND" OFF)
@@ -197,7 +205,7 @@ CMAKE_DEPENDENT_OPTION(RUN_SLD_TESTS "Run sld-tests"  OFF "BUILD_TESTING" OFF)
 CMAKE_DEPENDENT_OPTION(RUN_GNEB_TESTS "Run gneb-tests"  OFF "BUILD_TESTING" OFF)
 CMAKE_DEPENDENT_OPTION(RUN_REG_TESTS "Run regression-test"  ON "BUILD_TESTING" OFF)
 CMAKE_DEPENDENT_OPTION(RUN_CUDA_TESTS "Run cuda-test"  ON "BUILD_TESTING;USE_CUDA" OFF)
-#######hip here????
+CMAKE_DEPENDENT_OPTION(RUN_HIP_TESTS "Run hip-test"  ON "BUILD_TESTING;USE_HIP" OFF)
 ##############################################################################################
 
 ##############################################################################################
@@ -210,6 +218,15 @@ INCLUDE(${CMAKE_MODULE_PATH}/SetFortranFlags.cmake)
 # Add OpenMP compiler/linker flags
 ##############################################################################################
 IF(USE_OPENMP)
+   # Cray wrappers and AMD Flang need OpenMP hints for CMake's FindOpenMP
+   IF(CMAKE_Fortran_COMPILER_ID STREQUAL "Cray")
+      SET(OpenMP_Fortran_FLAGS "-homp" CACHE STRING "" FORCE)
+      SET(OpenMP_Fortran_LIB_NAMES "" CACHE STRING "" FORCE)
+   ELSEIF(CMAKE_Fortran_COMPILER_ID STREQUAL "Flang" OR
+          CMAKE_Fortran_COMPILER_ID STREQUAL "LLVMFlang")
+      SET(OpenMP_Fortran_FLAGS "-fopenmp" CACHE STRING "" FORCE)
+      SET(OpenMP_Fortran_LIB_NAMES "omp" CACHE STRING "" FORCE)
+   ENDIF()
    FIND_PACKAGE(OpenMP)
    message(STATUS "Did we find OpenMP? ${OpenMP_Fortran_FOUND}")
    message(STATUS "Which are the OpenMP flags?  ${OpenMP_Fortran_FLAGS}")
@@ -305,8 +322,37 @@ endif()
 #   find_package(LAPACK REQUIRED)
 #endif()
 #set(BLA_STATIC ON)
-find_package(BLAS REQUIRED)
-find_package(LAPACK REQUIRED)
+# BLAS/LAPACK detection.
+# Case 1: Cray ftn wrapper — links cray-libsci automatically.
+# Case 2: ON_LUMI with Flang (non-wrapper) — use LIBSCI_DIR if provided.
+# Case 3: Everything else — use CMake's FindBLAS/FindLAPACK.
+IF(CMAKE_Fortran_COMPILER MATCHES "craype" AND
+   (CMAKE_Fortran_COMPILER_ID STREQUAL "Cray" OR
+    CMAKE_Fortran_COMPILER_ID STREQUAL "Flang" OR
+    CMAKE_Fortran_COMPILER_ID STREQUAL "LLVMFlang"))
+    message(STATUS "Cray PE detected with non-GNU compiler — assuming ftn provides BLAS/LAPACK")
+    SET(BLAS_FOUND TRUE)
+    SET(BLAS_LIBRARIES "")
+    SET(LAPACK_FOUND TRUE)
+    SET(LAPACK_LIBRARIES "")
+ELSEIF(ON_LUMI AND LIBSCI_DIR)
+    # Direct Flang/AMD compiler on LUMI — link cray-libsci explicitly
+    find_library(LIBSCI_LIBRARY NAMES sci_amd PATHS "${LIBSCI_DIR}/lib" NO_DEFAULT_PATH)
+    if(LIBSCI_LIBRARY)
+        message(STATUS "Found cray-libsci for BLAS/LAPACK: ${LIBSCI_LIBRARY}")
+        SET(BLAS_FOUND TRUE)
+        SET(BLAS_LIBRARIES "${LIBSCI_LIBRARY}")
+        SET(LAPACK_FOUND TRUE)
+        SET(LAPACK_LIBRARIES "${LIBSCI_LIBRARY}")
+    else()
+        message(WARNING "LIBSCI_DIR set but libsci_amd not found — falling back to FindBLAS")
+        find_package(BLAS REQUIRED)
+        find_package(LAPACK REQUIRED)
+    endif()
+ELSE()
+    find_package(BLAS REQUIRED)
+    find_package(LAPACK REQUIRED)
+ENDIF()
 message(STATUS "Math libs: 
 BLAS:${BLAS_FOUND} ${BLAS_LIBRARIES}  ${BLAS_LINKER_FLAGS}
 LAPACK:${LAPACK_FOUND} ${LAPACK_LIBRARIES}  ${LAPACK_LINKER_FLAGS}
@@ -345,6 +391,21 @@ if (USE_CUDA)
    else ()
    	find_package(CUDAToolkit)
    endif ()
+   # CUDA 13 ships Thrust as part of CCCL under include/cccl. Older CUDA
+   # toolkits put thrust/ directly under the toolkit include directory.
+   find_path(UPPASD_THRUST_INCLUDE_DIR
+      NAMES thrust/complex.h
+      HINTS ${CUDAToolkit_INCLUDE_DIRS} ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
+      PATH_SUFFIXES cccl
+   )
+   if(NOT UPPASD_THRUST_INCLUDE_DIR)
+      message(FATAL_ERROR
+         "CUDA support requires the Thrust headers (thrust/complex.h). "
+         "Install the CUDA Core Compute Libraries (CCCL) or set "
+         "UPPASD_THRUST_INCLUDE_DIR to the directory containing thrust/."
+      )
+   endif()
+   target_include_directories(${UppASD_LIB} PRIVATE ${UPPASD_THRUST_INCLUDE_DIR})
    target_sources(${UppASD_LIB} PRIVATE ${SRC}/chelper.f90)
    add_subdirectory(${SRC}/gpu_files)
   set_source_files_properties(${SRC}/gpu_files/gpuDepondtIntegrator.cpp ${SRC}/gpu_files/gpuDepondtIntegrator_fused.cpp ${SRC}/gpu_files/gpuEventPool.cpp ${SRC}/gpu_files/gpuHamiltonianCalculations.cpp 
@@ -360,8 +421,13 @@ if (USE_CUDA)
                                ${SRC}/gpu_files/multiscale/gpuInterpolation.cpp ${SRC}/gpu_files/gpuMSSimulation.cpp  
                                ${SRC}/gpu_files/multiscale/gpuDampingBand.cpp ${SRC}/gpu_files/multiscale/gpuDampingBand.hpp PROPERTIES LANGUAGE CUDA)
    add_compile_definitions(CUDA_V)
-   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} -DDEBUG")
-   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
+   # The toolkit include directories form a list (CUDA 13 adds include/cccl),
+   # so add one -I per entry rather than interpolating the list into the flags.
+   foreach(_cuda_inc_dir IN LISTS CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES)
+      set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -I${_cuda_inc_dir}")
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${_cuda_inc_dir}")
+   endforeach()
+   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -DDEBUG")
    if (DEFINED CUDAToolkit_MATH_INCLUDE_DIR )
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${CUDAToolkit_MATH_INCLUDE_DIR}")
    endif()
@@ -373,20 +439,23 @@ if (USE_CUDA)
    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -D__${PP_CUDA_COMPILER_FLAG}__")
    message(STATUS "CUDA PPFLAG: __${PP_CUDA_COMPILER_FLAG}__, ${CMAKE_Fortran_COMPILER_ID}")
 
-   # Find CUDA arch on local machine
-   include(FindCUDA/select_compute_arch)
-   CUDA_DETECT_INSTALLED_GPUS(INSTALLED_GPU_CCS_1)
-   string(STRIP "${INSTALLED_GPU_CCS_1}" INSTALLED_GPU_CCS_2)
-   string(REPLACE " " ";" INSTALLED_GPU_CCS_3 "${INSTALLED_GPU_CCS_2}")
-   string(REPLACE "." "" CUDA_ARCH_LIST "${INSTALLED_GPU_CCS_3}")
-   SET(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCH_LIST})
-   # Workaround to avoid +PTX specification
-   if (CMAKE_CUDA_ARCHITECTURES MATCHES "^[__86+PTX]")
-     set(CMAKE_CUDA_ARCHITECTURES 86)
-     SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES CUDA_ARCHITECTURES 86)
+   # CUDA arch: use UPPASD_CUDA_ARCH if given (e.g. -DUPPASD_CUDA_ARCH=90),
+   # otherwise detect it on the local machine
+   set(UPPASD_CUDA_ARCH "" CACHE STRING "CUDA architectures to build for (e.g. 90). Empty means auto-detect.")
+   if (UPPASD_CUDA_ARCH)
+     set(CUDA_ARCH_LIST ${UPPASD_CUDA_ARCH})
    else()
-     SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES CUDA_ARCHITECTURES "${CUDA_ARCH_LIST}")
+     include(FindCUDA/select_compute_arch)
+     CUDA_DETECT_INSTALLED_GPUS(INSTALLED_GPU_CCS_1)
+     string(STRIP "${INSTALLED_GPU_CCS_1}" INSTALLED_GPU_CCS_2)
+     string(REPLACE " " ";" INSTALLED_GPU_CCS_3 "${INSTALLED_GPU_CCS_2}")
+     string(REPLACE "." "" CUDA_ARCH_LIST "${INSTALLED_GPU_CCS_3}")
+     # Workaround to avoid +PTX specification
+     string(REPLACE "+PTX" "" CUDA_ARCH_LIST "${CUDA_ARCH_LIST}")
+     list(REMOVE_DUPLICATES CUDA_ARCH_LIST)
    endif()
+   SET(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCH_LIST})
+   SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES CUDA_ARCHITECTURES "${CUDA_ARCH_LIST}")
    message(STATUS "CUDA_ARCH_LIST: __${CUDA_ARCH_LIST}__")
    message(STATUS "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
 elseif(USE_HIP)
@@ -395,9 +464,17 @@ elseif(USE_HIP)
    if(ON_LUMI)
      add_compile_definitions(ON_LUMI)
      message(STATUS "ON_LUMI: using Thrust complex for HIP correlations")
+   elseif(USE_HIP_COMPLEX)
+        add_compile_definitions(USE_HIP_COMPLEX)
+        message(STATUS "HIP correlations: using native hipComplex")
+    else()
+        message(STATUS "HIP correlations: using thrust::complex")
    endif()
 
    ENABLE_LANGUAGE(HIP C CXX)
+    # The GPU sources are .cpp files compiled as CXX, so hipcc is forced as the
+    # CXX compiler for the build rules. This overrides any -DCMAKE_CXX_COMPILER
+    # given on the command line (CMakeCache.txt still shows the original value).
     set(CMAKE_HIP_COMPILER hipcc)
     set(CMAKE_CXX_COMPILER hipcc)
    #set(CMAKE_CXX_COMPILER "/opt/rocm-6.3.3/bin/hipcc")
@@ -417,27 +494,49 @@ message(STATUS "HIP CXX compiler: ${CMAKE_CXX_COMPILER}")
    
    
     set(ROCM_ROOT $ENV{ROCM_PATH})
-    #link_directories("/opt/rocm/lib")
-    
+    if(NOT ROCM_ROOT)
+        set(ROCM_ROOT "/opt/rocm")
+    endif()
+    message(STATUS "ROCM_ROOT: ${ROCM_ROOT}")
+
     target_include_directories(${UppASD_LIB} PRIVATE
         ${ROCM_ROOT}/include
     )
-    
 
-    # hiprand
+    # hiprand — use NO_DEFAULT_PATH so we pick up the library from
+    # ROCM_ROOT (e.g. rocm-afar) rather than a system rocm in CMAKE_PREFIX_PATH.
     find_library(HIPRAND_LIBRARY
         NAMES hiprand
-        PATHS /opt/rocm/lib /opt/rocm/lib64
+        HINTS ${ROCM_ROOT}/lib ${ROCM_ROOT}/lib64
+        NO_DEFAULT_PATH
         REQUIRED
     )
 
-    target_link_libraries(${UppASD_LIB} PRIVATE ${HIPRAND_LIBRARY})
+    # amdhip64 runtime — same: force ROCM_ROOT to avoid system rocm mismatch.
+    find_library(AMDHIP64_LIBRARY
+        NAMES amdhip64
+        HINTS ${ROCM_ROOT}/lib ${ROCM_ROOT}/lib64
+        NO_DEFAULT_PATH
+        REQUIRED
+    )
+
+    target_link_libraries(${UppASD_LIB} PRIVATE ${HIPRAND_LIBRARY} ${AMDHIP64_LIBRARY})
+
+    # When Fortran linker is Flang (not a Cray wrapper), it won't link
+    # the C++ standard library automatically — add it explicitly.
+    if(CMAKE_Fortran_COMPILER_ID STREQUAL "Flang" OR
+       CMAKE_Fortran_COMPILER_ID STREQUAL "LLVMFlang")
+        target_link_libraries(${UppASD_LIB} PRIVATE stdc++)
+    endif()
 
    if(NOT CMAKE_HIP_ARCHITECTURES)
       set(CMAKE_HIP_ARCHITECTURES "gfx90a")
    endif()
    SET_TARGET_PROPERTIES(${UppASD_LIB} PROPERTIES HIP_ARCHITECTURES "${CMAKE_HIP_ARCHITECTURES}")
-   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --offload-arch=${CMAKE_HIP_ARCHITECTURES}")
+   # One --offload-arch per entry, since CMAKE_HIP_ARCHITECTURES may be a list
+   foreach(_hip_arch IN LISTS CMAKE_HIP_ARCHITECTURES)
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --offload-arch=${_hip_arch}")
+   endforeach()
    message(STATUS "HIP GPU architecture: ${CMAKE_HIP_ARCHITECTURES}")
 
 else ()
@@ -466,7 +565,21 @@ if(USE_MKL)
    if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "NVHPC")
       target_include_directories(${UppASD_LIB} PRIVATE ${MKL_INCLUDE})
    endif()
-   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -D__INTEL_MKL__")
+   # sparse.f90 uses the legacy MKL sparse-BLAS entry points. Recent oneMKL
+   # releases no longer export these symbols, so keep the generic sparse
+   # implementation when they are unavailable while still using MKL for
+   # BLAS/LAPACK.
+   include(CheckFortranFunctionExists)
+   set(_ASD_SAVED_REQUIRED_LIBRARIES "${CMAKE_REQUIRED_LIBRARIES}")
+   set(CMAKE_REQUIRED_LIBRARIES ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+   check_fortran_function_exists(mkl_dcsrmm ASD_MKL_HAS_DCSRMM)
+   check_fortran_function_exists(mkl_dbsrmv ASD_MKL_HAS_DBSRMV)
+   set(CMAKE_REQUIRED_LIBRARIES "${_ASD_SAVED_REQUIRED_LIBRARIES}")
+   if(ASD_MKL_HAS_DCSRMM AND ASD_MKL_HAS_DBSRMV)
+      set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -D__INTEL_MKL__")
+   else()
+      message(STATUS "MKL legacy sparse-BLAS routines not found; using built-in sparse implementation")
+   endif()
 
 endif()
 ##############################################################################################
@@ -617,7 +730,7 @@ if(BUILD_PYTHON)
          # Uncomment if f90wrap needs to be invoked
          #DEPENDS ${UppASD_LIB} ${F2PY_sources}
          WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-         COMMAND f2py -c ${F2PY_compiler}  ${F2PY_sources} -m _${f2py_module_name} -I${CMAKE_Fortran_MODULE_DIRECTORY} -L${CMAKE_BINARY_DIR} -l${UppASD_LIB} ${F2PY_libs} --link-blas_opt --link-lapack_opt
+         COMMAND f2py -c ${F2PY_compiler}  ${F2PY_sources} -m _${f2py_module_name} -I${CMAKE_Fortran_MODULE_DIRECTORY} -L${LIB} -l${UppASD_LIB} ${F2PY_libs} --link-blas_opt --link-lapack_opt
          COMMENT "Generating Python modules"
          VERBATIM 
          )
@@ -653,9 +766,15 @@ mark_as_advanced( ENABLE_BLACS ENABLE_BLAS95 ENABLE_CDFT ENABLE_CPARDISO ENABLE_
 ##############################################################################################
 # Add the needed libraries and special compiler flags
 ##############################################################################################
+# libgfortran is only needed (and only available) with the GNU Fortran compiler
+if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+   set(ASD_FORTRAN_RUNTIME_LIB -lgfortran)
+else()
+   set(ASD_FORTRAN_RUNTIME_LIB "")
+endif()
 ########hip here?????
 TARGET_LINK_LIBRARIES(${UppASD_LIB} PRIVATE
-   -lgfortran
+   ${ASD_FORTRAN_RUNTIME_LIB}
    ${BLAS_LIBRARIES}
    ${LAPACK_LIBRARIES}
    ${CMAKE_THREAD_LIBS_INIT} 
@@ -668,7 +787,7 @@ TARGET_LINK_LIBRARIES(${UppASD_LIB} PRIVATE
    )
 
 TARGET_LINK_LIBRARIES(${UppASD_EXE} PRIVATE
-   -lgfortran
+   ${ASD_FORTRAN_RUNTIME_LIB}
    ${UppASD_LIB}
    ${BLAS_LIBRARIES}
    ${LAPACK_LIBRARIES}
@@ -681,46 +800,45 @@ TARGET_LINK_LIBRARIES(${UppASD_EXE} PRIVATE
 #    ${HIP_LIBRARIES}
    )
 
+# BLAS/LAPACK may be discovered as raw shared-library paths (rather than
+# imported CMake targets). Preserve their locations in the build executable's
+# runtime search path so oneMKL's versioned .so dependencies can be loaded.
+set(_ASD_MATH_LIBRARY_DIRS)
+foreach(_asd_math_lib IN LISTS BLAS_LIBRARIES LAPACK_LIBRARIES)
+   if(IS_ABSOLUTE "${_asd_math_lib}" AND EXISTS "${_asd_math_lib}" AND
+      "${_asd_math_lib}" MATCHES "\\.so(\\..*)?$")
+      get_filename_component(_asd_math_lib_dir "${_asd_math_lib}" DIRECTORY)
+      list(APPEND _ASD_MATH_LIBRARY_DIRS "${_asd_math_lib_dir}")
+   endif()
+endforeach()
+if(_ASD_MATH_LIBRARY_DIRS)
+   list(REMOVE_DUPLICATES _ASD_MATH_LIBRARY_DIRS)
+   set_property(TARGET ${UppASD_EXE} APPEND PROPERTY BUILD_RPATH "${_ASD_MATH_LIBRARY_DIRS}")
+   set_property(TARGET ${UppASD_EXE} PROPERTY INSTALL_RPATH_USE_LINK_PATH TRUE)
+endif()
+
 
 ##############################################################################################
 # Tell where to install this executable
+# Set the destination with -DCMAKE_INSTALL_PREFIX=<prefix> (default /usr/local) and run
+# `cmake --install <build dir>`. This installs to <prefix>/bin, <prefix>/lib and
+# <prefix>/include (C/C++ headers of the GPU code).
 ##############################################################################################
-IF(WIN32)
-   SET(CMAKE_INSTALL_PREFIX "C:\\Program Files")
-ELSE()
-   SET(CMAKE_INSTALL_PREFIX /usr/local)
-ENDIF(WIN32)
-
-
 SET_TARGET_PROPERTIES(${UppASD_EXE} PROPERTIES LINKER_LANGUAGE "Fortran")
 if (NOT BUILD_PYTHON)
    INSTALL(TARGETS ${UppASD_EXE} RUNTIME DESTINATION bin)
-   INSTALL(TARGETS ${UppASD_LIB} RUNTIME DESTINATION lib)
+   INSTALL(TARGETS ${UppASD_LIB} ARCHIVE DESTINATION lib LIBRARY DESTINATION lib)
+   if (USE_CUDA OR USE_HIP)
+      INSTALL(DIRECTORY ${SRC}/gpu_files/ DESTINATION include
+         FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp" PATTERN "*.cuh" PATTERN "*.tpp"
+         PATTERN "old" EXCLUDE)
+   else()
+      # No C/C++ headers in a CPU-only build, but keep the directory layout
+      INSTALL(DIRECTORY DESTINATION include)
+   endif()
    #INSTALL(TARGETS UppASD_F90w RUNTIME DESTINATION bin)
 endif(NOT BUILD_PYTHON)
 ##############################################################################################
-
-##############################################################################################
-# Copy static library to ./lib
-##############################################################################################
-add_custom_command(
-   TARGET ${UppASD_LIB} POST_BUILD
-   COMMAND ${CMAKE_COMMAND} -E copy
-   ${CMAKE_BINARY_DIR}/lib${UppASD_LIB}.a
-   ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
-   )
-
-#################################################################################################
-#### Copy binary to ./source/sd for legacy purposes
-#### currently disabled..
-#################################################################################################
-###add_custom_command(
-###   TARGET ${UppASD_EXE} POST_BUILD
-###   COMMAND ${CMAKE_COMMAND} -E copy
-###   ${CMAKE_SOURCE_DIR}/bin/${UppASD_EXE}
-###   ${LEGACY_OUTPUT_DIRECTORY}/sd
-###   )
-
 
 ###############################################################################################
 ## Add Sources in sub-directories
@@ -731,24 +849,70 @@ add_subdirectory(${SRC})
 ###############################################################################################
 ## Add tests directory
 ###############################################################################################
-set(TestBinary ${CMAKE_SOURCE_DIR}/bin/${UppASD_EXE})
+set(TestBinary ${BIN}/${UppASD_EXE})
 set(TestDIR ${CMAKE_SOURCE_DIR}/tests)
+# The tests run in a copy of the tests directory inside the build directory, so that
+# test runs of different builds, and parallel runs (ctest -j), do not interfere
+set(TestRunDIR ${CMAKE_BINARY_DIR}/tests)
+
+# Add one ctest test per working directory of the cases in a bergtest yaml file.
+# Cases sharing a directory are run together, in their order in the yaml file,
+# since later cases may only check the output of an earlier one.
+# Optional ENVIRONMENT and RESOURCE_LOCK values are set on all the tests.
+function(uppasd_add_bergtests group yamlfile)
+   cmake_parse_arguments(ARG "" "" "ENVIRONMENT;RESOURCE_LOCK" ${ARGN})
+   file(STRINGS ${TestDIR}/${yamlfile} _lines REGEX "^[ \t]*-[ \t]*workingdir:")
+   set(_dirs)
+   set(_case 0)
+   foreach(_line IN LISTS _lines)
+      math(EXPR _case "${_case}+1")
+      string(REGEX REPLACE "^[ \t]*-[ \t]*workingdir:[ \t]*\"?(\\./)?([^\"#/ \t]+).*$" "\\2" _dir "${_line}")
+      if (NOT _dir IN_LIST _dirs)
+         list(APPEND _dirs ${_dir})
+         set(_cases_${_dir})
+      endif()
+      list(APPEND _cases_${_dir} ${_case})
+   endforeach()
+   if (NOT _dirs)
+      message(FATAL_ERROR "No test cases found in ${TestDIR}/${yamlfile}")
+   endif()
+   foreach(_dir IN LISTS _dirs)
+      set(_locks ${_dir} ${ARG_RESOURCE_LOCK})
+      add_test(NAME ${group}.${_dir}
+         COMMAND python3 -u bergtest.py --file ${yamlfile} --case ${_cases_${_dir}} --binary ${TestBinary}
+         WORKING_DIRECTORY ${TestRunDIR})
+      set_tests_properties(${group}.${_dir} PROPERTIES
+         FIXTURES_REQUIRED uppasd_testdir
+         LABELS ${group}
+         RESOURCE_LOCK "${_locks}")
+      if (ARG_ENVIRONMENT)
+         set_tests_properties(${group}.${_dir} PROPERTIES ENVIRONMENT "${ARG_ENVIRONMENT}")
+      endif()
+   endforeach()
+endfunction()
+
+if (BUILD_TESTING)
+add_test(NAME copy-testdir COMMAND ${CMAKE_COMMAND} -E copy_directory ${TestDIR} ${TestRunDIR})
+set_tests_properties(copy-testdir PROPERTIES FIXTURES_SETUP uppasd_testdir)
+endif (BUILD_TESTING)
 if (RUN_REG_TESTS)
-add_test(NAME regression-test  COMMAND python3 -u bergtest.py --file regressionResaro.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
+uppasd_add_bergtests(regression-test regressionResaro.yaml)
 endif (RUN_REG_TESTS)
 if (RUN_ASD_TESTS)
-add_test(NAME asd-tests  COMMAND python3 -u bergtest.py --file regulartests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
+uppasd_add_bergtests(asd-tests regulartests.yaml ENVIRONMENT "OMP_NUM_THREADS=1")
 endif (RUN_ASD_TESTS)
 if (RUN_SLD_TESTS)
-add_test(NAME sld-tests  COMMAND python3 -u ./bergtest.py --file sldtests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
+uppasd_add_bergtests(sld-tests sldtests.yaml)
 endif (RUN_SLD_TESTS)
 if (RUN_GNEB_TESTS)
-add_test(NAME gneb-tests  COMMAND python3 -u ./bergtest.py --file regressionGNEB_15d7169b.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
+uppasd_add_bergtests(gneb-tests regressionGNEB_15d7169b.yaml)
 endif (RUN_GNEB_TESTS)
-#######hip here????
+# Run the GPU tests one at a time
 if (RUN_CUDA_TESTS)
-add_test(NAME cuda-tests  COMMAND python3 -u bergtest.py --file cudatests.yaml --binary ${TestBinary}  WORKING_DIRECTORY ${TestDIR})
+uppasd_add_bergtests(cuda-tests cudatests.yaml RESOURCE_LOCK gpu)
 endif (RUN_CUDA_TESTS)
-set_property(TEST asd-tests PROPERTY ENVIRONMENT "OMP_NUM_THREADS=1")
+if (RUN_HIP_TESTS)
+uppasd_add_bergtests(hip-tests hiptests.yaml RESOURCE_LOCK gpu)
+endif (RUN_HIP_TESTS)
 message(STATUS "Output binary:  ${TestBinary}")
 ##############################################################################################

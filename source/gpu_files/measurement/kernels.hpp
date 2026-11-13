@@ -6,6 +6,10 @@
 #include "gpuStructures.hpp"
 #include "gpu_wrappers.h"
 
+#ifndef M_PI
+#define M_PI (3.14159265358979323846)
+#endif
+
 
 //#include "device_launch_parameters.h"
 
@@ -59,6 +63,12 @@ namespace kernels::measurement
     __global__ void sumOverAtoms_finalize(const GpuTensor<real, 3> block_parts,
                                           uint nblocks,
                                           GpuTensor<real, 2> emomMEnsembleSums);
+
+    //Sum over atoms - energy
+    __global__ void sumEnergyOverAtoms_partial(const GpuTensor<real, 2> ene_jij, const GpuTensor<real, 2> ene_ani, const GpuTensor<real, 2> ene_dmi, 
+                                            const GpuTensor<real, 2> ene_ten, const GpuTensor<real, 2> ene_ext, GpuTensor<real, 3> block_parts);
+                                            
+    __global__ void sumEnergyOverAtoms_finalize(const GpuTensor<real, 3> block_parts, uint nblocks, uint N, GpuTensor<real, 2> energyM);
 
     // Average magnetization over ensembles (two-phase)
     __global__ void averageMagnetization_partial(const GpuTensor<real, 2> emomMSum,
@@ -121,7 +131,7 @@ namespace kernels::measurement
     __global__ void pontryagin_no_finalize(const SumPart* __restrict__ block_parts,
                                            uint nblocks_total,
                                            uint ensembles,
-                                           uint sk_num_count,
+                                           SkyrmionNumberData& stats,
                                            SkyrmionNumberData& d);
 
     // Delaunay triangulation (0-based vertex ids), simp has extents (3, nsimp)
@@ -137,8 +147,9 @@ namespace kernels::measurement
 
     __global__ void pontryagin_tri_finalize(const SumPart* __restrict__ block_parts,
                                             uint nblocks_total,
+                                            uint Natom,
                                             uint ensembles,
-                                            uint sk_num_count,
+                                            SkyrmionNumberData& stats,
                                             SkyrmionNumberData& d);
 
     __global__ void averageEnergy_partial(const GpuTensor<real, 2> energyM,
@@ -165,7 +176,7 @@ namespace kernels::measurement
 
     inline uint nwarps(const dim3& threads)
     {
-        return ceil_div(threads.x * threads.y * threads.z, (uint)WARPSIZE);
+        return ceil_div((uint)threads.x * (uint)threads.y * (uint)threads.z, (uint)WARPSIZE);
     }
 
 

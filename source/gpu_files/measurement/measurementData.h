@@ -59,6 +59,8 @@ struct SkyrmionNumberData
     real skyno{};
     real skyno_avg{};
     real skyno_stdv{};
+    real skyno_m2{};
+    std::uint64_t sample_count{};
 };
 
 struct EnergyData

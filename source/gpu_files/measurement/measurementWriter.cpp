@@ -45,6 +45,7 @@ void MeasurementWriter::writeIteration(std::ostream& out, real value) const
     }
     else
     {
-        out << std::setw(colWidth) << static_cast<int>(value);
+        // long long: casting a step >= 2^31 to int is undefined (gives INT_MIN on x86)
+        out << std::setw(colWidth) << static_cast<long long>(value);
     }
 }

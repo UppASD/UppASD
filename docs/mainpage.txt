@@ -25,10 +25,12 @@ in which \f$i\f$ and \f$j\f$ are atomic indices, and \f$J_{ij}\f$ is the strengt
 @section Installation 
 
 The source code is distributed along with documentation and a growing set of examples. To install, uncompr
-ess the file UppASD.tar.gz, enter the source directory, and compile with the supplied Ma
-kefiles. If possible, compilation with the Intel Fortran compiler is recommended, using the command
+ess the file UppASD.tar.gz, enter the top directory, and compile with cmake, using the commands
 
-    make -f Makefile.legacy
+    cmake -S . -B build
+    cmake --build build
+
+The executable is placed in build/bin.
 
 Other than the source directory, the current UppASD distribution also contains an examples directory, and a docs directory, in which this user manual is located, along with so
 me programming notes for developers UppASDnotes.tex).

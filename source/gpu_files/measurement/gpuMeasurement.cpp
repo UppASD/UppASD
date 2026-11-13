@@ -25,17 +25,13 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , mqueue(mq)
 , N(gpuLattice.emomM.extent(1))
 , M(gpuLattice.emomM.extent(2))
-, NX(0) // TODO: dont hardcode these values, needs to be imported from Fortran
-, NY(0)
-, NZ(0)
-, NT(0)
+, NX(*FortranData::N1)
+, NY(*FortranData::N2)
+, NZ(*FortranData::N3)
+, NT(*FortranData::NT)
 , NA(*FortranData::NA)
-, Nchmax(*FortranData::Nchmax)
 , Natom_full(*FortranData::Natom_full)
-//, NX(128) // TODO: dont hardcode these values, needs to be imported from Fortran
-//, NY(128)
-//, NZ(1)
-//, NT(1)
+, Nchmax(*FortranData::Nchmax)
 , do_jtensor(p_do_jtensor)
 , measurementWriter(do_jtensor)
 , cpuMeas(gpuLattice.emomM, gpuLattice.emom, gpuLattice.mmom, gpuLattice.beff, f_emomM, f_emom, f_mmom, f_beff, mq)
@@ -68,7 +64,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , ac_maxBlocks(1024)
 , ac_count(0)
 , do_skyno(skyrmionMethodFromFlag(*FortranData::do_skyno))
-, nsimp(2 * NX * NY * NZ * NT)
+, nsimp(2 * NX * NY * NZ * NA)
 , skyno_kernel_threads(128, 1)
 , skyno_kernel_blocks(skyrmionKernelNumBlocks(do_skyno, N, M, nsimp, skyno_kernel_threads.x))
 , do_ene(*FortranData::do_ene)
@@ -78,10 +74,20 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , mub(9.274009994e-24)
 , mry(2.179872325e-21)
 , fcinv(mub / mry)
+, energySums_kernel_threads(256, 1, 1)
+, energySums_kernel_blocks(mm::ceil_div(N, energySums_kernel_threads.x), M, 1)
+
 {
     
     isAllocated = false;
     asitealloc = false;
+
+    if (do_avrg_proj == 'Y' || do_avrg_proj == 'A' || do_avrg_projch
+        || do_cumu_proj == 'Y' || do_cumu_proj == 'A')
+    {
+        std::cout << "Warning: projected averages/cumulants are not yet computed on GPU, "
+                  << "no projected output will be written" << std::endl;
+    }
 
     if (do_avrg)
     {
@@ -139,7 +145,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         cumu_buff_cpu.zeros();
 
         if (do_ene==0) cumu_partial_buff.Allocate(cumu_kernel_blocks.x);
-        else cumu_ene_partial_buff.Allocate(cumu_ene_kernel_blocks.x);
+        else cumu_ene_partial_buff.Allocate(cumu_ene_kernel_blocks.x * cumu_ene_kernel_blocks.y);
 
         if(do_cumu_proj == 'Y'){
             cumu_proj_kernel_blocks = {1,1,1};
@@ -199,12 +205,12 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             emomMEnsembleNTSums_partial.zeros();
             atype_gpu.Allocate(N);
             atype_cpu.set(FortranData::atype, static_cast<long int>(N));
-            atype_gpu.copy_sync(atype_cpu);
+            //atype_gpu.copy_sync(atype_cpu);
 
-            if((!asitealloc)&&(!do_ralloy)){
+            if((!asitealloc)&&(do_ralloy)){
                 asite_ch_gpu.Allocate(Natom_full);
                 asite_ch_cpu.set(FortranData::asite_ch, static_cast<long int>(Natom_full));
-                asite_ch_gpu.copy_sync(asite_ch_cpu);
+                //asite_ch_gpu.copy_sync(asite_ch_cpu);
                 asitealloc = true;
             }
 
@@ -214,10 +220,10 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             emomMEnsembleNASums.zeros();
             emomMEnsembleNASums_partial.Allocate(sumOverAtoms_NA_kernel_blocks.x, 3, NA, M);
             emomMEnsembleNASums_partial.zeros();
-            if((!asitealloc)&&(!do_ralloy)){
+            if((!asitealloc)&&(do_ralloy)){
                 asite_ch_gpu.Allocate(Natom_full);
                 asite_ch_cpu.set(FortranData::asite_ch, static_cast<long int>(Natom_full));
-                asite_ch_gpu.copy_sync(asite_ch_cpu);
+                //asite_ch_gpu.copy_sync(asite_ch_cpu);
                 asitealloc = true;
             }
 
@@ -229,7 +235,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             emomMEnsembleNCSums_partial.zeros();
             achem_ch_gpu.Allocate(N);
             achem_ch_cpu.set(FortranData::achem_ch, static_cast<long int>(N));
-            achem_ch_gpu.copy_sync(achem_ch_cpu);
+           // achem_ch_gpu.copy_sync(achem_ch_cpu);
             
         }
     }
@@ -238,10 +244,10 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
     {
         assert(*FortranData::skyno_step > 0 && *FortranData::skyno_buff > 0);
 
-        skyno_buff_gpu.Allocate(*FortranData::skyno_buff);
+        skyno_buff_gpu.Allocate(*FortranData::skyno_buff + 1);
         skyno_buff_gpu.zeros();
 
-        skyno_buff_cpu.AllocateHost(*FortranData::skyno_buff);
+        skyno_buff_cpu.AllocateHost(*FortranData::skyno_buff + 1);
         skyno_buff_cpu.zeros();
 
         skyno_iter.AllocateHost(*FortranData::skyno_buff);
@@ -273,7 +279,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
     if (do_skyno == SkyrmionMethod::Triangulation)
     {
         if (nsimp == 0)
-            throw std::invalid_argument("NX, NY, NZ and NT needs to be set from Fortran. Currently only works with hard coded values.");
+            throw std::invalid_argument("Triangulation requires N1, N2, N3 and NA > 0.");
 
         simp.Allocate(3, nsimp);
         skyno_partial_buff.Allocate(skyno_kernel_blocks.x);
@@ -282,7 +288,8 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         const uint threads = 256;
         const uint blocks = mm::ceil_div(pairs, threads);
 
-        mm::delaunay_tri_tri<<<blocks, threads, 0, workStream>>>(NX, NY, NZ, NT, simp);
+        mm::delaunay_tri_tri<<<blocks, threads, 0, workStream>>>(NX, NY, NZ, NA, simp);
+        ASSERT_GPU_KERNEL("delaunay_tri_tri");
     }
 
     if (do_ene>0)
@@ -302,7 +309,12 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         energy_iter.zeros();
         energy_partial_buff.Allocate(ene_kernel_blocks.x, ene_types);
 
-        printf("WARNING: DO NOT USE BIG_GRID WITH GPU CALCULATIONS OF ENERGY\n");
+
+        energySums_partial.Allocate(energySums_kernel_blocks.x, 6, M);
+        energySums_partial.zeros();
+
+
+       // printf("WARNING: DO NOT USE BIG_GRID WITH GPU CALCULATIONS OF ENERGY\n");
     }
     if (do_autocorr){
         sw_threads = 256;
@@ -314,7 +326,8 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         spinwait_gpu.Allocate(3, N, M, nspinwait);
         spinwait_gpu.zeros();
         fill_spinwait<<<sw_blocks, sw_threads>>>(spinwait_gpu, gpuLattice.emom, sw_tasks, 0);
-        
+        ASSERT_GPU_KERNEL("fill_spinwait");
+
         sw_curIdx = 0;
         printf("\n do_ac = %c, swtt size = %i\n ", do_autocorr, spinwaittable_cpu.extent(0));
         sw_next = spinwaittable_cpu(0);
@@ -395,7 +408,7 @@ void GpuMeasurement::release(){
             emomMEnsembleNTSums.Free();
             emomMEnsembleNTSums_partial.Free();
             atype_gpu.Free();
-            if((asitealloc)&&(!do_ralloy)){
+            if(asitealloc){
                 asite_ch_gpu.Free();
                 asitealloc = false;
             }
@@ -403,7 +416,7 @@ void GpuMeasurement::release(){
         if((do_avrg_proj=='A')||(do_cumu_proj=='A')){
             emomMEnsembleNASums.Free();
             emomMEnsembleNASums_partial.Free();
-            if((asitealloc)&&(!do_ralloy)){
+            if(asitealloc){
                 asite_ch_gpu.Free();
                 asitealloc = false;
             }
@@ -442,6 +455,7 @@ void GpuMeasurement::release(){
         energy_partial_buff.Free();
         energy_buff_cpu.FreeHost();
         energy_iter.FreeHost();
+        energySums_partial.Free();
     }
       
     if (do_autocorr)
@@ -479,6 +493,12 @@ void GpuMeasurement::measure(std::size_t mstep)
         stopwatch.add("sum reduction of emomM for shared use");
     }
 
+    if (do_ene > 0 && (energy || cumu))
+    {
+        calculateEnergySumsOverAtoms();
+        stopwatch.add("sum reduction of energy contributions");
+    }
+
     if (avrg)
     {
         measureAverageMagnetization(mstep);
@@ -510,23 +530,25 @@ void GpuMeasurement::measure(std::size_t mstep)
 
     
 
-    if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS) {
-      release();
-    }
+    ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
 
 }
 
 
 void GpuMeasurement::flushMeasurements(std::size_t mstep)
 {
-    cpuMeas.measure(mstep);  
-
     --mstep; // this is because the simulation loop begins at 1 because of Fortran indexing
 
     if (do_avrg || do_cumu)
     {
         calculateEmomMSum();
         stopwatch.add("sum reduction of emomM for shared use");
+    }
+
+    if (do_ene > 0 && ((do_gpu_measurements && (do_ene == 1)) || do_cumu))
+    {
+        calculateEnergySumsOverAtoms();
+        stopwatch.add("sum reduction of energy contributions");
     }
 
     if (do_avrg)
@@ -538,7 +560,7 @@ void GpuMeasurement::flushMeasurements(std::size_t mstep)
             saveToFile(MeasurementType::AverageMagnetization);
     }
 
-    if (do_gpu_measurements && (do_ene==1))
+    if (do_gpu_measurements && (do_ene>0))
     {
         measureEnergy(mstep);
         stopwatch.add("energy");
@@ -567,18 +589,13 @@ void GpuMeasurement::flushMeasurements(std::size_t mstep)
 
     if (do_autocorr)
     {
-        //measureAutocorrelation(mstep);
-        //ac_count++;
-        //stopwatch.add("autocorrelation");
-        //saveToFile(MeasurementType::Autocorrelation);
+        if (ac_count > 0)
+            saveToFile(MeasurementType::Autocorrelation);
     }
 
     cpuMeas.flushMeasurements(mstep + 1); 
 
-    if(GPU_DEVICE_SYNCHRONIZE() != GPU_SUCCESS)
-    {
-        release();
-    }
+    ASSERT_GPU(GPU_DEVICE_SYNCHRONIZE());
 }
 
 
@@ -589,11 +606,13 @@ void GpuMeasurement::measureAverageMagnetization(std::size_t mstep)
     mm::averageMagnetization_partial<<<mavg_kernel_blocks, mavg_kernel_threads, smem, workStream>>>(
             emomMEnsembleSums, N, M, mavg_partial_buff.data()
     );
+    ASSERT_GPU_KERNEL("averageMagnetization_partial");
 
 
     mm::averageMagnetization_finalize<<<1, mavg_kernel_threads, smem, workStream>>>(
             mavg_partial_buff.data(), mavg_kernel_blocks.x, M, mavg_buff_gpu.data()[mavg_count]
     );
+    ASSERT_GPU_KERNEL("averageMagnetization_finalize");
 
     fill_index(mavg_iter, mstep, mavg_count);
     mavg_count++;
@@ -614,6 +633,7 @@ void GpuMeasurement::measureBinderCumulant(std::size_t mstep)
         mm::binderCumulantNoEnergy_partial<<<cumu_kernel_blocks, cumu_kernel_threads, smem, workStream>>>(
                 emomMEnsembleSums, N, M, cumu_partial_buff.data()
         );
+        ASSERT_GPU_KERNEL("binderCumulantNoEnergy_partial");
 
         mm::binderCumulantNoEnergy_finalize<<<1, cumu_kernel_threads, smem, workStream>>>(
                 cumu_partial_buff.data(),
@@ -625,6 +645,7 @@ void GpuMeasurement::measureBinderCumulant(std::size_t mstep)
                 *FortranData::k_bolt,
                 *cumu_buff_gpu.data()
         );
+        ASSERT_GPU_KERNEL("binderCumulantNoEnergy_finalize");
     }
     else
     {
@@ -633,6 +654,7 @@ void GpuMeasurement::measureBinderCumulant(std::size_t mstep)
         mm::binderCumulantEnergy_partial<<<cumu_ene_kernel_blocks, cumu_ene_kernel_threads>>>(
                 emomMEnsembleSums, gpuEnergies.energyM, N, M, cumu_ene_partial_buff.data()
         );
+        ASSERT_GPU_KERNEL("binderCumulantEnergy_partial");
 
         mm::binderCumulantEnergy_finalize<<<1, cumu_ene_maxBlocks>>>(
                                                                         cumu_ene_partial_buff.data(),
@@ -645,6 +667,7 @@ void GpuMeasurement::measureBinderCumulant(std::size_t mstep)
                                                                         *FortranData::mry,
                                                                         *cumu_buff_gpu.data()
                                                                     );
+                                                                    ASSERT_GPU_KERNEL("binderCumulantEnergy_finalize");
     }
 
 
@@ -657,22 +680,27 @@ void GpuMeasurement::measureBinderCumulant(std::size_t mstep)
 
 void GpuMeasurement::measureSkyrmionNumber(std::size_t mstep)
 {
+    const size_t stats_index = *FortranData::skyno_buff;
+
     if (do_skyno == SkyrmionMethod::BruteForce)
     {
         mm::grad_moments<<<skyno_kernel_blocks, skyno_kernel_threads, 0, workStream>>>(
-                gpuLattice.emomM, dxyz_vec, dxyz_atom, dxyz_list, grad_mom
+                gpuLattice.emom, dxyz_vec, dxyz_atom, dxyz_list, grad_mom
         );
+        ASSERT_GPU_KERNEL("grad_moments");
 
 
         size_t smem = mm::nwarps(skyno_kernel_threads) * sizeof(real);
         mm::pontryagin_no_partial<<<skyno_kernel_blocks, skyno_kernel_threads, smem, workStream>>>(
                 gpuLattice.emomM, grad_mom, skyno_partial_buff.data()
         );
+        ASSERT_GPU_KERNEL("pontryagin_no_partial");
 
         smem = skyno_kernel_threads.x * sizeof(real);
         mm::pontryagin_no_finalize<<<1, skyno_kernel_threads, smem, workStream>>>(
-                skyno_partial_buff.data(), skyno_kernel_blocks.x, M, skyno_count + 1, skyno_buff_gpu.data()[skyno_count]
+                skyno_partial_buff.data(), skyno_kernel_blocks.x, M, skyno_buff_gpu.data()[stats_index], skyno_buff_gpu.data()[skyno_count]
         );
+        ASSERT_GPU_KERNEL("pontryagin_no_finalize");
     }
 
     else if (do_skyno == SkyrmionMethod::Triangulation)
@@ -681,11 +709,13 @@ void GpuMeasurement::measureSkyrmionNumber(std::size_t mstep)
         mm::pontryagin_tri_partial<<<skyno_kernel_blocks, skyno_kernel_threads, smem, workStream>>>(
                 gpuLattice.emom, simp, skyno_partial_buff.data()
         );
+        ASSERT_GPU_KERNEL("pontryagin_tri_partial");
 
         smem = skyno_kernel_threads.x * sizeof(real);
         mm::pontryagin_tri_finalize<<<1, skyno_kernel_threads, smem, workStream>>>(
-                skyno_partial_buff.data(), skyno_kernel_blocks.x, M, skyno_count + 1, skyno_buff_gpu.data()[skyno_count]
+                skyno_partial_buff.data(), skyno_kernel_blocks.x, NA, M, skyno_buff_gpu.data()[stats_index], skyno_buff_gpu.data()[skyno_count]
         );
+        ASSERT_GPU_KERNEL("pontryagin_tri_finalize");
     }
 
     fill_index(skyno_iter, mstep, skyno_count);
@@ -706,10 +736,12 @@ void GpuMeasurement::measureEnergy(size_t mstep)
            // 1 * sizeof(EnergyData), GPU_MEMCPY_DEVICE_TO_DEVICE);
            
            
-    mm::averageEnergy_partial<<<ene_kernel_blocks, ene_kernel_threads>>>(gpuEnergies.energyM, M, energy_partial_buff.data());
+    mm::averageEnergy_partial<<<ene_kernel_blocks, ene_kernel_threads, 0, workStream>>>(gpuEnergies.energyM, M, energy_partial_buff.data());
+    ASSERT_GPU_KERNEL("averageEnergy_partial");
 
-    mm::averageEnergy_final<<<1, ene_maxBlocks>>>(
+    mm::averageEnergy_final<<<1, ene_maxBlocks, 0, workStream>>>(
             energy_partial_buff.data(), ene_kernel_blocks.x, M, fcinv, energy_buff_gpu.data()[energy_count]);
+            ASSERT_GPU_KERNEL("averageEnergy_final");
 
    //printf("ene_step = %i, mstep = %i, ene_buff = %i, ene_ext = %i, ene_count = %i\n", 
     //ene_step, mstep, ene_buff,  energy_buff_gpu.extent(0), energy_count);
@@ -729,15 +761,17 @@ void GpuMeasurement::measureAutocorrelation(std::size_t mstep)
    // printf("sw_next = %i, mstep = %i\n", sw_next, mstep);
 
     if (((mstep % ac_step) == 0)||(mstep == sw_curr)){
-        ac_blocks = {ac_blocksX, sw_curIdx + 1, 1};
+        // All waiting times are evaluated, unsampled ones give zero (as in the CPU buffer_autocorr)
+        ac_blocks = {ac_blocksX, nspinwait, 1};
         real norm = 1/(static_cast<real>(gpuLattice.emom.extent(1)*gpuLattice.emom.extent(2)));
         //printf("cur swIdx = %i,  max sw = %i\n\n", sw_curIdx, nspinwait);
         //if (mstep == sw_curr) printf("HERE!\n");
 
 
         calc_autocorr_block<<<ac_blocks, ac_threads>>>(ac_block_gpu, spinwait_gpu, gpuLattice.emom);
+        ASSERT_GPU_KERNEL("calc_autocorr_block");
         calc_autocorr_final<<<(sw_curIdx + 1), ac_maxBlocks>>>(ac_block_gpu, autocorr_buff_gpu, norm, ac_count, ac_blocksX);
-    
+        ASSERT_GPU_KERNEL("calc_autocorr_final");
 
         fill_index(indxb_ac, mstep + 1, ac_count);
         ac_count++;
@@ -754,13 +788,17 @@ void GpuMeasurement::measureAutocorrelation(std::size_t mstep)
 void GpuMeasurement::updateAC(std::size_t mstep)
 {
  
-    if ((mstep == sw_next)&&(sw_curIdx < (spinwaittable_cpu.extent(0) - 1) )){
-        printf("sw_next = %i, mstep = %i, swId = %i, \n\n", sw_next,  mstep, sw_curIdx);
+    if (!do_autocorr)
+        return;
 
-        sw_curIdx++;
+    // Slot j holds the moments at the end of step spinwaitt(j), as in the CPU autocorr_sample
+    while ((sw_curIdx < nspinwait) && (mstep == spinwaittable_cpu(sw_curIdx))){
         fill_spinwait<<<sw_blocks, sw_threads>>>(spinwait_gpu, gpuLattice.emom, sw_tasks, sw_curIdx);
-        sw_curr = sw_next;
-        sw_next = spinwaittable_cpu(sw_curIdx); 
+        ASSERT_GPU_KERNEL("fill_spinwait");
+        sw_curr = mstep;
+        sw_curIdx++;
+        if (sw_curIdx < nspinwait)
+            sw_next = spinwaittable_cpu(sw_curIdx);
     }
    
 }
@@ -774,6 +812,7 @@ void GpuMeasurement::calculateEmomMSum()
             gpuLattice.emomM,
             emomMEnsembleSums_partial
     );
+    ASSERT_GPU_KERNEL("sumOverAtoms_partial");
 
     smem = sumOverAtoms_kernel_blocks.x * sizeof(real);
     const dim3 threads = 256;
@@ -783,6 +822,22 @@ void GpuMeasurement::calculateEmomMSum()
             sumOverAtoms_kernel_blocks.x,
             emomMEnsembleSums
     );
+    ASSERT_GPU_KERNEL("sumOverAtoms_finalize");
+}
+
+void GpuMeasurement::calculateEnergySumsOverAtoms()
+{
+    size_t smem = mm::nwarps(energySums_kernel_threads) * sizeof(real);
+    mm::sumEnergyOverAtoms_partial<<<energySums_kernel_blocks, energySums_kernel_threads, smem, workStream>>>(gpuEnergies.jij, gpuEnergies.dmi, gpuEnergies.ani,
+                                                                                                                gpuEnergies.external, gpuEnergies.tensor, energySums_partial);
+    ASSERT_GPU_KERNEL("sumEnergyOverAtoms_partial");
+
+    const dim3 threads = 256;
+    const dim3 grid = 6 * M;
+    smem = mm::nwarps(threads) * sizeof(real);
+
+    mm::sumEnergyOverAtoms_finalize<<<grid, threads, smem, workStream>>>(energySums_partial,energySums_kernel_blocks.x, N, gpuEnergies.energyM);
+    ASSERT_GPU_KERNEL("sumEnergyOverAtoms_finalize");
 }
 
 
@@ -824,7 +879,7 @@ void GpuMeasurement::saveToFile(MeasurementType mtype)
                 skyno_count
         );
 
-        skyno_buff_gpu.zeros();
+        //skyno_buff_gpu.zeros();
         skyno_buff_cpu.zeros();
         skyno_iter.zeros();
         skyno_count = 0;
@@ -855,7 +910,7 @@ void GpuMeasurement::saveToFile(MeasurementType mtype)
     case MeasurementType::Autocorrelation:
         autocorr_buff_cpu.copy_sync(autocorr_buff_gpu);
 
-        for (size_t i = 0; i < ac_buff; ++i)
+        for (size_t i = 0; i < ac_count; ++i)
         {
             AutocorrelationData row{
                 .values = autocorr_buff_cpu.data() + i * nspinwait,
