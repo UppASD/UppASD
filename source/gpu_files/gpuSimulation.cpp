@@ -59,8 +59,8 @@ void GpuSimulation::initiateConstants() {
     SimParam.mnndm = *FortranData::max_no_dmneigh;
     SimParam.ipmcnphase = *FortranData::ipmcnphase;
     SimParam.ipnphase = *FortranData::ipnphase;
-    if(SimParam.ipnphase == 0) SimParam.ipnphase = 1;
-    if(SimParam.ipmcnphase == 0) SimParam.ipmcnphase = 1;
+   // if(SimParam.ipnphase == 0) SimParam.ipnphase = 1;
+    //if(SimParam.ipmcnphase == 0) SimParam.ipmcnphase = 1;
     SimParam.mcnstep = *FortranData::mcnstep;
    // printf("cpp = %i, fortr = %i",  SimParam.ipnphase , *FortranData::ipnphase );
     // Constants 
@@ -188,13 +188,18 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
     cpuLattice.mmomi.set(FortranData::mmomi, N, M);
     cpuLattice.btorque.set(FortranData::btorque,  static_cast <long int>(3), N, M);
     cpuLattice.temperature.set(FortranData::temperature, N);
+
+    if (ipnphase > 0) {
+        cpuLattice.ipTemp_array.set(FortranData::ipTemp_array, N, ipnphase);
+        cpuLattice.ipnstep.set(FortranData::ipnstep, ipnphase);
+        cpuLattice.ipdelta_t.set(FortranData::ipdelta_t, ipnphase);
+        cpuLattice.iplambda1.set(FortranData::iplambda1, ipnphase);
+    }
+
+
     cpuLattice.ipTemp.set(FortranData::ipTemp, ipmcnphase);
     cpuLattice.ipmcnstep.set(FortranData::ipmcnstep, ipmcnphase);
-    cpuLattice.ipTemp_array.set(FortranData::ipTemp_array, N, ipnphase);
-    cpuLattice.ipnstep.set(FortranData::ipnstep, ipnphase);
-    cpuLattice.ipdelta_t.set(FortranData::ipdelta_t, ipnphase);
-    cpuLattice.iplambda1.set(FortranData::iplambda1, ipnphase);
-    if(Flags.do_gpu_correlations){
+     if(Flags.do_gpu_correlations){
         cpuCorrelations.r_mid.set(FortranData::r_mid, static_cast <long int>(3));
         cpuCorrelations.q.set(FortranData::q, static_cast <long int>(3), nq);
         cpuCorrelations.w.set(FortranData::w, nw);

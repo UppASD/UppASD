@@ -52,6 +52,39 @@ void GpuSimulation::GpuSDSimulation::printMdStatus(std::size_t mstep, GpuSimulat
    }
 }
 
+void GpuSimulation::GpuSDSimulation::printMdStatus_iphase(std::size_t mstep,GpuSimulation& gpuSim, std::size_t phaseSteps,
+                                    unsigned int phaseIndex, real tempAvg, real tempMin, real tempMax) {
+
+    if (phaseSteps == 0) {
+        return;
+    }
+
+    const std::size_t printEvery = (phaseSteps > 20) ? phaseSteps / 20 : 1;
+    if (mstep % printEvery != 0 && mstep != phaseSteps) {
+        return;
+    }
+
+    gpuSim.copyToFortran();
+    fortran_calc_simulation_status_variables(gpuSim.SimParam.mavg);
+
+    const unsigned int progress = static_cast<unsigned int>(mstep * 100 / phaseSteps);
+
+    std::printf(
+        "GPU: IP phase %u/%u | Tavg: %.4f K "
+        "(Tmin: %.4f, Tmax: %.4f) | "
+        "%3u%% done (%zu/%zu steps). Mbar: %10.6f. U: %8.5f.\n",
+        phaseIndex + 1,
+        gpuSim.SimParam.ipnphase,
+        static_cast<double>(tempAvg),
+        static_cast<double>(tempMin),
+        static_cast<double>(tempMax),
+        progress,
+        mstep,
+        phaseSteps,
+        static_cast<double>(*gpuSim.SimParam.mavg),
+        static_cast<double>(*gpuSim.SimParam.binderc));
+}
+
 // Spin Dynamics initial phase
 void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
    // Unbuffered printf
@@ -90,14 +123,8 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
       return;
    }
 
-   // TEMPORARY PRINTING
    std::printf("\n");
-   // std::printf("________DEBUG System Information:___________ \n");
-   // std::printf("%zu\n", gpuSim.cpuHamiltonian.j_tensor.extent(0));
-   // std::printf("%zu\n", gpuSim.cpuHamiltonian.j_tensor.extent(1));
-   // std::printf("%zu\n", gpuSim.cpuHamiltonian.j_tensor.extent(2));
-   // std::printf("%zu\n", gpuSim.cpuHamiltonian.j_tensor.extent(3));
-   // std::printf("______________________________________\n");
+
    int mnn = gpuSim.cpuHamiltonian.j_tensor.extent(2);
    int l = gpuSim.cpuHamiltonian.j_tensor.extent(3);
    int NH = gpuSim.cpuHamiltonian.j_tensor.extent(3);
@@ -105,6 +132,28 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
    std::printf("_______________________________________________\n");
    Tensor<real, 1> ipTemp;
    ipTemp.AllocateHost(N);
+
+
+   if (FortranData::ipnphase == nullptr) {
+
+      std::fprintf(stderr,
+         "\nERROR: GPU Spin Dynamics initial phase is not configured correctly.\n"
+         "The scalar input format using ip_temp and ip_nstep is not supported.\n"
+         "\n"
+         "Please use the conventional initial-phase input format:\n"
+         "\n"
+         "ip_mode S\n"
+         "ip_nphase 1\n"
+         "250000  0.01  1.0e-15  1.0\n"
+         "\n"
+         "The columns are:\n"
+         "  Number of steps | Temperature | Time step | Damping\n"
+         "\n"
+         "The number of data rows must match ip_nphase.\n"
+         "GPU initial phase will not be started.\n\n");
+
+      return;
+   }
 
    for(unsigned int k = 0; k < N; k++){
       ipTemp(k) = gpuSim.cpuLattice.ipTemp_array(k, 0);
@@ -122,12 +171,41 @@ void GpuSimulation::GpuSDSimulation::SDiphase(GpuSimulation& gpuSim) {
        gpuSim.SimParam.delta_t = phaseDt;
        gpuSim.SimParam.damping = phaseDamp;
        integrator.resetConstants(ipTemp, phaseDt, phaseDamp);
-      steps = gpuSim.cpuLattice.ipnstep(it);
+       steps = gpuSim.cpuLattice.ipnstep(it);
+
+      real tempMin = gpuSim.cpuLattice.ipTemp_array(0, it);
+      real tempMax = tempMin;
+      double tempSum = 0.0;
+
+      for (std::size_t atom = 0; atom < gpuSim.SimParam.N; atom++) {
+
+        const real T = gpuSim.cpuLattice.ipTemp_array(atom, it);
+
+        tempSum += static_cast<double>(T);
+
+        tempMin = (T < tempMin) ? T : tempMin;
+        tempMax = (T > tempMax) ? T : tempMax;
+      }
+      const real tempAvg = static_cast<real>(tempSum / gpuSim.SimParam.N);
+
+      std::printf(
+        "\nGPU: Starting initial phase %u/%u\n"
+        "    Temperature: %.4f K (min: %.4f, max: %.4f)\n"
+        "    Steps: %u | dt: %.4e | damping: %.4f\n",
+        it + 1,
+        ipnphase,
+        static_cast<double>(tempAvg),
+        static_cast<double>(tempMin),
+        static_cast<double>(tempMax),
+        steps,
+        static_cast<double>(phaseDt),
+        static_cast<double>(phaseDamp));
+
 
       // Time step loop
       for(std::size_t mstep = 1; mstep <= steps; mstep++) {
          // Print simulation status for each 5% of the simulation length
-         printMdStatus(mstep, gpuSim); //-- Do we need it in initial phase?
+         printMdStatus_iphase(mstep, gpuSim, steps, it, tempAvg, tempMin, tempMax);
 
          // Apply Hamiltonian to obtain effective field
          hamCalc.heisge(gpuSim.gpuLattice, gpuSim.gpuEnergies, false);
