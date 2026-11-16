@@ -33,6 +33,8 @@ private:
    bool isInitiatedSD;   GpuTensor<real, 1> exchangeM;
 
    void printMdStatus(std::size_t mstep, GpuSimulation& gpuSim);
+   void printMdStatus_iphase(std::size_t mstep,GpuSimulation& gpuSim,std::size_t phaseSteps, unsigned int phaseIndex,
+                              real tempAvg, real tempMin, real tempMax);
 
 public:
    GpuSDSimulation();
