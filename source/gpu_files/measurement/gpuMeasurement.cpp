@@ -15,6 +15,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
                                  Tensor<real, 3>& f_emom,
                                  Tensor<real, 2>& f_mmom,
                                  Tensor<real, 3>& f_beff,
+                                 const hostProj& cpuProj,
                                  MeasurementQueue& mq,
                                  bool p_do_jtensor,
                                  bool alwaysCopy

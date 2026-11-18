@@ -19,6 +19,7 @@ private:
     hostMeasurables cpuMeasurebles;//those are host matrices
     hostHamiltonian cpuHamiltonian;//those are host matrices
     hostCorrelations cpuCorrelations;//those are host matrices
+    hostProj cpuProj;
 
     deviceLattice gpuLattice; //those are device matrices
     deviceMeasurables gpuMeasurebles;//those are device matrices

@@ -70,6 +70,8 @@ struct SimulationParameters {
    std::size_t sc_window_fun;
    std::size_t NT;
    std::size_t Nchmax;
+   std::size_t NA;
+   std::size_t Natom_full;
 
 
 
@@ -164,6 +166,13 @@ struct hostCorrelations {
    Tensor<cpu_complex, 4> m_kt_projch;
    Tensor<cpu_complex, 4> m_kw_projch;
 
+};
+
+struct hostProj {
+   Vector<int> atype;    // Atom type index (type-projected measurements and correlations)
+   Vector<int> achtype;  // Chemical type index (chem-type-projected correlations)
+   Vector<int> asite_ch; // Site channel (site-projected measurements)
+   Vector<int> achem_ch; // Chemical channel (chem-projected measurements)
 };
    
 struct deviceHamiltonian {

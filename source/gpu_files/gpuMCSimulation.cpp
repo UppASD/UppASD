@@ -191,7 +191,7 @@ void GpuSimulation::GpuMCSimulation::MCmphase(GpuSimulation& gpuSim) {
    MeasurementQueue mqueue;
 
  // Measurement
-   const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice,  gpuSim.gpuEnergies, mqueue,
+   const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice,  gpuSim.gpuEnergies, gpuSim.cpuProj, mqueue,
                                                       gpuSim.Flags.do_jtensor);
  
    //Corrrelations
@@ -386,7 +386,7 @@ void GpuSimulation::GpuMCSimulation::MCmphase_bf(GpuSimulation& gpuSim) {
    MeasurementQueue mqueue;
 
  // Measurement
-const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice,  gpuSim.gpuEnergies, mqueue,
+const auto measurement = MeasurementFactory::create(gpuSim.gpuLattice, gpuSim.cpuLattice,  gpuSim.gpuEnergies, gpuSim.cpuProj, mqueue,
                                                    gpuSim.Flags.do_jtensor);
  
 //Corrrelations

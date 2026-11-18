@@ -95,6 +95,8 @@ void GpuSimulation::initiateConstants() {
     SimParam.sc_max_nstep = *FortranData::sc_max_nstep;
     SimParam.NT = *FortranData::NT;
     SimParam.Nchmax= *FortranData::Nchmax;
+    SimParam.NA = *FortranData::NA;
+    SimParam.Natom_full = *FortranData::Natom_full;
 
     SimParam.ene_step = *FortranData::ene_step;
     SimParam.ene_buff = *FortranData::ene_buff;
@@ -150,6 +152,8 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
     long int nw= static_cast <long int>( SimParam.nw);
     long int NT= static_cast <long int>( SimParam.NT);
     long int Nchmax= static_cast <long int>( SimParam.Nchmax);
+    long int NA = static_cast <long int>( SimParam.NA);
+    long int Natom_full= static_cast <long int>(SimParam.Natom_full);
 
 
     // Constants initiated?
@@ -224,21 +228,34 @@ void GpuSimulation::initiate_fortran_cpu_matrices() {
         }
 
     }
-  // printf("HERE - 2\n");
 
-  //  if(FortranData::ipnstep == nullptr)printf("ITS EMPTY\n");
+       
+    const bool need_atype_corr = Flags.do_gpu_correlations &&((Flags.do_sc_proj=='C')||(Flags.do_sc_proj=='Q')||(Flags.do_sc_proj=='Y'));
+    const bool need_atype_meas = Flags.do_gpu_measurements  && (((Flags.do_avrg=='Y')&&(*FortranData::do_avrg_proj=='Y'))||(*FortranData::do_cumu_proj=='Y'));
 
-   /* if (Flags.do_mphase_now != 0){
-        if (Flags.do_avrg !=0){
-            cpuMeasurables.mavg_buff.set(FortranData::mavrg_buff, SimParam.avrg_buff);
-            //cpuMeasurables.eavg_buff.set(FortranData::eavrg_buff, SimParam.avrg_buff);
-        }
-        if (Flags.do_cumu !=0){
-            cpuMeasurables.mcumu_buff.set(FortranData::mcumu_buff, SimParam.avrg_buff);
-            //cpuMeasurables.ecumu_buff.set(FortranData::ecumu_buff, SimParam.cumu_buff); 
-        }
-    }*/
-        
+    const bool need_achtype = Flags.do_gpu_correlations && ((Flags.do_sc_projch=='C')||(Flags.do_sc_projch=='Q')||(Flags.do_sc_projch=='Y'));
+    const bool need_achem_ch = Flags.do_gpu_measurements && (Flags.do_avrg=='Y')&& ((*FortranData::do_avrg_projch=='Y'));
+    const bool need_asite_ch = Flags.do_gpu_measurements  &&(Flags.do_avrg=='Y')&& (*FortranData::do_ralloy) &&
+        ((*FortranData::do_avrg_proj=='Y')||(*FortranData::do_avrg_proj=='A'));
+   
+   
+    if(need_atype_corr || need_atype_meas) {
+        cpuProj.atype.set(FortranData::atype, N);
+    }
+
+    if(need_achtype) {
+        cpuProj.achtype.set(FortranData::achtype, N);
+    }
+
+    if(need_achem_ch) {
+       cpuProj.achem_ch.set(FortranData::achem_ch, N);
+    }
+
+    if(need_asite_ch) {
+        cpuProj.asite_ch.set(FortranData::asite_ch, Natom_full);
+    }
+
+
 
     
 
