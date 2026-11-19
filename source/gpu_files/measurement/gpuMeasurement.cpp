@@ -162,7 +162,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         if((do_avrg_projch=='Y')){
             mavg_projch_kernel_threads = {256,1,1};
 
-            mavg_proj_kernel_blocks = {mm::ceil_div(M, mavg_projch_kernel_threads.x),Nchmax,1};
+            mavg_projch_kernel_blocks = {mm::ceil_div(M, mavg_projch_kernel_threads.x),Nchmax,1};
 
             mavg_projch_buff_gpu.Allocate(Nchmax, *FortranData::avrg_buff);
             mavg_projch_buff_gpu.zeros();
@@ -430,18 +430,18 @@ void GpuMeasurement::release(){
         if (do_ene==0) cumu_partial_buff.Free();
         else cumu_ene_partial_buff.Free();
 
-        if((do_cumu_proj == 'Y')||(do_cumu_proj == 'A')){
-            cumu_proj_buff_gpu.Free();
-            cumu_proj_buff_cpu.FreeHost();
-            cumu_proj_partial_buff.Free();
-        }
+    }
 
-        if(do_cumu_projch){
-            cumu_projch_buff_gpu.Free();
-            cumu_projch_buff_cpu.FreeHost();
-            cumu_projch_partial_buff.Free();
-        }
+    if((do_cumu_proj == 'Y')||(do_cumu_proj == 'A')){
+        cumu_proj_buff_gpu.Free();
+        cumu_proj_buff_cpu.FreeHost();
+        cumu_proj_partial_buff.Free();
+    }
 
+    if(do_cumu_projch){
+        cumu_projch_buff_gpu.Free();
+        cumu_projch_buff_cpu.FreeHost();
+        cumu_projch_partial_buff.Free();
     }
 
     const bool need_avrg_site = do_avrg && do_avrg_proj == 'A';
@@ -450,7 +450,7 @@ void GpuMeasurement::release(){
     const bool need_cumu_type = do_cumu_proj == 'Y';
 
     const bool need_type_map = need_avrg_type || need_cumu_type;
-    const bool need_asite_map = && (need_avrg_site || need_avrg_type);
+    const bool need_asite_map = do_ralloy && (need_avrg_site || need_avrg_type);
 
 
     if (do_avrg || do_cumu)

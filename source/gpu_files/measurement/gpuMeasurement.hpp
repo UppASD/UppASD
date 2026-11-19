@@ -83,10 +83,10 @@ private:
     const bool do_avrg;
     GpuVector<AverageMagnetizationData> mavg_buff_gpu;
     GpuTensor<AverageMagnetizationData, 2> mavg_proj_buff_gpu;
-    GpuTensor<AverageMagnetizationData, 2> mavg_projch_buff_gpu;
+    GpuTensor<AverageMagnetizationProjChData, 2> mavg_projch_buff_gpu;
     Vector<AverageMagnetizationData> mavg_buff_cpu;
     Tensor<AverageMagnetizationData, 2> mavg_proj_buff_cpu;
-    Tensor<AverageMagnetizationData, 2> mavg_projch_buff_cpu;
+    Tensor<AverageMagnetizationProjChData, 2> mavg_projch_buff_cpu;
     GpuVector<kernels::measurement::AvgMPart> mavg_partial_buff;
     GpuTensor<kernels::measurement::AvgMPart, 2> mavg_proj_partial_buff;
     GpuTensor<kernels::measurement::AvgMProjChPart, 2> mavg_projch_partial_buff;

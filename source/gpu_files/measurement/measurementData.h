@@ -45,7 +45,15 @@ struct AverageMagnetizationData
     real m_stdv{};
 };
 
-
+struct AverageMagnetizationProjChData
+{
+    real m_x{};
+    real m_y{};
+    real m_z{};
+    real m{};
+    real m_stdv{};
+    real sum_magnitude{};
+};
 
 struct BinderCumulantData
 {
