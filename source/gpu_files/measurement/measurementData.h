@@ -9,6 +9,18 @@ enum class MeasurementType : uint8_t
     AverageMagnetization, BinderCumulant, SkyrmionNumber, Energy, EnergyStd, Autocorrelation
 };
 
+enum class MeasurementSchedule : uint8_t
+{
+    AverageMagnetization,
+    ProjectedAverageMagnetization,
+    ChemicalProjectedAverageMagnetization,
+    BinderCumulant,
+    ProjectedBinderCumulant,
+    Energy,
+    SkyrmionNumber,
+    Autocorrelation
+};
+
 enum class SkyrmionMethod : uint8_t
 {
     None,        // no measurement

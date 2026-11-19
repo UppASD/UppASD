@@ -52,7 +52,7 @@ private:
     static dim3 skyrmionKernelNumBlocks(SkyrmionMethod method, uint N, uint M, uint nsimp, uint kernel_threads);
     void calculateEmomMProjSiteSum();
     void measureProjectedAverageMagnetization(size_t mstep);
-    void selectTotalSumOwner(bool avrg, bool cumu);
+    void selectTotalSumOwner(bool need_total, bool avrg_proj, bool avrg_projch, bool cumu_proj);
 
     void measureAutocorrelation(size_t mstep);
     void release();

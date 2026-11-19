@@ -546,10 +546,15 @@ void GpuMeasurement::measure(std::size_t mstep)
 
     --mstep; // this is because the simulation loop begins at 1 because of Fortran indexing
 
-    const bool avrg = timeToMeasure(MeasurementType::AverageMagnetization, mstep);
-    const bool cumu = timeToMeasure(MeasurementType::BinderCumulant, mstep);
-    const bool energy = timeToMeasure(MeasurementType::Energy, mstep);
-    const bool autocorr = timeToMeasure(MeasurementType::Autocorrelation, mstep);
+    const bool avrg = timeToMeasure(MeasurementSchedule::AverageMagnetization, mstep);
+    const bool cumu = timeToMeasure(MeasurementSchedule::BinderCumulant, mstep);
+    const bool energy = timeToMeasure(MeasurementSchedule::Energy, mstep);
+    const bool autocorr = timeToMeasure(MeasurementSchedule::Autocorrelation, mstep);
+    const bool avrg_proj = timeToMeasure(MeasurementSchedule::ProjectedAverageMagnetization, mstep);
+    const bool avrg_projch = timeToMeasure(MeasurementSchedule::ChemicalProjectedAverageMagnetization, mstep);
+    const bool cumu_proj = timeToMeasure(MeasurementSchedule::ProjectedBinderCumulant, mstep);
+
+    selectTotalSumOwner(avrg || cumu,avrg_proj,avrg_projch,cumu_proj);
 
     if (avrg || cumu)
     {
@@ -561,6 +566,33 @@ void GpuMeasurement::measure(std::size_t mstep)
     {
         calculateEnergySumsOverAtoms();
         stopwatch.add("sum reduction of energy contributions");
+    }
+
+
+    if (avrg_proj)
+    {
+        if (do_avrg_proj == 'Y')
+        {
+            // TODO: type-projected average accumulation
+            // This path owns the total if totalSumOwner == TotalSumOwner::TypeAverage.
+        }
+        else if (do_avrg_proj == 'A')
+        {
+            // TODO: site-projected average accumulation
+            // This path owns the total if totalSumOwner == TotalSumOwner::SiteAverage.
+        }
+    }
+
+    if (avrg_projch)
+    {
+        // TODO: chemical-projected average accumulation
+        // This path owns the total if totalSumOwner == TotalSumOwner::ChemicalAverage.
+    }
+
+    if (cumu_proj)
+    {
+        // TODO: type-projected cumulant accumulation
+        // This path owns the total if totalSumOwner == TotalSumOwner::TypeCumulant.
     }
 
     if (avrg)
@@ -581,7 +613,7 @@ void GpuMeasurement::measure(std::size_t mstep)
         stopwatch.add("binder cumulant");
     }
 
-    if (timeToMeasure(MeasurementType::SkyrmionNumber, mstep))
+    if (timeToMeasure(MeasurementSchedule::SkyrmionNumber, mstep))
     {
         measureSkyrmionNumber(mstep);
         stopwatch.add("skyrmion number");
@@ -603,6 +635,11 @@ void GpuMeasurement::flushMeasurements(std::size_t mstep)
 {
     --mstep; // this is because the simulation loop begins at 1 because of Fortran indexing
 
+    const bool flush_avrg_proj = do_avrg && (do_avrg_proj == 'Y' || do_avrg_proj == 'A');
+    const bool flush_avrg_projch = do_avrg && (do_avrg_projch == 'Y');
+
+    selectTotalSumOwner(do_avrg || do_cumu,flush_avrg_proj,flush_avrg_projch,false);
+
     if (do_avrg || do_cumu)
     {
         calculateEmomMSum();
@@ -613,6 +650,23 @@ void GpuMeasurement::flushMeasurements(std::size_t mstep)
     {
         calculateEnergySumsOverAtoms();
         stopwatch.add("sum reduction of energy contributions");
+    }
+
+    if (flush_avrg_proj)
+    {
+        if (do_avrg_proj == 'Y')
+        {
+            // TODO: final type-projected average accumulation
+        }
+        else if (do_avrg_proj == 'A')
+        {
+            // TODO: final site-projected average accumulation
+        }
+    }
+
+    if (flush_avrg_projch)
+    {
+        // TODO: final chemical-projected average accumulation
     }
 
     if (do_avrg)
@@ -997,24 +1051,33 @@ void GpuMeasurement::saveToFile(MeasurementType mtype)
 }
 
 
-bool GpuMeasurement::timeToMeasure(MeasurementType mtype, size_t mstep) const
+bool GpuMeasurement::timeToMeasure(MeasurementSchedule mtype, size_t mstep) const
 {
     switch (mtype)
     {
-        case MeasurementType::AverageMagnetization:
+        case MeasurementSchedule::AverageMagnetization:
             return do_avrg && ((mstep % *FortranData::avrg_step) == 0);
 
-        case MeasurementType::BinderCumulant:
+        case MeasurementSchedule::ProjectedAverageMagnetization:
+            return do_avrg &&(do_avrg_proj == 'Y' || do_avrg_proj == 'A') &&(mstep % *FortranData::avrg_step == 0);
+
+        case MeasurementSchedule::ChemicalProjectedAverageMagnetization:
+            return do_avrg && do_avrg_projch == 'Y' &&(mstep % *FortranData::avrg_step == 0);
+
+        case MeasurementSchedule::BinderCumulant:
             return do_cumu && ((mstep % *FortranData::cumu_step) == 0);
 
-        case MeasurementType::SkyrmionNumber:
+        case MeasurementSchedule::ProjectedBinderCumulant:
+            return do_cumu_proj == 'Y' && (mstep % *FortranData::cumu_step == 0);
+
+        case MeasurementSchedule::SkyrmionNumber:
             return do_skyno != SkyrmionMethod::None && ((mstep % *FortranData::skyno_step) == 0);
         
-        case MeasurementType::Autocorrelation: {
+        case MeasurementSchedule::Autocorrelation: {
             return (do_autocorr) && (((mstep % ac_step) == 0)||(mstep== sw_curr));//TODO
         }
 
-        case MeasurementType::Energy:
+        case MeasurementSchedule::Energy:
             return do_gpu_measurements && (do_ene>0) && ((mstep % *FortranData::ene_step) == 0);
 
         default:
@@ -1045,22 +1108,30 @@ inline void GpuMeasurement::fill_index(Vector<real>& iter, T step, size_t& count
 }
 
 
-void GpuMeasurement::selectTotalSumOwner(bool avrg, bool cumu)
+void GpuMeasurement::selectTotalSumOwner(bool need_total,bool avrg_proj,bool avrg_projch,bool cumu_proj)
 {
     totalSumOwner = TotalSumOwner::None;
 
-    if (!avrg && !cumu)
+    if (!need_total)
         return;
 
-    // Select based on the projection kernels that will actually run.
-    if (avrg && do_avrg_proj == 'Y')
-        totalSumOwner = TotalSumOwner::TypeAverage;
-    else if (cumu && do_cumu_proj == 'Y')
-        totalSumOwner = TotalSumOwner::TypeCumulant;
-    else if (avrg && do_avrg_proj == 'A')
-        totalSumOwner = TotalSumOwner::SiteAverage;
-    else if (avrg && do_avrg_projch == 'Y')
+    if (avrg_proj)
+    {
+        totalSumOwner = (do_avrg_proj == 'Y') ? TotalSumOwner::TypeAverage: TotalSumOwner::SiteAverage;
+    }
+
+    else if (avrg_projch)
+    {
         totalSumOwner = TotalSumOwner::ChemicalAverage;
+    }
+
+    else if (cumu_proj)
+    {
+        totalSumOwner = TotalSumOwner::TypeCumulant;
+    }
+
     else
+    {
         totalSumOwner = TotalSumOwner::Legacy;
+    }
 }
