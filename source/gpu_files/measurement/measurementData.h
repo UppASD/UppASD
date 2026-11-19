@@ -26,6 +26,16 @@ inline SkyrmionMethod skyrmionMethodFromFlag(char c)
     }
 }
 
+enum class TotalSumOwner
+{
+    None,
+    TypeAverage,
+    TypeCumulant,
+    SiteAverage,
+    ChemicalAverage,
+    Legacy
+};
+
 struct AverageMagnetizationData
 {
     real m_x{};

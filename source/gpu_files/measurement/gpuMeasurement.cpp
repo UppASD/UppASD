@@ -40,9 +40,9 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , stopwatch(GlobalStopwatchPool::get("Gpu measurement"))
 , do_avrg(*FortranData::do_avrg == 'Y')
 , do_avrg_proj(*FortranData::do_avrg_proj)
-, do_avrg_projch(*FortranData::do_avrg_projch == 'Y')
+, do_avrg_projch(*FortranData::do_avrg_projch)
 , do_cumu_proj(*FortranData::do_cumu_proj)
-, do_cumu_projch(0)
+, do_cumu_projch('N')
 , do_ralloy(*FortranData::do_ralloy)
 , mavg_kernel_threads(256)
 , mavg_kernel_blocks(mm::ceil_div(M, mavg_kernel_threads.x))
@@ -55,6 +55,14 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 , cumu_ene_kernel_blocks(std::min(((M + cumu_ene_maxThreads - 1) / cumu_ene_maxThreads), cumu_ene_maxBlocks), 3, 1)
 , sumOverAtoms_kernel_threads(256, 1)
 , sumOverAtoms_kernel_blocks(mm::ceil_div(N, sumOverAtoms_kernel_threads.x), 3 * M)
+, sumOverAtomsProj_kernel_threads(256, 1, 1)
+, sumOverAtoms_NT_kernel_blocks(mm::ceil_div(N, sumOverAtomsProj_kernel_threads.x),NT,M)
+, sumOverAtoms_NA_kernel_blocks(mm::ceil_div(N, sumOverAtomsProj_kernel_threads.x),NA,M)
+, sumOverAtoms_NC_kernel_blocks(mm::ceil_div(N, sumOverAtomsProj_kernel_threads.x),Nchmax,M)
+, sumOverAtoms_reduce_kernel_threads(256, 1, 1)
+, sumOverAtoms_NT_reduce_kernel_blocks(NT, M, 1)
+, sumOverAtoms_NA_reduce_kernel_blocks(NA, M, 1)
+, sumOverAtoms_NC_reduce_kernel_blocks(Nchmax, M, 1)
 , do_autocorr((*FortranData::do_autocorr=='Y') ? true : false)
 , nspinwait(*FortranData::nspinwait)
 , n0spinwait(0)
@@ -90,6 +98,31 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
                   << "no projected output will be written" << std::endl;
     }
 
+    const bool need_avrg_site = do_avrg && do_avrg_proj == 'A';
+    const bool need_avrg_type = do_avrg && do_avrg_proj == 'Y';
+    const bool need_avrg_chem = do_avrg && do_avrg_projch == 'Y';
+    const bool need_cumu_type = do_cumu_proj == 'Y';
+    const bool need_type_map = need_avrg_type || need_cumu_type;
+    const bool need_asite_map = do_ralloy && (need_avrg_site || need_avrg_type);
+    const index_t nblocks = static_cast<index_t>(mm::ceil_div(N, sumOverAtomsProj_kernel_threads.x));
+
+    if (need_type_map)
+    {
+        atype_gpu.Allocate(N);
+        atype_gpu.copy_sync(cpuProj.atype);
+    }
+    if (need_asite_map)
+    {
+        asite_ch_gpu.Allocate(Natom_full);
+        asite_ch_gpu.copy_sync(cpuProj.asite_ch);
+    }
+
+    if (need_avrg_chem)
+    {
+        achem_ch_gpu.Allocate(N);
+        achem_ch_gpu.copy_sync(cpuProj.achem_ch);
+    }
+
     if (do_avrg)
     {
         assert(*FortranData::avrg_step > 0 && *FortranData::avrg_buff > 0);
@@ -104,6 +137,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 
         mavg_iter.AllocateHost(*FortranData::avrg_buff);
         mavg_iter.zeros();
+        
         if((do_avrg_proj=='Y')){
             mavg_proj_kernel_blocks = {1,1,1};
             mavg_proj_buff_gpu.Allocate(NT, *FortranData::avrg_buff);
@@ -196,49 +230,47 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         emomMEnsembleSums.Allocate(3, M);
         emomMEnsembleSums.zeros();
 
-        emomMEnsembleSums_partial.Allocate(sumOverAtoms_kernel_blocks.x, 3, M);
+        emomMEnsembleSums_partial.Allocate(nblocks, 3, M);
         emomMEnsembleSums_partial.zeros();
+    }
 
-        if((do_avrg_proj=='Y')||(do_cumu_proj == 'Y')){
-            emomMEnsembleNTSums.Allocate(3, NT, M);
-            emomMEnsembleNTSums.zeros();
-            emomMEnsembleNTSums_partial.Allocate(sumOverAtoms_NT_kernel_blocks.x, 3, NT, M);
-            emomMEnsembleNTSums_partial.zeros();
-            atype_gpu.Allocate(N);
-            atype_cpu.set(FortranData::atype, static_cast<long int>(N));
-            //atype_gpu.copy_sync(atype_cpu);
 
-            if((!asitealloc)&&(do_ralloy)){
-                asite_ch_gpu.Allocate(Natom_full);
-                asite_ch_cpu.set(FortranData::asite_ch, static_cast<long int>(Natom_full));
-                //asite_ch_gpu.copy_sync(asite_ch_cpu);
-                asitealloc = true;
-            }
+    if (need_avrg_site)
+    {
+        emomMEnsembleNASums.Allocate(3, NA, M);
+        emomMEnsembleNASums.zeros();
 
-        }
-        if((do_avrg_proj=='A')||(do_cumu_proj=='A')){
-            emomMEnsembleNASums.Allocate(3, NA, M);
-            emomMEnsembleNASums.zeros();
-            emomMEnsembleNASums_partial.Allocate(sumOverAtoms_NA_kernel_blocks.x, 3, NA, M);
-            emomMEnsembleNASums_partial.zeros();
-            if((!asitealloc)&&(do_ralloy)){
-                asite_ch_gpu.Allocate(Natom_full);
-                asite_ch_cpu.set(FortranData::asite_ch, static_cast<long int>(Natom_full));
-                //asite_ch_gpu.copy_sync(asite_ch_cpu);
-                asitealloc = true;
-            }
+        emomMEnsembleNASums_partial.Allocate(nblocks, 3, NA, M);
+        emomMEnsembleNASums_partial.zeros();
+    }
 
-        }
-        if((do_avrg_projch=='Y')||(do_cumu_projch=='Y')){
-            emomMEnsembleNCSums.Allocate(3, Nchmax, M);
-            emomMEnsembleNCSums.zeros();
-            emomMEnsembleNCSums_partial.Allocate(sumOverAtoms_NC_kernel_blocks.x, 3, Nchmax, M);
-            emomMEnsembleNCSums_partial.zeros();
-            achem_ch_gpu.Allocate(N);
-            achem_ch_cpu.set(FortranData::achem_ch, static_cast<long int>(N));
-           // achem_ch_gpu.copy_sync(achem_ch_cpu);
-            
-        }
+
+    if (need_avrg_type)
+    {
+        emomMEnsembleNTSums.Allocate(3, NT, M);
+        emomMEnsembleNTSums.zeros();
+
+        emomMEnsembleNTSums_partial.Allocate(nblocks, 3, NT, M);
+        emomMEnsembleNTSums_partial.zeros();
+    }
+
+
+    if (need_avrg_chem)
+    {
+        emomMEnsembleNCSums.Allocate(4, Nchmax, M);
+        emomMEnsembleNCSums.zeros();
+
+        emomMEnsembleNCSums_partial.Allocate(nblocks, 4, Nchmax, M);
+        emomMEnsembleNCSums_partial.zeros();
+    }
+
+    if (need_cumu_type)
+    {
+        emomMEnsembleCumuNTSums.Allocate(3, NT, M);
+        emomMEnsembleCumuNTSums.zeros();
+
+        emomMEnsembleCumuNTSums_partial.Allocate(nblocks, 3, NT, M);
+        emomMEnsembleCumuNTSums_partial.zeros();
     }
 
     if (do_skyno == SkyrmionMethod::BruteForce || do_skyno == SkyrmionMethod::Triangulation)
@@ -979,4 +1011,25 @@ inline void GpuMeasurement::fill_index(Vector<real>& iter, T step, size_t& count
     else {
         iter(count) = static_cast<real>(step);
     }
+}
+
+
+void GpuMeasurement::selectTotalSumOwner(bool avrg, bool cumu)
+{
+    totalSumOwner = TotalSumOwner::None;
+
+    if (!avrg && !cumu)
+        return;
+
+    // Select based on the projection kernels that will actually run.
+    if (avrg && do_avrg_proj == 'Y')
+        totalSumOwner = TotalSumOwner::TypeAverage;
+    else if (cumu && do_cumu_proj == 'Y')
+        totalSumOwner = TotalSumOwner::TypeCumulant;
+    else if (avrg && do_avrg_proj == 'A')
+        totalSumOwner = TotalSumOwner::SiteAverage;
+    else if (avrg && do_avrg_projch == 'Y')
+        totalSumOwner = TotalSumOwner::ChemicalAverage;
+    else
+        totalSumOwner = TotalSumOwner::Legacy;
 }

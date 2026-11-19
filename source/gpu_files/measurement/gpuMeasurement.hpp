@@ -50,6 +50,9 @@ private:
     void measureSkyrmionNumber(size_t mstep);
     void measureEnergy(size_t mstep);
     static dim3 skyrmionKernelNumBlocks(SkyrmionMethod method, uint N, uint M, uint nsimp, uint kernel_threads);
+    void calculateEmomMProjSiteSum();
+    void measureProjectedAverageMagnetization(size_t mstep);
+    void selectTotalSumOwner(bool avrg, bool cumu);
 
     void measureAutocorrelation(size_t mstep);
     void release();
@@ -101,9 +104,6 @@ private:
     GpuVector<int> achem_ch_gpu;
     GpuVector<int> asite_ch_gpu;
     GpuVector<int> atype_gpu;
-    Vector<int> achem_ch_cpu;
-    Vector<int> asite_ch_cpu;
-    Vector<int> atype_cpu;
 
 
     // Energy
@@ -149,7 +149,6 @@ private:
     dim3 cumu_projch_kernel_blocks;
 
 
-    // Used for both Average magnetization and Binder cumulant
     GpuTensor<real, 3> emomMEnsembleSums_partial;
     GpuTensor<real, 2> emomMEnsembleSums; // tensor of dim = 3 x M
     GpuTensor<real, 4> emomMEnsembleNTSums_partial;
@@ -158,16 +157,28 @@ private:
     GpuTensor<real, 3> emomMEnsembleNASums; 
     GpuTensor<real, 4> emomMEnsembleNCSums_partial;
     GpuTensor<real, 3> emomMEnsembleNCSums; 
+    GpuTensor<real, 4> emomMEnsembleCumuNTSums_partial;
+    GpuTensor<real, 3> emomMEnsembleCumuNTSums;
+
+
+    TotalSumOwner totalSumOwner = TotalSumOwner::None;
+
     const dim3 sumOverAtoms_kernel_threads;
     const dim3 sumOverAtoms_kernel_blocks;
 
-    dim3 sumOverAtoms_NT_kernel_threads;
-    dim3 sumOverAtoms_NT_kernel_blocks;
-    dim3 sumOverAtoms_NA_kernel_threads;
-    dim3 sumOverAtoms_NA_kernel_blocks;
-    dim3 sumOverAtoms_NC_kernel_threads;
-    dim3 sumOverAtoms_NC_kernel_blocks;
 
+    // Proj
+    const dim3 sumOverAtomsProj_kernel_threads;
+    const dim3 sumOverAtoms_NT_kernel_blocks;
+    const dim3 sumOverAtoms_NA_kernel_blocks;
+    const dim3 sumOverAtoms_NC_kernel_blocks;
+
+    const dim3 sumOverAtoms_reduce_kernel_threads;
+    const dim3 sumOverAtoms_total_reduce_kernel_blocks;
+    const dim3 sumOverAtoms_NT_reduce_kernel_blocks;
+    const dim3 sumOverAtoms_NA_reduce_kernel_blocks;
+    const dim3 sumOverAtoms_NC_reduce_kernel_blocks;
+        
 
     // Skyrmion number
     const SkyrmionMethod do_skyno;
