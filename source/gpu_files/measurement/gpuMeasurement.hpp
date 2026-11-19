@@ -40,7 +40,7 @@ public:
     void flushMeasurements(size_t mstep) override;
 
 private:
-    bool timeToMeasure(MeasurementType mtype, size_t mstep) const;
+    bool timeToMeasure(MeasurementSchedule mtype, size_t mstep) const;
     template<typename T> inline void fill_index(Vector<real>& iter, T step, size_t& count);
     void saveToFile(MeasurementType mtype);
     void calculateEmomMSum();
