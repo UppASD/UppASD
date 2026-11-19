@@ -24,6 +24,12 @@ namespace kernels::measurement
     constexpr int N_ENERGY_TYPES = 6;
     constexpr int N_BINDER_TYPES = 3;
 
+    struct AvgMProjChPart
+    {
+        real mx, my, mz;
+        real sum_magnitude;
+    };
+
     enum EnergyType : int
     {
         EXCH   = 0,

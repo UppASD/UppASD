@@ -79,9 +79,6 @@ private:
     StopwatchDeviceSync stopwatch;
     MeasurementWriter measurementWriter;
 
-
-    bool asitealloc;
-
     // Average magnetization
     const bool do_avrg;
     GpuVector<AverageMagnetizationData> mavg_buff_gpu;
@@ -92,7 +89,7 @@ private:
     Tensor<AverageMagnetizationData, 2> mavg_projch_buff_cpu;
     GpuVector<kernels::measurement::AvgMPart> mavg_partial_buff;
     GpuTensor<kernels::measurement::AvgMPart, 2> mavg_proj_partial_buff;
-    GpuTensor<kernels::measurement::AvgMPart, 2> mavg_projch_partial_buff;
+    GpuTensor<kernels::measurement::AvgMProjChPart, 2> mavg_projch_partial_buff;
     Vector<real> mavg_iter;
     const dim3 mavg_kernel_threads;
     const dim3 mavg_kernel_blocks;
@@ -174,7 +171,6 @@ private:
     const dim3 sumOverAtoms_NC_kernel_blocks;
 
     const dim3 sumOverAtoms_reduce_kernel_threads;
-    const dim3 sumOverAtoms_total_reduce_kernel_blocks;
     const dim3 sumOverAtoms_NT_reduce_kernel_blocks;
     const dim3 sumOverAtoms_NA_reduce_kernel_blocks;
     const dim3 sumOverAtoms_NC_reduce_kernel_blocks;

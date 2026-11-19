@@ -89,7 +89,6 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 {
     
     isAllocated = false;
-    asitealloc = false;
 
     if (do_avrg_proj == 'Y' || do_avrg_proj == 'A' || do_avrg_projch
         || do_cumu_proj == 'Y' || do_cumu_proj == 'A')
@@ -139,7 +138,8 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         mavg_iter.zeros();
         
         if((do_avrg_proj=='Y')){
-            mavg_proj_kernel_blocks = {1,1,1};
+            mavg_proj_kernel_threads = {256,1,1};
+            mavg_proj_kernel_blocks = {mm::ceil_div(M, mavg_proj_kernel_threads.x),NT,1};
             mavg_proj_buff_gpu.Allocate(NT, *FortranData::avrg_buff);
             mavg_proj_buff_gpu.zeros();
             mavg_proj_buff_cpu.AllocateHost(NT, *FortranData::avrg_buff);
@@ -148,7 +148,9 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             mavg_proj_partial_buff.zeros();
         }
         else if((do_avrg_proj=='A')){
-            mavg_proj_kernel_blocks = {1,1,1};
+            mavg_proj_kernel_threads = {256,1,1};
+
+            mavg_proj_kernel_blocks = {mm::ceil_div(M, mavg_proj_kernel_threads.x),NA,1};
             mavg_proj_buff_gpu.Allocate(NA, *FortranData::avrg_buff);
             mavg_proj_buff_gpu.zeros();
             mavg_proj_buff_cpu.AllocateHost(NA, *FortranData::avrg_buff);
@@ -158,6 +160,10 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 
         }
         if((do_avrg_projch=='Y')){
+            mavg_projch_kernel_threads = {256,1,1};
+
+            mavg_proj_kernel_blocks = {mm::ceil_div(M, mavg_projch_kernel_threads.x),Nchmax,1};
+
             mavg_projch_buff_gpu.Allocate(Nchmax, *FortranData::avrg_buff);
             mavg_projch_buff_gpu.zeros();
             mavg_projch_buff_cpu.AllocateHost(Nchmax, *FortranData::avrg_buff);
@@ -182,8 +188,14 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         if (do_ene==0) cumu_partial_buff.Allocate(cumu_kernel_blocks.x);
         else cumu_ene_partial_buff.Allocate(cumu_ene_kernel_blocks.x * cumu_ene_kernel_blocks.y);
 
-        if(do_cumu_proj == 'Y'){
-            cumu_proj_kernel_blocks = {1,1,1};
+
+        std::cout << "BinderCumulant observable added" << std::endl;
+    }
+
+           if(do_cumu_proj == 'Y'){
+            cumu_proj_kernel_threads = {256,1,1};
+
+            cumu_proj_kernel_blocks = {mm::ceil_div(M, cumu_proj_kernel_threads.x),NT,1};
 
             cumu_proj_buff_gpu.Allocate(NT);
             cumu_proj_buff_gpu.zeros();
@@ -195,7 +207,9 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             cumu_proj_partial_buff.zeros();
         }
         else if(do_cumu_proj == 'A'){
-            cumu_proj_kernel_blocks = {1,1,1};
+            cumu_proj_kernel_threads = {256,1,1};
+
+            cumu_proj_kernel_blocks = {mm::ceil_div(M, cumu_proj_kernel_threads.x),NA,1};
 
             cumu_proj_buff_gpu.Allocate(NA);
             cumu_proj_buff_gpu.zeros();
@@ -210,7 +224,8 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         
         if(do_cumu_projch){
 
-            cumu_projch_kernel_blocks = {1,1,1};
+            cumu_proj_kernel_threads = {256,1,1};
+            cumu_projch_kernel_blocks = {mm::ceil_div(M, cumu_proj_kernel_threads.x),NT,1};
 
             cumu_projch_buff_gpu.Allocate(NT);
             cumu_projch_buff_gpu.zeros();
@@ -221,9 +236,6 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
             cumu_projch_partial_buff.Allocate(cumu_projch_kernel_blocks.x, NT);
             cumu_projch_partial_buff.zeros();
         }
-
-        std::cout << "BinderCumulant observable added" << std::endl;
-    }
 
     if (do_avrg || do_cumu)
     {
@@ -432,34 +444,53 @@ void GpuMeasurement::release(){
 
     }
 
+    const bool need_avrg_site = do_avrg && do_avrg_proj == 'A';
+    const bool need_avrg_type = do_avrg && do_avrg_proj == 'Y';
+    const bool need_avrg_chem = do_avrg && do_avrg_projch == 'Y';
+    const bool need_cumu_type = do_cumu_proj == 'Y';
+
+    const bool need_type_map = need_avrg_type || need_cumu_type;
+    const bool need_asite_map = && (need_avrg_site || need_avrg_type);
+
+
     if (do_avrg || do_cumu)
     {
         emomMEnsembleSums.Free();
         emomMEnsembleSums_partial.Free();
-
-        if((do_avrg_proj=='Y')||(do_cumu_proj == 'Y')){
-            emomMEnsembleNTSums.Free();
-            emomMEnsembleNTSums_partial.Free();
-            atype_gpu.Free();
-            if(asitealloc){
-                asite_ch_gpu.Free();
-                asitealloc = false;
-            }
-        }
-        if((do_avrg_proj=='A')||(do_cumu_proj=='A')){
-            emomMEnsembleNASums.Free();
-            emomMEnsembleNASums_partial.Free();
-            if(asitealloc){
-                asite_ch_gpu.Free();
-                asitealloc = false;
-            }
-        }
-        if((do_avrg_projch=='Y')||(do_cumu_projch=='Y')){
-            emomMEnsembleNCSums.Free();
-            emomMEnsembleNCSums_partial.Free();
-            achem_ch_gpu.Free();          
-        }     
     }
+
+    if (need_avrg_site)
+    {
+        emomMEnsembleNASums.Free();
+        emomMEnsembleNASums_partial.Free();
+    }
+
+    if (need_avrg_type)
+    {
+        emomMEnsembleNTSums.Free();
+        emomMEnsembleNTSums_partial.Free();
+    }
+
+    if (need_avrg_chem)
+    {
+        emomMEnsembleNCSums.Free();
+        emomMEnsembleNCSums_partial.Free();
+    }
+
+    if (need_cumu_type)
+    {
+        emomMEnsembleCumuNTSums.Free();
+        emomMEnsembleCumuNTSums_partial.Free();
+    }
+
+    if (need_type_map)
+        atype_gpu.Free();
+
+    if (need_asite_map)
+        asite_ch_gpu.Free();
+
+    if (need_avrg_chem)
+        achem_ch_gpu.Free();
 
     if (do_skyno == SkyrmionMethod::BruteForce || do_skyno == SkyrmionMethod::Triangulation)
     {

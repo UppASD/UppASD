@@ -45,6 +45,8 @@ struct AverageMagnetizationData
     real m_stdv{};
 };
 
+
+
 struct BinderCumulantData
 {
     real avrgmcum{};      // Cumulated average of m
