@@ -224,7 +224,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         
         if(do_cumu_projch == 'Y'){
 
-            cumu_proj_kernel_threads = {256,1,1};
+            cumu_projch_kernel_threads = {256,1,1};
             cumu_projch_kernel_blocks = {mm::ceil_div(M, cumu_projch_kernel_threads.x),Nchmax,1};
 
             cumu_projch_buff_gpu.Allocate(Nchmax);
