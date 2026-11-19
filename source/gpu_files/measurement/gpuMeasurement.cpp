@@ -90,7 +90,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
     
     isAllocated = false;
 
-    if (do_avrg_proj == 'Y' || do_avrg_proj == 'A' || do_avrg_projch
+    if (do_avrg_proj == 'Y' || do_avrg_proj == 'A' || do_avrg_projch == 'Y'
         || do_cumu_proj == 'Y' || do_cumu_proj == 'A')
     {
         std::cout << "Warning: projected averages/cumulants are not yet computed on GPU, "
@@ -222,18 +222,18 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 
         }
         
-        if(do_cumu_projch){
+        if(do_cumu_projch == 'Y'){
 
             cumu_proj_kernel_threads = {256,1,1};
-            cumu_projch_kernel_blocks = {mm::ceil_div(M, cumu_proj_kernel_threads.x),NT,1};
+            cumu_projch_kernel_blocks = {mm::ceil_div(M, cumu_projch_kernel_threads.x),Nchmax,1};
 
-            cumu_projch_buff_gpu.Allocate(NT);
+            cumu_projch_buff_gpu.Allocate(Nchmax);
             cumu_projch_buff_gpu.zeros();
 
-            cumu_projch_buff_cpu.AllocateHost(NT);
+            cumu_projch_buff_cpu.AllocateHost(Nchmax);
             cumu_projch_buff_cpu.zeros();
 
-            cumu_projch_partial_buff.Allocate(cumu_projch_kernel_blocks.x, NT);
+            cumu_projch_partial_buff.Allocate(cumu_projch_kernel_blocks.x, Nchmax);
             cumu_projch_partial_buff.zeros();
         }
 
@@ -438,7 +438,7 @@ void GpuMeasurement::release(){
         cumu_proj_partial_buff.Free();
     }
 
-    if(do_cumu_projch){
+    if(do_cumu_projch == 'Y'){
         cumu_projch_buff_gpu.Free();
         cumu_projch_buff_cpu.FreeHost();
         cumu_projch_partial_buff.Free();
