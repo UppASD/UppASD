@@ -51,8 +51,14 @@ private:
     void measureEnergy(size_t mstep);
     static dim3 skyrmionKernelNumBlocks(SkyrmionMethod method, uint N, uint M, uint nsimp, uint kernel_threads);
     void calculateEmomMProjSiteSum();
-    void measureProjectedAverageMagnetization(size_t mstep);
+    void measureProjAverageMagnetization(size_t mstep);
+    void measureProjchAverageMagnetization(size_t mstep);
+    void measureProjBinderCumulant(size_t mstep);
     void selectTotalSumOwner(bool need_total, bool avrg_proj, bool avrg_projch, bool cumu_proj);
+
+    void calculateTypeProjSums(bool write_total);
+    void calculateSiteProjSums(bool write_total);
+    void calculateProjchSums(bool write_total);
 
     void measureAutocorrelation(size_t mstep);
     void release();
@@ -154,8 +160,7 @@ private:
     GpuTensor<real, 3> emomMEnsembleNASums; 
     GpuTensor<real, 4> emomMEnsembleNCSums_partial;
     GpuTensor<real, 3> emomMEnsembleNCSums; 
-    GpuTensor<real, 4> emomMEnsembleCumuNTSums_partial;
-    GpuTensor<real, 3> emomMEnsembleCumuNTSums;
+
 
 
     TotalSumOwner totalSumOwner = TotalSumOwner::None;

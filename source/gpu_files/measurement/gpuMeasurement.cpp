@@ -257,7 +257,7 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
     }
 
 
-    if (need_avrg_type)
+    if (need_type_map)
     {
         emomMEnsembleNTSums.Allocate(3, NT, M);
         emomMEnsembleNTSums.zeros();
@@ -266,7 +266,6 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
         emomMEnsembleNTSums_partial.zeros();
     }
 
-
     if (need_avrg_chem)
     {
         emomMEnsembleNCSums.Allocate(4, Nchmax, M);
@@ -274,15 +273,6 @@ GpuMeasurement::GpuMeasurement(const deviceLattice& gpuLattice,
 
         emomMEnsembleNCSums_partial.Allocate(nblocks, 4, Nchmax, M);
         emomMEnsembleNCSums_partial.zeros();
-    }
-
-    if (need_cumu_type)
-    {
-        emomMEnsembleCumuNTSums.Allocate(3, NT, M);
-        emomMEnsembleCumuNTSums.zeros();
-
-        emomMEnsembleCumuNTSums_partial.Allocate(nblocks, 3, NT, M);
-        emomMEnsembleCumuNTSums_partial.zeros();
     }
 
     if (do_skyno == SkyrmionMethod::BruteForce || do_skyno == SkyrmionMethod::Triangulation)
@@ -465,7 +455,7 @@ void GpuMeasurement::release(){
         emomMEnsembleNASums_partial.Free();
     }
 
-    if (need_avrg_type)
+    if (need_type_map)
     {
         emomMEnsembleNTSums.Free();
         emomMEnsembleNTSums_partial.Free();
@@ -475,12 +465,6 @@ void GpuMeasurement::release(){
     {
         emomMEnsembleNCSums.Free();
         emomMEnsembleNCSums_partial.Free();
-    }
-
-    if (need_cumu_type)
-    {
-        emomMEnsembleCumuNTSums.Free();
-        emomMEnsembleCumuNTSums_partial.Free();
     }
 
     if (need_type_map)
@@ -554,9 +538,39 @@ void GpuMeasurement::measure(std::size_t mstep)
     const bool avrg_projch = timeToMeasure(MeasurementSchedule::ChemicalProjectedAverageMagnetization, mstep);
     const bool cumu_proj = timeToMeasure(MeasurementSchedule::ProjectedBinderCumulant, mstep);
 
+
+    const bool type_proj_avg = avrg_proj && do_avrg_proj == 'Y';
+    const bool site_proj_avg = avrg_proj && do_avrg_proj == 'A';
+
+    const bool type_proj_needed = type_proj_avg || cumu_proj;
+
     selectTotalSumOwner(avrg || cumu,avrg_proj,avrg_projch,cumu_proj);
 
-    if (avrg || cumu)
+    if (type_proj_needed)
+    {
+        const bool write_total = totalSumOwner == TotalSumOwner::TypeAverage || totalSumOwner == TotalSumOwner::TypeCumulant;
+
+        calculateTypeProjSums(write_total);
+        stopwatch.add("type-projected magnetization sums");
+    }
+
+    if (site_proj_avg)
+    {
+        const bool write_total = totalSumOwner == TotalSumOwner::SiteAverage;
+
+        calculateSiteProjSums(write_total);
+        stopwatch.add("site-projected magnetization sums");
+    }
+
+    if (avrg_projch)
+    {
+        const bool write_total = totalSumOwner == TotalSumOwner::ChemicalAverage;
+
+        calculateProjchSums(write_total);
+        stopwatch.add("chemical-projected magnetization sums");
+    }
+
+    if (totalSumOwner == TotalSumOwner::Legacy)
     {
         calculateEmomMSum();
         stopwatch.add("sum reduction of emomM for shared use");
@@ -571,28 +585,20 @@ void GpuMeasurement::measure(std::size_t mstep)
 
     if (avrg_proj)
     {
-        if (do_avrg_proj == 'Y')
-        {
-            // TODO: type-projected average accumulation
-            // This path owns the total if totalSumOwner == TotalSumOwner::TypeAverage.
-        }
-        else if (do_avrg_proj == 'A')
-        {
-            // TODO: site-projected average accumulation
-            // This path owns the total if totalSumOwner == TotalSumOwner::SiteAverage.
-        }
+        measureProjAverageMagnetization(mstep);
+        stopwatch.add("projected average magnetization");
     }
 
     if (avrg_projch)
     {
-        // TODO: chemical-projected average accumulation
-        // This path owns the total if totalSumOwner == TotalSumOwner::ChemicalAverage.
+        measureProjchAverageMagnetization(mstep);
+        stopwatch.add("chemical projected average magnetization");
     }
 
     if (cumu_proj)
     {
-        // TODO: type-projected cumulant accumulation
-        // This path owns the total if totalSumOwner == TotalSumOwner::TypeCumulant.
+        measureProjBinderCumulant(mstep);
+        stopwatch.add("projected binder cumulant");
     }
 
     if (avrg)
@@ -739,6 +745,34 @@ void GpuMeasurement::measureAverageMagnetization(std::size_t mstep)
     {
         saveToFile(MeasurementType::AverageMagnetization);
     }
+}
+
+void GpuMeasurement::measureProjAverageMagnetization(size_t mstep){
+
+    if (do_avrg_proj == 'Y')
+    {
+       // const bool write_total = totalSumOwner == TotalSumOwner::TypeAverage;
+
+        // TODO: type-projected accumulation and finalization.
+        // Also produce emomMEnsembleSums if write_total.
+    }
+    else if (do_avrg_proj == 'A')
+    {
+      //  const bool write_total = totalSumOwner == TotalSumOwner::SiteAverage;
+
+        // TODO: site-projected accumulation and finalization.
+        // Also produce emomMEnsembleSums if write_total.
+    }
+
+}
+void GpuMeasurement::measureProjchAverageMagnetization(size_t mstep){
+    //const bool write_total = totalSumOwner == TotalSumOwner::ChemicalAverage;
+
+}
+
+void GpuMeasurement::measureProjBinderCumulant(size_t mstep){
+   //const bool write_total = totalSumOwner == TotalSumOwner::TypeCumulant;
+
 }
 
 
@@ -958,6 +992,16 @@ void GpuMeasurement::calculateEnergySumsOverAtoms()
     ASSERT_GPU_KERNEL("sumEnergyOverAtoms_finalize");
 }
 
+void GpuMeasurement::calculateTypeProjSums(bool write_total){
+
+}
+
+void GpuMeasurement::calculateSiteProjSums(bool write_total){
+
+}
+void GpuMeasurement::calculateProjchSums(bool write_total){
+
+}
 
 void GpuMeasurement::saveToFile(MeasurementType mtype)
 {
