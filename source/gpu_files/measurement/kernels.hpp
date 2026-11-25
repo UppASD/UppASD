@@ -24,12 +24,12 @@ namespace kernels::measurement
     constexpr int N_ENERGY_TYPES = 6;
     constexpr int N_BINDER_TYPES = 3;
 
-struct AvgMProjChPart
-{
-    real mx, my, mz;
-    real m, m2;
-    real sum_magnitude;
-};
+    struct AvgMProjChPart
+    {
+        real mx, my, mz;
+        real m, m2;
+        real sum_magnitude;
+    };
 
     enum EnergyType : int
     {
@@ -60,6 +60,13 @@ struct AvgMProjChPart
         real sum2[N_BINDER_TYPES];
         real sum4[N_BINDER_TYPES];
     };
+
+    enum class ProjectionMapMode : int
+{
+    Mapped1Based,
+    SiteModulo
+};
+
 
     // ----------------------------- kernels: declarations ----------------------------
     
@@ -170,11 +177,13 @@ struct AvgMProjChPart
                                         EnergyData& ene);
 
     // Projected stuff.
-    __global__ void sumOverAtomsProj_partial(const GpuTensor<real, 3> in_tensor,
-                                         GpuTensor<real, 3> block_parts);
-    __global__ void sumOverAtomsProj_finalize(const GpuTensor<real, 3> block_parts,
-                                          uint nblocks,
-                                          GpuTensor<real, 2> emomMEnsembleSums);
+__global__ void projectedSumsPartial(const GpuTensor<real, 3> emomM, const GpuVector<int> projectionMap, uint nGroups,
+                                    uint nComponents, ProjectionMapMode mapMode,GpuTensor<real, 4> blockParts);
+
+__global__ void projectedSumsFinalize(const GpuTensor<real, 4> blockParts, uint nBlocks,uint nGroups, uint ensembles,
+                                    uint nComponents, GpuTensor<real, 3> projectedSums);
+
+__global__ void sumProjectedGroupsToTotal(const GpuTensor<real, 3> projectedSums, uint nGroups, GpuTensor<real, 2> totalSums);
 
     // ----------------------------- small helpers (host) -----------------------------
     template<class T>

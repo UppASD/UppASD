@@ -1049,49 +1049,110 @@ __global__ void kernels::measurement::averageEnergy_final(const EnePart* __restr
 // ============================================================================
 // Projected stuff
 // ============================================================================
-__global__ void kernels::measurement::sumOverAtomsProj_partial(const GpuTensor<real, 3> in_tensor,
-        GpuTensor<real, 3> block_parts)
-{
-    const uint N_atoms     = static_cast<uint>(in_tensor.extent(1));
-    const uint M_ensembles = static_cast<uint>(in_tensor.extent(2));
+__global__ void kernels::measurement::projectedSumsPartial(const GpuTensor<real, 3> emomM, const GpuVector<int> projectionMap, uint nGroups,
+                                                        uint nComponents, ProjectionMapMode mapMode, GpuTensor<real, 4> blockParts){
+    const uint N = emomM.extent(1);
+    const uint M = emomM.extent(2);
 
-    const uint q = blockIdx.y;      // 0..(3*M-1)
-    const uint i = q % 3u;          // component
-    const uint k = q / 3u;          // ensemble
-    if (k >= M_ensembles) return;
+    const uint group = blockIdx.y;
+    const uint ensemble = blockIdx.z;
 
-    real local{};
-    for (uint j = blockIdx.x * blockDim.x + threadIdx.x; j < N_atoms; j += blockDim.x * gridDim.x)
-        local += in_tensor(i, j, k);
+    if (group >= nGroups || ensemble >= M)
+        return;
 
+    real sx = 0;
+    real sy = 0;
+    real sz = 0;
+    real smag = 0;
 
-    extern __shared__ real s[];
-    real block_sum = block_reduce_sum_1d(local, s);
+    const uint stride = blockDim.x * gridDim.x;
 
-    if (threadIdx.x == 0)
-        block_parts(blockIdx.x, i, k) = block_sum;
+    for (uint atom = blockIdx.x * blockDim.x + threadIdx.x; atom < N; atom += stride){
+        int atomGroup;
+
+        if (mapMode == ProjectionMapMode::SiteModulo)
+            atomGroup = atom % nGroups;
+        else
+            atomGroup = projectionMap(atom) - 1;
+
+        if (atomGroup != static_cast<int>(group))
+            continue;
+
+        const real mx = emomM(0, atom, ensemble);
+        const real my = emomM(1, atom, ensemble);
+        const real mz = emomM(2, atom, ensemble);
+
+        sx += mx;
+        sy += my;
+        sz += mz;
+
+        if (nComponents == 4)
+            smag += sqrt(mx * mx + my * my + mz * mz);
+    }
+
+    extern __shared__ real shared[];
+
+    real r = block_reduce_sum_1d(sx, shared);
+    if (threadIdx.x == 0) blockParts(blockIdx.x, 0, group, ensemble) = r;
+    __syncthreads();
+
+    r = block_reduce_sum_1d(sy, shared);
+    if (threadIdx.x == 0) blockParts(blockIdx.x, 1, group, ensemble) = r;
+    __syncthreads();
+
+    r = block_reduce_sum_1d(sz, shared);
+    if (threadIdx.x == 0) blockParts(blockIdx.x, 2, group, ensemble) = r;
+    __syncthreads();
+
+    if (nComponents == 4)
+    {
+        r = block_reduce_sum_1d(smag, shared);
+        if (threadIdx.x == 0) blockParts(blockIdx.x, 3, group, ensemble) = r;
+    }
 }
 
+__global__ void kernels::measurement::projectedSumsFinalize(const GpuTensor<real, 4> blockParts, uint nBlocks, uint nGroups,
+                                                        uint ensembles, uint nComponents, GpuTensor<real, 3> projectedSums){
+    const uint group = blockIdx.x;
+    const uint ensemble = blockIdx.y;
 
-__global__ void kernels::measurement::sumOverAtomsProj_finalize(const GpuTensor<real, 3> block_parts,
-                                                            uint nblocks,
-                                                            GpuTensor<real, 2> emomMEnsembleSums)
-{
-    const uint M_ensembles = static_cast<uint>(emomMEnsembleSums.extent(1));
+    if (group >= nGroups || ensemble >= ensembles)
+        return;
 
-    const uint q = blockIdx.x;      // 0 .. (3*M_ensembles - 1)
-    const uint i = q % 3u;          // component
-    const uint k = q / 3u;          // ensemble
-    if (k >= M_ensembles) return;
+    real local[4] = {0, 0, 0, 0};
 
-    extern __shared__ real s[];
+    for (uint b = threadIdx.x; b < nBlocks; b += blockDim.x)
+    {
+        for (uint c = 0; c < nComponents; ++c)
+            local[c] += blockParts(b, c, group, ensemble);
+    }
+
+    extern __shared__ real shared[];
+
+    for (uint c = 0; c < nComponents; ++c)
+    {
+        real sum = block_reduce_sum_1d(local[c], shared);
+
+        if (threadIdx.x == 0)
+            projectedSums(c, group, ensemble) = sum;
+
+        __syncthreads();
+    }
+}
+
+__global__ void kernels::measurement::sumProjectedGroupsToTotal(const GpuTensor<real, 3> projectedSums, uint nGroups, GpuTensor<real, 2> totalSums){
+    const uint component = blockIdx.x;
+    const uint ensemble = blockIdx.y;
 
     real local = 0;
-    for (uint bid = threadIdx.x; bid < nblocks; bid += blockDim.x)
-        local += block_parts(bid, i, k);
 
-    real sum = block_reduce_sum_1d(local, s);
+    for (uint group = threadIdx.x; group < nGroups; group += blockDim.x)
+        local += projectedSums(component, group, ensemble);
+
+    extern __shared__ real shared[];
+
+    real total = block_reduce_sum_1d(local, shared);
 
     if (threadIdx.x == 0)
-        emomMEnsembleSums(i, k) = sum;
+        totalSums(component, ensemble) = total;
 }
